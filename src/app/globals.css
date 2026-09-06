@@ -1,0 +1,264 @@
+/* 🎨 النمط والتنسيق العام الفاتح بالكحلي الملكي لجامعة الإمام جعفر الصادق (ع) - فرع ميسان */
+
+/* 📦 استيراد خط تجوال العربي الأكاديمي الفاخر من قوقل فونتس */
+@import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap');
+@import "tailwindcss";
+
+:root {
+  /* 🎨 الألوان المعتمدة للهوية الكحلية الأكاديمية بالكامل بدلاً من البرتقالي */
+  --primary-navy: #020617;        /* 🏛️ الكحلي الأسود الداكن الملوكي الرئيسي للنصوص */
+  --secondary-navy: #1e3a8a;      /* 💙 الكحلي الثانوي الفاخر */
+  --bg-light: #f8fafc;            /* 🤍 الخلفية الرخامية الفاتحة */
+  --text-main: #020617;           /* 🖤 لون النص الأسود الصريح والواضح */
+}
+
+body {
+  /* 🔤 تطبيق الخط العربي التلقائي والاتجاه من اليمين لليسار واللون الأسود الحاد والمريح */
+  font-family: 'Tajawal', system-ui, -apple-system, sans-serif;
+  direction: rtl;
+  background-color: #f8fafc; /* 🤍 خلفية فاتحة ناصعة */
+  color: #020617;            /* 🖤 نص أسود داكن واضح ومريح للعين 100% */
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* 🔤 إلغاء خط mono بالكامل وفرض خط تجوال العربي الأكاديمي على كافة العناصر */
+code, pre, kbd, samp, .font-mono, [class*="font-mono"] {
+  font-family: 'Tajawal', system-ui, -apple-system, sans-serif !important;
+}
+
+/* 📜 نمط وطباعة البطاقات الأكاديمية والوثائق الرسمية A4 بجودة عالية 100% */
+@media print {
+  /* 📐 1. ضبط أبعاد ورقة A4 وتحديد هوامش طباعة دقيقة */
+  @page {
+    size: A4 portrait;
+    margin: 8mm 6mm;
+  }
+
+  /* 🌟 2. تصفير هوامش الصفحة بالكامل وفرض جودة الألوان والرسوميات بدون تشويش */
+  html, body {
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* 🛑 3. إخفاء جسم التطبيق بالكامل أثناء وجود نافذة طباعة نشطة (منع ظهور أي صفحات بيضاء فارغة) */
+  body.print-modal-active > *:not(#printable-modal-portal),
+  body:has(#printable-modal-portal) > *:not(#printable-modal-portal) {
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    max-height: 0 !important;
+    overflow: hidden !important;
+  }
+
+  /* 🖨️ 4. فك كافة قيود المودال والبورتال وجعله يتدفق بشكل طبيعي وحر عبر صفحات الورق */
+  #printable-modal-portal {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    transform: none !important;
+  }
+
+  #printable-modal-portal > div {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+  }
+
+  /* 🚫 5. إخفاء أي عنصر يحمل no-print أو print:hidden (أزرار الهيدر والإغلاق والفلترة) */
+  .no-print,
+  .print\:hidden {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  /* 🖨️ 6. منطقة البطاقات تصبح بتدفق ممتد بدون أي شريط تمرير داخلي scrollbar إطلاقاً */
+  .printable-batch-area {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+  }
+
+  .printable-batch-area,
+  .printable-batch-area * {
+    visibility: visible !important;
+  }
+
+  /* 📄 7. منع تمزيق أو قص البطاقات بين صفحتين أثناء تقسيم الورق وتوزيعها بشكل متناسق */
+  .break-inside-avoid,
+  [class*="break-inside-avoid"] {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* 📦 8. إلغاء أي حدود أو خلفيات رمادية غير مرغوبة عند الطباعة */
+  .no-print-bg {
+    background: transparent !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  /* 🎴 9. هندسة شبكة الـ 8 بطاقات بالصفحة الواحدة A4 (2 عمود × 4 صفوف بارتفاع دقيق 66mm لتثبيت 8 بطاقات لكل صفحة) */
+  .cards-grid-8 {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 3mm !important;
+    width: 100% !important;
+    page-break-inside: auto !important;
+  }
+
+  .card-item-8 {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    height: 66mm !important;
+    max-height: 66mm !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: flex-start !important;
+    gap: 0.8mm !important;
+    padding: 1mm !important;
+  }
+
+  /* 📏 تمديد حاوية الجدول بارتفاع صريح 48mm لتشغل كامل المساحة حتى نهاية الكارد الـ 66mm */
+  .card-item-8 .card-table-container {
+    flex: 1 1 auto !important;
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 48mm !important;
+    height: 48mm !important;
+    max-height: 48mm !important;
+    width: 100% !important;
+  }
+
+  .card-item-8 table {
+    width: 100% !important;
+    min-width: 100% !important;
+    max-width: 100% !important;
+    height: 48mm !important;
+    min-height: 48mm !important;
+    border-collapse: collapse !important;
+    table-layout: fixed !important;
+    flex: 1 1 auto !important;
+  }
+
+  .card-item-8 tbody {
+    display: table-row-group !important;
+    height: 48mm !important;
+  }
+
+  /* 📐 تقسيم الصفوف الثلاثة بالتساوي بارتفاع مليمترى صريح 16mm لكل صف لملء الكارد بالكامل */
+  .card-item-8 tr {
+    height: 16mm !important;
+    min-height: 16mm !important;
+    max-height: 16mm !important;
+  }
+
+  /* 🔒 تثبيت ارتفاع كل خلية بـ 16mm وتوسيط محتواها وعزلها تماماً لمنع أي تسريب أو قص */
+  .card-item-8 td {
+    height: 16mm !important;
+    min-height: 16mm !important;
+    max-height: 16mm !important;
+    vertical-align: middle !important;
+    padding-top: 0.5mm !important;
+    padding-bottom: 0.5mm !important;
+    padding-left: 0.8mm !important;
+    padding-right: 0.8mm !important;
+    overflow: hidden !important;
+    box-sizing: border-box !important;
+  }
+
+  /* 🛡️ منع أي عنصر داخلي من تجاوز عرض الخلية المخصصة له */
+  .card-item-8 td * {
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+}
+
+/* 🎨 تأثير الألواح الكحلية الفاخرة (Navy Light Panel) */
+.navy-panel {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 4px 6px -1px rgba(15, 23, 42, 0.05);
+}
+
+/* 📋 ضبط ومحاذاة القوائم المنسدلة وعناصر الاختيار داخل الشاشة دائماً */
+select, option {
+  direction: rtl;
+  text-align: right;
+}
+
+/* 🔒 منع أي تدفق أفقي وتثبيت مجرى شريط التمرير العمودي دائماً لمنع قفز وتحرك العناصر */
+html {
+  overflow-y: scroll;
+}
+
+@supports (scrollbar-gutter: stable) {
+  html {
+    scrollbar-gutter: stable;
+  }
+}
+
+html, body {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+/* 👁️ إخفاء زر إظهار كلمة المرور الافتراضي الخاص بالمتصفح (Edge/Chrome ::-ms-reveal) لمنع تكرار أيقونة العين */
+input::-ms-reveal,
+input::-ms-clear {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+input::-webkit-credentials-auto-fill-button {
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+/* 📝 تنسيق رصاصي راقي واحترافي لكافة نصوص التلميح التوضيحية بكل النظام حتى ما تبين چنها كتابة حقيقية */
+input::placeholder,
+textarea::placeholder {
+  color: #94a3b8 !important; /* 🎨 رصاصي أنيق وواضح (slate-400) */
+  font-weight: 500 !important; /* 🔤 وزن خط متناسق وخفيف مو ثقيل مثل النص المدخل */
+  opacity: 1 !important; /* 👁️ وضوح تام بدون تغبيش المتصفح الافتراضي */
+}
+
