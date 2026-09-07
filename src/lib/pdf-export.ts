@@ -2812,6 +2812,329 @@ export async function exportBolognaAttendanceReportPDF(options: ExportBolognaAtt
   }
 }
 
+// ==============================================================================
+// 📋 واجهة بيانات المقرر الدراسي لتصدير الـ PDF الأكاديمي المعتمد
+// ==============================================================================
+export interface DepartmentCoursePDFItem {
+  id: string; // 🆔 الآيدي المميز للمادة
+  name: string; // 📘 اسم المادة الدراسية بالعربي
+  code: string; // 🏷️ كود المادة الأكاديمي
+  stage: number; // 🎓 رقم المرحلة الدراسية من 1 لـ 4
+  semester: number; // 🗓️ الكورس الدراسي 1 أو 2
+  course_type: string; // 🔬 نوع المادة إذا نظري فقط أو نظري وعملي
+  credits?: number | null; // ⏱️ وحدات وساعات بولونيا المعتمدة ECTS
+  theory_hours?: number; // 📚 ساعات النظري الأسبوعية
+  practical_hours?: number; // 🧪 ساعات العملي الأسبوعية
+  theory_teacher_name?: string; // 👨‍🏫 اسم أستاذ النظري المكلف
+  practical_teacher_name?: string; // 🧪 اسم أستاذ العملي المكلف
+  is_final_exam_enabled?: boolean; // 🎯 حالة رصد درجات الفاينل الدور الأول
+  is_supplementary_exam_enabled?: boolean; // 🔄 حالة رصد درجات الدور الثاني
+}
+
+// ==============================================================================
+// 📋 واجهة خيارات تصدير جدول ومقررات القسم بصيغة PDF A4 Landscape
+// ==============================================================================
+export interface ExportDepartmentCoursesPDFOptions {
+  departmentName: string; // 🏢 اسم القسم الأكاديمي
+  collegeName?: string; // 🏛️ اسم الكلية التابع إلها القسم
+  academicYear?: string; // 📅 السنة الدراسية المعتمدة
+  departmentHeadName?: string; // 👤 اسم رئيس القسم الأكاديمي
+  rapporteurName?: string; // 👤 اسم مقرر القسم الأكاديمي
+  stageFilter?: number | 'all'; // 🎓 تصفية المرحلة المحددة إذا جانت مفلترة
+  semesterFilter?: number | 'all'; // 🗓️ تصفية الكورس المحدد إذا جان مفلتر
+  isSelectiveExport?: boolean; // 🔍 هل التصدير لمواد محددة فقط اختارهن المستخدم؟
+  courses: DepartmentCoursePDFItem[]; // 📚 مصفوفة المواد والمقررات المراد طباعتها
+}
+
+// ==============================================================================
+// 🖨️ دالة توليد وتصدير كشف المواد والمقررات الدراسية الرسمية المعتمدة بصيغة PDF A4 Landscape
+// ==============================================================================
+export async function exportDepartmentCoursesPDF(options: ExportDepartmentCoursesPDFOptions): Promise<boolean> {
+  // 🌐 التأكد من وجود نافذة المتصفح حتى لا يضرب بالسيرفر
+  if (typeof window === 'undefined') return false;
+
+  // 🛡️ 1. فحص سقف معدل الطلبات للعمليات الثقيلة لمنع الضغط المفرط
+  const rateLimit = checkRateLimit(`dept-courses-${options.departmentName}`, 'HEAVY_COMPUTE');
+  // 🔍 إذا تجاوز المستخدم الحد المسموح نعرضله إشعار ونوقف العملية
+  if (!rateLimit.allowed) {
+    showPdfToast(rateLimit.reason || '⚠️ يرجى الانتظار شوية قبل تصدير ملف جديد لحماية المنظومة.');
+    return false;
+  }
+
+  // 🔒 2. قفل التزامن الفردي حتى لا يضغط الزر مرتين بنفس اللحظة
+  const lockKey = `pdf-export-dept-courses-${options.departmentName}`;
+  // 🛑 فحص أخذ القفل بنجاح
+  if (!acquireHeavyTaskLock(lockKey)) {
+    showPdfToast('⏳ عملية تجهيز كشف المواد قيد المعالجة، انتظر لحظات وتكمل.');
+    return false;
+  }
+
+  // 📦 تفكيك المتغيرات من كائن الخيارات الممرر للدالة
+  const {
+    departmentName, // 🏢 اسم القسم
+    collegeName = 'كلية تكنولوجيا المعلومات', // 🏛️ اسم الكلية الافتراضي
+    academicYear = getAcademicYear(), // 📅 العام الدراسي
+    departmentHeadName = 'رئاسة القسم العلمي', // 👤 اسم رئيس القسم
+    rapporteurName = 'مقررية القسم العلمي', // 👤 اسم المقرر
+    stageFilter = 'all', // 🎓 المرحلة المفلترة
+    semesterFilter = 'all', // 🗓️ الكورس المفلتر
+    isSelectiveExport = false, // 🔍 هل التصدير محدد
+    courses, // 📚 قائمة المواد
+  } = options;
+
+  // 🎯 توحيد وتنسيق العام الدراسي ليطلع 2026 - 2027
+  const displayAcademicYear = formatAcademicYearForPDF(academicYear);
+
+  // 🕒 تاريخ اليوم الحالي بالتنسيق العربي العراقي الجميل
+  const todayStr = new Date().toLocaleDateString('ar-IQ-u-nu-latn', {
+    year: 'numeric', // 🗓️ السنة
+    month: 'long', // 🌙 الشهر بالاسم العربي
+    day: 'numeric', // ☀️ اليوم
+  });
+
+  // 🎓 تحويل رقم المرحلة المفلترة للاسم العربي
+  const stageFilterText = stageFilter === 1 ? 'المرحلة الأولى' : stageFilter === 2 ? 'المرحلة الثانية' : stageFilter === 3 ? 'المرحلة الثالثة' : stageFilter === 4 ? 'المرحلة الرابعة' : 'كافة المراحل الدراسية';
+  // 🗓️ تحويل رقم الكورس المفلتر للاسم العربي
+  const semesterFilterText = semesterFilter === 1 ? 'الكورس الأول' : semesterFilter === 2 ? 'الكورس الثاني' : 'كافة الكورسات';
+
+  // 🏗️ إنشاء الحاوية المؤقتة لتجهيز شكل الصفحة قبل التحويل لصورة
+  const container = document.createElement('div');
+  container.style.position = 'fixed'; // 📌 تثبيت العنصر
+  container.style.top = '-9999px'; // 🙈 إخفاء العنصر خارج الشاشة من فوق
+  container.style.left = '-9999px'; // 🙈 إخفاء العنصر خارج الشاشة من اليسار
+  container.style.width = '1123px'; // 📐 عرض ورقة A4 بالعرض Landscape تماماً
+  container.style.minHeight = '794px'; // 📐 ارتفاع ورقة A4 بالعرض Landscape تماماً
+  container.style.padding = '24px 30px'; // 🔲 حواف داخلية مريحة ومتناسقة
+  container.style.backgroundColor = '#ffffff'; // ⚪ خلفية بيضاء نقية للطباعة الرسمية
+  container.style.color = '#000000'; // ⚫ لون نص أسود داكن عالي التباين
+  container.style.fontFamily = "'Tajawal', sans-serif"; // ✍️ خط تجوال العربي الرسمي
+  container.style.direction = 'rtl'; // ➡️ توجيه من اليمين لليسار
+  container.style.boxSizing = 'border-box'; // 📏 ضبط نظام البوكس موديل
+
+  // 🧮 إحصائيات المقررات المعروضة بالكشف
+  const totalCoursesCount = courses.length; // 🔢 إجمالي عدد المواد بالكشف
+  const theoryPracticalCount = courses.filter((c) => c.course_type === 'theory_and_practical' || (c.practical_hours && c.practical_hours > 0)).length; // 🧪 عدد مواد النظري والعملي
+  const theoryOnlyCount = courses.filter((c) => c.course_type === 'theory_only' && (!c.practical_hours || c.practical_hours === 0)).length; // 📖 عدد مواد النظري فقط
+  const totalEctsCredits = courses.reduce((acc, c) => acc + (c.credits || 5), 0); // ⏱️ إجمالي وحدات بولونيا
+
+  // 🔍 فحص هل يوجد أي مادة لديها الدور الأول أو الدور الثاني مفتوح لإخفاء الأعمدة بالكامل عند الإغلاق
+  const hasAnyFinalExamOpen = courses.some((c) => c.is_final_exam_enabled === true); // 🎯 هل الدور الأول مفتوح لأي مادة بالكشف؟
+  const hasAnySupplementaryOpen = courses.some((c) => c.is_supplementary_exam_enabled === true); // 🔄 هل الدور الثاني مفتوح لأي مادة بالكشف؟
+
+  // 📝 توليد صفوف جدول المواد سطراً بسطر باحترافية وتنسيق عالي
+  const tableRowsHtml = courses.map((c, idx) => {
+    // 🧪 فحص إذا المادة بيها عملي
+    const isPractical = c.course_type === 'theory_and_practical' || (c.practical_hours !== undefined && c.practical_hours > 0);
+    // 🎓 اسم المرحلة العربي
+    const stageName = c.stage === 1 ? 'الأولى' : c.stage === 2 ? 'الثانية' : c.stage === 3 ? 'الثالثة' : c.stage === 4 ? 'الرابعة' : `${c.stage}`;
+    // 🗓️ اسم الكورس العربي
+    const semName = c.semester === 1 ? 'الأول' : 'الثاني';
+    // 🎨 تلوين تبادلي خفيف جداً للصفوف للقراءة المريحة
+    const rowBg = idx % 2 === 0 ? '#ffffff' : '#f8fafc';
+
+    return `
+      <tr style="border-bottom: 1.5px solid #cbd5e1; background-color: ${rowBg}; text-align: center; vertical-align: middle; font-size: 11px; color: #000000; height: 34px;">
+        <td style="padding: 0 4px; font-weight: 900; border: 1.5px solid #94a3b8; width: 32px; color: #0f172a; text-align: center; vertical-align: middle;">${idx + 1}</td>
+        <td style="padding: 0 8px; font-weight: 900; text-align: right; border: 1.5px solid #94a3b8; font-size: 11.5px; color: #0f172a; vertical-align: middle;">${escapeHtml(c.name)}</td>
+        <td style="padding: 0 4px; border: 1.5px solid #94a3b8; font-weight: 900; font-family: monospace; color: #0369a1; text-align: center; vertical-align: middle; width: 75px;">${escapeHtml(c.code)}</td>
+        <td style="padding: 0 4px; border: 1.5px solid #94a3b8; font-weight: 800; color: #0f172a; text-align: center; vertical-align: middle; width: 120px;">${stageName} — كورس ${semName}</td>
+        <td style="padding: 0 4px; border: 1.5px solid #94a3b8; font-weight: 800; color: #0f172a; text-align: center; vertical-align: middle; width: 95px;">
+          ${isPractical ? '<span style="color: #065f46; font-weight: 900;">نظري وعملي</span>' : '<span style="color: #475569; font-weight: 900;">نظري فقط</span>'}
+        </td>
+        <!-- ⚖️ عمود عدد وحدات بولونيا ECTS مع حاوية LTR صريحة لمنع تداخل الأرقام مع النص -->
+        <td style="padding: 0 4px; border: 1.5px solid #94a3b8; font-weight: 900; color: #0f172a; text-align: center; vertical-align: middle; width: 85px;">
+          <!-- 📦 فلكس بوكس صريح LTR لفصل رقم الوحدات عن كلمة ECTS تماماً وتجنب التراكب في html2canvas -->
+          <div dir="ltr" style="display: inline-flex; align-items: center; justify-content: center; gap: 5px; width: 100%;">
+            <!-- 🔢 رقم الساعات المعتمدة للوحدة مع خط تجوال لمنع التصاق الرموز -->
+            <span style="font-weight: 900; font-size: 12px; color: #0f172a; font-family: 'Tajawal', sans-serif;">${c.credits || 5}</span>
+            <!-- 🌐 رمز وحدات بولونيا ECTS الأكاديمي -->
+            <span style="font-size: 10px; color: #475569; font-weight: 800; font-family: 'Tajawal', sans-serif;">ECTS</span>
+          </div>
+        </td>
+        <td style="padding: 0 6px; border: 1.5px solid #94a3b8; font-weight: 800; color: #0f172a; text-align: right; vertical-align: middle;">
+          ${escapeHtml(c.theory_teacher_name || '— لم يحدد —')}
+        </td>
+        <td style="padding: 0 6px; border: 1.5px solid #94a3b8; font-weight: 800; color: #0f172a; text-align: right; vertical-align: middle;">
+          ${isPractical ? escapeHtml(c.practical_teacher_name || '— لم يحدد —') : '<span style="color: #94a3b8;">— نظري فقط</span>'}
+        </td>
+        ${hasAnyFinalExamOpen ? `
+          <td style="padding: 0 4px; border: 1.5px solid #94a3b8; font-weight: 900; text-align: center; vertical-align: middle; width: 110px;">
+            ${c.is_final_exam_enabled 
+              ? '<span style="color: #0284c7; font-weight: 900;">مفتوح للرصد</span>' 
+              : '<span style="color: #94a3b8;">—</span>'}
+          </td>
+        ` : ''}
+        ${hasAnySupplementaryOpen ? `
+          <td style="padding: 0 4px; border: 1.5px solid #94a3b8; font-weight: 900; text-align: center; vertical-align: middle; width: 110px;">
+            ${c.is_supplementary_exam_enabled 
+              ? '<span style="color: #0284c7; font-weight: 900;">مفتوح للرصد</span>' 
+              : '<span style="color: #94a3b8;">—</span>'}
+          </td>
+        ` : ''}
+      </tr>
+    `;
+  }).join('');
+
+  // 📄 تجهيز قالب الـ HTML الكامل للوثيقة الرسمية متضمن الترويسة والجدول والتواقيع
+  container.innerHTML = `
+    <div style="display: flex; flex-direction: column; justify-content: space-between; min-height: 746px;">
+      
+      <div>
+        <!-- 🏛️ الترويسة الأكاديمية الرسمية للجامعة والوزارة -->
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2.5px solid #0F2942; padding-bottom: 12px;">
+          <div style="text-align: right; line-height: 1.4; color: #000000;">
+            <p style="margin: 0; font-size: 11px; font-weight: 900; color: #475569;">جمهورية العراق — وزارة التعليم العالي والبحث العلمي</p>
+            <h2 style="margin: 3px 0 0; font-size: 15px; font-weight: 900; color: #0F2942;">جامعة الإمام جعفر الصادق (ع) — فرع ميسان</h2>
+            <p style="margin: 2px 0 0; font-size: 12px; font-weight: 900; color: #1e293b;">${escapeHtml(collegeName)} — قسم ${escapeHtml(departmentName)}</p>
+          </div>
+
+          <div style="text-align: center;">
+            <img src="/logo.webp" alt="شعار الجامعة" style="width: 65px; height: 65px; object-fit: contain;" />
+            <!-- 🏷️ عنوان النظام مقسم لسطرين نظيفين لمنع انكسار الأقواس واللغات -->
+            <div style="font-size: 11px; font-weight: 900; color: #0F2942; margin-top: 2px;">مسار بولونيا</div>
+            <!-- 🌐 الاسم الإنكليزي موجه LTR ومفصول تماماً -->
+            <div dir="ltr" style="font-size: 9px; font-weight: 800; color: #475569; margin-top: 1px;">Bologna Process</div>
+          </div>
+
+          <div style="text-align: left; line-height: 1.45; font-size: 11px; font-weight: 900; color: #000000;">
+            <p style="margin: 0; color: #0F2942;">العام الدراسي: <strong>${escapeHtml(displayAcademicYear)}</strong></p>
+            <p style="margin: 0; color: #475569;">نطاق الكشف: <strong>${escapeHtml(stageFilterText)} (${escapeHtml(semesterFilterText)})</strong></p>
+            <p style="margin: 0; color: #475569;">تاريخ الإصدار: <strong>${todayStr}</strong></p>
+            <p style="margin: 0; color: #0369a1;">إجمالي المواد المعتمدة: <strong>${totalCoursesCount} مادة</strong></p>
+          </div>
+        </div>
+
+        <!-- 🏷️ عنوان الوثيقة البارز بدون تداخل الحروف -->
+        <div style="text-align: center; margin: 12px 0 10px 0;">
+          <h1 style="margin: 0; font-size: 16.5px; font-weight: 900; color: #0F2942; letter-spacing: normal;">
+            كشف المقررات والمناهج الدراسية وتوصيف الأساتذة والأدوار الامتحانية
+          </h1>
+          <p style="margin: 4px 0 0; font-size: 11.5px; font-weight: 900; color: #334155; letter-spacing: normal;">
+            قسم ${escapeHtml(departmentName)} ${isSelectiveExport ? '(كشف خاص بالمواد المحددة)' : '— القائمة الأكاديمية المعتمدة'}
+          </p>
+        </div>
+
+        <!-- 🧮 شريط إحصائيات المقررات المعتمدة بدون إيموجيات مشوهة لضمان طباعة رسمية ونقية -->
+        <div style="display: flex; justify-content: space-between; align-items: center; background-color: #f1f5f9; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 6px 16px; margin-bottom: 10px; font-size: 11px; font-weight: 900; color: #0f172a;">
+          <div>إجمالي المواد بالكشف: <span style="color: #0F2942; font-weight: 900;">${totalCoursesCount} مادة</span></div>
+          <div>المواد النظرية والعملية: <span style="color: #065f46; font-weight: 900;">${theoryPracticalCount} مادة</span></div>
+          <div>المواد النظرية فقط: <span style="color: #475569; font-weight: 900;">${theoryOnlyCount} مادة</span></div>
+          <div>إجمالي وحدات بولونيا: <span style="color: #0369a1; font-weight: 900;">${totalEctsCredits} وحدة معتمدة</span></div>
+        </div>
+
+        <!-- 📊 جدول المواد والمقررات الدراسية الاحترافي مع إخفاء أعمدة الأدوار المغلقة تماماً -->
+        <table style="width: 100%; border-collapse: collapse; border: 2px solid #0F2942;">
+          <thead>
+            <tr style="background-color: #0F2942; color: #ffffff; font-size: 11px; font-weight: 900; height: 34px;">
+              <th style="border: 1.5px solid #1e3a5f; width: 32px; text-align: center; color: #ffffff;">ت</th>
+              <th style="border: 1.5px solid #1e3a5f; text-align: right; padding: 0 8px; color: #ffffff;">اسم المادة الدراسية</th>
+              <th style="border: 1.5px solid #1e3a5f; width: 75px; text-align: center; color: #ffffff;">رمز المادة</th>
+              <th style="border: 1.5px solid #1e3a5f; width: 120px; text-align: center; color: #ffffff;">المرحلة والكورس</th>
+              <th style="border: 1.5px solid #1e3a5f; width: 95px; text-align: center; color: #ffffff;">نوع المادة</th>
+              <th style="border: 1.5px solid #1e3a5f; width: 85px; text-align: center; color: #ffffff;">الوحدات</th>
+              <th style="border: 1.5px solid #1e3a5f; text-align: right; padding: 0 6px; color: #ffffff;">أستاذ النظري</th>
+              <th style="border: 1.5px solid #1e3a5f; text-align: right; padding: 0 6px; color: #ffffff;">أستاذ العملي</th>
+              ${hasAnyFinalExamOpen ? '<th style="border: 1.5px solid #1e3a5f; width: 110px; text-align: center; color: #ffffff;">النهائي (الدور الأول)</th>' : ''}
+              ${hasAnySupplementaryOpen ? '<th style="border: 1.5px solid #1e3a5f; width: 110px; text-align: center; color: #ffffff;">حالة الدور الثاني</th>' : ''}
+            </tr>
+          </thead>
+          <tbody>
+            ${tableRowsHtml}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- ✍️ صندوق المصادقات والتواقيع الرسمية الثلاثي -->
+      <div style="margin-top: 18px; border-top: 2px solid #0F2942; padding-top: 12px; color: #000000;">
+        <div style="display: flex; justify-content: space-around; text-align: center; font-size: 11px; font-weight: 900;">
+          <div>
+            <p style="margin: 0; color: #475569;">مقرر القسم العلمي</p>
+            <p style="margin: 4px 0 0; font-weight: 900; font-size: 12.5px; color: #0F2942;">${escapeHtml(rapporteurName)}</p>
+            <div style="margin-top: 24px; border-bottom: 1.5px dotted #0F2942; width: 140px;"></div>
+            <span style="font-size: 9.5px; margin-top: 3px; display: block; color: #64748b;">التدقيق والاعتماد الأكاديمي</span>
+          </div>
+
+          <div>
+            <p style="margin: 0; color: #475569;">رئيس القسم العلمي</p>
+            <p style="margin: 4px 0 0; font-weight: 900; font-size: 12.5px; color: #0F2942;">${escapeHtml(departmentHeadName)}</p>
+            <div style="margin-top: 24px; border-bottom: 1.5px dotted #0F2942; width: 140px;"></div>
+            <span style="font-size: 9.5px; margin-top: 3px; display: block; color: #64748b;">المصادقة والتوجيه</span>
+          </div>
+
+          <div>
+            <p style="margin: 0; color: #475569;">عميد الكلية / المعاون العلمي</p>
+            <p style="margin: 4px 0 0; font-weight: 900; font-size: 12.5px; color: #0F2942;">عمادة ${escapeHtml(collegeName)}</p>
+            <div style="margin-top: 24px; border-bottom: 1.5px dotted #0F2942; width: 140px;"></div>
+            <span style="font-size: 9.5px; margin-top: 3px; display: block; color: #64748b;">الختم والمصادقة النهائية</span>
+          </div>
+        </div>
+
+        <!-- 🛡️ التذييل الرسمي ورمز التحقق الأكاديمي بدون أي إيموجي -->
+        <div style="margin-top: 14px; display: flex; justify-content: space-between; font-size: 9.5px; font-weight: 900; border-top: 1px solid #cbd5e1; padding-top: 6px; color: #475569;">
+          <span>جامعة الإمام جعفر الصادق (ع) — فرع ميسان | المنصة الأكاديمية المركزية لنظام مسار بولونيا</span>
+          <span>رمز التحقق الأكاديمي: CRS-${escapeHtml(departmentName).replace(/\s+/g, '')}-${new Date().getFullYear()}</span>
+        </div>
+      </div>
+
+    </div>
+  `;
+
+  // 📌 إلحاق الحاوية بالـ DOM بالمتصفح لمعالجتها
+  document.body.appendChild(container);
+
+  try {
+    // ⏱️ انتظار لحظي لضمان تحميل وتطبيق الخطوط والصور
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    // 🖼️ تحويل محتوى الـ HTML إلى Canvas عالي الدقة (scale 2)
+    const canvas = await html2canvas(container, {
+      scale: 2, // 🔍 مقياس دقة مضاعف للحصول على نصوص حادة كالليزر
+      useCORS: true, // 🌐 دعم تحميل الصور الخارجية
+      logging: false, // 🤫 كتم سجلات الكونسول
+      backgroundColor: '#ffffff', // ⚪ خلفية بيضاء نقية
+    });
+
+    // 📸 استخراج الصورة بجودة عالية من الكانفاس
+    const imgData = canvas.toDataURL('image/jpeg', 0.95);
+    // 📄 إنشاء ملف PDF جديد بنظام A4 بالعرض Landscape
+    const pdf = new jsPDF('l', 'mm', 'a4');
+    // 📐 حساب أبعاد صفحة الـ PDF
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = pdf.internal.pageSize.getHeight();
+
+    // 🖼️ رسم الصورة الممسوحة على مساحة الـ PDF بالكامل
+    pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+
+    // 🏷️ تنظيف وتجهيز اسم الملف الرسمي ليكون معبراً واحترافياً
+    const cleanDept = (departmentName || 'القسم').replace(/[/\\?%*:|"<>]/g, '_').trim();
+    const cleanStage = stageFilter === 1 ? 'المرحلة_الاولى' : stageFilter === 2 ? 'المرحلة_الثانية' : stageFilter === 3 ? 'المرحلة_الثالثة' : stageFilter === 4 ? 'المرحلة_الرابعة' : 'كافة_المراحل';
+    const cleanSem = semesterFilter === 1 ? 'الكورس_الاول' : semesterFilter === 2 ? 'الكورس_الثاني' : 'كافة_الكورسات';
+    const finalFileName = `كشف_مقررات_قسم_${cleanDept}_${cleanStage}_${cleanSem}_2026-2027.pdf`;
+
+    // 💾 تنزيل ملف الـ PDF مباشرة على جهاز المستخدم
+    pdf.save(finalFileName);
+
+    // 🧹 إزالة الحاوية المؤقتة من جسم الصفحة بعد اكتمال التصدير
+    if (document.body.contains(container)) {
+      document.body.removeChild(container);
+    }
+    // 🔓 فك قفل التزامن بعد النجاح
+    releaseHeavyTaskLock(lockKey);
+    // ✅ إرجاع نجاح العملية
+    return true;
+  } catch {
+    // 🧹 إزالة الحاوية المؤقتة في حالة حدوث أي خطأ
+    if (document.body.contains(container)) {
+      document.body.removeChild(container);
+    }
+    // 🔓 فك قفل التزامن عند الفشل
+    releaseHeavyTaskLock(lockKey);
+    // ❌ إرجاع فشل العملية
+    return false;
+  }
+}
+
+
 
 
 

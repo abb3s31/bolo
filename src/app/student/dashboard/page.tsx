@@ -869,15 +869,10 @@ export default function StudentDashboard() {
                         <span>السعي النهائي: {g.final_coursework_total} / 50</span>
                       </div>
 
-                      {/* 💯 المجموع الكلي أو شارة الحجب والتدقيق */}
-                      {isFinalActive ? (
+                      {/* 💯 المجموع الكلي يظهر حصراً إذا كان الفاينل معتمداً ومفعلاً من القسم */}
+                      {isFinalActive && (
                         <div className="px-4 py-2 bg-slate-900 text-white rounded-2xl font-black text-base shadow-xs">
                           <span>المجموع: {finalTot} / 100 ({letterGrad})</span>
-                        </div>
-                      ) : (
-                        <div className="px-3.5 py-2 bg-slate-100 text-slate-950 border border-slate-300 rounded-2xl font-black text-xs sm:text-sm flex items-center gap-1.5 shadow-2xs">
-                          <Lock className="w-4 h-4 text-[#0F2942] shrink-0" />
-                          <span>النهائي قيد التدقيق</span>
                         </div>
                       )}
 
@@ -1071,8 +1066,8 @@ export default function StudentDashboard() {
 
                       </div>
 
-                      {/* 🏁 بطاقة الامتحان النهائي والدور الثاني والنتيجة الكلية */}
-                      {isFinalActive ? (
+                      {/* 🏁 بطاقة الامتحان النهائي والدور الثاني والنتيجة الكلية تظهر حصراً إذا كان الفاينل مفعلاً ومفتوحاً */}
+                      {isFinalActive && (
                         <div className="p-5 bg-[#0F2942] text-white rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 border border-[#1e4570]">
                           <div className="flex items-center gap-3">
                             <Award className="w-7 h-7 text-yellow-400 shrink-0" />
@@ -1117,26 +1112,6 @@ export default function StudentDashboard() {
                                   ? 'ناجح (دور ثاني)'
                                   : 'مكمل'}
                               </span>
-                            </span>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="p-5 bg-slate-50 text-slate-950 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 border-2 border-slate-300 shadow-2xs animate-in fade-in">
-                          <div className="flex items-center gap-3">
-                            <div className="p-2.5 bg-[#0F2942] text-white rounded-xl shadow-xs shrink-0">
-                              <Lock className="w-6 h-6 text-white" />
-                            </div>
-                            <div>
-                              <div className="text-base font-black text-slate-950">درجات الامتحان النهائي لم تُعلن بعد</div>
-                              <p className="text-xs sm:text-sm font-bold text-slate-700 mt-0.5">
-                                درجات الامتحان النهائي للدور الأول قيد التدقيق والاعتماد لدى رئاسة القسم والمقرر. السعي الفصلي المعتمد حالياً هو ({g.final_coursework_total} من 50).
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            <span className="px-3.5 py-1.5 bg-white border border-slate-300 text-slate-950 rounded-xl font-black text-sm shadow-2xs flex items-center gap-1.5">
-                              <ShieldCheck className="w-4 h-4 text-indigo-700" />
-                              <span>السعي الفصلي فقط</span>
                             </span>
                           </div>
                         </div>

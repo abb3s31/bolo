@@ -221,8 +221,13 @@ export default function PublicVerifyTranscriptPage({ params }: { params: Promise
                   <tr>
                     <th className="p-3.5">المادة الدراسية</th>
                     <th className="p-3.5 text-center">السعي (50)</th>
-                    <th className="p-3.5 text-center">النهائي (50)</th>
-                    <th className="p-3.5 text-center">المجموع</th>
+                    {/* 🎯 عمود النهائي يظهر فقط إذا كان مفعلاً */}
+                    {studentGrades.some((g) => courses.find((c) => c.id === g.course_id)?.is_final_exam_enabled === true) && (
+                      <th className="p-3.5 text-center">النهائي (50)</th>
+                    )}
+                    <th className="p-3.5 text-center">
+                      {studentGrades.some((g) => courses.find((c) => c.id === g.course_id)?.is_final_exam_enabled === true) ? 'المجموع (100)' : 'المجموع'}
+                    </th>
                     <th className="p-3.5 text-center">التقدير</th>
                   </tr>
                 </thead>
@@ -239,12 +244,14 @@ export default function PublicVerifyTranscriptPage({ params }: { params: Promise
                       : (isSupActive && !isPassed1st && g.supplementary_exam != null && g.supplementary_exam > 0)
                         ? `${g.supplementary_exam} (دور 2)`
                         : `${g.final_exam != null ? g.final_exam : '-'}`;
+                    const hasAnyFinal = studentGrades.some((sg) => courses.find((c) => c.id === sg.course_id)?.is_final_exam_enabled === true);
 
                     return (
                       <tr key={g.id} className="hover:bg-slate-50 transition">
                         <td className="p-3.5 font-black text-slate-950">{g.course_name}</td>
                         <td className="p-3.5 text-center font-black text-slate-900 bg-slate-50 font-mono">{g.final_coursework_total}</td>
-                        <td className="p-3.5 text-center font-bold text-slate-700 font-mono">{examText}</td>
+                        {/* 🎯 خلية الفاينل تظهر فقط إذا كان الفاينل مفعلاً لأي مادة */}
+                        {hasAnyFinal && <td className="p-3.5 text-center font-bold text-slate-700 font-mono">{examText}</td>}
                         <td className="p-3.5 text-center font-black text-emerald-950 bg-emerald-50 font-mono">
                           {isFinalActive ? (finalScore > 0 ? finalScore : '-') : `${g.final_coursework_total || 0} (سعي)`}
                         </td>

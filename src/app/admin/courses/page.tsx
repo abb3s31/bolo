@@ -722,7 +722,7 @@ export default function AdminCoursesPage() {
               if (departments.length > 0) setSelectedDeptId(departments[0].id);
               setIsCourseModalOpen(true);
             }}
-            className="px-4.5 py-2.5 sm:px-5 sm:py-3 bg-[#1A3C6E] hover:bg-[#15305B] text-white font-black rounded-2xl text-sm sm:text-base shadow-xs transition flex items-center gap-2 cursor-pointer border border-[#15305B] shrink-0 active:scale-95 whitespace-nowrap"
+            className="px-4.5 py-2.5 sm:px-5 sm:py-3 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black rounded-2xl text-sm sm:text-base shadow-xs transition flex items-center gap-2 cursor-pointer border border-[#163a5f] shrink-0 active:scale-95 whitespace-nowrap"
           >
             <Plus className="w-5 h-5 text-cyan-300" />
             <span>إضافة مادة دراسية جديدة</span>
@@ -732,7 +732,7 @@ export default function AdminCoursesPage() {
           <button
             type="button"
             onClick={handleDownloadTemplate}
-            className="px-4.5 py-2.5 sm:px-5 sm:py-3 bg-[#1A3C6E] hover:bg-[#15305B] text-white font-black rounded-2xl text-sm sm:text-base shadow-xs transition flex items-center gap-2 cursor-pointer border border-[#15305B] shrink-0 active:scale-95 whitespace-nowrap"
+            className="px-4.5 py-2.5 sm:px-5 sm:py-3 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black rounded-2xl text-sm sm:text-base shadow-xs transition flex items-center gap-2 cursor-pointer border border-[#163a5f] shrink-0 active:scale-95 whitespace-nowrap"
             title="تنزيل نموذج Excel المعتمد للمقررات والمناهج الدراسية"
           >
             <Download className="w-5 h-5 text-emerald-400" />
@@ -743,7 +743,7 @@ export default function AdminCoursesPage() {
           <button
             type="button"
             onClick={() => setShowExcelInstructions(true)}
-            className="px-4 py-2.5 sm:px-4.5 sm:py-3 bg-[#1A3C6E] hover:bg-[#15305B] text-white font-black rounded-2xl text-sm sm:text-base shadow-xs transition flex items-center gap-2 cursor-pointer border border-[#15305B] shrink-0 active:scale-95 whitespace-nowrap"
+            className="px-4 py-2.5 sm:px-4.5 sm:py-3 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black rounded-2xl text-sm sm:text-base shadow-xs transition flex items-center gap-2 cursor-pointer border border-[#163a5f] shrink-0 active:scale-95 whitespace-nowrap"
             title="تعليمات وضوابط استيراد المواد الدراسية"
           >
             <Info className="w-5 h-5 text-cyan-300" />
@@ -751,7 +751,7 @@ export default function AdminCoursesPage() {
           </button>
 
           {/* 📤 زر استيراد ملف Excel للمواد */}
-          <label className="px-4.5 py-2.5 sm:px-5 sm:py-3 bg-[#1A3C6E] hover:bg-[#15305B] text-white font-black rounded-2xl text-sm sm:text-base shadow-xs transition flex items-center gap-2 cursor-pointer border border-[#15305B] shrink-0 active:scale-95 whitespace-nowrap">
+          <label className="px-4.5 py-2.5 sm:px-5 sm:py-3 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black rounded-2xl text-sm sm:text-base shadow-xs transition flex items-center gap-2 cursor-pointer border border-[#163a5f] shrink-0 active:scale-95 whitespace-nowrap">
             <Upload className="w-5 h-5 text-cyan-300" />
             <span>{isImportingExcel ? 'جاري الاستيراد...' : 'استيراد Excel'}</span>
             <input
@@ -797,7 +797,7 @@ export default function AdminCoursesPage() {
             </button>
             <button
               type="submit"
-              className="px-7 py-3 bg-[#1A3C6E] hover:bg-[#15305B] text-white font-black rounded-2xl text-base shadow-md transition flex items-center gap-2 cursor-pointer border border-[#15305B] active:scale-95"
+              className="px-7 py-3 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black rounded-2xl text-base shadow-md transition flex items-center gap-2 cursor-pointer border border-[#163a5f] active:scale-95"
             >
               <CheckCircle2 className="w-5 h-5 text-emerald-300" />
               <span>{editingCourse ? 'حفظ وتثبيت التعديلات' : 'إضافة المادة وتثبيت التكليف'}</span>
@@ -810,7 +810,7 @@ export default function AdminCoursesPage() {
           {/* 🏛️ القسم الأول: البيانات الأساسية للمقرر وتوصيفه */}
           <div className="bg-slate-50/80 border border-slate-200 rounded-3xl p-5 sm:p-6 space-y-4 shadow-2xs">
             <div className="flex items-center gap-2.5 pb-3 border-b border-slate-200">
-              <div className="p-2 bg-[#1A3C6E] text-white rounded-xl shadow-2xs">
+              <div className="p-2 bg-[#0F2942] text-white rounded-xl shadow-2xs">
                 <BookOpen className="w-5 h-5 text-cyan-300" />
               </div>
               <div>
@@ -889,7 +889,7 @@ export default function AdminCoursesPage() {
                           }}
                           className={`w-full p-2.5 rounded-xl text-right font-black text-sm sm:text-base transition flex items-center justify-between cursor-pointer ${
                             selectedDeptId === d.id
-                              ? 'bg-[#1A3C6E] text-white shadow-xs'
+                              ? 'bg-[#0F2942] text-white shadow-xs'
                               : 'text-slate-950 hover:bg-slate-100'
                           }`}
                         >
@@ -935,7 +935,7 @@ export default function AdminCoursesPage() {
                     onClick={() => setCourseType('theory_and_practical')}
                     className={`p-3.5 sm:p-4 rounded-2xl border text-right transition-all flex items-center justify-between cursor-pointer active:scale-[0.99] ${
                       courseType === 'theory_and_practical'
-                        ? 'bg-[#1A3C6E] text-white border-[#1A3C6E] shadow-md ring-2 ring-emerald-400/40'
+                        ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-md ring-2 ring-emerald-400/40'
                         : 'bg-white text-slate-950 border-slate-300 hover:border-slate-400 hover:bg-slate-50 shadow-2xs'
                     }`}
                   >
@@ -967,7 +967,7 @@ export default function AdminCoursesPage() {
                     onClick={() => setCourseType('theory_only')}
                     className={`p-3.5 sm:p-4 rounded-2xl border text-right transition-all flex items-center justify-between cursor-pointer active:scale-[0.99] ${
                       courseType === 'theory_only'
-                        ? 'bg-[#1A3C6E] text-white border-[#1A3C6E] shadow-md ring-2 ring-cyan-400/40'
+                        ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-md ring-2 ring-cyan-400/40'
                         : 'bg-white text-slate-950 border-slate-300 hover:border-slate-400 hover:bg-slate-50 shadow-2xs'
                     }`}
                   >
@@ -1007,7 +1007,7 @@ export default function AdminCoursesPage() {
           {/* 🎓 القسم الثاني: الخطة الأكاديمية والوحدات */}
           <div className="bg-slate-50/80 border border-slate-200 rounded-3xl p-5 sm:p-6 space-y-4 shadow-2xs">
             <div className="flex items-center gap-2.5 pb-3 border-b border-slate-200">
-              <div className="p-2 bg-[#1A3C6E] text-white rounded-xl shadow-2xs">
+              <div className="p-2 bg-[#0F2942] text-white rounded-xl shadow-2xs">
                 <GraduationCap className="w-5 h-5 text-sky-300" />
               </div>
               <div>
@@ -1053,7 +1053,7 @@ export default function AdminCoursesPage() {
                       onClick={() => setSelectedStageNum(stg.num)}
                       className={`py-3.5 px-2 rounded-2xl border text-center font-black text-xs sm:text-sm transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-95 ${
                         selectedStageNum === stg.num
-                          ? 'bg-[#1A3C6E] text-white border-[#1A3C6E] shadow-md ring-2 ring-[#1A3C6E]/30'
+                          ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-md ring-2 ring-[#0F2942]/30'
                           : 'bg-white text-slate-950 border-slate-300 hover:border-slate-400 hover:bg-slate-50 shadow-2xs'
                       }`}
                     >
@@ -1097,7 +1097,7 @@ export default function AdminCoursesPage() {
                       onClick={() => setSelectedSemester(s.sem as 1 | 2)}
                       className={`py-3.5 px-3 rounded-2xl border text-center font-black text-base transition-all cursor-pointer flex items-center justify-center gap-2 active:scale-95 ${
                         selectedSemester === s.sem
-                          ? 'bg-[#1A3C6E] text-white border-[#1A3C6E] shadow-md ring-2 ring-[#1A3C6E]/30'
+                          ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-md ring-2 ring-[#0F2942]/30'
                           : 'bg-white text-slate-950 border-slate-300 hover:border-slate-400 hover:bg-slate-50 shadow-2xs'
                       }`}
                     >
@@ -1138,7 +1138,7 @@ export default function AdminCoursesPage() {
                       onClick={() => setCreditHours(pts)}
                       className={`py-3 px-2 rounded-2xl font-black text-base border transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-95 ${
                         creditHours === pts
-                          ? 'bg-[#1A3C6E] text-white border-[#1A3C6E] shadow-md ring-2 ring-[#1A3C6E]/30'
+                          ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-md ring-2 ring-[#0F2942]/30'
                           : 'bg-white text-slate-950 border-slate-300 hover:border-slate-400 hover:bg-slate-50 shadow-2xs'
                       }`}
                     >
@@ -1157,7 +1157,7 @@ export default function AdminCoursesPage() {
                       title="تحديد ساعات معتمدة مخصصة"
                       className={`w-full h-full py-3 px-1 text-center rounded-2xl font-black text-xs sm:text-sm transition-all focus:outline-none shadow-2xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
                         creditHours !== null && ![2, 3, 4, 5, 6, 7, 8].includes(creditHours)
-                          ? 'bg-[#1A3C6E] text-white border-2 border-[#1A3C6E] ring-2 ring-[#1A3C6E]/30 placeholder:text-slate-300'
+                          ? 'bg-[#0F2942] text-white border-2 border-[#0F2942] ring-2 ring-[#0F2942]/30 placeholder:text-slate-300'
                           : 'bg-white text-slate-950 border border-slate-300 hover:border-slate-400 focus:border-slate-900 placeholder:text-slate-600'
                       }`}
                     />
@@ -1171,7 +1171,7 @@ export default function AdminCoursesPage() {
           {/* 👨‍🏫 القسم الثالث: الكادر التدريسي وتكليف الأساتذة */}
           <div className="bg-slate-50/80 border border-slate-200 rounded-3xl p-5 sm:p-6 space-y-4 shadow-2xs">
             <div className="flex items-center gap-2.5 pb-3 border-b border-slate-200">
-              <div className="p-2 bg-[#1A3C6E] text-white rounded-xl shadow-2xs">
+              <div className="p-2 bg-[#0F2942] text-white rounded-xl shadow-2xs">
                 <Users className="w-5 h-5 text-emerald-300" />
               </div>
               <div>
@@ -1231,7 +1231,7 @@ export default function AdminCoursesPage() {
                           }}
                           className={`w-full p-2.5 rounded-xl text-right font-black text-sm transition flex items-center justify-between cursor-pointer ${
                             theoryTeacherId === t.id
-                              ? 'bg-[#1A3C6E] text-white shadow-xs'
+                              ? 'bg-[#0F2942] text-white shadow-xs'
                               : 'text-slate-950 hover:bg-slate-100'
                           }`}
                         >
@@ -1297,7 +1297,7 @@ export default function AdminCoursesPage() {
                             }}
                             className={`w-full p-2.5 rounded-xl text-right font-black text-sm transition flex items-center justify-between cursor-pointer ${
                               practicalTeacherId === t.id
-                                ? 'bg-[#1A3C6E] text-white shadow-xs'
+                                ? 'bg-[#0F2942] text-white shadow-xs'
                                 : 'text-slate-950 hover:bg-slate-100'
                             }`}
                           >
@@ -1430,7 +1430,7 @@ export default function AdminCoursesPage() {
               onClick={() => setSortMode('custom')}
               className={`px-3 py-1.5 rounded-xl text-sm font-black transition-all flex items-center gap-1.5 cursor-pointer border ${
                 sortMode === 'custom'
-                  ? 'bg-[#1A3C6E] text-white border-[#1A3C6E] shadow-xs'
+                  ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-xs'
                   : 'bg-slate-50 text-slate-950 border-slate-300 hover:bg-slate-100'
               }`}
             >
@@ -1443,7 +1443,7 @@ export default function AdminCoursesPage() {
               onClick={() => setSortMode('newest')}
               className={`px-3 py-1.5 rounded-xl text-sm font-black transition-all flex items-center gap-1.5 cursor-pointer border ${
                 sortMode === 'newest'
-                  ? 'bg-[#1A3C6E] text-white border-[#1A3C6E] shadow-xs'
+                  ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-xs'
                   : 'bg-slate-50 text-slate-950 border-slate-300 hover:bg-slate-100'
               }`}
             >
@@ -1456,7 +1456,7 @@ export default function AdminCoursesPage() {
               onClick={() => setSortMode('name_asc')}
               className={`px-3 py-1.5 rounded-xl text-sm font-black transition-all flex items-center gap-1.5 cursor-pointer border ${
                 sortMode === 'name_asc'
-                  ? 'bg-[#1A3C6E] text-white border-[#1A3C6E] shadow-xs'
+                  ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-xs'
                   : 'bg-slate-50 text-slate-950 border-slate-300 hover:bg-slate-100'
               }`}
             >
@@ -1468,7 +1468,7 @@ export default function AdminCoursesPage() {
               onClick={() => setSortMode('stage_asc')}
               className={`px-3 py-1.5 rounded-xl text-sm font-black transition-all flex items-center gap-1.5 cursor-pointer border ${
                 sortMode === 'stage_asc'
-                  ? 'bg-[#1A3C6E] text-white border-[#1A3C6E] shadow-xs'
+                  ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-xs'
                   : 'bg-slate-50 text-slate-950 border-slate-300 hover:bg-slate-100'
               }`}
             >
@@ -1479,7 +1479,7 @@ export default function AdminCoursesPage() {
 
         {/* 🎛️ شريط الإجراءات الجماعية الفاخر للمواد الدراسية */}
         {selectedCourseIds.length > 0 && (
-          <div className="bg-[#1A3C6E] text-white p-4 sm:px-6 rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-lg border border-[#15305B] animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="bg-[#0F2942] text-white p-4 sm:px-6 rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-lg border border-[#163a5f] animate-in fade-in slide-in-from-top-2 duration-200">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-white/10 text-cyan-200 rounded-xl border border-white/20">
                 <BookOpen className="w-5 h-5" />
@@ -1523,7 +1523,7 @@ export default function AdminCoursesPage() {
 
         <div className="overflow-x-auto rounded-3xl border border-slate-300">
           <table className="w-full text-right text-base border-collapse whitespace-nowrap">
-            <thead className="bg-[#1A3C6E] text-white font-black border-b border-[#1A3C6E]">
+            <thead className="bg-[#0F2942] text-white font-black border-b border-[#0F2942]">
               <tr>
                 <th className="p-4 text-center w-12 whitespace-nowrap">
                   <input
@@ -1539,7 +1539,7 @@ export default function AdminCoursesPage() {
                         setSelectedCourseIds((prev) => Array.from(new Set([...prev, ...pageIds])));
                       }
                     }}
-                    className="w-5 h-5 rounded-md border-2 border-slate-300 text-[#1A3C6E] focus:ring-2 focus:ring-[#1A3C6E] cursor-pointer accent-[#1A3C6E]"
+                    className="w-5 h-5 rounded-md border-2 border-slate-300 text-[#0F2942] focus:ring-2 focus:ring-[#0F2942] cursor-pointer accent-[#0F2942]"
                   />
                 </th>
                 <th className="p-4 text-center w-16 whitespace-nowrap text-white">#</th>
@@ -1571,7 +1571,7 @@ export default function AdminCoursesPage() {
                         aria-label={`تحديد ${course.name}`}
                         checked={isSelected}
                         onChange={() => toggleSelect(course.id)}
-                        className="w-5 h-5 rounded-md border-2 border-slate-300 text-[#1A3C6E] focus:ring-2 focus:ring-[#1A3C6E] cursor-pointer accent-[#1A3C6E]"
+                        className="w-5 h-5 rounded-md border-2 border-slate-300 text-[#0F2942] focus:ring-2 focus:ring-[#0F2942] cursor-pointer accent-[#0F2942]"
                       />
                     </td>
                     <td className="p-4 text-center font-black text-slate-950 whitespace-nowrap">
@@ -1579,13 +1579,13 @@ export default function AdminCoursesPage() {
                         {globalIndex + 1}
                       </span>
                     </td>
-                    <td className="p-4 font-mono font-black text-[#1A3C6E] text-sm whitespace-nowrap">
+                    <td className="p-4 font-mono font-black text-[#0F2942] text-sm whitespace-nowrap">
                       <span className="inline-flex items-center px-2.5 py-1 bg-slate-100 border border-slate-300 rounded-lg">
                         {course.code}
                       </span>
                     </td>
                     <td className="p-4 font-black text-slate-950 text-base whitespace-nowrap">
-                      <span className="hover:text-[#1A3C6E] transition">{course.name}</span>
+                      <span className="hover:text-[#0F2942] transition">{course.name}</span>
                     </td>
                     <td className="p-4 text-slate-950 font-black whitespace-nowrap text-sm">
                       <span className="text-slate-900">{course.department_name}</span>
@@ -1602,7 +1602,7 @@ export default function AdminCoursesPage() {
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 text-blue-950 border border-blue-200 rounded-xl text-xs font-black whitespace-nowrap">
-                          <BookOpen className="w-3.5 h-3.5 text-[#1A3C6E]" />
+                          <BookOpen className="w-3.5 h-3.5 text-[#0F2942]" />
                           <span>نظري فقط</span>
                         </span>
                       )}
@@ -1610,8 +1610,8 @@ export default function AdminCoursesPage() {
 
                     {/* 🎓 عمود الساعات والوحدات المعتمدة ECTS */}
                     <td className="p-4 text-center whitespace-nowrap">
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#1A3C6E]/10 text-[#1A3C6E] border border-[#1A3C6E]/30 rounded-xl text-xs font-black shadow-2xs whitespace-nowrap">
-                        <Award className="w-3.5 h-3.5 text-[#1A3C6E]" />
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#0F2942]/10 text-[#0F2942] border border-[#0F2942]/30 rounded-xl text-xs font-black shadow-2xs whitespace-nowrap">
+                        <Award className="w-3.5 h-3.5 text-[#0F2942]" />
                         <span>{course.credit_hours || 3} ECTS</span>
                       </span>
                     </td>
@@ -1619,7 +1619,7 @@ export default function AdminCoursesPage() {
                     <td className="p-4 whitespace-nowrap">
                       {course.theory_teacher_name ? (
                         <span className="font-black text-slate-900 inline-flex items-center gap-1.5 text-sm whitespace-nowrap">
-                          <Users className="w-4 h-4 text-[#1A3C6E]" />
+                          <Users className="w-4 h-4 text-[#0F2942]" />
                           <span>{course.theory_teacher_name}</span>
                         </span>
                       ) : (
@@ -1652,7 +1652,7 @@ export default function AdminCoursesPage() {
                           className={`p-1.5 rounded-lg border transition cursor-pointer ${
                             isFirst
                               ? 'bg-slate-100 text-slate-300 border-slate-200 cursor-not-allowed'
-                              : 'bg-white text-slate-700 border-slate-300 hover:bg-[#1A3C6E] hover:text-white shadow-2xs'
+                              : 'bg-white text-slate-700 border-slate-300 hover:bg-[#0F2942] hover:text-white shadow-2xs'
                           }`}
                         >
                           <ArrowUp className="w-3.5 h-3.5" />
@@ -1665,7 +1665,7 @@ export default function AdminCoursesPage() {
                           className={`p-1.5 rounded-lg border transition cursor-pointer ${
                             isLast
                               ? 'bg-slate-100 text-slate-300 border-slate-200 cursor-not-allowed'
-                              : 'bg-white text-slate-700 border-slate-300 hover:bg-[#1A3C6E] hover:text-white shadow-2xs'
+                              : 'bg-white text-slate-700 border-slate-300 hover:bg-[#0F2942] hover:text-white shadow-2xs'
                           }`}
                         >
                           <ArrowDown className="w-3.5 h-3.5" />
@@ -1677,7 +1677,7 @@ export default function AdminCoursesPage() {
                       <button
                         type="button"
                         onClick={() => handleOpenAssessmentModal(course)}
-                        className="px-3.5 py-1.5 bg-[#1A3C6E] hover:bg-[#15305B] text-white rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5 mx-auto cursor-pointer shadow-2xs active:scale-95 whitespace-nowrap"
+                        className="px-3.5 py-1.5 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5 mx-auto cursor-pointer shadow-2xs active:scale-95 whitespace-nowrap"
                       >
                         <Sliders className="w-3.5 h-3.5 text-cyan-200" />
                         <span>تخصيص</span>
@@ -1685,6 +1685,7 @@ export default function AdminCoursesPage() {
                     </td>
                     <td className="p-4 text-center whitespace-nowrap">
                       <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
+                        {/* ✏️ زر تعديل المادة بالخلفية البيضاء والأيقونة الكحلية الملكية #0F2942 */}
                         <button
                           type="button"
                           onClick={() => {
@@ -1700,10 +1701,10 @@ export default function AdminCoursesPage() {
                             setCreditHours(course.credit_hours || 3);
                             setIsCourseModalOpen(true);
                           }}
-                          className="px-3 py-1.5 bg-slate-100 hover:bg-[#1A3C6E] hover:text-white text-slate-950 rounded-xl transition border border-slate-300 font-black text-xs flex items-center gap-1 cursor-pointer shadow-2xs whitespace-nowrap"
+                          className="px-3 py-1.5 bg-white hover:bg-slate-100 text-[#0F2942] rounded-xl transition border border-slate-300 font-black text-xs flex items-center gap-1 cursor-pointer shadow-2xs whitespace-nowrap"
                           title="تعديل بيانات المادة"
                         >
-                          <Edit3 className="w-3.5 h-3.5" />
+                          <Edit3 className="w-3.5 h-3.5 text-[#0F2942]" />
                           <span>تعديل</span>
                         </button>
 
@@ -1744,7 +1745,7 @@ export default function AdminCoursesPage() {
                               setEditingCourse(null);
                               setIsCourseModalOpen(true);
                             }}
-                            className="px-5 py-2.5 bg-[#1A3C6E] hover:bg-[#15305B] text-white text-sm font-black rounded-xl transition flex items-center gap-2 cursor-pointer shadow-xs active:scale-95 border border-[#15305B]"
+                            className="px-5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white text-sm font-black rounded-xl transition flex items-center gap-2 cursor-pointer shadow-xs active:scale-95 border border-[#163a5f]"
                           >
                             <Plus className="w-4 h-4 text-cyan-300" />
                             <span>إضافة مادة جديدة</span>
@@ -1956,7 +1957,7 @@ export default function AdminCoursesPage() {
                       {/* ترويسة الكارد */}
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <span className="w-6 h-6 rounded-full bg-[#1A3C6E] text-white font-black text-xs flex items-center justify-center shadow-xs">
+                          <span className="w-6 h-6 rounded-full bg-[#0F2942] text-white font-black text-xs flex items-center justify-center shadow-xs">
                             {idx + 1}
                           </span>
                           <span className="font-black text-sm text-slate-950">
@@ -1994,7 +1995,7 @@ export default function AdminCoursesPage() {
                                 },
                               });
                             }}
-                            className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-black text-slate-950 placeholder:text-slate-400 placeholder:font-medium focus:bg-white focus:border-[#1A3C6E] focus:outline-none transition shadow-2xs" // 🎨 تلميح رصاصي احترافي
+                            className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-black text-slate-950 placeholder:text-slate-400 placeholder:font-medium focus:bg-white focus:border-[#0F2942] focus:outline-none transition shadow-2xs" // 🎨 تلميح رصاصي احترافي
                             placeholder={item.defaultAr} // 💡 المسمى الافتراضي كتلميح إرشادي
                           />
                         </div>
@@ -2018,7 +2019,7 @@ export default function AdminCoursesPage() {
                                   },
                                 });
                               }}
-                              className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-base font-black text-slate-950 text-center focus:bg-white focus:border-[#1A3C6E] focus:outline-none transition shadow-2xs font-mono"
+                              className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-base font-black text-slate-950 text-center focus:bg-white focus:border-[#0F2942] focus:outline-none transition shadow-2xs font-mono"
                             />
                           </div>
                         </div>
@@ -2092,7 +2093,7 @@ export default function AdminCoursesPage() {
               <button
                 type="button"
                 onClick={handleSaveAssessmentSchemeModal}
-                className="px-6 py-2.5 bg-[#1A3C6E] hover:bg-[#15305B] text-white rounded-xl text-sm font-black shadow-md cursor-pointer border border-[#15305B]"
+                className="px-6 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-xl text-sm font-black shadow-md cursor-pointer border border-[#163a5f]"
               >
                 حفظ التوزيع
               </button>
@@ -2189,7 +2190,7 @@ export default function AdminCoursesPage() {
               <button
                 type="button"
                 onClick={() => setShowExcelInstructions(false)}
-                className="px-6 py-2.5 bg-[#1A3C6E] hover:bg-[#15305B] text-white font-black rounded-xl text-base transition cursor-pointer border border-[#15305B]"
+                className="px-6 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black rounded-xl text-base transition cursor-pointer border border-[#163a5f]"
               >
                 فهمت ذلك
               </button>
@@ -2381,7 +2382,7 @@ export default function AdminCoursesPage() {
               <button
                 type="button"
                 onClick={() => setImportReport(null)}
-                className="px-6 py-2.5 bg-[#1A3C6E] hover:bg-[#15305B] text-white font-black rounded-xl text-base transition cursor-pointer border border-[#15305B]"
+                className="px-6 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black rounded-xl text-base transition cursor-pointer border border-[#163a5f]"
               >
                 إغلاق التقرير
               </button>

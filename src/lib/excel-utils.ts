@@ -812,174 +812,169 @@ export async function downloadDepartmentCoursesTemplate(
   const isFinalActive = context?.isFinalExamEnabled === true; // 🎯 الافتراضي مغلق
   const isSupActive = context?.isSupplementaryEnabled === true; // 🔄 الافتراضي مغلق
 
-  // 📝 نماذج بيانات مواد تجريبية لتسهيل التعبئة على المستخدم مع حالة الأدوار الافتراضية
-  const sampleData: Record<string, string | number>[] = [
-    {
-      seq: 1,
-      name: 'مقدمة في التخصص والمهارات الأكاديمية',
-      code: 'CS101',
-      stage: 1,
-      semester: 1,
-      course_type: 'نظري فقط',
-      credits: 3,
-      theory_teacher: teachersList.length > 0 ? teachersList[0].full_name : '',
-      practical_teacher: '',
-      is_final: isFinalActive ? 'مفعل' : 'مغلق',
-      is_sup: isSupActive ? 'مفعل' : 'مغلق',
-    },
-    {
-      seq: 2,
-      name: 'أساسيات البرمجة والتراكيب المنطقية',
-      code: 'CS102',
-      stage: 1,
-      semester: 1,
-      course_type: 'نظري وعملي',
-      credits: 5,
-      theory_teacher: teachersList.length > 0 ? teachersList[0].full_name : '',
-      practical_teacher: teachersList.length > 1 ? teachersList[1].full_name : (teachersList[0]?.full_name || ''),
-      is_final: isFinalActive ? 'مفعل' : 'مغلق',
-      is_sup: isSupActive ? 'مفعل' : 'مغلق',
-    },
-    {
-      seq: 3,
-      name: 'اللغة الإنجليزية التخصصية 1',
-      code: 'ENG101',
-      stage: 1,
-      semester: 1,
-      course_type: 'نظري فقط',
-      credits: 2,
-      theory_teacher: '',
-      practical_teacher: '',
-      is_final: isFinalActive ? 'مفعل' : 'مغلق',
-      is_sup: isSupActive ? 'مفعل' : 'مغلق',
-    },
-    {
-      seq: 4,
-      name: 'الرياضيات المتقطعة والجبر الخطي',
-      code: 'MTH101',
-      stage: 1,
-      semester: 2,
-      course_type: 'نظري فقط',
-      credits: 4,
-      theory_teacher: '',
-      practical_teacher: '',
-      is_final: isFinalActive ? 'مفعل' : 'مغلق',
-      is_sup: isSupActive ? 'مفعل' : 'مغلق',
-    },
-    {
-      seq: 5,
-      name: 'البرمجة كائنية التوجه (OOP)',
-      code: 'CS201',
-      stage: 2,
-      semester: 1,
-      course_type: 'نظري وعملي',
-      credits: 5,
-      theory_teacher: '',
-      practical_teacher: '',
-      is_final: isFinalActive ? 'مفعل' : 'مغلق',
-      is_sup: isSupActive ? 'مفعل' : 'مغلق',
-    },
-  ];
+  // 📝 مصفوفة نماذج بيانات مواد تجريبية لتسهيل التعبئة على المستخدم
+  const sampleData: Record<string, string | number>[] = []; // 📋 تهيئة مصفوفة البيانات التجريبية
 
-  // 📜 صفوف إضافية فارغة جاهزة للإدخال المباشر
+  // 🛠️ دالة مساعدة لبناء الصف التجريبي وفق الأدوار النشطة فقط
+  const buildCourseRow = (
+    seq: number, // 🔢 رقم التسلسل
+    name: string, // 📘 اسم المادة
+    code: string, // 🏷️ رمز المادة
+    stage: number, // 🎓 المرحلة
+    semester: number, // 🗓️ الكورس
+    courseType: string, // 🔬 نوع المادة
+    credits: number, // ⏱️ الساعات
+    theoryTeacher: string, // 👨‍🏫 أستاذ النظري
+    practicalTeacher: string // 🧪 أستاذ العملي
+  ): Record<string, string | number> => {
+    const rowObj: Record<string, string | number> = {
+      seq: seq, // 🔢 تسلسل الصف
+      name: name, // 📘 اسم المادة
+      code: code, // 🏷️ رمز المادة
+      stage: stage, // 🎓 رقم المرحلة
+      semester: semester, // 🗓️ الكورس
+      course_type: courseType, // 🔬 نوع وتوصيف المادة
+      credits: credits, // ⏱️ عدد ساعات بولونيا
+      theory_teacher: theoryTeacher, // 👨‍🏫 اسم أستاذ النظري
+      practical_teacher: practicalTeacher, // 🧪 اسم أستاذ العملي
+    }; // 📦 بناء الكائن الأساسي
+
+    // 🎯 إضافة حقل الفاينل بالصف حصراً إذا كان دور الفاينل مفعلاً ومفتوحاً بالقسم
+    if (isFinalActive) {
+      rowObj.is_final = 'مفعل'; // 🔓 تثبيت حالة التفعيل للامتحان النهائي
+    }
+
+    // 🔄 إضافة حقل الدور الثاني بالصف حصراً إذا كان دور الإكمال مفعلاً ومفتوحاً بالقسم
+    if (isSupActive) {
+      rowObj.is_sup = 'مفعل'; // 🔄 تثبيت حالة التفعيل للدور الثاني
+    }
+
+    return rowObj; // ↩️ إرجاع الصف المكتمل
+  };
+
+  // 📝 إضافة 5 مواد تجريبية واقعية لتوضيح طريقة الملء
+  sampleData.push(
+    buildCourseRow(1, 'مقدمة في التخصص والمهارات الأكاديمية', 'CS101', 1, 1, 'نظري فقط', 3, teachersList.length > 0 ? teachersList[0].full_name : '', ''), // 1️⃣ مادة أولى
+    buildCourseRow(2, 'أساسيات البرمجة والتراكيب المنطقية', 'CS102', 1, 1, 'نظري وعملي', 5, teachersList.length > 0 ? teachersList[0].full_name : '', teachersList.length > 1 ? teachersList[1].full_name : (teachersList[0]?.full_name || '')), // 2️⃣ مادة ثانية
+    buildCourseRow(3, 'اللغة الإنجليزية التخصصية 1', 'ENG101', 1, 1, 'نظري فقط', 2, '', ''), // 3️⃣ مادة ثالثة
+    buildCourseRow(4, 'الرياضيات المتقطعة والجبر الخطي', 'MTH101', 1, 2, 'نظري فقط', 4, '', ''), // 4️⃣ مادة رابعة
+    buildCourseRow(5, 'البرمجة كائنية التوجه (OOP)', 'CS201', 2, 1, 'نظري وعملي', 5, '', '') // 5️⃣ مادة خامسة
+  );
+
+  // 📜 صفوف إضافية فارغة جاهزة للإدخال المباشر تتطابق مع الحقول النشطة
   for (let i = 6; i <= 30; i++) {
-    sampleData.push({
-      seq: i,
-      name: '',
-      code: '',
-      stage: Math.min(4, Math.floor((i - 1) / 8) + 1),
-      semester: ((i - 1) % 2) + 1,
-      course_type: 'نظري وعملي',
-      credits: 3,
-      theory_teacher: '',
-      practical_teacher: '',
-      is_final: isFinalActive ? 'مفعل' : 'مغلق',
-      is_sup: isSupActive ? 'مفعل' : 'مغلق',
-    });
+    const emptyRow = buildCourseRow(
+      i, // 🔢 الرقم التسلسلي
+      '', // 📘 اسم المادة فارغ
+      '', // 🏷️ الرمز فارغ
+      Math.min(4, Math.floor((i - 1) / 8) + 1), // 🎓 المرحلة
+      ((i - 1) % 2) + 1, // 🗓️ الكورس
+      'نظري وعملي', // 🔬 النوع الافتراضي
+      3, // ⏱️ الساعات الافتراضية
+      '', // 👨‍🏫 النظري فارغ
+      '' // 🧪 العملي فارغ
+    );
+    sampleData.push(emptyRow); // 📥 إضافة الصف الفارغ للمصفوفة
   }
 
+  // 📋 تجهيز بنود ورقة تعليمات الاستيراد الأساسية
   const instructionsData: Record<string, string | number>[] = [
     {
-      item: 'المؤسسة والجامعة',
-      details: 'جامعة الإمام جعفر الصادق (ع) - فرع ميسان | المنصة الأكاديمية المركزية',
+      item: 'المؤسسة والجامعة', // 🏛️ البند
+      details: 'جامعة الإمام جعفر الصادق (ع) - فرع ميسان | المنصة الأكاديمية المركزية', // 📝 الشرح
     },
     {
-      item: 'القسم العلمي التابع له',
-      details: `قسم ${deptName}`,
+      item: 'القسم العلمي التابع له', // 🏢 القسم
+      details: `قسم ${deptName}`, // 🏷️ اسم القسم
     },
     {
-      item: 'تاريخ تنزيل النموذج',
-      details: todayArabic,
+      item: 'تاريخ تنزيل النموذج', // 📅 التاريخ
+      details: todayArabic, // 📆 التاريخ باللغة العربية
     },
     {
-      item: 'اسم المادة الدراسية *',
-      details: 'حقل إلزامي. اكتب اسم المادة الرسمي بالعربية (مثال: البرمجة الكينونية، حقوق الإنسان).',
+      item: 'اسم المادة الدراسية *', // 📘 اسم المادة
+      details: 'حقل إلزامي. اكتب اسم المادة الرسمي بالعربية (مثال: البرمجة الكينونية، حقوق الإنسان).', // ⚠️ التوضيح
     },
     {
-      item: 'رمز المادة (الكود)',
-      details: 'حقل اختياري. يمكنك كتابة الكود (مثال: CS201) أو تركه فارغاً ليولده النظام تلقائياً.',
+      item: 'رمز المادة (الكود)', // 🏷️ الكود
+      details: 'حقل اختياري. يمكنك كتابة الكود (مثال: CS201) أو تركه فارغاً ليولده النظام تلقائياً.', // 💡 التوضيح
     },
     {
-      item: 'المرحلة الدراسية *',
-      details: 'اكتب رقم المرحلة من (1) إلى (4).',
+      item: 'المرحلة الدراسية *', // 🎓 المرحلة
+      details: 'اكتب رقم المرحلة من (1) إلى (4).', // 🔢 التوضيح
     },
     {
       item: 'الكورس الدراسي *', // 🗓️ تعديل مسمى الكورس الدراسي وحذف كلمة الفصل
       details: 'اكتب رقم (1) للكورس الأول أو (2) للكورس الثاني.', // 🎯 توضيح الكورس الأول أو الثاني
     },
     {
-      item: 'نوع وتوصيف المادة *',
-      details: 'اكتب (نظري وعملي) إذا كانت المادة تشمل مختبر، أو (نظري فقط) إذا كانت بدون عملي.',
+      item: 'نوع وتوصيف المادة *', // 🔬 النوع
+      details: 'اكتب (نظري وعملي) إذا كانت المادة تشمل مختبر، أو (نظري فقط) إذا كانت بدون عملي.', // 🧪 التوضيح
     },
     {
-      item: 'الساعات والوحدات المعتمدة (ECTS) *',
-      details: 'اكتب عدد الساعات المعتمدة في مسار بولونيا من 1 إلى 15 (الافتراضي: 3 ECTS).',
+      item: 'الساعات والوحدات المعتمدة (ECTS) *', // ⏱️ الساعات
+      details: 'اكتب عدد الساعات المعتمدة في مسار بولونيا من 1 إلى 15 (الافتراضي: 3 ECTS).', // 📊 التوضيح
     },
     {
-      item: 'أستاذ النظري وأستاذ العملي',
-      details: 'حقول اختيارية. يمكنك كتابة الاسم المطابق للأستاذ من ورقة (قائمة_أساتذة_القسم) ليتم تكليفه تلقائياً.',
-    },
-    {
-      item: 'حالة الامتحان النهائي (الدور الأول)',
-      details: isFinalActive 
-        ? 'مفعل ومفتوح حالياً في القسم: يمكنك كتابة (مفعل) أو (مغلق). الافتراضي: مغلق.' 
-        : 'مغلق ومحجوب حالياً في القسم: الافتراضي مغلق ويقتصر على السعي فقط.',
-    },
-    {
-      item: 'حالة فترة الدور الثاني (الإكمال)',
-      details: isSupActive 
-        ? 'مفعلة ومفتوحة حالياً في القسم: يمكنك كتابة (مفعل) أو (مغلق). الافتراضي: مغلق.' 
-        : 'مغلقة حالياً في القسم: الافتراضي مغلق.',
+      item: 'أستاذ النظري وأستاذ العملي', // 👨‍🏫 الأساتذة
+      details: 'حقول اختيارية. يمكنك كتابة الاسم المطابق للأستاذ من ورقة (قائمة_أساتذة_القسم) ليتم تكليفه تلقائياً.', // 👤 التوضيح
     },
   ];
 
+  // 🎯 تضمين توضيح الفاينل بالتعليمات فقط وفقط إذا كان الامتحان النهائي مفعلاً ومفتوحاً بالقسم
+  if (isFinalActive) {
+    instructionsData.push({
+      item: 'حالة الامتحان النهائي (الدور الأول)', // 🎯 بند النهائي
+      details: 'مفعل ومفتوح حالياً في القسم: يمكنك كتابة (مفعل) أو (مغلق). الافتراضي: مفعل.', // 🔓 شرح التفعيل
+    });
+  }
+
+  // 🔄 تضمين توضيح الدور الثاني بالتعليمات فقط وفقط إذا كانت فترة الدور الثاني مفعلة ومفتوحة بالقسم
+  if (isSupActive) {
+    instructionsData.push({
+      item: 'حالة فترة الدور الثاني (الإكمال)', // 🔄 بند الدور الثاني
+      details: 'مفعلة ومفتوحة حالياً في القسم: يمكنك كتابة (مفعل) أو (مغلق). الافتراضي: مفعل.', // 🔄 شرح التفعيل
+    });
+  }
+
+  // 📊 تجهيز أعمدة جدول المواد بالنموذج مع استبعاد تام للأدوار المغلقة
+  const coursesColumns = [
+    { header: 'الرقم', key: 'seq', width: 10 }, // 🔢 عمود الرقم
+    { header: 'اسم المادة الدراسية بالعربية *', key: 'name', width: 35 }, // 📘 عمود الاسم
+    { header: 'رمز المادة (الكود)', key: 'code', width: 18 }, // 🏷️ عمود الرمز
+    { header: 'المرحلة الدراسية (1-4) *', key: 'stage', width: 22 }, // 🎓 عمود المرحلة
+    { header: 'الكورس (1 أو 2) *', key: 'semester', width: 18 }, // 🗓️ عمود الكورس الدراسي
+    { header: 'نوع المادة (نظري وعملي / نظري فقط) *', key: 'course_type', width: 32 }, // 🔬 عمود النوع
+    { header: 'الساعات المعتمدة ECTS *', key: 'credits', width: 22 }, // ⏱️ عمود الوحدات
+    { header: 'أستاذ النظري (اختياري)', key: 'theory_teacher', width: 30 }, // 👨‍🏫 عمود النظري
+    { header: 'أستاذ العملي (اختياري)', key: 'practical_teacher', width: 30 }, // 🧪 عمود العملي
+  ];
+
+  // 🎯 إضافة عمود النهائي بالنموذج حصراً عند كونه متاحاً ومفتوحاً في القسم
+  if (isFinalActive) {
+    coursesColumns.push({ header: 'الامتحان النهائي (مفعل / مغلق)', key: 'is_final', width: 26 }); // 🔓 عمود الفاينل
+  }
+
+  // 🔄 إضافة عمود الدور الثاني بالنموذج حصراً عند كونه متاحاً ومفتوحاً في القسم
+  if (isSupActive) {
+    coursesColumns.push({ header: 'الدور الثاني (مفعل / مغلق)', key: 'is_sup', width: 26 }); // 🔄 عمود الدور الثاني
+  }
+
   const sheetsToExport = [
     {
-      sheetName: 'بيانات_المواد',
-      columns: [
-        { header: 'الرقم', key: 'seq', width: 10 },
-        { header: 'اسم المادة الدراسية بالعربية *', key: 'name', width: 35 },
-        { header: 'رمز المادة (الكود)', key: 'code', width: 18 },
-        { header: 'المرحلة الدراسية (1-4) *', key: 'stage', width: 22 },
-        { header: 'الكورس (1 أو 2) *', key: 'semester', width: 18 }, // 📊 تعديل رأس العمود بنموذج إكسل ليكون الكورس بدلاً من الفصل
-        { header: 'نوع المادة (نظري وعملي / نظري فقط) *', key: 'course_type', width: 32 },
-        { header: 'الساعات المعتمدة ECTS *', key: 'credits', width: 22 },
-        { header: 'أستاذ النظري (اختياري)', key: 'theory_teacher', width: 30 },
-        { header: 'أستاذ العملي (اختياري)', key: 'practical_teacher', width: 30 },
-        { header: 'الامتحان النهائي (مفعل / مغلق)', key: 'is_final', width: 26 },
-        { header: 'الدور الثاني (مفعل / مغلق)', key: 'is_sup', width: 26 },
-      ],
-      data: sampleData,
-      headerColor: 'FF0F2942',
+      sheetName: 'بيانات_المواد', // 📊 اسم ورقة المواد
+      columns: coursesColumns, // 📋 الأعمدة المجهزة ديناميكياً
+      data: sampleData, // 📦 البيانات التجريبية المتوافقة
+      headerColor: 'FF0F2942', // 🎨 لون الترويسة كحلي ملكي
     },
     {
-      sheetName: 'تعليمات_الاستيراد',
+      sheetName: 'تعليمات_الاستيراد', // ℹ️ اسم ورقة التعليمات
       columns: [
-        { header: 'بند التعليمات', key: 'item', width: 32 },
-        { header: 'التفاصيل والضوابط الأكاديمية', key: 'details', width: 68 },
+        { header: 'بند التعليمات', key: 'item', width: 32 }, // 📌 عمود البند
+        { header: 'التفاصيل والضوابط الأكاديمية', key: 'details', width: 68 }, // 📜 عمود التفاصيل
       ],
-      data: instructionsData,
-      headerColor: 'FF1E3A8A',
+      data: instructionsData, // 📋 بيانات التعليمات المتوافقة
+      headerColor: 'FF1E3A8A', // 🎨 لون أزرق رسمي
     },
   ];
 

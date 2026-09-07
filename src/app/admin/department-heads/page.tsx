@@ -1772,7 +1772,7 @@ export default function DepartmentHeadsManagementPage() {
               setGenderError('');
               setShowAddModal(true);
             }}
-            className="px-5 py-2.5 bg-[#1A3C6E] hover:bg-[#15305B] text-white rounded-xl text-sm font-black transition flex items-center gap-2 shadow-xs cursor-pointer border border-[#1A3C6E]"
+            className="px-5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-xl text-sm font-black transition flex items-center gap-2 shadow-xs cursor-pointer border border-[#0F2942]"
           >
             <UserPlus className="w-4 h-4 text-cyan-300" />
             <span>إضافة رئيس قسم أو مقرر جديد</span>
@@ -2140,7 +2140,7 @@ export default function DepartmentHeadsManagementPage() {
                         }}
                         className={`py-2.5 px-4 rounded-xl font-black text-sm transition flex items-center justify-center gap-2 cursor-pointer border-2 shadow-2xs ${
                           selectedGender === 'male'
-                            ? 'bg-[#1A3C6E] text-white border-[#1A3C6E] ring-2 ring-[#1A3C6E]/20 shadow-md'
+                            ? 'bg-[#0F2942] text-white border-[#0F2942] ring-2 ring-[#0F2942]/20 shadow-md'
                             : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
                         }`}
                       >
@@ -2158,7 +2158,7 @@ export default function DepartmentHeadsManagementPage() {
                         }}
                         className={`py-2.5 px-4 rounded-xl font-black text-sm transition flex items-center justify-center gap-2 cursor-pointer border-2 shadow-2xs ${
                           selectedGender === 'female'
-                            ? 'bg-[#1A3C6E] text-white border-[#1A3C6E] ring-2 ring-[#1A3C6E]/20 shadow-md'
+                            ? 'bg-[#0F2942] text-white border-[#0F2942] ring-2 ring-[#0F2942]/20 shadow-md'
                             : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
                         }`}
                       >
@@ -2291,7 +2291,7 @@ export default function DepartmentHeadsManagementPage() {
                 <button
                   type="submit"
                   disabled={Boolean(customEmail.trim() && !checkEmailUniquenessAcrossSystem(customEmail, editingId || undefined, profiles).isUnique)}
-                  className="px-6 py-2.5 bg-[#1A3C6E] hover:bg-[#15305B] text-white font-black rounded-xl text-sm shadow-xs transition flex items-center gap-2 cursor-pointer border border-[#1A3C6E] disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-6 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black rounded-xl text-sm shadow-xs transition flex items-center gap-2 cursor-pointer border border-[#0F2942] disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <UserCheck className="w-4 h-4 text-cyan-200" />
                   <span>{editingId ? 'حفظ التعديلات' : 'توليد الحساب وربطه بالقسم'}</span>
@@ -2733,7 +2733,7 @@ export default function DepartmentHeadsManagementPage() {
                       setEditingId(null);
                       setShowAddModal(true);
                     }}
-                    className="px-5 py-2.5 bg-[#1A3C6E] hover:bg-[#15305B] text-white text-sm font-black rounded-xl transition flex items-center gap-2 cursor-pointer shadow-xs active:scale-95 border border-[#1A3C6E]"
+                    className="px-5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white text-sm font-black rounded-xl transition flex items-center gap-2 cursor-pointer shadow-xs active:scale-95 border border-[#0F2942]"
                   >
                     <UserPlus className="w-4 h-4 text-cyan-300" />
                     <span>إضافة رئيس قسم أو مقرر</span>
@@ -2976,7 +2976,7 @@ export default function DepartmentHeadsManagementPage() {
                                     setGenderError('');
                                     setShowAddModal(true);
                                   }}
-                                  className="p-2 bg-slate-100 hover:bg-[#1A3C6E] hover:text-white text-slate-950 rounded-xl transition cursor-pointer border border-slate-300 shadow-2xs"
+                                  className="p-2 bg-slate-100 hover:bg-[#0F2942] hover:text-white text-slate-950 rounded-xl transition cursor-pointer border border-slate-300 shadow-2xs"
                                   title="تعديل البيانات"
                                 >
                                   <Edit3 className="w-5 h-5" />

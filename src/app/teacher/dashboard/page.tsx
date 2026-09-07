@@ -597,16 +597,11 @@ export default function TeacherDashboard() {
                             <span>{course.credit_hours || 5} وحدات معتمدة (ECTS)</span>
                           </span>
 
-                          {/* 🔒 شارة حالة الامتحان النهائي (الدور الأول) لمادة هذا الكورس */}
-                          {course.is_final_exam_enabled ? (
+                          {/* 🔓 شارة حالة الامتحان النهائي (الدور الأول) تظهر حصراً إذا كان متاحاً للرصد */}
+                          {course.is_final_exam_enabled && (
                             <span className="px-3.5 py-1.5 bg-slate-100 text-slate-900 border-2 border-slate-300 rounded-xl text-sm sm:text-base font-black flex items-center gap-1.5 shadow-2xs">
                               <Unlock className="w-4 h-4 text-emerald-600" />
                               <span>النهائي (دور 1): متاح للرصد</span>
-                            </span>
-                          ) : (
-                            <span className="px-3.5 py-1.5 bg-slate-100 text-slate-700 border-2 border-slate-300 rounded-xl text-sm sm:text-base font-black flex items-center gap-1.5 shadow-2xs">
-                              <Lock className="w-4 h-4 text-slate-500" />
-                              <span>النهائي (دور 1): مقفل (السعي فقط)</span>
                             </span>
                           )}
 

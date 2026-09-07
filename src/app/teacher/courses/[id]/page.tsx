@@ -1042,17 +1042,28 @@ export default function TeacherCourseGradesPage({ params }: { params: Promise<{ 
           const a2 = extractVal(matchRow, 'الواجب2 (5)', assessmentScheme.assignment2.title_ar, assessmentScheme.assignment2.max_score, g.assignment2);
           const rep = extractVal(matchRow, 'التقرير (10)', assessmentScheme.report.title_ar, assessmentScheme.report.max_score, g.report);
           const mid = extractVal(matchRow, 'الميدترم (10)', assessmentScheme.midterm.title_ar, assessmentScheme.midterm.max_score, g.midterm);
-          const fnl = extractVal(matchRow, 'النهائي (50)', assessmentScheme.final_exam.title_ar, assessmentScheme.final_exam.max_score, g.final_exam);
+          newG.quiz1 = q1; checkAndAddDiff('quiz1', q1); // 📝 تعيين الكويز 1
+          newG.quiz2 = q2; checkAndAddDiff('quiz2', q2); // 📝 تعيين الكويز 2
+          newG.assignment1 = a1; checkAndAddDiff('assignment1', a1); // 📋 تعيين الواجب 1
+          newG.assignment2 = a2; checkAndAddDiff('assignment2', a2); // 📋 تعيين الواجب 2
+          newG.report = rep; checkAndAddDiff('report', rep); // 📑 تعيين التقرير
+          newG.midterm = mid; checkAndAddDiff('midterm', mid); // 📊 تعيين الميدترم
+          // 🎯 استيراد وتحديث درجات الفاينل فقط وفقط إذا كان الامتحان النهائي مفعلاً ومفتوحاً بالقسم
+          if (isFinalExamEnabled) {
+            const fnl = extractVal(matchRow, 'النهائي (50)', assessmentScheme.final_exam.title_ar, assessmentScheme.final_exam.max_score, g.final_exam); // 🔍 استخراج الفاينل
+            newG.final_exam = fnl; // 📥 تعيين درجة الفاينل
+            checkAndAddDiff('final_exam', fnl); // 🔄 تسجيل الفارق بالمسودة
+          }
 
-          newG.quiz1 = q1; checkAndAddDiff('quiz1', q1);
-          newG.quiz2 = q2; checkAndAddDiff('quiz2', q2);
-          newG.assignment1 = a1; checkAndAddDiff('assignment1', a1);
-          newG.assignment2 = a2; checkAndAddDiff('assignment2', a2);
-          newG.report = rep; checkAndAddDiff('report', rep);
-          newG.midterm = mid; checkAndAddDiff('midterm', mid);
-          newG.final_exam = fnl; checkAndAddDiff('final_exam', fnl);
-          newG.theory_updated_by = currentUser?.full_name || 'أستاذ النظري';
-          newG.theory_updated_at = nowIso;
+          // 🔄 استيراد وتحديث درجات الدور الثاني فقط وفقط إذا كانت فترة الدور الثاني مفعلة رسمياً بالقسم
+          if (isSupplementaryEnabled) {
+            const supGrade = extractVal(matchRow, 'امتحان الدور الثاني (50)', 'الدور الثاني', 50, Number(g.supplementary_exam || 0)); // 🔍 استخراج الدور الثاني
+            newG.supplementary_exam = supGrade; // 📥 تعيين درجة الدور الثاني
+            checkAndAddDiff('supplementary_exam', supGrade); // 🔄 تسجيل الفارق بالمسودة
+          }
+
+          newG.theory_updated_by = currentUser?.full_name || 'أستاذ النظري'; // 👤 اسم أستاذ النظري
+          newG.theory_updated_at = nowIso; // ⏰ وقت التحديث للنظري
         }
 
         // تحديث حقل العملي فقط إذا كان مسموحاً له
@@ -1669,16 +1680,11 @@ export default function TeacherCourseGradesPage({ params }: { params: Promise<{ 
                   <span>{course?.semester === 2 ? 'الكورس الثاني' : 'الكورس الأول'}</span>
                 </span>
 
-                {/* 🎯 شارة حالة فترة الامتحان النهائي الدور الأول المعتمدة من رئاسة القسم */}
-                {isFinalExamEnabled ? (
+                {/* 🎯 شارة حالة فترة الامتحان النهائي الدور الأول تظهر حصراً إذا كانت مفعلة */}
+                {isFinalExamEnabled && (
                   <span className="px-3.5 py-1 rounded-xl text-xs sm:text-sm font-black bg-slate-100 text-slate-900 border border-slate-300 shadow-2xs flex items-center gap-1.5 animate-in fade-in">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                     <span>فترة الامتحان النهائي (الدور الأول) مفعلة ومعتمدة</span>
-                  </span>
-                ) : (
-                  <span className="px-3.5 py-1 rounded-xl text-xs sm:text-sm font-black bg-slate-100 text-slate-800 border border-slate-300 shadow-2xs flex items-center gap-1.5 animate-in fade-in">
-                    <Lock className="w-4 h-4 text-[#0F2942] shrink-0" />
-                    <span>الامتحان النهائي (الدور الأول) مغلق ومحجوب بانتظار تفعيل القسم</span>
                   </span>
                 )}
 
@@ -1918,35 +1924,8 @@ export default function TeacherCourseGradesPage({ params }: { params: Promise<{ 
           );
         })()}
 
-        {/* 🎯 تنبيه حالة الامتحان النهائي الدور الأول والضوابط الأكاديمية */}
-        {!isFinalExamEnabled ? (
-          <div className="p-4 bg-slate-50 border-2 border-slate-300 rounded-2xl flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 text-slate-900 shadow-2xs animate-in fade-in">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-[#0F2942] text-white rounded-xl shadow-xs shrink-0">
-                <Lock className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <h4 className="font-black text-base text-slate-950 flex items-center gap-2">
-                  <span>فترة رصد وعرض درجات الامتحان النهائي (الدور الأول) مغلقة حالياً</span>
-                  <span className="text-xs px-2.5 py-1 bg-slate-200 text-slate-800 rounded-lg font-mono flex items-center gap-1 border border-slate-300">
-                    <Lock className="w-3.5 h-3.5 text-slate-700 shrink-0" />
-                    <span>مقفلة</span>
-                  </span>
-                </h4>
-                <p className="text-sm sm:text-base font-black text-black mt-1">
-                  درجات الامتحان النهائي محجوبة ولا تظهر للأستاذ أو الطلبة لحين اعتمادها وتفعيلها رسمياً من قبل رئيس القسم أو المقرر. يتم حالياً عرض واعتماد السعي الفصلي التكويني فقط (من 50).
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              {/* 🛡️ شارة السعي التكويني فقط نشط بحجم أكبر وبارز بناءً على رغبة المستخدم */}
-              <span className="px-4 py-2 bg-white border-2 border-slate-300 rounded-2xl text-sm sm:text-base font-black text-black shadow-xs flex items-center gap-2">
-                <ShieldCheck className="w-5 h-5 text-[#0F2942] shrink-0" />
-                <span>السعي التكويني فقط نشط</span>
-              </span>
-            </div>
-          </div>
-        ) : (
+        {/* 🎯 تنبيه حالة الامتحان النهائي الدور الأول يظهر حصراً إذا كان مفعلاً من رئاسة القسم */}
+        {isFinalExamEnabled && (
           <div className="p-4 bg-slate-50 border-2 border-slate-300 rounded-2xl flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 text-slate-900 shadow-2xs animate-in fade-in">
             <div className="flex items-center gap-3">
               <div className="p-2.5 bg-[#0F2942] text-white rounded-xl shadow-xs shrink-0">
@@ -2771,7 +2750,14 @@ export default function TeacherCourseGradesPage({ params }: { params: Promise<{ 
                     <th className="p-3 border-l border-[#1e4570] text-center">{assessmentScheme.report.title_ar}</th>
                     <th className="p-3 border-l border-[#1e4570] text-center">{assessmentScheme.midterm.title_ar}</th>
                     {isPracticalCourse && <th className="p-3 border-l border-[#1e4570] text-center">{assessmentScheme.practical.title_ar}</th>}
-                    <th className="p-3 text-center">{assessmentScheme.final_exam.title_ar}</th>
+                    {/* 🎯 عمود النهائي يظهر بالمعاينة فقط إذا كان الامتحان مفعلاً بالقسم */}
+                    {isFinalExamEnabled && (
+                      <th className={`p-3 text-center ${isSupplementaryEnabled ? 'border-l border-[#1e4570]' : ''}`}>{assessmentScheme.final_exam.title_ar}</th>
+                    )}
+                    {/* 🔄 عمود الدور الثاني يظهر بالمعاينة فقط إذا كانت فترة الدور الثاني مفعلة */}
+                    {isSupplementaryEnabled && (
+                      <th className="p-3 text-center">امتحان الدور الثاني (50)</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -2788,7 +2774,14 @@ export default function TeacherCourseGradesPage({ params }: { params: Promise<{ 
                         <td className="p-2.5 border-l border-slate-200 text-center">{String(row[`${assessmentScheme.report.title_ar} (${assessmentScheme.report.max_score})`] ?? row['التقرير (10)'] ?? row['تقرير'] ?? '-')}</td>
                         <td className="p-2.5 border-l border-slate-200 text-center">{String(row[`${assessmentScheme.midterm.title_ar} (${assessmentScheme.midterm.max_score})`] ?? row['الميدترم (10)'] ?? row['نصفي'] ?? '-')}</td>
                         {isPracticalCourse && <td className="p-2.5 border-l border-slate-200 text-center">{String(row[`${assessmentScheme.practical.title_ar} (${assessmentScheme.practical.max_score})`] ?? row['العملي (10)'] ?? row['عملي'] ?? '-')}</td>}
-                        <td className="p-2.5 text-center">{String(row[`${assessmentScheme.final_exam.title_ar} (${assessmentScheme.final_exam.max_score})`] ?? row['النهائي (50)'] ?? row['نهائي'] ?? '-')}</td>
+                        {/* 🎯 درجة الفاينل تظهر فقط عند تفعيل الفاينل */}
+                        {isFinalExamEnabled && (
+                          <td className={`p-2.5 text-center ${isSupplementaryEnabled ? 'border-l border-slate-200' : ''}`}>{String(row[`${assessmentScheme.final_exam.title_ar} (${assessmentScheme.final_exam.max_score})`] ?? row['النهائي (50)'] ?? row['نهائي'] ?? '-')}</td>
+                        )}
+                        {/* 🔄 درجة الدور الثاني تظهر فقط عند تفعيل الدور الثاني */}
+                        {isSupplementaryEnabled && (
+                          <td className="p-2.5 text-center">{String(row['امتحان الدور الثاني (50)'] ?? row['الدور الثاني (50)'] ?? row['دور ثاني'] ?? row['sup'] ?? '-')}</td>
+                        )}
                       </tr>
                     );
                   })}

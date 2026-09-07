@@ -89,7 +89,7 @@ import AttendanceNoticeModal, { AttendanceNoticeCategory } from '@/components/at
 import FinalExamScheduleEditor from '@/components/exams/FinalExamScheduleEditor'; // 📝 محرر وإدارة جداول الامتحانات النهائية
 import TuitionManagementTab from '@/components/tuition/TuitionManagementTab'; // 💳 لوحة إدارة وتسديد الأقساط الدراسية
 import { DepartmentAssessmentsOverview } from '@/components/assessments/DepartmentAssessmentsOverview'; // 📚 لوحة تدقيق وإشراف التكليفات والامتحانات الفصلية
-import { exportOfficialWarningLetterPDF } from '@/lib/pdf-export'; // 📜 مولد كتب الإنذارات الرسمية PDF
+import { exportOfficialWarningLetterPDF, exportDepartmentCoursesPDF, DepartmentCoursePDFItem } from '@/lib/pdf-export'; // 📜 مولد كتب الإنذارات وكشوفات المواد الرسمية PDF
 import FloatingCrudModal from '@/components/FloatingCrudModal'; // 📦 المكون العائم الفاخر للـ CRUD
 import ConfirmDeleteModal from '@/components/ConfirmDeleteModal'; // 🗑️ كارد الحذف الاحترافي الفاخر
 import { lockBodyScroll, unlockBodyScroll } from '@/lib/scroll-lock'; // 🔒 نظام إدارة التمرير المركزي للنوافذ المنبثقة
@@ -370,13 +370,13 @@ export default function DepartmentPortalPage() {
     return { top, bottom, left, width, maxHeight, openUpwards };
   };
 
-  // 🔽 دالة فتح وإغلاق قائمة المرحلة مع الحساب الذكي للموضع داخل الشاشة
+  // 🔽 دالة فتح وإغلاق قائمة المرحلة مع الحساب الذكي لضمان بقائها داخل حدود الشاشة 100%
   const handleToggleStudentStageDropdown = () => {
     if (!isStudentStageDropdownOpen && stageButtonRef.current) {
-      setStageDropdownCoords(calculateSmartDropdownPosition(stageButtonRef.current, 200));
-      setIsStudentStageDropdownOpen(true);
+      setStageDropdownCoords(calculateSmartDropdownPosition(stageButtonRef.current, 220)); // 📐 حساب الموضع التفاعلي بالارتفاع المضبوط
+      setIsStudentStageDropdownOpen(true); // 🔓 فتح القائمة
     } else {
-      setIsStudentStageDropdownOpen(false);
+      setIsStudentStageDropdownOpen(false); // 🔒 إغلاق القائمة
     }
   };
 
@@ -454,6 +454,54 @@ export default function DepartmentPortalPage() {
   const [isCourseModalOpen, setIsCourseModalOpen] = useState<boolean>(false); // 📦 حالة كارت CRUD العائم للمواد
   const [isCourseTheoryDropdownOpen, setIsCourseTheoryDropdownOpen] = useState(false); // 🔽 حالة قائمة أستاذ النظري
   const [isCoursePracticalDropdownOpen, setIsCoursePracticalDropdownOpen] = useState(false); // 🔽 حالة قائمة أستاذ العملي
+  
+  // 🎯 مراجع ومواضع القوائم المنسدلة الذكية للأساتذة لضمان بقائها داخل حدود الشاشة المرئية 100%
+  const theoryTeacherBtnRef = useRef<HTMLButtonElement | null>(null); // 📌 مرجع زر أستاذ النظري
+  const [theoryTeacherCoords, setTheoryTeacherCoords] = useState<{ top?: number; bottom?: number; left: number; width: number; maxHeight?: number; openUpwards?: boolean } | null>(null);
+  const practicalTeacherBtnRef = useRef<HTMLButtonElement | null>(null); // 📌 مرجع زر أستاذ العملي
+  const [practicalTeacherCoords, setPracticalTeacherCoords] = useState<{ top?: number; bottom?: number; left: number; width: number; maxHeight?: number; openUpwards?: boolean } | null>(null);
+
+  // 👨‍🏫 فتح وإغلاق قائمة أستاذ النظري بحساب ذكي يمنع خروجها خارج الشاشة
+  const handleToggleCourseTheoryDropdown = () => {
+    if (!isCourseTheoryDropdownOpen && theoryTeacherBtnRef.current) {
+      setTheoryTeacherCoords(calculateSmartDropdownPosition(theoryTeacherBtnRef.current, 220));
+      setIsCourseTheoryDropdownOpen(true);
+      setIsCoursePracticalDropdownOpen(false);
+    } else {
+      setIsCourseTheoryDropdownOpen(false);
+    }
+  };
+
+  // 🧪 فتح وإغلاق قائمة أستاذ العملي بحساب ذكي يمنع خروجها خارج الشاشة
+  const handleToggleCoursePracticalDropdown = () => {
+    if (!isCoursePracticalDropdownOpen && practicalTeacherBtnRef.current) {
+      setPracticalTeacherCoords(calculateSmartDropdownPosition(practicalTeacherBtnRef.current, 220));
+      setIsCoursePracticalDropdownOpen(true);
+      setIsCourseTheoryDropdownOpen(false);
+    } else {
+      setIsCoursePracticalDropdownOpen(false);
+    }
+  };
+
+  // 🔐 حالة نافذة تأكيد تغيير حالة الامتحان (فتح أو إغلاق الدور الأول أو الدور الثاني) في كارد المادة
+  const [examToggleConfirmation, setExamToggleConfirmation] = useState<{
+    isOpen: boolean;
+    examType: 'final' | 'supplementary';
+    targetState: boolean;
+    title: string;
+    description: string;
+  } | null>(null);
+
+  // ⚡ تنفيذ تأكيد فتح أو إغلاق الامتحان بعد موافقة المستخدم
+  const handleConfirmExamToggle = () => {
+    if (!examToggleConfirmation) return;
+    if (examToggleConfirmation.examType === 'final') {
+      setCourseIsFinalExamEnabled(examToggleConfirmation.targetState);
+    } else {
+      setCourseIsSupplementaryEnabled(examToggleConfirmation.targetState);
+    }
+    setExamToggleConfirmation(null);
+  };
   const [courseTeacherSearch, setCourseTeacherSearch] = useState(''); // 🔍 بحث التدريسي في الكارد
   const [courseSearch, setCourseSearch] = useState<string>(''); // 🔍 بحث المواد
   const [filterCourseStage, setFilterCourseStage] = useState<number | 'all'>('all'); // 🏷️ تصفية مرحلة المواد
@@ -462,6 +510,7 @@ export default function DepartmentPortalPage() {
   const [selectedCourseIds, setSelectedCourseIds] = useState<string[]>([]); // 🔘 معرفات المواد المحددة
   const [showCourseExcelInstructions, setShowCourseExcelInstructions] = useState(false); // ℹ️ نافذة تعليمات استيراد المواد
   const [isImportingCourseExcel, setIsImportingCourseExcel] = useState(false); // ⏳ حالة جاري استيراد إكسل للمواد
+  const [isExportingCoursesPDF, setIsExportingCoursesPDF] = useState(false); // 🖨️ حالة جاري تصدير وطباعة كشف المواد كـ PDF الرسمية
   const [courseImportReport, setCourseImportReport] = useState<ImportSummaryReport | null>(null); // 📊 تقرير استيراد المواد
   const [courseActiveReportTab, setCourseActiveReportTab] = useState<'accepted' | 'duplicates' | 'rejected'>('accepted'); // 📑 التبويب النشط في تقرير المواد
 
@@ -955,6 +1004,46 @@ export default function DepartmentPortalPage() {
       (filterCourseType === 'theory_only' && !isPractical);
     return matchesSearch && matchesStage && matchesSemester && matchesType;
   });
+
+  // 🎯 نطلع المواد المستهدفة حسب المرحلة والكورس المحددين بالتبويبات
+  const targetRoundCourses = useMemo(() => { // 🧠 حفظ النتيجة بالذاكرة علمود الأداء ميصير ثقيل
+    return deptCourses.filter((c) => { // 🔍 نسوي فلترة لمواد القسم فقط
+      const matchesStage = filterCourseStage === 'all' || (Number(c.stage_number) || 1) === Number(filterCourseStage); // 🏷️ نتأكد من مطابقة رقم المرحلة
+      const matchesSemester = filterCourseSemester === 'all' || (Number(c.semester) || 1) === Number(filterCourseSemester); // 📅 نتأكد من مطابقة رقم الكورس
+      return matchesStage && matchesSemester; // ✅ نرجع المواد الي طابقت المرحلة والكورس
+    }); // 🔚 نهاية الفلترة الذكية
+  }, [deptCourses, filterCourseStage, filterCourseSemester]); // 🔄 يتحدث بس من تتغير المواد أو الفلاتر
+
+  // 🎯 تحديد المواد النشطة المستهدفة للتحكم الجماعي: إما المواد المحددة يدوياً بالـ Checkbox أو المواد المفلترة
+  const activeTargetRoundCourses = useMemo(() => { // 🧠 نحفظ القائمة بالذاكرة للأداء السريع
+    if (selectedCourseIds.length > 0) { // 🔍 إذا المستخدم محدد مواد بالـ Checkbox
+      return deptCourses.filter((c) => selectedCourseIds.includes(c.id)); // ✅ نرجع المواد المحددة فقط
+    } // 🔚 نهاية فحص التحديد اليدوي
+    return targetRoundCourses; // 📋 نرجع المواد المفلترة بالمرحلة والكورس إذا ماكو تحديد يدوي
+  }, [selectedCourseIds, deptCourses, targetRoundCourses]); // 🔄 يتحدث لحظياً مع التحديد أو الفلاتر
+
+  // 🔢 معرفات مواد الكورس الأول ومواد الكورس الثاني للقسم لتسهيل التحديد السريع
+  const deptSem1CourseIds = useMemo(() => { // 🧠 استخراج معرفات مواد الكورس الأول
+    return deptCourses.filter((c) => (Number(c.semester) || 1) === 1).map((c) => c.id); // 📅 فلترة الكورس الأول
+  }, [deptCourses]); // 🔄 إعادة حساب عند تحديث المواد
+
+  const deptSem2CourseIds = useMemo(() => { // 🧠 استخراج معرفات مواد الكورس الثاني
+    return deptCourses.filter((c) => (Number(c.semester) || 1) === 2).map((c) => c.id); // 📅 فلترة الكورس الثاني
+  }, [deptCourses]); // 🔄 إعادة حساب عند تحديث المواد
+
+  // 🔒 نحسب جم مادة مفتوح بيها الامتحان النهائي للدور الأول في النطاق النشط
+  const finalOpenCount = activeTargetRoundCourses.filter((c) => c.is_final_exam_enabled === true).length; // 🔢 عدد المواد المفتوحة بالدور الأول
+  // 🌟 هل كل المواد في النطاق النشط مفتوح بيها الدور الأول؟
+  const isBulkFinalOpen = activeTargetRoundCourses.length > 0 && finalOpenCount === activeTargetRoundCourses.length; // ✅ صح إذا كلهن مفتوحات 100%
+  // ⚠️ هل اكو فتح جزئي للدور الأول؟
+  const isBulkFinalPartial = finalOpenCount > 0 && finalOpenCount < activeTargetRoundCourses.length; // ⚖️ صح إذا جزء مفتوح وجزء مغلق
+
+  // 🔒 نحسب جم مادة مفتوح بيها رصد درجات الدور الثاني في النطاق النشط
+  const supOpenCount = activeTargetRoundCourses.filter((c) => c.is_supplementary_exam_enabled === true).length; // 🔢 عدد المواد المفتوحة بالدور الثاني
+  // 🌟 هل كل المواد في النطاق النشط مفتوح بيها الدور الثاني؟
+  const isBulkSupOpen = activeTargetRoundCourses.length > 0 && supOpenCount === activeTargetRoundCourses.length; // ✅ صح إذا كلهن مفتوحات بالدور الثاني
+  // ⚠️ هل اكو فتح جزئي للدور الثاني؟
+  const isBulkSupPartial = supOpenCount > 0 && supOpenCount < activeTargetRoundCourses.length; // ⚖️ صح إذا التفعيل صاير لبعض المواد بس
 
   // 🔍 تصفية تكليفات القسم بحسب البحث والأستاذ والمرحلة والكورس
   const deptTeacherCourses = teacherCourses.filter((tc) => {
@@ -1975,6 +2064,101 @@ export default function DepartmentPortalPage() {
     setTimeout(() => setSuccessMessage(''), 4000);
   };
 
+  // 🖨️ دالة تصدير وطباعة جدول المواد والمقررات الدراسية الرسمية المعتمدة بصيغة PDF A4 Landscape
+  const handleExportCoursesPDF = async () => {
+    // 🛡️ فحص إذا جان التصدير شغال حتى نمنع النقرات المتكررة
+    if (isExportingCoursesPDF) return;
+
+    // 📋 تحديد المواد المراد طباعتها: إذا المستخدم محدد مواد معينة ناخذها، وإلا ناخذ المواد المعروضة المفلترة
+    const hasSelected = selectedCourseIds.length > 0; // 🔍 هل اكو مواد محددة بالمربعات؟
+    const rawCoursesToExport = hasSelected
+      ? deptCourses.filter((c) => selectedCourseIds.includes(c.id)) // 🎯 المواد المحددة فقط
+      : filteredCourses.length > 0
+      ? filteredCourses // 🔍 المواد المفلترة حالياً
+      : deptCourses; // 📚 كل مواد القسم كخيار احتياطي
+
+    // ⚠️ فحص إذا ماكو مواد بالكشف
+    if (rawCoursesToExport.length === 0) {
+      setErrorMessage('لا توجد مواد دراسية لطباعتها حالياً!'); // ⚠️ رسالة تحذيرية
+      setTimeout(() => setErrorMessage(''), 3500); // ⏱️ إخفاء الرسالة بعد 3 ثوان ونصف
+      return; // 🛑 إيقاف التنفيذ
+    }
+
+    try {
+      setIsExportingCoursesPDF(true); // ⏳ تفعيل حالة التحميل
+
+      // 🧹 تهيئة قائمة المواد وتجهيز أسماء الأساتذة وساعات النظري والعملي بدقة
+      const formattedItems: DepartmentCoursePDFItem[] = rawCoursesToExport.map((c) => {
+        // 👨‍🏫 استخراج أستاذ النظري من كائن المادة أو من مصفوفة أساتذة القسم
+        const matchedTheoryTeacher = c.theory_teacher_id
+          ? deptTeachers.find((t) => t.id === c.theory_teacher_id)
+          : undefined; // 🔍 مطابقة أستاذ النظري
+        const theoryTeacherName = c.theory_teacher_name || (matchedTheoryTeacher ? matchedTheoryTeacher.full_name : undefined); // 👤 اسم أستاذ النظري
+
+        // 🧪 استخراج أستاذ العملي من كائن المادة أو من مصفوفة أساتذة القسم
+        const matchedPracticalTeacher = c.practical_teacher_id
+          ? deptTeachers.find((t) => t.id === c.practical_teacher_id)
+          : undefined; // 🔍 مطابقة أستاذ العملي
+        const practicalTeacherName = c.practical_teacher_name || (matchedPracticalTeacher ? matchedPracticalTeacher.full_name : undefined); // 👤 اسم أستاذ العملي
+
+        // 🔬 تحديد ما إذا كانت المادة تحتوي جانباً عملياً
+        const isCoursePractical = c.course_type === 'theory_and_practical' || c.has_practical === true;
+
+        return {
+          id: c.id, // 🆔 معرف المادة
+          name: c.name, // 📘 اسم المادة
+          code: c.code, // 🏷️ رمز المادة
+          stage: c.stage_number || 1, // 🎓 رقم المرحلة الأكاديمية
+          semester: c.semester || 1, // 🗓️ الكورس الدراسي المعتمد
+          course_type: c.course_type || (isCoursePractical ? 'theory_and_practical' : 'theory_only'), // 🔬 نوع وتوصيف المادة
+          credits: c.credit_hours || 5, // ⏱️ وحدات وساعات بولونيا المعتمدة
+          theory_hours: 2, // 📚 ساعات النظري الأسبوعية
+          practical_hours: isCoursePractical ? 2 : 0, // 🧪 ساعات العملي الأسبوعية
+          theory_teacher_name: theoryTeacherName, // 👨‍🏫 أستاذ النظري المكلف
+          practical_teacher_name: practicalTeacherName, // 🧪 أستاذ العملي المكلف
+          is_final_exam_enabled: c.is_final_exam_enabled, // 🎯 حالة رصد الفاينل الدور الأول
+          is_supplementary_exam_enabled: c.is_supplementary_exam_enabled, // 🔄 حالة رصد الدور الثاني
+        };
+      });
+
+      // 🏢 استخراج وتجهيز بيانات القسم والكلية ورئيس القسم والمقرر
+      const collegeName = 'كلية تكنولوجيا المعلومات'; // 🏛️ اسم الكلية
+      const headName = currentHead?.full_name || 'رئاسة القسم العلمي'; // 👤 اسم رئيس القسم
+      const rappName = currentRap?.full_name || 'مقررية القسم العلمي'; // 👤 اسم المقرر
+
+      // 🖨️ استدعاء دالة التوليد والتصدير للـ PDF الرسمية
+      const success = await exportDepartmentCoursesPDF({
+        departmentName: deptName, // 🏢 اسم القسم
+        collegeName: collegeName, // 🏛️ اسم الكلية
+        academicYear: getAcademicYear(), // 📅 العام الدراسي
+        departmentHeadName: headName, // 👤 رئيس القسم
+        rapporteurName: rappName, // 👤 مقرر القسم
+        stageFilter: filterCourseStage, // 🎓 تصفية المرحلة
+        semesterFilter: filterCourseSemester, // 🗓️ تصفية الكورس
+        isSelectiveExport: hasSelected, // 🔍 هل التصدير محدد
+        courses: formattedItems, // 📚 قائمة المواد المهيأة
+      });
+
+      // 🌟 فحص نتيجة التصدير وإظهار الرسالة المناسبة
+      if (success) {
+        setSuccessMessage(
+          hasSelected
+            ? `تم تصدير كشف PDF لـ (${formattedItems.length}) مادة دراسية محددة بنجاح! 🖨️✨`
+            : `تم تصدير جدول مقررات قسم (${deptName}) بصيغة PDF الرسمية بنجاح! 🖨️✨`
+        ); // 🥳 إشعار النجاح
+        setTimeout(() => setSuccessMessage(''), 4500); // ⏱️ مسح الإشعار بعد 4.5 ثانية
+      } else {
+        setErrorMessage('تعذر تصدير ملف PDF، يرجى المحاولة مرة أخرى.'); // ❌ إشعار الخطأ
+        setTimeout(() => setErrorMessage(''), 4000); // ⏱️ مسح الخطأ
+      }
+    } catch {
+      setErrorMessage('حدث خطأ غير متوقع أثناء إعداد ملف الـ PDF.'); // 💥 معالجة الاستثناء
+      setTimeout(() => setErrorMessage(''), 4000); // ⏱️ مسح رسالة الاستثناء
+    } finally {
+      setIsExportingCoursesPDF(false); // 🔄 إيقاف حالة التحميل
+    }
+  };
+
   // 📤 استيراد ومعالجة ملف Excel لمواد ومقررات القسم
   const handleCourseExcelUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -2408,11 +2592,11 @@ export default function DepartmentPortalPage() {
       const found = courses.find((c) => c.id === courseId);
       if (found) affectedCourses = [found];
     } else {
-      affectedCourses = deptCourses.filter((c) => {
-        const matchesStage = filterCourseStage === 'all' || (c.stage_number || 1) === filterCourseStage;
-        const matchesSemester = !targetSemester || targetSemester === 'all' || (c.semester || 1) === targetSemester;
-        return matchesStage && matchesSemester;
-      });
+      affectedCourses = deptCourses.filter((c) => { // 🔍 نسوي فلترة لمواد القسم
+        const matchesStage = filterCourseStage === 'all' || (Number(c.stage_number) || 1) === Number(filterCourseStage); // 🏷️ مطابقة رقم المرحلة بدون مشاكل تحويل أنواع
+        const matchesSemester = !targetSemester || targetSemester === 'all' || (Number(c.semester) || 1) === Number(targetSemester); // 📅 مطابقة رقم الكورس بدقة
+        return matchesStage && matchesSemester; // ✅ نرجع المادة إذا طابقت
+      }); // 🔚 نهاية الفلترة
     }
 
     // ⚠️ تنبيه إذا لم تكن هناك مواد مطابقة
@@ -2422,35 +2606,65 @@ export default function DepartmentPortalPage() {
       return;
     }
 
-    // 🏷️ صياغة نصوص العنوان والوصف والتنبيه الأكاديمي
-    const roundName = round === 'final' ? 'الامتحان النهائي (الدور الأول)' : 'الدور الثاني';
-    const actionName = enable ? 'فتح وتفعيل' : 'إغلاق وحجب';
-    const semesterLabel = (courseIds && courseIds.length > 0)
-      ? `لـ (${affectedCourses.length}) مواد دراسية محددة`
-      : courseId 
-      ? `لمادة (${courseName || 'المحددة'})` 
-      : targetSemester === 1 
-        ? 'لمواد الكورس الأول' 
-        : targetSemester === 2 
-          ? 'لمواد الكورس الثاني' 
-          : 'لكافة مواد الكورسين';
-    const stageLabel = (courseId || (courseIds && courseIds.length > 0)) ? '' : filterCourseStage === 'all' ? 'في كافة مراحل القسم' : `في المرحلة ${getStageNameInArabic(Number(filterCourseStage))}`;
+    // 🎯 تحديد المواد التي تحتاج إلى تعديل فعلي فقط بناءً على حالتها الحالية
+    const targetToModifyCourses = affectedCourses.filter((c) => { // 🔍 فلترة المواد المحتاجة لتعديل
+      const isCurrentlyOpen = round === 'final' ? c.is_final_exam_enabled === true : c.is_supplementary_exam_enabled === true; // 📊 حالة الدور للمادة
+      return enable ? !isCurrentlyOpen : isCurrentlyOpen; // 🔑 عند الفتح نأخذ المغلقة وعند الإغلاق نأخذ المفتوحة
+    }); // 🔚 نهاية الفلترة الذكية
 
-    setRoundConfirmModal({
-      isOpen: true,
-      round,
-      enable,
-      targetSemester: targetSemester || 'all',
-      targetStage: filterCourseStage,
-      targetCourseId: courseId,
-      targetCourseName: courseName,
-      targetCourseIds: courseIds,
-      affectedCount: affectedCourses.length,
-      title: `تأكيد ${actionName} ${roundName}`,
-      description: enable
-        ? `أنت على وشك ${actionName} ${roundName} ${semesterLabel} ${stageLabel} لعدد (${affectedCourses.length}) مادة. سيتمكن التدريسيون فوراً من رصد الدرجات وستظهر للطلبة.`
-        : `أنت على وشك ${actionName} ${roundName} ${semesterLabel} ${stageLabel} لعدد (${affectedCourses.length}) مادة. سيتم إيقاف الرصد وحجب الدرجات واقتصار العرض على السعي التكويني.`,
-    });
+    // 🏷️ صياغة نصوص العنوان والوصف والتنبيه الأكاديمي
+    const roundName = round === 'final' ? 'الامتحان النهائي (الدور الأول)' : 'الدور الثاني'; // 🏷️ اسم الدور
+    const actionName = enable ? 'فتح وتفعيل' : 'إغلاق وحجب'; // 🏷️ اسم الإجراء
+
+    // ⚠️ إذا كانت كافة المواد بالحالة المطلوبة أصلاً
+    if (targetToModifyCourses.length === 0) { // 🔍 هل كل المواد بنفس الحالة المطلوبة؟
+      setSuccessMessage(enable ? `كافة مواد ${roundName} مفتوحة ومفعّلة بالفعل! 🔓` : `كافة مواد ${roundName} مغلقة ومحجوبة بالفعل! 🔒`); // 💬 إشعار للمستخدم
+      setTimeout(() => setSuccessMessage(''), 3000); // ⏱️ مسح الرسالة
+      return; // 🛑 إيقاف العملية لعدم الحاجة لأي تغيير
+    } // 🔚 نهاية الفحص
+
+    const alreadyOppositeCount = affectedCourses.length - targetToModifyCourses.length; // 🔢 المواد التي هي بالحالة المطلوبة بالفعل
+    const semesterLabel = (courseIds && courseIds.length > 0) // 🏷️ تسمية النطاق
+      ? `للمواد المحددة (${targetToModifyCourses.length})` // 📋 للمحدد
+      : courseId // 🔍 لمادة مفردة
+      ? `لمادة (${courseName || 'المحددة'})` // 📖 مادة واحدة
+      : targetSemester === 1 // 📅 الكورس الأول
+        ? 'لمواد الكورس الأول' // 1️⃣ الأول
+        : targetSemester === 2 // 📅 الكورس الثاني
+          ? 'لمواد الكورس الثاني' // 2️⃣ الثاني
+          : 'لكافة مواد الكورسين'; // 🌟 الكورسين
+    const stageLabel = (courseId || (courseIds && courseIds.length > 0)) ? '' : filterCourseStage === 'all' ? 'في كافة مراحل القسم' : `في المرحلة ${getStageNameInArabic(Number(filterCourseStage))}`; // 🏢 نص المرحلة
+
+    let titleText = `تأكيد ${actionName} ${roundName}`; // 🏷️ عنوان النافذة
+    let descriptionText = ''; // 📝 نص الوصف
+
+    if (alreadyOppositeCount > 0 && affectedCourses.length > 1) { // 🔍 إذا كان هناك تفعيل جزئي (مثلاً 4 من 5)
+      if (!enable) { // 🔒 حالة إغلاق المواد المفتوحة فقط
+        titleText = `تأكيد إغلاق ${roundName} للمواد المفتوحة فقط (${targetToModifyCourses.length})`; // 🏷️ عنوان دقيق لإغلاق المفتوح فقط
+        descriptionText = `أنت على وشك إغلاق وحجب ${roundName} لعدد (${targetToModifyCourses.length}) مادة مفتوحة فقط ${semesterLabel} ${stageLabel}؛ علماً أن هناك (${alreadyOppositeCount}) مادة مغلقة بالفعل ولا تحتاج إلى إغلاق.`; // 📝 إخبار المستخدم بدقة
+      } else { // 🔓 حالة فتح المواد المغلقة المتبقية فقط
+        titleText = `تأكيد فتح ${roundName} للمواد المتبقية (${targetToModifyCourses.length})`; // 🏷️ عنوان دقيق لفتح المتبقي فقط
+        descriptionText = `أنت على وشك فتح وتفعيل ${roundName} لعدد (${targetToModifyCourses.length}) مادة مغلقة متبقية فقط ${semesterLabel} ${stageLabel}؛ حيث أن هناك (${alreadyOppositeCount}) مواد مفتوحة ومفعّلة بالفعل.`; // 📝 إخبار المستخدم بدقة
+      } // 🔚 نهاية شرط الإجراء
+    } else { // 🎯 الحالة العامة عندما يشمل الإجراء كافة المواد المستهدفة
+      descriptionText = enable // 💡 التوصيف العام
+        ? `أنت على وشك ${actionName} ${roundName} ${semesterLabel} ${stageLabel} لعدد (${targetToModifyCourses.length}) مادة. سيتمكن التدريسيون فوراً من رصد الدرجات وستظهر للطلبة.` // 🔓 فتح عام
+        : `أنت على وشك ${actionName} ${roundName} ${semesterLabel} ${stageLabel} لعدد (${targetToModifyCourses.length}) مادة. سيتم إيقاف الرصد وحجب الدرجات واقتصار العرض على السعي التكويني.`; // 🔒 إغلاق عام
+    } // 🔚 نهاية تحديد النصوص
+
+    setRoundConfirmModal({ // 📦 فتح نافذة التأكيد الرسمية
+      isOpen: true, // 🟢 إظهار المودال
+      round, // 🏷️ الدور
+      enable, // 🔑 تفعيل أو إغلاق
+      targetSemester: targetSemester || 'all', // 📅 الكورس
+      targetStage: filterCourseStage, // 🏢 المرحلة
+      targetCourseId: courseId, // 🆔 معرف المادة المفردة
+      targetCourseName: courseName, // 🏷️ اسم المادة المفردة
+      targetCourseIds: targetToModifyCourses.map((c) => c.id), // 🎯 المعرفات التي سيتم تعديلها حصراً (المفتوحة فقط عند الغلق، والمغلقة فقط عند الفتح)
+      affectedCount: targetToModifyCourses.length, // 🔢 عدد المواد المستهدفة فعلياً
+      title: titleText, // 🏷️ العنوان الدقيق
+      description: descriptionText, // 📝 الوصف المخصص
+    }); // 🔚 نهاية إعداد المودال
   };
 
   // ⚡ 2. دالة تنفيذ عملية الفتح أو القفل بعد تأكيد وموافقة المستخدم الرسمية
@@ -2467,12 +2681,12 @@ export default function DepartmentPortalPage() {
     } else if (targetCourseId) {
       targetIds.add(targetCourseId);
     } else {
-      const matched = deptCourses.filter((c) => {
-        const matchesStage = targetStage === 'all' || (c.stage_number || 1) === targetStage;
-        const matchesSemester = targetSemester === 'all' || (c.semester || 1) === targetSemester;
-        return matchesStage && matchesSemester;
-      });
-      targetIds = new Set(matched.map((c) => c.id));
+      const matched = deptCourses.filter((c) => { // 🔍 نطلع المواد المطابقة للقسم
+        const matchesStage = targetStage === 'all' || (Number(c.stage_number) || 1) === Number(targetStage); // 🏷️ مقارنة رقم المرحلة بعد التحويل لرقم
+        const matchesSemester = targetSemester === 'all' || (Number(c.semester) || 1) === Number(targetSemester); // 📅 مقارنة رقم الكورس بعد التحويل لرقم
+        return matchesStage && matchesSemester; // ✅ نرجع المادة إذا طابقت النطاق
+      }); // 🔚 نهاية الفلترة
+      targetIds = new Set(matched.map((c) => c.id)); // 🎯 نخزن المعرفات بمجموعة سريعة
     }
 
     // 🔄 تحديث المواد المستهدفة وتخزينها ومزامنتها سحابياً
@@ -2573,21 +2787,46 @@ export default function DepartmentPortalPage() {
     });
   };
 
-    // ⚡ دالة تفعيل أو إغلاق الامتحان النهائي لكافة مواد المرحلة دفعة واحدة
-  const handleBulkToggleFinalExam = (enable: boolean) => {
-    requestToggleRoundAction({
-      round: 'final',
-      enable,
-    });
-  };
+  // ⚡ دالة تفعيل أو إغلاق الامتحان النهائي لكافة مواد المرحلة والكورس المحددين أو المواد المحددة بالاختيار
+  const handleBulkToggleFinalExam = (enable: boolean) => { // 🎯 دالة التبديل الجماعي للامتحان النهائي
+    if (enable && isBulkFinalOpen) { // 🔍 إذا كل المواد المستهدفة مفتوحة أصلاً وردنا نفتحها
+      setSuccessMessage('الامتحان النهائي (الدور الأول) مفتوح ومفعّل بالفعل لكافة المواد المستهدفة! 🔓'); // 💬 رسالة تأكيد إيجابية
+      setTimeout(() => setSuccessMessage(''), 3000); // ⏱️ مسح الرسالة بعد 3 ثواني
+      return; // 🛑 نوقف التنفيذ لأن هي مفتوحة مسبقاً
+    } // 🔚 نهاية فحص الفتح
+    if (!enable && !isBulkFinalOpen && !isBulkFinalPartial) { // 🔍 إذا المواد المستهدفة مقفولة أصلاً وردنا نقفلها
+      setSuccessMessage('الامتحان النهائي (الدور الأول) مغلق ومحجوب بالفعل لكافة المواد المستهدفة! 🔒'); // 💬 رسالة تأكيد إيجابية
+      setTimeout(() => setSuccessMessage(''), 3000); // ⏱️ مسح الرسالة بعد 3 ثواني
+      return; // 🛑 نوقف التنفيذ لأن هي مقفولة مسبقاً
+    } // 🔚 نهاية فحص القفل
+    requestToggleRoundAction({ // 🛡️ فتح مودال التأكيد الرسمي قبل التنفيذ
+      round: 'final', // 🏷️ استهداف الدور الأول
+      enable, // 🔑 حالة الفتح أو القفل المطلوبة
+      courseIds: selectedCourseIds.length > 0 ? selectedCourseIds : undefined, // 📋 تمرير معرفات المواد المحددة إن وجدت
+      targetSemester: (filterCourseSemester === 1 || filterCourseSemester === 2) ? filterCourseSemester : 'all', // 📅 حارس نوع دقيق يضمن تمرير 1 أو 2 أو all حصراً
+    }); // 🔚 نهاية استدعاء المودال
+  }; // 🔚 نهاية الدالة
 
-  // ⚡ دالة تفعيل أو إغلاق الدور الثاني لكافة مواد المرحلة دفعة واحدة
-  const handleBulkToggleSupplementaryExam = (enable: boolean) => {
-    requestToggleRoundAction({
-      round: 'supplementary',
-      enable,
-    });
-  };
+  // ⚡ دالة تفعيل أو إغلاق الدور الثاني لكافة مواد المرحلة والكورس المحددين أو المواد المحددة بالاختيار
+  const handleBulkToggleSupplementaryExam = (enable: boolean) => { // 🎯 دالة التبديل الجماعي للدور الثاني
+    if (enable && isBulkSupOpen) { // 🔍 إذا الدور الثاني مفتوح أصلاً وردنا نفتحه
+      setSuccessMessage('فترة رصد درجات الدور الثاني مفتوحة ومفعّلة بالفعل لكافة المواد المستهدفة! 🔓'); // 💬 رسالة تأكيد إيجابية
+      setTimeout(() => setSuccessMessage(''), 3000); // ⏱️ مسح الرسالة بعد 3 ثواني
+      return; // 🛑 نوقف التنفيذ لأن هي مفتوحة مسبقاً
+    } // 🔚 نهاية فحص الفتح
+    if (!enable && !isBulkSupOpen && !isBulkSupPartial) { // 🔍 إذا الدور الثاني مقفول أصلاً وردنا نقفله
+      setSuccessMessage('فترة رصد درجات الدور الثاني مغلقة ومحجوبة بالفعل لكافة المواد المستهدفة! 🔒'); // 💬 رسالة تأكيد إيجابية
+      setTimeout(() => setSuccessMessage(''), 3000); // ⏱️ مسح الرسالة بعد 3 ثواني
+      return; // 🛑 نوقف التنفيذ لأن هي مقفولة مسبقاً
+    } // 🔚 نهاية فحص القفل
+    requestToggleRoundAction({ // 🛡️ فتح مودال التأكيد الرسمي قبل التنفيذ
+      round: 'supplementary', // 🏷️ استهداف الدور الثاني
+      enable, // 🔑 حالة الفتح أو القفل المطلوبة
+      courseIds: selectedCourseIds.length > 0 ? selectedCourseIds : undefined, // 📋 تمرير معرفات المواد المحددة إن وجدت
+      targetSemester: (filterCourseSemester === 1 || filterCourseSemester === 2) ? filterCourseSemester : 'all', // 📅 حارس نوع دقيق يضمن تمرير 1 أو 2 أو all حصراً
+    }); // 🔚 نهاية استدعاء المودال
+  }; // 🔚 نهاية الدالة
+
 
   // ==========================================
   // 4️⃣ تكليف الأساتذة بالمواد (Course Assignments CRUD)
@@ -3640,7 +3879,7 @@ export default function DepartmentPortalPage() {
         {/* رأس التوقيت المختار */}
         <div className="flex items-center justify-between border-b border-slate-200 pb-3">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-[#1A3C6E] text-white rounded-xl shadow-xs">
+            <div className="p-2 bg-[#0F2942] text-white rounded-xl shadow-xs">
               <Clock className="w-5 h-5 text-cyan-300" />
             </div>
             <div>
@@ -3681,7 +3920,7 @@ export default function DepartmentPortalPage() {
                     onClick={() => handleHourSelect(h)}
                     className={`py-1.5 text-xs font-mono font-black rounded-lg border transition-all cursor-pointer ${
                       isSelected
-                        ? 'bg-[#1A3C6E] text-white border-[#1A3C6E] shadow-xs'
+                        ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-xs'
                         : 'bg-white text-black border-slate-300 hover:bg-slate-100'
                     }`}
                   >
@@ -3707,7 +3946,7 @@ export default function DepartmentPortalPage() {
                     onClick={() => handleMinuteSelect(m)}
                     className={`py-1.5 text-xs font-mono font-black rounded-lg border transition-all cursor-pointer ${
                       isSelected
-                        ? 'bg-[#1A3C6E] text-white border-[#1A3C6E] shadow-xs'
+                        ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-xs'
                         : 'bg-white text-black border-slate-300 hover:bg-slate-100'
                     }`}
                   >
@@ -3729,7 +3968,7 @@ export default function DepartmentPortalPage() {
                 onClick={() => handlePeriodSelect('AM')}
                 className={`py-2 px-2 text-xs font-black rounded-lg border transition-all cursor-pointer flex items-center justify-center gap-1 ${
                   parsed.period === 'AM'
-                    ? 'bg-[#1A3C6E] text-white border-[#1A3C6E] shadow-xs'
+                    ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-xs'
                     : 'bg-white text-black border-slate-300 hover:bg-slate-100'
                 }`}
               >
@@ -3741,7 +3980,7 @@ export default function DepartmentPortalPage() {
                 onClick={() => handlePeriodSelect('PM')}
                 className={`py-2 px-2 text-xs font-black rounded-lg border transition-all cursor-pointer flex items-center justify-center gap-1 ${
                   parsed.period === 'PM'
-                    ? 'bg-[#1A3C6E] text-white border-[#1A3C6E] shadow-xs'
+                    ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-xs'
                     : 'bg-white text-black border-slate-300 hover:bg-slate-100'
                 }`}
               >
@@ -4128,7 +4367,7 @@ export default function DepartmentPortalPage() {
                   `جامعة الإمام جعفر الصادق (ع) - فرع ميسان | قسم ${deptName}\nالاسم: ${selectedCardProfile.full_name}\nالصفة: ${selectedCardProfile.role === 'teacher' ? 'تدريسي' : `طالب - المرحلة ${getStageNameInArabic(selectedCardProfile.stage_number || 1)}`}\nالبريد الأكاديمي: ${selectedCardProfile.generated_email}\n${selectedCardProfile.temp_password ? `الرمز: ${selectedCardProfile.temp_password}\n` : ''}رابط المنصة: ${typeof window !== 'undefined' ? window.location.origin : ''}`,
                   selectedCardProfile.id
                 )}
-                className="px-5 py-2.5 bg-[#1A3C6E] hover:bg-[#15305B] text-white rounded-xl text-sm font-black transition flex items-center gap-2 cursor-pointer shadow-xs border border-[#1A3C6E]"
+                className="px-5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-xl text-sm font-black transition flex items-center gap-2 cursor-pointer shadow-xs border border-[#0F2942]"
               >
                 {copiedId === selectedCardProfile.id ? <Check className="w-5 h-5 text-emerald-400" /> : <Copy className="w-5 h-5 text-cyan-300" />}
                 <span>{copiedId === selectedCardProfile.id ? 'تم نسخ البيانات!' : 'نسخ البطاقة بالكامل'}</span>
@@ -4150,7 +4389,7 @@ export default function DepartmentPortalPage() {
             onClick={() => handleTabSwitch('teachers')}
             className={`py-3 px-2 rounded-2xl font-black text-base transition-all flex flex-col items-center justify-center gap-1.5 cursor-pointer border select-none active:scale-[0.98] ${
               activeTab === 'teachers'
-                ? 'bg-[#1A3C6E] text-white border-[#1A3C6E] shadow-md ring-2 ring-[#1A3C6E]/30'
+                ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-md ring-2 ring-[#0F2942]/30'
                 : 'bg-slate-50 text-slate-950 border-slate-300 hover:bg-slate-100 hover:text-black hover:border-slate-400'
             }`}
           >
@@ -4168,7 +4407,7 @@ export default function DepartmentPortalPage() {
             onClick={() => handleTabSwitch('students')}
             className={`py-3 px-2 rounded-2xl font-black text-base transition-all flex flex-col items-center justify-center gap-1.5 cursor-pointer border select-none active:scale-[0.98] ${
               activeTab === 'students'
-                ? 'bg-[#1A3C6E] text-white border-[#1A3C6E] shadow-md ring-2 ring-[#1A3C6E]/30'
+                ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-md ring-2 ring-[#0F2942]/30'
                 : 'bg-slate-50 text-slate-950 border-slate-300 hover:bg-slate-100 hover:text-black hover:border-slate-400'
             }`}
           >
@@ -4186,7 +4425,7 @@ export default function DepartmentPortalPage() {
             onClick={() => handleTabSwitch('courses')}
             className={`py-3 px-2 rounded-2xl font-black text-base transition-all flex flex-col items-center justify-center gap-1.5 cursor-pointer border select-none active:scale-[0.98] ${
               activeTab === 'courses'
-                ? 'bg-[#1A3C6E] text-white border-[#1A3C6E] shadow-md ring-2 ring-[#1A3C6E]/30'
+                ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-md ring-2 ring-[#0F2942]/30'
                 : 'bg-slate-50 text-slate-950 border-slate-300 hover:bg-slate-100 hover:text-black hover:border-slate-400'
             }`}
           >
@@ -4204,7 +4443,7 @@ export default function DepartmentPortalPage() {
             onClick={() => handleTabSwitch('assignments')}
             className={`py-3 px-2 rounded-2xl font-black text-base transition-all flex flex-col items-center justify-center gap-1.5 cursor-pointer border select-none active:scale-[0.98] ${
               activeTab === 'assignments'
-                ? 'bg-[#1A3C6E] text-white border-[#1A3C6E] shadow-md ring-2 ring-[#1A3C6E]/30'
+                ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-md ring-2 ring-[#0F2942]/30'
                 : 'bg-slate-50 text-slate-950 border-slate-300 hover:bg-slate-100 hover:text-black hover:border-slate-400'
             }`}
           >
@@ -4222,7 +4461,7 @@ export default function DepartmentPortalPage() {
             onClick={() => handleTabSwitch('grades')}
             className={`py-3 px-2 rounded-2xl font-black text-base transition-all flex flex-col items-center justify-center gap-1.5 cursor-pointer border select-none active:scale-[0.98] ${
               activeTab === 'grades'
-                ? 'bg-[#1A3C6E] text-white border-[#1A3C6E] shadow-md ring-2 ring-[#1A3C6E]/30'
+                ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-md ring-2 ring-[#0F2942]/30'
                 : 'bg-slate-50 text-slate-950 border-slate-300 hover:bg-slate-100 hover:text-black hover:border-slate-400'
             }`}
           >
@@ -4240,7 +4479,7 @@ export default function DepartmentPortalPage() {
             onClick={() => handleTabSwitch('schedule')}
             className={`py-3 px-2 rounded-2xl font-black text-base transition-all flex flex-col items-center justify-center gap-1.5 cursor-pointer border select-none active:scale-[0.98] ${
               activeTab === 'schedule'
-                ? 'bg-[#1A3C6E] text-white border-[#1A3C6E] shadow-md ring-2 ring-[#1A3C6E]/30'
+                ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-md ring-2 ring-[#0F2942]/30'
                 : 'bg-slate-50 text-slate-950 border-slate-300 hover:bg-slate-100 hover:text-black hover:border-slate-400'
             }`}
           >
@@ -4255,7 +4494,7 @@ export default function DepartmentPortalPage() {
             onClick={() => handleTabSwitch('attendance')}
             className={`py-3 px-2 rounded-2xl font-black text-base transition-all flex flex-col items-center justify-center gap-1.5 cursor-pointer border select-none active:scale-[0.98] ${
               activeTab === 'attendance'
-                ? 'bg-[#1A3C6E] text-white border-[#1A3C6E] shadow-md ring-2 ring-[#1A3C6E]/30'
+                ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-md ring-2 ring-[#0F2942]/30'
                 : 'bg-slate-50 text-slate-950 border-slate-300 hover:bg-slate-100 hover:text-black hover:border-slate-400'
             }`}
           >
@@ -4270,7 +4509,7 @@ export default function DepartmentPortalPage() {
             onClick={() => handleTabSwitch('exams')}
             className={`py-3 px-2 rounded-2xl font-black text-base transition-all flex flex-col items-center justify-center gap-1.5 cursor-pointer border select-none active:scale-[0.98] ${
               activeTab === 'exams'
-                ? 'bg-[#1A3C6E] text-white border-[#1A3C6E] shadow-md ring-2 ring-[#1A3C6E]/30'
+                ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-md ring-2 ring-[#0F2942]/30'
                 : 'bg-slate-50 text-slate-950 border-slate-300 hover:bg-slate-100 hover:text-black hover:border-slate-400'
             }`}
           >
@@ -4285,7 +4524,7 @@ export default function DepartmentPortalPage() {
             onClick={() => handleTabSwitch('course_tasks')}
             className={`py-3 px-2 rounded-2xl font-black text-base transition-all flex flex-col items-center justify-center gap-1.5 cursor-pointer border select-none active:scale-[0.98] ${
               activeTab === 'course_tasks'
-                ? 'bg-[#1A3C6E] text-white border-[#1A3C6E] shadow-md ring-2 ring-[#1A3C6E]/30'
+                ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-md ring-2 ring-[#0F2942]/30'
                 : 'bg-slate-50 text-slate-950 border-slate-300 hover:bg-slate-100 hover:text-black hover:border-slate-400'
             }`}
           >
@@ -4300,7 +4539,7 @@ export default function DepartmentPortalPage() {
             onClick={() => handleTabSwitch('tuition')}
             className={`py-3 px-2 rounded-2xl font-black text-base transition-all flex flex-col items-center justify-center gap-1.5 cursor-pointer border select-none active:scale-[0.98] ${
               activeTab === 'tuition'
-                ? 'bg-[#1A3C6E] text-white border-[#1A3C6E] shadow-md ring-2 ring-[#1A3C6E]/30'
+                ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-md ring-2 ring-[#0F2942]/30'
                 : 'bg-slate-50 text-slate-950 border-slate-300 hover:bg-slate-100 hover:text-black hover:border-slate-400'
             }`}
           >
@@ -4315,7 +4554,7 @@ export default function DepartmentPortalPage() {
             onClick={() => handleTabSwitch('analytics')}
             className={`py-3 px-2 rounded-2xl font-black text-base transition-all flex flex-col items-center justify-center gap-1.5 cursor-pointer border select-none active:scale-[0.98] ${
               activeTab === 'analytics'
-                ? 'bg-[#1A3C6E] text-white border-[#1A3C6E] shadow-md ring-2 ring-[#1A3C6E]/30'
+                ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-md ring-2 ring-[#0F2942]/30'
                 : 'bg-slate-50 text-slate-950 border-slate-300 hover:bg-slate-100 hover:text-black hover:border-slate-400'
             }`}
           >
@@ -4338,19 +4577,21 @@ export default function DepartmentPortalPage() {
         return (
           <div className="space-y-4">
             
-            {/* 📊 شريط إحصائيات الكادر التدريسي للقسم وشريط الإجراءات والـ Excel */}
-            <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-              <div>
-                <h3 className="text-xl sm:text-2xl font-black text-slate-950 flex items-center gap-2.5">
-                  <Users className="w-7 h-7 text-slate-950" />
-                  <span>كادر التدريسيين المعتمد لقسم {deptName}</span>
-                </h3>
-                <p className="text-base sm:text-lg font-black text-slate-700 mt-1">
-                  إجمالي التدريسيين المكلفين بالتدريس الفعلي في القسم
-                </p>
-              </div>
+            {/* 📊 شريط كادر التدريسيين وإحصائياته وشريط الأزرار الأربعة بسطر واحد احترافي */}
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-5">
+              {/* 🏷️ الصف العلوي: العنوان والتوصيف + الإحصائيات الديموغرافية */}
+              <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-xl sm:text-2xl font-black text-slate-950 flex items-center gap-2.5">
+                    <Users className="w-7 h-7 text-slate-950" />
+                    <span>كادر التدريسيين المعتمد لقسم {deptName}</span>
+                  </h3>
+                  <p className="text-base sm:text-lg font-black text-slate-700 mt-1">
+                    إجمالي التدريسيين المكلفين بالتدريس الفعلي في القسم
+                  </p>
+                </div>
 
-              <div className="flex flex-wrap items-center gap-3">
+                {/* 🧮 شارات الإحصائيات (الإجمالي، الذكور، الإناث) */}
                 <div className="flex flex-wrap items-center gap-2.5 text-base font-black">
                   <span className="bg-slate-100 text-slate-950 px-4 py-2 rounded-2xl border border-slate-300 shadow-2xs">
                     الإجمالي: {totalDeptTch} تدريسي
@@ -4362,7 +4603,10 @@ export default function DepartmentPortalPage() {
                      الإناث: {totalFemales} ({femalePct}%)
                   </span>
                 </div>
+              </div>
 
+              {/* 🔘 شريط الأزرار الأربعة بسطر واحد احترافي وموحد 100% */}
+              <div className="pt-3 border-t border-slate-100 flex items-center gap-3 overflow-x-auto flex-nowrap">
                 {/* ➕ زر فتح كارت الإضافة وتوليد الحساب العائم */}
                 <button
                   type="button"
@@ -4376,9 +4620,9 @@ export default function DepartmentPortalPage() {
                     setNameError('');
                     setIsTeacherModalOpen(true);
                   }}
-                  className="px-5 py-3 bg-[#1A3C6E] hover:bg-[#15305B] text-white font-black rounded-2xl text-base shadow-md transition flex items-center gap-2 cursor-pointer border border-[#15305B] shrink-0 active:scale-95"
+                  className="px-5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black rounded-2xl text-base shadow-sm transition flex items-center gap-2 cursor-pointer border border-[#163a5f] shrink-0 active:scale-95 whitespace-nowrap"
                 >
-                  <Plus className="w-5 h-5" />
+                  <Plus className="w-5 h-5 text-cyan-300" />
                   <span>إضافة أستاذ جديد</span>
                 </button>
 
@@ -4386,7 +4630,7 @@ export default function DepartmentPortalPage() {
                 <button
                   type="button" // 🔘 نوع الزر لمنع أي إرسال غير مقصود
                   onClick={handleDownloadTeacherTemplate} // ⚡ تشغيل دالة تنزيل قالب الأساتذة المعتمد
-                  className="px-5 py-3 bg-[#1A3C6E] hover:bg-[#15305B] text-white rounded-2xl font-black text-base flex items-center gap-2.5 shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer border border-[#15305B] shrink-0" // 🎨 تصميم كحلي ملكي موحد
+                  className="px-5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-2xl font-black text-base flex items-center gap-2 shadow-sm transition-all active:scale-95 cursor-pointer border border-[#163a5f] shrink-0 whitespace-nowrap" // 🎨 تصميم كحلي ملكي موحد
                   title="تنزيل نموذج Excel المعتمد لأساتذة القسم" // 💡 نص التلميح
                 >
                   <Download className="w-5 h-5 text-emerald-300" /> {/* 📥 أيقونة التنزيل باللون الزمردي الزاهي */}
@@ -4397,15 +4641,15 @@ export default function DepartmentPortalPage() {
                 <button
                   type="button" // 🔘 نوع الزر لمنع أي إرسال غير مقصود
                   onClick={() => setShowExcelInstructions(true)} // ⚡ فتح نافذة التعليمات
-                  className="px-5 py-3 bg-[#1A3C6E] hover:bg-[#15305B] text-white rounded-2xl font-black text-base flex items-center gap-2.5 shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer border border-[#15305B] shrink-0" // 🎨 تصميم كحلي ملكي موحد
+                  className="px-5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-2xl font-black text-base flex items-center gap-2 shadow-sm transition-all active:scale-95 cursor-pointer border border-[#163a5f] shrink-0 whitespace-nowrap" // 🎨 تصميم كحلي ملكي موحد
                   title="تعليمات وضوابط الاستيراد" // 💡 نص التلميح
                 >
                   <Info className="w-5 h-5 text-sky-300" /> {/* ℹ️ أيقونة المعلومات بلون سماوي جميل */}
                   <span>التعليمات</span> {/* 📝 نص الزر */}
                 </button>
 
-                {/* 📤 زر استيراد ملف Excel */}
-                <label className="px-5 py-3 bg-[#1A3C6E] hover:bg-[#15305B] text-white text-base font-black rounded-2xl transition flex items-center gap-2 cursor-pointer shadow-xs border border-[#15305B]">
+                {/* 📤 زر استيراد ملف Excel لأساتذة القسم بأيقونة فيروزية أنيقة متناسقة مع الكحلي الملكي */}
+                <label className="px-5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white text-base font-black rounded-2xl transition flex items-center gap-2 cursor-pointer shadow-sm border border-[#163a5f] shrink-0 active:scale-95 whitespace-nowrap">
                   <Upload className="w-5 h-5 text-cyan-300" />
                   <span>{isImportingExcel ? 'جاري الاستيراد...' : 'استيراد Excel'}</span>
                   <input
@@ -4453,7 +4697,7 @@ export default function DepartmentPortalPage() {
                   </button>
                   <button
                     type="submit"
-                    className="px-7 py-3 bg-[#1A3C6E] hover:bg-[#15305B] text-white font-black rounded-2xl text-base shadow-md transition flex items-center gap-2 cursor-pointer border border-[#1A3C6E] active:scale-95"
+                    className="px-7 py-3 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black rounded-2xl text-base shadow-md transition flex items-center gap-2 cursor-pointer border border-[#0F2942] active:scale-95"
                   >
                     <Plus className="w-5 h-5" />
                     <span>{editingTeacherId ? 'حفظ التعديلات' : 'إضافة وتوليد الحساب'}</span>
@@ -4471,7 +4715,7 @@ export default function DepartmentPortalPage() {
                   <button
                     type="button"
                     onClick={handleAutoGenerateCredentials}
-                    className="px-4 py-2.5 bg-[#1A3C6E] hover:bg-[#15305B] text-white font-black text-sm rounded-xl transition flex items-center gap-2 shadow-xs cursor-pointer whitespace-nowrap border border-[#1A3C6E] active:scale-95"
+                    className="px-4 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black text-sm rounded-xl transition flex items-center gap-2 shadow-xs cursor-pointer whitespace-nowrap border border-[#0F2942] active:scale-95"
                   >
                     <Sparkles className="w-4 h-4 text-cyan-300" />
                     <span>توليد بريد ورمز معقد تلقائياً</span>
@@ -4519,8 +4763,8 @@ export default function DepartmentPortalPage() {
                         onClick={() => setTeacherGender('male')}
                         className={`py-3 px-3 rounded-2xl font-black text-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer border ${
                           teacherGender === 'male'
-                            ? 'bg-[#1A3C6E] text-white border-[#1A3C6E] shadow-sm ring-2 ring-[#1A3C6E]/30'
-                            : 'bg-slate-50 text-slate-800 border-slate-300 hover:bg-slate-100 hover:border-[#1A3C6E]'
+                            ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-sm ring-2 ring-[#0F2942]/30'
+                            : 'bg-slate-50 text-slate-800 border-slate-300 hover:bg-slate-100 hover:border-[#0F2942]'
                         }`}
                       >
                         <span>ذكر (أستاذ)</span>
@@ -4530,8 +4774,8 @@ export default function DepartmentPortalPage() {
                         onClick={() => setTeacherGender('female')}
                         className={`py-3 px-3 rounded-2xl font-black text-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer border ${
                           teacherGender === 'female'
-                            ? 'bg-[#1A3C6E] text-white border-[#1A3C6E] shadow-sm ring-2 ring-[#1A3C6E]/30'
-                            : 'bg-slate-50 text-slate-800 border-slate-300 hover:bg-slate-100 hover:border-[#1A3C6E]'
+                            ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-sm ring-2 ring-[#0F2942]/30'
+                            : 'bg-slate-50 text-slate-800 border-slate-300 hover:bg-slate-100 hover:border-[#0F2942]'
                         }`}
                       >
                         <span>أنثى (أستاذة)</span>
@@ -4704,10 +4948,11 @@ export default function DepartmentPortalPage() {
 
                 {deptTeachers.length > 0 && (
                   <div className="flex items-center gap-2">
+                    {/* 🔘 زر تحديد الكل باللون الكحلي الملكي الفاخر */}
                     <button
                       type="button"
                       onClick={toggleSelectAllTeachers}
-                      className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-950 rounded-xl font-black text-sm transition cursor-pointer border border-slate-300"
+                      className="px-4 py-2 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-xl font-black text-sm transition cursor-pointer border border-[#0F2942] shadow-sm active:scale-95"
                     >
                       {selectedTeacherIds.length === deptTeachers.length ? 'إلغاء تحديد الكل' : 'تحديد الكل'}
                     </button>
@@ -4717,7 +4962,7 @@ export default function DepartmentPortalPage() {
 
               {/* 🎛️ شريط الإجراءات الجماعية الفاخر عند تحديد الأساتذة */}
               {selectedTeacherIds.length > 0 && (
-                <div className="bg-[#1A3C6E] text-white p-4 sm:px-6 rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-lg border border-[#1A3C6E] animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="bg-[#0F2942] text-white p-4 sm:px-6 rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-lg border border-[#0F2942] animate-in fade-in slide-in-from-top-2 duration-200">
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-blue-500/20 text-cyan-300 rounded-xl border border-cyan-400/30">
                       <Users className="w-5 h-5" />
@@ -4773,7 +5018,7 @@ export default function DepartmentPortalPage() {
                             aria-label="تحديد جميع الأساتذة"
                             checked={deptTeachers.length > 0 && selectedTeacherIds.length === deptTeachers.length}
                             onChange={toggleSelectAllTeachers}
-                            className="w-5 h-5 rounded-md border-2 border-slate-400 text-[#1A3C6E] focus:ring-2 focus:ring-[#1A3C6E] cursor-pointer accent-[#1A3C6E]"
+                            className="w-5 h-5 rounded-md border-2 border-slate-400 text-[#0F2942] focus:ring-2 focus:ring-[#0F2942] cursor-pointer accent-[#0F2942]"
                           />
                         </th>
                         <th className="p-4 text-center text-base w-14">ت</th>
@@ -4810,7 +5055,7 @@ export default function DepartmentPortalPage() {
                                   aria-label={`تحديد ${t.full_name}`}
                                   checked={isSelected}
                                   onChange={() => toggleSelectTeacher(t.id)}
-                                  className="w-5 h-5 rounded-md border-2 border-slate-400 text-[#1A3C6E] focus:ring-2 focus:ring-[#1A3C6E] cursor-pointer accent-[#1A3C6E]"
+                                  className="w-5 h-5 rounded-md border-2 border-slate-400 text-[#0F2942] focus:ring-2 focus:ring-[#0F2942] cursor-pointer accent-[#0F2942]"
                                 />
                               </td>
 
@@ -4839,7 +5084,7 @@ export default function DepartmentPortalPage() {
                                     className={`p-2 rounded-xl border transition cursor-pointer ${
                                       isFirst
                                         ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-40'
-                                        : 'bg-white text-slate-950 border-slate-300 hover:bg-[#1A3C6E] hover:text-white shadow-2xs active:scale-95'
+                                        : 'bg-white text-slate-950 border-slate-300 hover:bg-[#0F2942] hover:text-white shadow-2xs active:scale-95'
                                     }`}
                                   >
                                     <ArrowUp className="w-4 h-4" />
@@ -4852,7 +5097,7 @@ export default function DepartmentPortalPage() {
                                     className={`p-2 rounded-xl border transition cursor-pointer ${
                                       isLast
                                         ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-40'
-                                        : 'bg-white text-slate-950 border-slate-300 hover:bg-[#1A3C6E] hover:text-white shadow-2xs active:scale-95'
+                                        : 'bg-white text-slate-950 border-slate-300 hover:bg-[#0F2942] hover:text-white shadow-2xs active:scale-95'
                                     }`}
                                   >
                                     <ArrowDown className="w-4 h-4" />
@@ -4873,16 +5118,16 @@ export default function DepartmentPortalPage() {
                               </td>
                               <td className="p-4 whitespace-nowrap">
                                 <div className="flex items-center justify-center gap-2">
-                                  {/* 🪪 زر بطاقة الأستاذ ورمز QR الفاخر بلون كحلي ملكي */}
+                                  {/* 🪪 زر بطاقة الأستاذ ورمز QR باللون الأبيض الفاخر وأيقونة كحلية واضحة */}
                                   <button
                                     type="button"
                                     onClick={() => setSelectedCardProfile(t)}
-                                    className="p-2.5 bg-[#1A3C6E] hover:bg-[#15305B] text-white rounded-xl transition cursor-pointer border border-[#1A3C6E] shadow-2xs hover:shadow-md active:scale-95"
+                                    className="p-2.5 bg-white hover:bg-slate-100 text-[#0F2942] rounded-xl transition cursor-pointer border border-slate-300 shadow-2xs hover:shadow-md active:scale-95"
                                     title="عرض بطاقة الأستاذ ورمز QR"
                                   >
-                                    <QrCode className="w-5 h-5 text-emerald-300" />
+                                    <QrCode className="w-5 h-5 text-[#0F2942]" />
                                   </button>
-                                  {/* ✏️ زر تعديل بيانات الأستاذ الفاخر بلون كحلي ملكي */}
+                                  {/* ✏️ زر تعديل بيانات الأستاذ باللون الأبيض الفاخر وأيقونة كحلية واضحة */}
                                   <button
                                     type="button"
                                     onClick={() => {
@@ -4894,10 +5139,10 @@ export default function DepartmentPortalPage() {
                                       setNameError('');
                                       setIsTeacherModalOpen(true);
                                     }}
-                                    className="p-2.5 bg-[#1A3C6E] hover:bg-[#15305B] text-white rounded-xl transition cursor-pointer border border-[#1A3C6E] shadow-2xs hover:shadow-md active:scale-95"
+                                    className="p-2.5 bg-white hover:bg-slate-100 text-[#0F2942] rounded-xl transition cursor-pointer border border-slate-300 shadow-2xs hover:shadow-md active:scale-95"
                                     title="تعديل بيانات الأستاذ"
                                   >
-                                    <Edit3 className="w-5 h-5 text-cyan-300" />
+                                    <Edit3 className="w-5 h-5 text-[#0F2942]" />
                                   </button>
                                   {/* 🗑️ زر حذف الأستاذ الياقوتي البارز والواضح */}
                                   <button
@@ -4955,25 +5200,27 @@ export default function DepartmentPortalPage() {
         return (
           <div className="space-y-4">
             
-            {/* 📊 شريط إحصائيات طلاب القسم وشريط الإجراءات والـ Excel */}
-            <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-              <div>
-                <h3 className="text-xl sm:text-2xl font-black text-slate-950 flex items-center gap-2.5">
-                  <GraduationCap className="w-7 h-7 text-slate-950" />
-                  <span>إحصائيات طلبة قسم {deptName}</span>
-                </h3>
-                <p className="text-base sm:text-lg font-black text-slate-700 mt-1">
-                  توزيع طلبة القسم حسب المراحل الدراسية والنوع والفترة (صباحي / مسائي)
-                </p>
-              </div>
+            {/* 📊 شريط إحصائيات طلاب القسم وشريط الأزرار الأربعة بسطر واحد احترافي */}
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-5">
+              {/* 🏷️ الصف العلوي: العنوان والتوصيف + الإحصائيات الديموغرافية والنوعية */}
+              <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-xl sm:text-2xl font-black text-slate-950 flex items-center gap-2.5">
+                    <GraduationCap className="w-7 h-7 text-slate-950" />
+                    <span>إحصائيات طلبة قسم {deptName}</span>
+                  </h3>
+                  <p className="text-base sm:text-lg font-black text-slate-700 mt-1">
+                    توزيع طلبة القسم حسب المراحل الدراسية والنوع والفترة (صباحي / مسائي)
+                  </p>
+                </div>
 
-              <div className="flex flex-wrap items-center gap-3">
+                {/* 🧮 شارات الإحصائيات الخمسة للطلبة */}
                 <div className="flex flex-wrap items-center gap-2 text-base font-black">
                   <span className="bg-slate-100 text-slate-950 px-3.5 py-2 rounded-2xl border border-slate-300 shadow-2xs">
                     الإجمالي: {totalDeptStds}
                   </span>
-                  <span className="bg-emerald-50 text-emerald-950 px-3.5 py-2 rounded-2xl border border-emerald-300 shadow-2xs flex items-center gap-1.5">
-                    <Sun className="w-4 h-4 text-emerald-700" />
+                  <span className="bg-blue-50 text-blue-950 px-3.5 py-2 rounded-2xl border border-blue-300 shadow-2xs flex items-center gap-1.5">
+                    <Sun className="w-4 h-4 text-[#0F2942]" />
                     <span>الصباحي:</span>
                     <strong className="font-mono">{totalMorningStds}</strong>
                   </span>
@@ -4989,7 +5236,10 @@ export default function DepartmentPortalPage() {
                      الإناث: {totalStdFemales} ({stdFemalePct}%)
                   </span>
                 </div>
+              </div>
 
+              {/* 🔘 شريط الأزرار الأربعة بسطر واحد احترافي وموحد 100% */}
+              <div className="pt-3 border-t border-slate-100 flex items-center gap-3 overflow-x-auto flex-nowrap">
                 {/* ➕ زر فتح كارت إضافة طالب جديد وتوليد حسابه */}
                 <button
                   type="button"
@@ -4998,16 +5248,16 @@ export default function DepartmentPortalPage() {
                     setStudentName('');
                     setCustomStudentEmail('');
                     setCustomStudentPassword('');
-                    setStudentStage(1);
+                    setStudentStage(null); // 🔄 تصفير المرحلة الدراسية لتكون غير محددة افتراضياً حتى يختار المستخدم بنفسه
                     setStudentGender(null); // 🔄 تصفير جنس الطالب ليكون غير محدد افتراضياً
                     setShowStudentPassword(false); // 🔒 إخفاء كلمة المرور بنجوم افتراضياً
-                    setStudentStudyType('morning');
+                    setStudentStudyType(null); // 🔄 تصفير الفترة الدراسية (الصباحي/المسائي) لتكون غير محددة افتراضياً
                     setStudentNameError('');
                     setIsStudentModalOpen(true);
                   }}
-                  className="px-5 py-3 bg-[#1A3C6E] hover:bg-[#15305B] text-white font-black rounded-2xl text-base shadow-md transition flex items-center gap-2 cursor-pointer border border-[#15305B] shrink-0 active:scale-95"
+                  className="px-5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black rounded-2xl text-base shadow-sm transition flex items-center gap-2 cursor-pointer border border-[#163a5f] shrink-0 active:scale-95 whitespace-nowrap"
                 >
-                  <Plus className="w-5 h-5" />
+                  <Plus className="w-5 h-5 text-cyan-300" />
                   <span>تسجيل طالب جديد</span>
                 </button>
 
@@ -5015,7 +5265,7 @@ export default function DepartmentPortalPage() {
                 <button
                   type="button" // 🔘 نوع الزر لمنع أي إرسال غير مقصود
                   onClick={handleDownloadStudentTemplate} // ⚡ تشغيل دالة تنزيل قالب الطلبة المعتمد
-                  className="px-5 py-3 bg-[#1A3C6E] hover:bg-[#15305B] text-white rounded-2xl font-black text-base flex items-center gap-2.5 shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer border border-[#15305B] shrink-0" // 🎨 تصميم كحلي ملكي موحد
+                  className="px-5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-2xl font-black text-base flex items-center gap-2 shadow-sm transition-all active:scale-95 cursor-pointer border border-[#163a5f] shrink-0 whitespace-nowrap" // 🎨 تصميم كحلي ملكي موحد
                   title="تنزيل نموذج Excel المعتمد لطلبة القسم" // 💡 نص التلميح
                 >
                   <Download className="w-5 h-5 text-emerald-300" /> {/* 📥 أيقونة التنزيل باللون الزمردي الزاهي */}
@@ -5026,15 +5276,15 @@ export default function DepartmentPortalPage() {
                 <button
                   type="button" // 🔘 نوع الزر لمنع أي إرسال غير مقصود
                   onClick={() => setShowStudentExcelInstructions(true)} // ⚡ فتح نافذة التعليمات للطلبة
-                  className="px-5 py-3 bg-[#1A3C6E] hover:bg-[#15305B] text-white rounded-2xl font-black text-base flex items-center gap-2.5 shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer border border-[#15305B] shrink-0" // 🎨 تصميم كحلي ملكي موحد
+                  className="px-5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-2xl font-black text-base flex items-center gap-2 shadow-sm transition-all active:scale-95 cursor-pointer border border-[#163a5f] shrink-0 whitespace-nowrap" // 🎨 تصميم كحلي ملكي موحد
                   title="تعليمات وضوابط استيراد الطلبة" // 💡 نص التلميح
                 >
                   <Info className="w-5 h-5 text-sky-300" /> {/* ℹ️ أيقونة المعلومات بلون سماوي جميل */}
                   <span>التعليمات</span> {/* 📝 نص الزر */}
                 </button>
 
-                {/* 📤 زر استيراد ملف Excel للطلبة */}
-                <label className="px-5 py-3 bg-[#1A3C6E] hover:bg-[#15305B] text-white text-base font-black rounded-2xl transition flex items-center gap-2 cursor-pointer shadow-xs border border-[#15305B]">
+                {/* 📤 زر استيراد ملف Excel للطلبة بأيقونة فيروزية أنيقة متناسقة */}
+                <label className="px-5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white text-base font-black rounded-2xl transition flex items-center gap-2 cursor-pointer shadow-sm border border-[#163a5f] shrink-0 active:scale-95 whitespace-nowrap">
                   <Upload className="w-5 h-5 text-cyan-300" />
                   <span>{isImportingStudentExcel ? 'جاري الاستيراد...' : 'استيراد Excel'}</span>
                   <input
@@ -5052,13 +5302,16 @@ export default function DepartmentPortalPage() {
             <FloatingCrudModal
               isOpen={isStudentModalOpen}
               onClose={() => {
-                setIsStudentModalOpen(false);
-                setIsStudentStageDropdownOpen(false);
-                setEditingStudentId(null);
-                setStudentName('');
-                setCustomStudentEmail('');
-                setCustomStudentPassword('');
-                setStudentNameError('');
+                setIsStudentModalOpen(false); // 🚪 سد النافذة العائمة
+                setIsStudentStageDropdownOpen(false); // 🔽 سد القائمة المنسدلة للمراحل
+                setEditingStudentId(null); // 🔄 تصفير معرف الطالب الجاري تعديله
+                setStudentName(''); // 🔄 تصفير حقل اسم الطالب
+                setCustomStudentEmail(''); // 🔄 تصفير حقل البريد
+                setCustomStudentPassword(''); // 🔄 تصفير حقل كلمة المرور
+                setStudentStage(null); // 🔄 تصفير المرحلة الدراسية حتى ترجع نظيفة
+                setStudentGender(null); // 🔄 تصفير جنس الطالب
+                setStudentStudyType(null); // 🔄 تصفير نوع الدوام (الصباحي/المسائي) حتى ما يبقى معلق
+                setStudentNameError(''); // 🔄 مسح أي رسالة خطأ بالاسم
               }}
               title={editingStudentId ? 'تعديل بيانات الطالب الأكاديمي' : 'تسجيل طالب جديد وتوليد الحساب الأكاديمي'}
               // 📝 تعديل العنوان الفرعي لنافذة إضافة الطالب بدون ذكر الرقم الجامعي
@@ -5071,13 +5324,16 @@ export default function DepartmentPortalPage() {
                   <button
                     type="button"
                     onClick={() => {
-                      setIsStudentModalOpen(false);
-                      setIsStudentStageDropdownOpen(false);
-                      setEditingStudentId(null);
-                      setStudentName('');
-                      setCustomStudentEmail('');
-                      setCustomStudentPassword('');
-                      setStudentNameError('');
+                      setIsStudentModalOpen(false); // 🚪 سد النافذة العائمة عند الضغط على إلغاء
+                      setIsStudentStageDropdownOpen(false); // 🔽 سد دروب داون المراحل
+                      setEditingStudentId(null); // 🔄 تصفير المعرف
+                      setStudentName(''); // 🔄 تصفير الاسم
+                      setCustomStudentEmail(''); // 🔄 تصفير البريد
+                      setCustomStudentPassword(''); // 🔄 تصفير الباسورد
+                      setStudentStage(null); // 🔄 تصفير المرحلة الدراسية
+                      setStudentGender(null); // 🔄 تصفير جنس الطالب
+                      setStudentStudyType(null); // 🔄 تصفير نوع الدوام تماماً
+                      setStudentNameError(''); // 🔄 مسح رسائل الخطأ
                     }}
                     className="px-6 py-3 bg-slate-100 hover:bg-slate-200 text-slate-950 font-black rounded-2xl text-base transition cursor-pointer border border-slate-300"
                   >
@@ -5085,7 +5341,7 @@ export default function DepartmentPortalPage() {
                   </button>
                   <button
                     type="submit"
-                    className="px-7 py-3 bg-[#1A3C6E] hover:bg-[#15305B] text-white font-black rounded-2xl text-base shadow-md transition flex items-center gap-2 cursor-pointer border border-[#1A3C6E] active:scale-95"
+                    className="px-7 py-3 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black rounded-2xl text-base shadow-md transition flex items-center gap-2 cursor-pointer border border-[#0F2942] active:scale-95"
                   >
                     <Plus className="w-5 h-5" />
                     <span>{editingStudentId ? 'حفظ التعديلات' : 'تسجيل وتوليد الحساب'}</span>
@@ -5103,7 +5359,7 @@ export default function DepartmentPortalPage() {
                   <button
                     type="button"
                     onClick={handleAutoGenerateStudentCredentials}
-                    className="px-4 py-2.5 bg-[#1A3C6E] hover:bg-[#15305B] text-white font-black text-sm rounded-xl transition flex items-center gap-2 shadow-xs cursor-pointer whitespace-nowrap border border-[#1A3C6E] active:scale-95"
+                    className="px-4 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black text-sm rounded-xl transition flex items-center gap-2 shadow-xs cursor-pointer whitespace-nowrap border border-[#0F2942] active:scale-95"
                   >
                     <Sparkles className="w-4 h-4 text-cyan-300" />
                     <span>توليد بريد ورمز معقد تلقائياً</span>
@@ -5152,7 +5408,10 @@ export default function DepartmentPortalPage() {
                         onClick={handleToggleStudentStageDropdown}
                         className="w-full px-4 py-3.5 bg-slate-50 border border-slate-300 rounded-2xl text-slate-950 font-black text-base focus:border-slate-900 focus:outline-none flex items-center justify-between cursor-pointer shadow-2xs hover:bg-slate-100 transition-all text-right"
                       >
-                        <span>المرحلة {getStageNameInArabic(studentStage || 1)}</span>
+                        {/* 🎓 إظهار المرحلة المختارة أو غير محدد إذا جانت القيمة فارغة */}
+                        <span className={studentStage ? 'text-slate-950 font-black' : 'text-slate-500 font-bold'}>
+                          {studentStage ? `المرحلة ${getStageNameInArabic(studentStage)}` : 'غير محدد (اختر المرحلة الدراسية)...'}
+                        </span>
                         <ChevronDown className={`w-5 h-5 text-slate-700 transition-transform duration-200 ${isStudentStageDropdownOpen ? 'rotate-180' : ''}`} />
                       </button>
 
@@ -5171,33 +5430,33 @@ export default function DepartmentPortalPage() {
                                 ? { bottom: `${stageDropdownCoords.bottom}px` }
                                 : { top: `${stageDropdownCoords.top}px` }),
                               left: `${stageDropdownCoords.left}px`,
-                              width: `${stageDropdownCoords.width}px`,
-                              maxHeight: `${stageDropdownCoords.maxHeight || 200}px`,
+                              width: `${stageDropdownCoords.width}px`, // 📐 عرض القائمة يطابق عرض الزر بالتمام
+                              maxHeight: `${stageDropdownCoords.maxHeight || 220}px`, // 📏 أقصى ارتفاع محسوب ذكياً لمنع أي قص أو خروج عن حدود الشاشة
                             }}
-                            className="bg-white border-2 border-slate-300 rounded-2xl shadow-2xl overflow-hidden z-[999999] overflow-y-auto p-1.5 space-y-1 animate-in fade-in zoom-in-95 duration-150"
-                            dir="rtl"
+                            className="bg-white border-2 border-slate-300 rounded-2xl shadow-2xl overflow-hidden z-[999999] overflow-y-auto p-2 space-y-1 animate-in fade-in zoom-in-95 duration-150" // 📦 الحاوية العائمة العلوية
+                            dir="rtl" // ➡️ اتجاه المحتوى من اليمين لليسار
                           >
-                            {[
-                              { value: 1, label: 'المرحلة الأولى' },
-                              { value: 2, label: 'المرحلة الثانية' },
-                              { value: 3, label: 'المرحلة الثالثة' },
-                              { value: 4, label: 'المرحلة الرابعة' },
-                            ].map((stg) => (
-                              <button
-                                key={stg.value}
-                                type="button"
-                                onClick={() => {
-                                  setStudentStage(stg.value);
-                                  setIsStudentStageDropdownOpen(false);
+                            {[ // 📋 مصفوفة المراحل الأربعة بالقسم
+                              { value: 1, label: 'المرحلة الأولى' }, // 🥇 المرحلة الأولى
+                              { value: 2, label: 'المرحلة الثانية' }, // 🥈 المرحلة الثانية
+                              { value: 3, label: 'المرحلة الثالثة' }, // 🥉 المرحلة الثالثة
+                              { value: 4, label: 'المرحلة الرابعة' }, // 🎓 المرحلة الرابعة
+                            ].map((stg) => ( // 🔄 رسم أزرار الاختيار لكل مرحلة
+                              <button // 🔘 زر اختيار المرحلة
+                                key={stg.value} // 🔑 المفتاح الفريد للمرحلة
+                                type="button" // 🛑 نوع الزر لمنع تقديم النموذج
+                                onClick={() => { // ⚡ حدث النقر لاختيار المرحلة وغلق القائمة
+                                  setStudentStage(stg.value); // 🎯 حفظ المرحلة المختارة
+                                  setIsStudentStageDropdownOpen(false); // 🔒 إغلاق القائمة فوراً
                                 }}
-                                className={`w-full px-4 py-3.5 text-right font-black text-base transition flex items-center justify-between cursor-pointer border-b border-slate-100 last:border-b-0 ${
-                                  studentStage === stg.value
-                                    ? 'bg-[#1A3C6E] text-white'
-                                    : 'text-slate-950 hover:bg-slate-100'
+                                className={`w-full px-3.5 py-2.5 text-right font-black text-sm sm:text-base rounded-xl transition flex items-center justify-between cursor-pointer ${ // 🎨 التنسيقات العامة
+                                  studentStage === stg.value // 🔍 فحص هل هي المرحلة المختارة
+                                    ? 'bg-[#0F2942] text-white shadow-xs' // 👑 كحلي ملكي راقي للمرحلة النشطة
+                                    : 'text-slate-900 hover:bg-slate-100' // ⚪ لون افتراضي نظيف عند التحويم
                                 }`}
                               >
-                                <span>{stg.label}</span>
-                                {studentStage === stg.value && <Check className="w-5 h-5 text-emerald-400" />}
+                                <span>{stg.label}</span> {/* 🏷️ اسم المرحلة */}
+                                {studentStage === stg.value && <Check className="w-5 h-5 text-emerald-400 stroke-[2.5]" />} {/* ✅ علامة الصح الزمردية */}
                               </button>
                             ))}
                           </div>
@@ -5205,6 +5464,13 @@ export default function DepartmentPortalPage() {
                         document.body
                       )}
                     </div>
+                    {/* ⚠️ تنبيه توجيهي أحمر إذا جانت المرحلة غير محددة بعد */}
+                    {studentStage === null && (
+                      <p className="text-xs font-bold text-rose-600 flex items-center gap-1.5 mt-1">
+                        <AlertTriangle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                        <span>يرجى اختيار المرحلة الدراسية للطالب</span>
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -5217,8 +5483,8 @@ export default function DepartmentPortalPage() {
                         onClick={() => setStudentGender('male')}
                         className={`py-3 px-3 rounded-2xl font-black text-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer border ${
                           studentGender === 'male'
-                            ? 'bg-[#1A3C6E] text-white border-[#1A3C6E] shadow-sm ring-2 ring-[#1A3C6E]/30'
-                            : 'bg-slate-50 text-slate-800 border-slate-300 hover:bg-slate-100 hover:border-[#1A3C6E]'
+                            ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-sm ring-2 ring-[#0F2942]/30'
+                            : 'bg-slate-50 text-slate-800 border-slate-300 hover:bg-slate-100 hover:border-[#0F2942]'
                         }`}
                       >
                         <span>ذكر (طالب)</span>
@@ -5228,8 +5494,8 @@ export default function DepartmentPortalPage() {
                         onClick={() => setStudentGender('female')}
                         className={`py-3 px-3 rounded-2xl font-black text-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer border ${
                           studentGender === 'female'
-                            ? 'bg-[#1A3C6E] text-white border-[#1A3C6E] shadow-sm ring-2 ring-[#1A3C6E]/30'
-                            : 'bg-slate-50 text-slate-800 border-slate-300 hover:bg-slate-100 hover:border-[#1A3C6E]'
+                            ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-sm ring-2 ring-[#0F2942]/30'
+                            : 'bg-slate-50 text-slate-800 border-slate-300 hover:bg-slate-100 hover:border-[#0F2942]'
                         }`}
                       >
                         <span>أنثى (طالبة)</span>
@@ -5252,7 +5518,7 @@ export default function DepartmentPortalPage() {
                         onClick={() => setStudentStudyType('morning')}
                         className={`py-3 px-3 rounded-2xl font-black text-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer border ${
                           studentStudyType === 'morning'
-                            ? 'bg-emerald-700 text-white border-emerald-700 shadow-sm ring-2 ring-emerald-400/30'
+                            ? 'bg-[#0F2942] text-white border-[#163a5f] shadow-sm ring-2 ring-[#0F2942]/20'
                             : 'bg-slate-50 text-slate-800 border-slate-300 hover:bg-slate-100'
                         }`}
                       >
@@ -5264,7 +5530,7 @@ export default function DepartmentPortalPage() {
                         onClick={() => setStudentStudyType('evening')}
                         className={`py-3 px-3 rounded-2xl font-black text-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer border ${
                           studentStudyType === 'evening'
-                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm ring-2 ring-indigo-400/30'
+                            ? 'bg-[#0F2942] text-white border-[#163a5f] shadow-sm ring-2 ring-[#0F2942]/20'
                             : 'bg-slate-50 text-slate-800 border-slate-300 hover:bg-slate-100'
                         }`}
                       >
@@ -5272,6 +5538,13 @@ export default function DepartmentPortalPage() {
                         <span>الدراسة المسائية</span>
                       </button>
                     </div>
+                    {/* ⚠️ تنبيه توجيهي أحمر إذا جانت الفترة الدراسية غير محددة */}
+                    {studentStudyType === null && (
+                      <p className="text-xs font-bold text-rose-600 flex items-center gap-1.5 mt-1">
+                        <AlertTriangle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                        <span>يرجى اختيار الفترة الدراسية (الصباحية أو المسائية)</span>
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -5450,10 +5723,10 @@ export default function DepartmentPortalPage() {
                       }
                       setIsBulkPromotionModalOpen(true);
                     }}
-                    className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-base font-black shadow-xs transition flex items-center gap-2 cursor-pointer"
+                    className="px-5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-2xl text-base font-black shadow-xs transition flex items-center gap-2 cursor-pointer border border-[#163a5f] active:scale-95"
                     title="ترحيل طلاب مرحلة دراسية كاملة إلى المرحلة التالية"
                   >
-                    <Sparkles className="w-5 h-5 text-emerald-200" />
+                    <Sparkles className="w-5 h-5 text-cyan-300" />
                     <span>ترحيل مرحلة دراسية (جماعي)</span>
                   </button>
 
@@ -5478,7 +5751,7 @@ export default function DepartmentPortalPage() {
                   <button
                     type="button"
                     onClick={() => setFilterStudentStage('all')}
-                    className={`flex-1 py-1.5 px-2 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${ filterStudentStage === 'all' ? 'bg-[#1A3C6E] text-white shadow-2xs' : 'text-slate-700 hover:bg-white' }`}
+                    className={`flex-1 py-1.5 px-2 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${ filterStudentStage === 'all' ? 'bg-[#0F2942] text-white shadow-2xs' : 'text-slate-700 hover:bg-white' }`}
                   >
                     <span>كافة المراحل</span>
                     <span className={`px-1.5 py-0.5 rounded-full text-xs font-mono font-black ${
@@ -5500,7 +5773,7 @@ export default function DepartmentPortalPage() {
                         key={st.num}
                         type="button"
                         onClick={() => setFilterStudentStage(st.num)}
-                        className={`flex-1 py-1.5 px-2 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${ filterStudentStage === st.num ? 'bg-[#1A3C6E] text-white shadow-2xs' : 'text-slate-700 hover:bg-white' }`}
+                        className={`flex-1 py-1.5 px-2 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${ filterStudentStage === st.num ? 'bg-[#0F2942] text-white shadow-2xs' : 'text-slate-700 hover:bg-white' }`}
                       >
                         <span>المرحلة {st.name}</span>
                         <span className={`px-1.5 py-0.5 rounded-full text-xs font-mono font-black ${
@@ -5519,14 +5792,14 @@ export default function DepartmentPortalPage() {
                   <button
                     type="button"
                     onClick={() => setFilterStudentStudyType('all')}
-                    className={`px-3 py-1.5 rounded-xl text-sm sm:text-base font-black transition cursor-pointer ${ filterStudentStudyType === 'all' ? 'bg-[#1A3C6E] text-white shadow-2xs' : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300' }`}
+                    className={`px-3 py-1.5 rounded-xl text-sm sm:text-base font-black transition cursor-pointer ${ filterStudentStudyType === 'all' ? 'bg-[#0F2942] text-white shadow-2xs' : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300' }`}
                   >
                     الكل
                   </button>
                   <button
                     type="button"
                     onClick={() => setFilterStudentStudyType('morning')}
-                    className={`px-3 py-1.5 rounded-xl text-sm sm:text-base font-black transition cursor-pointer flex items-center gap-1.5 ${ filterStudentStudyType === 'morning' ? 'bg-emerald-700 text-white shadow-2xs' : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300' }`}
+                    className={`px-3 py-1.5 rounded-xl text-sm sm:text-base font-black transition cursor-pointer flex items-center gap-1.5 ${ filterStudentStudyType === 'morning' ? 'bg-[#0F2942] text-white shadow-2xs border border-[#163a5f]' : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300' }`}
                   >
                     <Sun className="w-4 h-4" />
                     <span>الصباحي ({totalMorningStds})</span>
@@ -5534,7 +5807,7 @@ export default function DepartmentPortalPage() {
                   <button
                     type="button"
                     onClick={() => setFilterStudentStudyType('evening')}
-                    className={`px-3 py-1.5 rounded-xl text-sm sm:text-base font-black transition cursor-pointer flex items-center gap-1.5 ${ filterStudentStudyType === 'evening' ? 'bg-indigo-600 text-white shadow-2xs' : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300' }`}
+                    className={`px-3 py-1.5 rounded-xl text-sm sm:text-base font-black transition cursor-pointer flex items-center gap-1.5 ${ filterStudentStudyType === 'evening' ? 'bg-[#0F2942] text-white shadow-2xs border border-[#163a5f]' : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300' }`}
                   >
                     <Moon className="w-4 h-4" />
                     <span>المسائي ({totalEveningStds})</span>
@@ -5544,7 +5817,7 @@ export default function DepartmentPortalPage() {
 
               {/* 🎛️ شريط الإجراءات الجماعية الفاخر عند تحديد الطلاب */}
               {selectedStudentIds.length > 0 && (
-                <div className="bg-[#1A3C6E] text-white p-4 sm:px-6 rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-lg border border-[#1A3C6E] animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="bg-[#0F2942] text-white p-4 sm:px-6 rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-lg border border-[#0F2942] animate-in fade-in slide-in-from-top-2 duration-200">
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-emerald-500/20 text-emerald-300 rounded-xl border border-emerald-400/30">
                       <GraduationCap className="w-5 h-5" />
@@ -5604,7 +5877,7 @@ export default function DepartmentPortalPage() {
                             aria-label="تحديد جميع الطلاب المعروضين"
                             checked={filteredStudents.length > 0 && selectedStudentIds.length === filteredStudents.length}
                             onChange={toggleSelectAllStudents}
-                            className="w-5 h-5 rounded-md border-2 border-slate-400 text-[#1A3C6E] focus:ring-2 focus:ring-[#1A3C6E] cursor-pointer accent-[#1A3C6E]"
+                            className="w-5 h-5 rounded-md border-2 border-slate-400 text-[#0F2942] focus:ring-2 focus:ring-[#0F2942] cursor-pointer accent-[#0F2942]"
                           />
                         </th>
                         {/* 🔢 تسلسل الطالب */}
@@ -5648,7 +5921,7 @@ export default function DepartmentPortalPage() {
                                   aria-label={`تحديد ${s.full_name}`}
                                   checked={isSelected}
                                   onChange={() => toggleSelectStudent(s.id)}
-                                  className="w-5 h-5 rounded-md border-2 border-slate-400 text-[#1A3C6E] focus:ring-2 focus:ring-[#1A3C6E] cursor-pointer accent-[#1A3C6E]"
+                                  className="w-5 h-5 rounded-md border-2 border-slate-400 text-[#0F2942] focus:ring-2 focus:ring-[#0F2942] cursor-pointer accent-[#0F2942]"
                                 />
                               </td>
 
@@ -5696,25 +5969,25 @@ export default function DepartmentPortalPage() {
                                   <button
                                     type="button"
                                     onClick={(e) => handlePromoteStudent(s, e)}
-                                    className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-base font-black transition shadow-2xs flex items-center justify-center gap-1.5 mx-auto cursor-pointer active:scale-95"
+                                    className="px-3.5 py-2 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-xl text-base font-black transition shadow-2xs flex items-center justify-center gap-1.5 mx-auto cursor-pointer border border-[#163a5f] active:scale-95"
                                     title={`ترحيل الطالب إلى المرحلة ${getStageNameInArabic(curStage + 1)}`}
                                   >
-                                    <ArrowUpRight className="w-4 h-4 text-emerald-200" />
+                                    <ArrowUpRight className="w-4 h-4 text-cyan-300" />
                                     <span>ترحيل للمرحلة {getStageNameInArabic(curStage + 1)}</span>
                                   </button>
                                 ) : s.is_graduated ? (
                                   <span
-                                    className="px-3.5 py-2 rounded-xl text-base font-black flex items-center justify-center gap-1.5 mx-auto bg-emerald-100 text-emerald-950 border border-emerald-300 shadow-2xs select-none"
+                                    className="px-3.5 py-2 rounded-xl text-base font-black flex items-center justify-center gap-1.5 mx-auto bg-slate-100 text-slate-800 border border-slate-300 shadow-2xs select-none"
                                     title="تم تثبيت واعتماد تخرج الطالب رسمياً"
                                   >
-                                    <GraduationCap className="w-5 h-5 text-emerald-700" />
+                                    <GraduationCap className="w-5 h-5 text-[#0F2942]" />
                                     <span>خريج معتمد</span>
                                   </span>
                                 ) : (
                                   <button
                                     type="button"
                                     onClick={(e) => handlePromoteStudent(s, e)}
-                                    className="px-3.5 py-2 rounded-xl text-base font-black transition flex items-center justify-center gap-1.5 mx-auto cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs active:scale-95"
+                                    className="px-3.5 py-2 rounded-xl text-base font-black transition flex items-center justify-center gap-1.5 mx-auto cursor-pointer bg-[#0F2942] hover:bg-[#163a5f] text-white border border-[#163a5f] shadow-2xs active:scale-95"
                                     title="اعتماد وتثبيت تخرج الطالب"
                                   >
                                     <GraduationCap className="w-5 h-5 text-white" />
@@ -5726,32 +5999,35 @@ export default function DepartmentPortalPage() {
                             {/* 🛠️ الإجراءات الأساسية */}
                             <td className="p-4">
                               <div className="flex items-center justify-center gap-2">
-                                {/* 🪪 زر بطاقة الطالب ورمز QR الفاخر بلون كحلي ملكي */}
+                                {/* 🪪 زر بطاقة الطالب ورمز QR باللون الأبيض الفاخر وأيقونة كحلية واضحة */}
                                 <button
                                   type="button"
                                   onClick={() => setSelectedCardProfile(s)}
-                                  className="p-2.5 bg-[#1A3C6E] hover:bg-[#15305B] text-white rounded-xl transition cursor-pointer border border-[#1A3C6E] shadow-2xs hover:shadow-md active:scale-95"
+                                  className="p-2.5 bg-white hover:bg-slate-100 text-[#0F2942] rounded-xl transition cursor-pointer border border-slate-300 shadow-2xs hover:shadow-md active:scale-95"
                                   title="عرض بطاقة الطالب"
                                 >
-                                  <QrCode className="w-5 h-5 text-emerald-300" />
+                                  <QrCode className="w-5 h-5 text-[#0F2942]" />
                                 </button>
-                                {/* ✏️ زر تعديل بيانات الطالب الفاخر بلون كحلي ملكي */}
+                                {/* ✏️ زر تعديل بيانات الطالب باللون الأبيض الفاخر وأيقونة كحلية واضحة */}
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    setEditingStudentId(s.id);
-                                    setStudentName(s.full_name);
-                                    setCustomStudentEmail(s.generated_email || '');
-                                    setCustomStudentPassword(s.temp_password || '');
-                                    setStudentStage(s.stage_number || 1);
-                                    setStudentGender((s.gender || detectArabicGender(s.full_name)) as 'male' | 'female');
-                                    setStudentNameError('');
-                                    setIsStudentModalOpen(true);
+                                    setEditingStudentId(s.id); // 🆔 تثبيت أيدي الطالب اللي نريد نعدل بياناته
+                                    setStudentName(s.full_name); // ✍️ وضع الاسم الكامل الحالي للطالب بالحقل
+                                    setCustomStudentEmail(s.generated_email || ''); // 📧 تعيين البريد الأكاديمي الحالي للطالب
+                                    setCustomStudentPassword(s.temp_password || ''); // 🔑 تعيين كلمة المرور الحالية
+                                    setStudentStage(s.stage_number || 1); // 🎓 ضبط المرحلة الدراسية المسجل بيها الطالب
+                                    setStudentGender((s.gender || detectArabicGender(s.full_name)) as 'male' | 'female'); // 🚻 تحديد الجنس
+                                    // ☀️🌙 قراءة نوع دوام الطالب الحالي (مسائي أو صباحي) وضبطه بالفورم بدقة لمنع ظهور التنبيه الأحمر
+                                    const currentStudyType: 'morning' | 'evening' = (s.study_type === 'evening' || String(s.study_type) === 'مسائي') ? 'evening' : 'morning';
+                                    setStudentStudyType(currentStudyType); // 🔄 تفعيل زر الصباحي أو المسائي تلقائياً حسب بيانات الطالب
+                                    setStudentNameError(''); // 🔄 مسح أي أخطاء بالاسم القديم
+                                    setIsStudentModalOpen(true); // 📂 فتح نافذة التعديل العائمة
                                   }}
-                                  className="p-2.5 bg-[#1A3C6E] hover:bg-[#15305B] text-white rounded-xl transition cursor-pointer border border-[#1A3C6E] shadow-2xs hover:shadow-md active:scale-95"
+                                  className="p-2.5 bg-white hover:bg-slate-100 text-[#0F2942] rounded-xl transition cursor-pointer border border-slate-300 shadow-2xs hover:shadow-md active:scale-95"
                                   title="تعديل البيانات"
                                 >
-                                  <Edit3 className="w-5 h-5 text-cyan-300" />
+                                  <Edit3 className="w-5 h-5 text-[#0F2942]" />
                                 </button>
                                 {/* 🗑️ زر حذف الطالب الياقوتي البارز والواضح */}
                                 <button
@@ -5924,9 +6200,9 @@ export default function DepartmentPortalPage() {
                       const isGrad = s.is_graduated === true || String(s.is_graduated) === 'true';
                       return !isGrad;
                     }).length === 0}
-                    className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black rounded-xl text-sm font-black shadow-md transition flex items-center gap-1.5 cursor-pointer"
+                    className="px-5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] disabled:opacity-50 text-white font-black rounded-xl text-sm font-black shadow-md transition flex items-center gap-1.5 cursor-pointer border border-[#163a5f]"
                   >
-                    <CheckCircle2 className="w-4 h-4 text-emerald-200" />
+                    <CheckCircle2 className="w-4 h-4 text-cyan-300" />
                     <span>تأكيد واعتماد الترحيل الجماعي</span>
                   </button>
                 </div>
@@ -5944,31 +6220,39 @@ export default function DepartmentPortalPage() {
       {activeTab === 'courses' && (
         <div className="space-y-4">
           
-          {/* 📊 شريط إحصائيات المواد الدراسية وشريط الإجراءات */}
-          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-            <div>
-              <h3 className="text-xl sm:text-2xl font-black text-slate-950 flex items-center gap-2.5">
-                <BookOpen className="w-7 h-7 text-slate-950" />
-                <span>المواد والمقررات الدراسية لقسم {deptName}</span>
-              </h3>
-              <p className="text-base sm:text-lg font-black text-slate-700 mt-1">
-                إدارة المناهج وتوصيف المقررات (نظري وعملي) وتعيين أساتذة التدريس
-              </p>
-            </div>
+          {/* 📊 شريط إحصائيات المواد الدراسية وشريط الأزرار الأربعة بسطر واحد احترافي */}
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-5">
+            {/* 🏷️ الصف العلوي: العنوان والتوصيف + إحصائيات المواد */}
+            <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+              <div>
+                <h3 className="text-xl sm:text-2xl font-black text-slate-950 flex items-center gap-2.5">
+                  <BookOpen className="w-7 h-7 text-slate-950" />
+                  <span>المواد والمقررات الدراسية لقسم {deptName}</span>
+                </h3>
+                <p className="text-base sm:text-lg font-black text-slate-700 mt-1">
+                  إدارة المناهج وتوصيف المقررات (نظري وعملي) وتعيين أساتذة التدريس
+                </p>
+              </div>
 
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex flex-wrap items-center gap-2.5 text-base font-black">
-                <span className="bg-[#1A3C6E]/10 text-[#1A3C6E] border border-[#1A3C6E]/20 px-4 py-2 rounded-2xl shadow-2xs">
+              {/* 🧮 شارات إحصائيات المقررات بتصميم متناسق ومريح للعين سطر بسطر */}
+              <div className="flex flex-wrap items-center gap-2.5 text-base font-black"> {/* 📦 حاوية الشارات الثلاثية */}
+                {/* 📊 وسم إجمالي عدد المواد في القسم */}
+                <span className="bg-[#0F2942]/10 text-[#0F2942] border border-[#0F2942]/20 px-4 py-2 rounded-2xl shadow-2xs">
                   الإجمالي: {deptCourses.length} مادة
                 </span>
-                <span className="bg-[#1A3C6E] text-white border border-[#1A3C6E] px-4 py-2 rounded-2xl shadow-2xs">
+                {/* 🧪 وسم نظري وعملي بتصميم مطابق وموحد تماماً مع الوسوم المجاورة */}
+                <span className="bg-slate-100 text-slate-900 border border-slate-300 px-4 py-2 rounded-2xl shadow-2xs">
                   نظري وعملي: {deptCourses.filter((c) => c.course_type === 'theory_and_practical' || c.has_practical).length}
                 </span>
+                {/* 📖 وسم نظري فقط بتصميم رمادي فاتح فاخر */}
                 <span className="bg-slate-100 text-slate-900 border border-slate-300 px-4 py-2 rounded-2xl shadow-2xs">
                   نظري فقط: {deptCourses.filter((c) => c.course_type === 'theory_only' && !c.has_practical).length}
                 </span>
               </div>
+            </div>
 
+            {/* 🔘 شريط الأزرار الأربعة بسطر واحد احترافي وموحد 100% */}
+            <div className="pt-3 border-t border-slate-100 flex items-center gap-3 overflow-x-auto flex-nowrap">
               {/* ➕ زر فتح كارت إضافة مادة جديدة */}
               <button
                 type="button"
@@ -5976,19 +6260,19 @@ export default function DepartmentPortalPage() {
                   setEditingCourseId(null);
                   setCourseName('');
                   setCourseCode('');
-                  setCourseCredits(3);
-                  setCourseStage(1);
-                  setCourseSemester(1);
-                  setCourseType('theory_and_practical');
+                  setCourseCredits(null); // 🔄 تصفير الساعات والوحدات لتكون غير محددة افتراضياً حتى يختار المستخدم
+                  setCourseStage(null); // 🔄 تصفير المرحلة الدراسية لتكون غير محددة افتراضياً
+                  setCourseSemester(null); // 🔄 تصفير الكورس ليكون غير محدد افتراضياً
+                  setCourseType(null); // 🔄 تصفير نوع المادة ليكون غير محدد افتراضياً
                   setCourseTheoryTeacherId('');
                   setCoursePracticalTeacherId('');
                   setCourseIsSupplementaryEnabled(false); // 🔄 تصفير حالة الدور الثاني للوضع الافتراضي
                   setCourseIsFinalExamEnabled(false); // 🎯 تصفير حالة الامتحان النهائي الدور الأول للوضع الافتراضي
                   setIsCourseModalOpen(true);
                 }}
-                className="px-5 py-3 bg-[#1A3C6E] hover:bg-[#15305B] text-white font-black rounded-2xl text-base shadow-md transition flex items-center gap-2 cursor-pointer border border-[#1A3C6E] shrink-0 active:scale-95"
+                className="px-5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black rounded-2xl text-base shadow-sm transition flex items-center gap-2 cursor-pointer border border-[#0F2942] shrink-0 active:scale-95 whitespace-nowrap"
               >
-                <Plus className="w-5 h-5" />
+                <Plus className="w-5 h-5 text-cyan-300" />
                 <span>إضافة مادة دراسية جديدة</span>
               </button>
 
@@ -5996,7 +6280,7 @@ export default function DepartmentPortalPage() {
               <button
                 type="button" // 🔘 نوع الزر لمنع أي إرسال غير مقصود
                 onClick={handleDownloadCourseTemplate} // ⚡ تشغيل دالة تنزيل قالب المواد المعتمد
-                className="px-5 py-3 bg-[#1A3C6E] hover:bg-[#15305B] text-white rounded-2xl font-black text-base flex items-center gap-2.5 shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer border border-[#1A3C6E] shrink-0" // 🎨 تصميم كحلي ملكي موحد
+                className="px-5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-2xl font-black text-base flex items-center gap-2 shadow-sm transition-all active:scale-95 cursor-pointer border border-[#0F2942] shrink-0 whitespace-nowrap" // 🎨 تصميم كحلي ملكي موحد
                 title="تنزيل نموذج Excel المعتمد لمواد ومقررات القسم" // 💡 نص التلميح
               >
                 <Download className="w-5 h-5 text-emerald-300" /> {/* 📥 أيقونة التنزيل باللون الزمردي الزاهي */}
@@ -6007,15 +6291,15 @@ export default function DepartmentPortalPage() {
               <button
                 type="button" // 🔘 نوع الزر لمنع أي إرسال غير مقصود
                 onClick={() => setShowCourseExcelInstructions(true)} // ⚡ فتح نافذة التعليمات للمواد
-                className="px-5 py-3 bg-[#1A3C6E] hover:bg-[#15305B] text-white rounded-2xl font-black text-base flex items-center gap-2.5 shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer border border-[#1A3C6E] shrink-0" // 🎨 تصميم كحلي ملكي موحد
+                className="px-5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-2xl font-black text-base flex items-center gap-2 shadow-sm transition-all active:scale-95 cursor-pointer border border-[#0F2942] shrink-0 whitespace-nowrap" // 🎨 تصميم كحلي ملكي موحد
                 title="تعليمات وضوابط استيراد المواد الدراسية" // 💡 نص التلميح
               >
                 <Info className="w-5 h-5 text-sky-300" /> {/* ℹ️ أيقونة المعلومات بلون سماوي جميل */}
                 <span>التعليمات</span> {/* 📝 نص الزر */}
               </button>
 
-              {/* 📤 زر استيراد ملف Excel للمواد */}
-              <label className="px-5 py-3 bg-[#1A3C6E] hover:bg-[#15305B] text-white text-base font-black rounded-2xl transition flex items-center gap-2 cursor-pointer shadow-xs border border-[#1A3C6E]">
+              {/* 📤 زر استيراد ملف Excel للمواد بأيقونة فيروزية أنيقة متناسقة */}
+              <label className="px-5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white text-base font-black rounded-2xl transition flex items-center gap-2 cursor-pointer shadow-sm border border-[#0F2942] shrink-0 active:scale-95 whitespace-nowrap">
                 <Upload className="w-5 h-5 text-cyan-300" />
                 <span>{isImportingCourseExcel ? 'جاري الاستيراد...' : 'استيراد Excel'}</span>
                 <input
@@ -6026,6 +6310,18 @@ export default function DepartmentPortalPage() {
                   className="hidden"
                 />
               </label>
+
+              {/* 🖨️ زر تصدير وطباعة كشف المواد الدراسية PDF الرسمي المعتمد بجانب أزرار Excel */}
+              <button
+                type="button" // 🔘 نوع الزر لمنع الإرسال التلقائي للنماذج
+                onClick={handleExportCoursesPDF} // ⚡ تشغيل دالة تصدير وطباعة PDF للمواد الدراسية
+                disabled={isExportingCoursesPDF} // 🛑 تعطيل الزر أثناء التصدير لمنع النقرات المتكررة
+                className="px-5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-2xl font-black text-base flex items-center gap-2 shadow-sm transition-all active:scale-95 cursor-pointer border border-[#0F2942] shrink-0 whitespace-nowrap disabled:opacity-50" // 🎨 تصميم كحلي ملكي موحد ومتطابق مع أزرار إكسل
+                title="طباعة وتصدير كشف المواد والمقررات الدراسية المعتمدة رسمياً بصيغة PDF" // 💡 نص التلميح
+              >
+                <Printer className="w-5 h-5 text-rose-300" /> {/* 🖨️ أيقونة الطابعة باللون الوردي الناصع لتمييزها بجانب أزرار إكسل */}
+                <span>{isExportingCoursesPDF ? 'جاري إعداد PDF...' : selectedCourseIds.length > 0 ? `طباعة المحدد (${selectedCourseIds.length}) PDF` : 'طباعة كشف المواد (PDF)'}</span> {/* 🏷️ نص الزر التفاعلي الذكي */}
+              </button>
             </div>
           </div>
 
@@ -6033,14 +6329,18 @@ export default function DepartmentPortalPage() {
           <FloatingCrudModal
             isOpen={isCourseModalOpen}
             onClose={() => {
-              setIsCourseModalOpen(false);
-              setEditingCourseId(null);
-              setCourseName('');
-              setCourseCode('');
-              setCourseTheoryTeacherId('');
-              setCoursePracticalTeacherId('');
-              setIsCourseTheoryDropdownOpen(false);
-              setIsCoursePracticalDropdownOpen(false);
+              setIsCourseModalOpen(false); // ❌ غلق كارد المادة
+              setEditingCourseId(null); // 🔄 تصفير معرف التعديل
+              setCourseName(''); // 📝 تصفير اسم المادة
+              setCourseCode(''); // 🔤 تصفير كود المادة
+              setCourseCredits(null); // ⏱️ تصفير الساعات والوحدات لتكون غير محددة
+              setCourseStage(null); // 🎓 تصفير المرحلة الدراسية لتكون غير محددة
+              setCourseSemester(null); // 🗓️ تصفير الكورس ليكون غير محدد
+              setCourseType(null); // 🔬 تصفير نوع المادة ليكون غير محدد
+              setCourseTheoryTeacherId(''); // 👨‍🏫 تصفير أستاذ النظري
+              setCoursePracticalTeacherId(''); // 🧪 تصفير أستاذ العملي
+              setIsCourseTheoryDropdownOpen(false); // 🔽 غلق قائمة أستاذ النظري
+              setIsCoursePracticalDropdownOpen(false); // 🔽 غلق قائمة أستاذ العملي
               setCourseIsSupplementaryEnabled(false); // 🔄 تصفير الدور الثاني
               setCourseIsFinalExamEnabled(false); // 🎯 تصفير الفاينل الدور الأول
             }}
@@ -6054,14 +6354,18 @@ export default function DepartmentPortalPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    setIsCourseModalOpen(false);
-                    setEditingCourseId(null);
-                    setCourseName('');
-                    setCourseCode('');
-                    setCourseTheoryTeacherId('');
-                    setCoursePracticalTeacherId('');
-                    setIsCourseTheoryDropdownOpen(false);
-                    setIsCoursePracticalDropdownOpen(false);
+                    setIsCourseModalOpen(false); // ❌ غلق كارد المادة
+                    setEditingCourseId(null); // 🔄 تصفير معرف التعديل
+                    setCourseName(''); // 📝 تصفير اسم المادة
+                    setCourseCode(''); // 🔤 تصفير كود المادة
+                    setCourseCredits(null); // ⏱️ تصفير الساعات والوحدات لتكون غير محددة
+                    setCourseStage(null); // 🎓 تصفير المرحلة الدراسية لتكون غير محددة
+                    setCourseSemester(null); // 🗓️ تصفير الكورس ليكون غير محدد
+                    setCourseType(null); // 🔬 تصفير نوع المادة ليكون غير محدد
+                    setCourseTheoryTeacherId(''); // 👨‍🏫 تصفير أستاذ النظري
+                    setCoursePracticalTeacherId(''); // 🧪 تصفير أستاذ العملي
+                    setIsCourseTheoryDropdownOpen(false); // 🔽 غلق قائمة أستاذ النظري
+                    setIsCoursePracticalDropdownOpen(false); // 🔽 غلق قائمة أستاذ العملي
                     setCourseIsSupplementaryEnabled(false); // 🔄 تصفير الدور الثاني
                     setCourseIsFinalExamEnabled(false); // 🎯 تصفير الفاينل الدور الأول
                   }}
@@ -6071,7 +6375,7 @@ export default function DepartmentPortalPage() {
                 </button>
                 <button
                   type="submit"
-                  className="px-7 py-3 bg-[#1A3C6E] hover:bg-[#15305B] text-white font-black rounded-2xl text-base shadow-md transition flex items-center gap-2 cursor-pointer border border-[#1A3C6E] active:scale-95"
+                  className="px-7 py-3 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black rounded-2xl text-base shadow-md transition flex items-center gap-2 cursor-pointer border border-[#0F2942] active:scale-95"
                 >
                   <Plus className="w-5 h-5" />
                   <span>{editingCourseId ? 'حفظ التعديلات الأكاديمية' : 'إضافة المادة وتثبيت التكليف'}</span>
@@ -6084,7 +6388,7 @@ export default function DepartmentPortalPage() {
               {/* 🏛️ القسم الأول: البيانات الأساسية للمادة والتوصيف */}
               <div className="bg-slate-50/80 border border-slate-200 rounded-3xl p-5 sm:p-6 space-y-4 shadow-2xs">
                 <div className="flex items-center gap-2.5 pb-3 border-b border-slate-200">
-                  <div className="p-2 bg-[#1A3C6E] text-white rounded-xl shadow-2xs">
+                  <div className="p-2 bg-[#0F2942] text-white rounded-xl shadow-2xs">
                     <BookOpen className="w-5 h-5 text-cyan-300" />
                   </div>
                   <div>
@@ -6137,7 +6441,7 @@ export default function DepartmentPortalPage() {
                         onClick={() => setCourseType('theory_and_practical')}
                         className={`p-3.5 sm:p-4 rounded-2xl border text-right transition-all flex items-center justify-between cursor-pointer active:scale-[0.99] ${
                           courseType === 'theory_and_practical'
-                            ? 'bg-[#1A3C6E] text-white border-[#1A3C6E] shadow-md ring-2 ring-emerald-400/40'
+                            ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-md ring-2 ring-emerald-400/40'
                             : 'bg-white text-slate-900 border-slate-300 hover:border-slate-400 hover:bg-slate-50 shadow-2xs'
                         }`}
                       >
@@ -6169,33 +6473,40 @@ export default function DepartmentPortalPage() {
                         onClick={() => setCourseType('theory_only')}
                         className={`p-3.5 sm:p-4 rounded-2xl border text-right transition-all flex items-center justify-between cursor-pointer active:scale-[0.99] ${
                           courseType === 'theory_only'
-                            ? 'bg-[#1A3C6E] text-white border-[#1A3C6E] shadow-md ring-2 ring-cyan-400/40'
+                            ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-md ring-2 ring-cyan-400/40'
                             : 'bg-white text-slate-900 border-slate-300 hover:border-slate-400 hover:bg-slate-50 shadow-2xs'
                         }`}
                       >
                         <div className="flex items-center gap-3">
                           <div className={`p-2.5 rounded-xl shrink-0 ${courseType === 'theory_only' ? 'bg-cyan-500/20 text-cyan-300' : 'bg-blue-50 text-blue-700 border border-blue-200'}`}>
-                            <BookOpen className="w-5 h-5 sm:w-6 sm:h-6" />
+                            <BookOpen className="w-5 h-5 sm:w-6 sm:h-6" /> {/* 📖 أيقونة الكتاب */}
                           </div>
                           <div>
                             <div className="text-sm sm:text-base font-black flex items-center gap-2">
-                              <span>نظري فقط (بدون عملي)</span>
+                              <span>نظري فقط (بدون عملي)</span> {/* 🏷️ نوع نظري فقط */}
                             </div>
                             <p className={`text-xs font-bold mt-0.5 ${courseType === 'theory_only' ? 'text-slate-300' : 'text-slate-600'}`}>
-                              محاضرات نظرية في القاعة فقط
+                              محاضرات نظرية في القاعة فقط {/* 📝 الوصف */}
                             </p>
                           </div>
                         </div>
                         <div className={`w-6 h-6 rounded-full shrink-0 flex items-center justify-center border transition-all ${
                           courseType === 'theory_only'
-                            ? 'bg-cyan-500 border-cyan-400 text-white'
-                            : 'border-slate-300 bg-slate-100'
+                            ? 'bg-cyan-500 border-cyan-400 text-white' // 🎨 مؤشر التحديد
+                            : 'border-slate-300 bg-slate-100' // ⚪ غير محدد
                         }`}>
-                          {courseType === 'theory_only' && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                          {courseType === 'theory_only' && <Check className="w-3.5 h-3.5 stroke-[3]" />} {/* ✅ علامة الصح */}
                         </div>
                       </button>
 
                     </div>
+                    {/* ⚠️ تنبيه توجيهي أحمر إذا جان نوع المادة غير محدد بالمادة */}
+                    {courseType === null && (
+                      <p className="text-xs font-bold text-rose-600 flex items-center gap-1.5 mt-2">
+                        <AlertTriangle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                        <span>يرجى اختيار نوع المادة وتوصيف المسار الدراسي للمتابعة</span>
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -6203,8 +6514,8 @@ export default function DepartmentPortalPage() {
               {/* 🎓 القسم الثاني: الخطة الأكاديمية والوحدات */}
               <div className="bg-slate-50/80 border border-slate-200 rounded-3xl p-5 sm:p-6 space-y-4 shadow-2xs">
                 <div className="flex items-center gap-2.5 pb-3 border-b border-slate-200">
-                  <div className="p-2 bg-[#1A3C6E] text-white rounded-xl shadow-2xs">
-                    <GraduationCap className="w-5 h-5 text-cyan-300" />
+                  <div className="p-2 bg-[#0F2942] text-white rounded-xl shadow-2xs">
+                    <GraduationCap className="w-5 h-5 text-cyan-300" /> {/* 🎓 أيقونة التخرج */}
                   </div>
                   <div>
                     <h4 className="text-base sm:text-lg font-black text-slate-950">التوزيع الأكاديمي والوحدات (ECTS)</h4>
@@ -6230,7 +6541,7 @@ export default function DepartmentPortalPage() {
                           onClick={() => setCourseStage(stg.num)}
                           className={`py-3.5 px-2 rounded-2xl border text-center font-black text-xs sm:text-sm transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-95 ${
                             courseStage === stg.num
-                              ? 'bg-[#1A3C6E] text-white border-[#1A3C6E] shadow-md ring-2 ring-cyan-400/40'
+                              ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-md ring-2 ring-cyan-400/40'
                               : 'bg-white text-slate-900 border-slate-300 hover:border-slate-400 hover:bg-slate-50 shadow-2xs'
                           }`}
                         >
@@ -6239,11 +6550,18 @@ export default function DepartmentPortalPage() {
                         </button>
                       ))}
                     </div>
+                    {/* ⚠️ تنبيه توجيهي أحمر إذا جانت المرحلة غير محددة بالمادة */}
+                    {courseStage === null && (
+                      <p className="text-xs font-bold text-rose-600 flex items-center gap-1.5 mt-1">
+                        <AlertTriangle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                        <span>يرجى اختيار المرحلة الدراسية للمادة</span>
+                      </p>
+                    )}
                   </div>
 
-                  {/* الفصل (الكورس) بتصميم أزرار تفاعلية واضحة ومباشرة */}
+                  {/* الكورس الدراسي بتصميم أزرار تفاعلية واضحة ومباشرة (مسح كلمة الفصل) */}
                   <div className="col-span-12 sm:col-span-5 space-y-2">
-                    <label className="block text-slate-950 font-black text-base">الفصل (الكورس) *</label>
+                    <label className="block text-slate-950 font-black text-base">الكورس *</label>
                     <div className="grid grid-cols-2 gap-2">
                       {[
                         { sem: 1, title: 'الكورس الأول' },
@@ -6255,7 +6573,7 @@ export default function DepartmentPortalPage() {
                           onClick={() => setCourseSemester(s.sem as 1 | 2)}
                           className={`py-3.5 px-3 rounded-2xl border text-center font-black text-base transition-all cursor-pointer flex items-center justify-center gap-2 active:scale-95 ${
                             courseSemester === s.sem
-                              ? 'bg-[#1A3C6E] text-white border-[#1A3C6E] shadow-md ring-2 ring-blue-400/40'
+                              ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-md ring-2 ring-blue-400/40'
                               : 'bg-white text-slate-900 border-slate-300 hover:border-slate-400 hover:bg-slate-50 shadow-2xs'
                           }`}
                         >
@@ -6264,6 +6582,13 @@ export default function DepartmentPortalPage() {
                         </button>
                       ))}
                     </div>
+                    {/* ⚠️ تنبيه توجيهي أحمر إذا جان الكورس غير محدد بالمادة */}
+                    {courseSemester === null && (
+                      <p className="text-xs font-bold text-rose-600 flex items-center gap-1.5 mt-1">
+                        <AlertTriangle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                        <span>يرجى اختيار الكورس الدراسي للمادة</span>
+                      </p>
+                    )}
                   </div>
 
                   {/* الساعات المعتمدة ECTS */}
@@ -6271,7 +6596,7 @@ export default function DepartmentPortalPage() {
                     <div className="flex items-center justify-between">
                       <label className="block text-slate-950 font-black text-base">الساعات والوحدات المعتمدة (ECTS) *</label>
                       <span className="text-xs font-black text-indigo-950 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-200">
-                        النقاط المحددة: {courseCredits} ECTS
+                        النقاط المحددة: {courseCredits ? `${courseCredits} ECTS` : 'غير محدد'}
                       </span>
                     </div>
                     <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
@@ -6282,7 +6607,7 @@ export default function DepartmentPortalPage() {
                           onClick={() => setCourseCredits(pts)}
                           className={`py-3 px-2 rounded-2xl font-black text-base border transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-95 ${
                             courseCredits === pts
-                              ? 'bg-[#1A3C6E] text-white border-[#1A3C6E] shadow-md ring-2 ring-cyan-400/40'
+                              ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-md ring-2 ring-cyan-400/40'
                               : 'bg-white text-slate-800 border-slate-300 hover:border-slate-400 hover:bg-slate-50 shadow-2xs'
                           }`}
                         >
@@ -6291,18 +6616,25 @@ export default function DepartmentPortalPage() {
                         </button>
                       ))}
                       <div className="relative">
+                        {/* 🎯 حقل الساعات المخصصة بدون أي قص لكلمة مخصص وتوسيط مثالي */}
                         <input
                           type="number"
                           min={1}
                           max={15}
                           value={courseCredits ?? ''}
-                          onChange={(e) => setCourseCredits(Number(e.target.value))}
+                          onChange={(e) => setCourseCredits(e.target.value === '' ? null : Number(e.target.value))}
                           placeholder="مخصص"
-                          className="w-full h-full pl-2 pr-7 py-3 bg-white border border-slate-300 rounded-2xl text-slate-950 font-black text-base focus:border-slate-900 focus:outline-none shadow-2xs font-mono text-center"
+                          className="w-full h-full px-1.5 py-3 bg-white border border-slate-300 rounded-2xl text-slate-950 font-black text-xs sm:text-sm md:text-base focus:border-[#0F2942] focus:ring-2 focus:ring-[#0F2942]/20 focus:outline-none shadow-2xs text-center placeholder:text-slate-600 placeholder:font-black"
                         />
-                        <Award className="w-4 h-4 absolute right-2.5 top-4 text-indigo-600 pointer-events-none" />
                       </div>
                     </div>
+                    {/* ⚠️ تنبيه توجيهي أحمر إذا جانت الساعات غير محددة بالمادة */}
+                    {courseCredits === null && (
+                      <p className="text-xs font-bold text-rose-600 flex items-center gap-1.5 mt-1">
+                        <AlertTriangle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                        <span>يرجى تحديد الساعات والوحدات المعتمدة (ECTS) للمادة</span>
+                      </p>
+                    )}
                   </div>
 
                 </div>
@@ -6311,7 +6643,7 @@ export default function DepartmentPortalPage() {
               {/* 👨‍🏫 القسم الثالث: تكليف الأساتذة وتعيين الصلاحيات */}
               <div className="bg-slate-50/80 border border-slate-200 rounded-3xl p-5 sm:p-6 space-y-4 shadow-2xs">
                 <div className="flex items-center gap-2.5 pb-3 border-b border-slate-200">
-                  <div className="p-2 bg-[#1A3C6E] text-white rounded-xl shadow-2xs">
+                  <div className="p-2 bg-[#0F2942] text-white rounded-xl shadow-2xs">
                     <Users className="w-5 h-5 text-emerald-300" />
                   </div>
                   <div>
@@ -6322,16 +6654,14 @@ export default function DepartmentPortalPage() {
 
                 <div className={`grid grid-cols-1 ${courseType === 'theory_and_practical' ? 'sm:grid-cols-2' : 'sm:grid-cols-1'} gap-4 pt-1`}>
                   
-                  {/* أستاذ النظري بقائمة تفاعلية فاخرة تفتح للأعلى وتمنع أي قص */}
+                  {/* أستاذ النظري بقائمة تفاعلية ذكية عبر البورتال تضمن البقاء داخل الشاشة 100% */}
                   <div className="space-y-2 relative z-[999999]">
                     <label className="block text-slate-950 font-black text-base">أستاذ المادة (المحاضرات النظرية)</label>
                     <div className="relative">
                       <button
+                        ref={theoryTeacherBtnRef}
                         type="button"
-                        onClick={() => {
-                          setIsCourseTheoryDropdownOpen(!isCourseTheoryDropdownOpen);
-                          setIsCoursePracticalDropdownOpen(false);
-                        }}
+                        onClick={handleToggleCourseTheoryDropdown}
                         className="w-full pl-4 pr-11 py-3.5 bg-white border border-slate-300 rounded-2xl text-slate-950 font-black text-base focus:border-slate-900 focus:outline-none cursor-pointer shadow-2xs text-right flex items-center justify-between transition hover:border-slate-400"
                       >
                         <div className="flex items-center gap-2 truncate">
@@ -6343,62 +6673,81 @@ export default function DepartmentPortalPage() {
                         <ChevronDown className={`w-5 h-5 text-slate-500 transition-transform duration-200 shrink-0 ${isCourseTheoryDropdownOpen ? 'rotate-180 text-blue-700' : ''}`} />
                       </button>
 
-                      {/* القائمة المنبثقة المخصصة لأستاذ النظري تفتح للأعلى بأمان كامل */}
-                      {isCourseTheoryDropdownOpen && (
-                        <div className="absolute bottom-full right-0 left-0 mb-2 bg-white rounded-2xl shadow-2xl border border-slate-300 p-2 z-[999999] max-h-60 overflow-y-auto space-y-1 animate-in fade-in zoom-in-95 duration-150">
-                          {/* خيار إلغاء التحديد */}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setCourseTheoryTeacherId('');
-                              setIsCourseTheoryDropdownOpen(false);
+                      {/* القائمة المنبثقة الذكية لأستاذ النظري عبر Portal لضمان عدم خروجها خارج حدود الشاشة */}
+                      {isCourseTheoryDropdownOpen && theoryTeacherCoords && typeof document !== 'undefined' && createPortal(
+                        <>
+                          {/* خلفية شفافة لإغلاق القائمة عند النقر خارجها */}
+                          <div 
+                            className="fixed inset-0 z-[999998]" 
+                            onClick={() => setIsCourseTheoryDropdownOpen(false)} 
+                          />
+                          {/* حاوية القائمة المتموضعة بدقة ذكية حسب موقع الزر ومساحة الشاشة */}
+                          <div 
+                            style={{
+                              position: 'fixed',
+                              ...(theoryTeacherCoords.openUpwards
+                                ? { bottom: `${theoryTeacherCoords.bottom}px` }
+                                : { top: `${theoryTeacherCoords.top}px` }),
+                              left: `${theoryTeacherCoords.left}px`,
+                              width: `${theoryTeacherCoords.width}px`,
+                              maxHeight: `${theoryTeacherCoords.maxHeight || 220}px`,
                             }}
-                            className={`w-full p-2.5 rounded-xl text-right font-black text-sm transition flex items-center justify-between cursor-pointer ${
-                              !courseTheoryTeacherId ? 'bg-slate-100 text-slate-900 font-black' : 'text-slate-700 hover:bg-slate-50'
-                            }`}
+                            className="bg-white border-2 border-slate-300 rounded-2xl shadow-2xl z-[999999] overflow-y-auto p-2 space-y-1 animate-in fade-in zoom-in-95 duration-150"
+                            dir="rtl"
                           >
-                            <span className="text-slate-500">-- بدون تحديد أستاذ --</span>
-                            {!courseTheoryTeacherId && <Check className="w-4 h-4 text-slate-700" />}
-                          </button>
-
-                          {/* قائمة الأساتذة */}
-                          {deptTeachers.map((t) => (
+                            {/* خيار إلغاء التحديد */}
                             <button
-                              key={t.id}
                               type="button"
                               onClick={() => {
-                                setCourseTheoryTeacherId(t.id);
+                                setCourseTheoryTeacherId('');
                                 setIsCourseTheoryDropdownOpen(false);
                               }}
                               className={`w-full p-2.5 rounded-xl text-right font-black text-sm transition flex items-center justify-between cursor-pointer ${
-                                courseTheoryTeacherId === t.id
-                                  ? 'bg-[#1A3C6E] text-white shadow-xs'
-                                  : 'text-slate-900 hover:bg-slate-100'
+                                !courseTheoryTeacherId ? 'bg-[#0F2942] text-white font-black' : 'text-slate-700 hover:bg-slate-50'
                               }`}
                             >
-                              <div className="flex items-center gap-2">
-                                <UserCheck className={`w-4 h-4 ${courseTheoryTeacherId === t.id ? 'text-cyan-300' : 'text-blue-700'}`} />
-                                <span>{t.full_name}</span>
-                              </div>
-                              {courseTheoryTeacherId === t.id && <Check className="w-4 h-4 text-emerald-400 stroke-[3]" />}
+                              <span className={!courseTheoryTeacherId ? 'text-white' : 'text-slate-500'}>-- بدون تحديد أستاذ --</span>
+                              {!courseTheoryTeacherId && <Check className="w-4 h-4 text-emerald-400 stroke-[3]" />}
                             </button>
-                          ))}
-                        </div>
+
+                            {/* قائمة الأساتذة في القسم */}
+                            {deptTeachers.map((t) => (
+                              <button
+                                key={t.id}
+                                type="button"
+                                onClick={() => {
+                                  setCourseTheoryTeacherId(t.id);
+                                  setIsCourseTheoryDropdownOpen(false);
+                                }}
+                                className={`w-full p-2.5 rounded-xl text-right font-black text-sm transition flex items-center justify-between cursor-pointer ${
+                                  courseTheoryTeacherId === t.id
+                                    ? 'bg-[#0F2942] text-white shadow-xs'
+                                    : 'text-slate-900 hover:bg-slate-100'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <UserCheck className={`w-4 h-4 ${courseTheoryTeacherId === t.id ? 'text-cyan-300' : 'text-blue-700'}`} />
+                                  <span>{t.full_name}</span>
+                                </div>
+                                {courseTheoryTeacherId === t.id && <Check className="w-4 h-4 text-emerald-400 stroke-[3]" />}
+                              </button>
+                            ))}
+                          </div>
+                        </>,
+                        document.body
                       )}
                     </div>
                   </div>
 
-                  {/* أستاذ العملي بقائمة تفاعلية فاخرة تفتح للأعلى وتمنع أي قص */}
+                  {/* أستاذ العملي بقائمة تفاعلية ذكية عبر البورتال تضمن البقاء داخل الشاشة 100% */}
                   {courseType === 'theory_and_practical' && (
                     <div className="space-y-2 relative z-[999999] animate-in fade-in duration-150">
                       <label className="block text-slate-950 font-black text-base">أستاذ المختبر (التطبيقات والعملي)</label>
                       <div className="relative">
                         <button
+                          ref={practicalTeacherBtnRef}
                           type="button"
-                          onClick={() => {
-                            setIsCoursePracticalDropdownOpen(!isCoursePracticalDropdownOpen);
-                            setIsCourseTheoryDropdownOpen(false);
-                          }}
+                          onClick={handleToggleCoursePracticalDropdown}
                           className="w-full pl-4 pr-11 py-3.5 bg-white border border-slate-300 rounded-2xl text-slate-950 font-black text-base focus:border-slate-900 focus:outline-none cursor-pointer shadow-2xs text-right flex items-center justify-between transition hover:border-slate-400"
                         >
                           <div className="flex items-center gap-2 truncate">
@@ -6410,47 +6759,68 @@ export default function DepartmentPortalPage() {
                           <ChevronDown className={`w-5 h-5 text-slate-500 transition-transform duration-200 shrink-0 ${isCoursePracticalDropdownOpen ? 'rotate-180 text-emerald-700' : ''}`} />
                         </button>
 
-                        {/* القائمة المنبثقة المخصصة لأستاذ العملي تفتح للأعلى بأمان كامل */}
-                        {isCoursePracticalDropdownOpen && (
-                          <div className="absolute bottom-full right-0 left-0 mb-2 bg-white rounded-2xl shadow-2xl border border-slate-300 p-2 z-[999999] max-h-60 overflow-y-auto space-y-1 animate-in fade-in zoom-in-95 duration-150">
-                            {/* خيار إلغاء التحديد */}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setCoursePracticalTeacherId('');
-                                setIsCoursePracticalDropdownOpen(false);
+                        {/* القائمة المنبثقة الذكية لأستاذ العملي عبر Portal لضمان عدم خروجها خارج حدود الشاشة */}
+                        {isCoursePracticalDropdownOpen && practicalTeacherCoords && typeof document !== 'undefined' && createPortal(
+                          <>
+                            {/* خلفية شفافة لإغلاق القائمة عند النقر خارجها */}
+                            <div 
+                              className="fixed inset-0 z-[999998]" 
+                              onClick={() => setIsCoursePracticalDropdownOpen(false)} 
+                            />
+                            {/* حاوية القائمة المتموضعة بدقة ذكية حسب موقع الزر ومساحة الشاشة */}
+                            <div 
+                              style={{
+                                position: 'fixed',
+                                ...(practicalTeacherCoords.openUpwards
+                                  ? { bottom: `${practicalTeacherCoords.bottom}px` }
+                                  : { top: `${practicalTeacherCoords.top}px` }),
+                                left: `${practicalTeacherCoords.left}px`,
+                                width: `${practicalTeacherCoords.width}px`,
+                                maxHeight: `${practicalTeacherCoords.maxHeight || 220}px`,
                               }}
-                              className={`w-full p-2.5 rounded-xl text-right font-black text-sm transition flex items-center justify-between cursor-pointer ${
-                                !coursePracticalTeacherId ? 'bg-slate-100 text-slate-900 font-black' : 'text-slate-700 hover:bg-slate-50'
-                              }`}
+                              className="bg-white border-2 border-slate-300 rounded-2xl shadow-2xl z-[999999] overflow-y-auto p-2 space-y-1 animate-in fade-in zoom-in-95 duration-150"
+                              dir="rtl"
                             >
-                              <span className="text-slate-500">-- بدون تحديد أستاذ --</span>
-                              {!coursePracticalTeacherId && <Check className="w-4 h-4 text-slate-700" />}
-                            </button>
-
-                            {/* قائمة الأساتذة */}
-                            {deptTeachers.map((t) => (
+                              {/* خيار إلغاء التحديد */}
                               <button
-                                key={t.id}
                                 type="button"
                                 onClick={() => {
-                                  setCoursePracticalTeacherId(t.id);
+                                  setCoursePracticalTeacherId('');
                                   setIsCoursePracticalDropdownOpen(false);
                                 }}
                                 className={`w-full p-2.5 rounded-xl text-right font-black text-sm transition flex items-center justify-between cursor-pointer ${
-                                  coursePracticalTeacherId === t.id
-                                    ? 'bg-[#1A3C6E] text-white shadow-xs'
-                                    : 'text-slate-900 hover:bg-slate-100'
+                                  !coursePracticalTeacherId ? 'bg-[#0F2942] text-white font-black' : 'text-slate-700 hover:bg-slate-50'
                                 }`}
                               >
-                                <div className="flex items-center gap-2">
-                                  <FlaskConical className={`w-4 h-4 ${coursePracticalTeacherId === t.id ? 'text-emerald-300' : 'text-emerald-700'}`} />
-                                  <span>{t.full_name}</span>
-                                </div>
-                                {coursePracticalTeacherId === t.id && <Check className="w-4 h-4 text-emerald-400 stroke-[3]" />}
+                                <span className={!coursePracticalTeacherId ? 'text-white' : 'text-slate-500'}>-- بدون تحديد أستاذ --</span>
+                                {!coursePracticalTeacherId && <Check className="w-4 h-4 text-emerald-400 stroke-[3]" />}
                               </button>
-                            ))}
-                          </div>
+
+                              {/* قائمة الأساتذة في القسم */}
+                              {deptTeachers.map((t) => (
+                                <button
+                                  key={t.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setCoursePracticalTeacherId(t.id);
+                                    setIsCoursePracticalDropdownOpen(false);
+                                  }}
+                                  className={`w-full p-2.5 rounded-xl text-right font-black text-sm transition flex items-center justify-between cursor-pointer ${
+                                    coursePracticalTeacherId === t.id
+                                      ? 'bg-[#0F2942] text-white shadow-xs'
+                                      : 'text-slate-900 hover:bg-slate-100'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <FlaskConical className={`w-4 h-4 ${coursePracticalTeacherId === t.id ? 'text-emerald-300' : 'text-emerald-700'}`} />
+                                    <span>{t.full_name}</span>
+                                  </div>
+                                  {coursePracticalTeacherId === t.id && <Check className="w-4 h-4 text-emerald-400 stroke-[3]" />}
+                                </button>
+                              ))}
+                            </div>
+                          </>,
+                          document.body
                         )}
                       </div>
                     </div>
@@ -6458,16 +6828,29 @@ export default function DepartmentPortalPage() {
                 </div>
               </div>
 
-              {/* 🎯 القسم الثاني: خيار تفعيل وعرض درجات الامتحان النهائي (الدور الأول) */}
+              {/* 🎯 القسم الرابع: خيار تفعيل وعرض درجات الامتحان النهائي (الدور الأول) - زران: إغلاق وفتح بتصميم كحلي موحد */}
               <div className="bg-slate-50/80 border border-slate-200 rounded-3xl p-5 sm:p-6 space-y-3 shadow-2xs">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="flex items-center gap-3">
-                    <div className={`p-2.5 rounded-2xl shadow-2xs ${courseIsFinalExamEnabled ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-700'}`}>
-                      <CheckCircle2 className="w-5 h-5" />
+                    <div className={`p-2.5 rounded-2xl shadow-2xs ${courseIsFinalExamEnabled ? 'bg-[#0F2942] text-white' : 'bg-slate-200 text-slate-700'}`}>
+                      {courseIsFinalExamEnabled ? (
+                        <Unlock className="w-5 h-5 text-cyan-300" />
+                      ) : (
+                        <Lock className="w-5 h-5 text-slate-700" />
+                      )}
                     </div>
                     <div>
-                      <h4 className="text-base sm:text-lg font-black text-slate-950">الامتحان النهائي (الدور الأول)</h4>
-                      <p className="text-xs sm:text-sm font-bold text-slate-600">
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-base sm:text-lg font-black text-slate-950">الامتحان النهائي (الدور الأول)</h4>
+                        <span className={`text-xs px-2.5 py-0.5 rounded-full font-black ${
+                          courseIsFinalExamEnabled 
+                            ? 'bg-blue-50 text-[#0F2942] border border-blue-200' 
+                            : 'bg-slate-200 text-slate-700 border border-slate-300'
+                        }`}>
+                          {courseIsFinalExamEnabled ? 'مفتوح ومفعّل' : 'مغلق (الافتراضي)'}
+                        </span>
+                      </div>
+                      <p className="text-xs sm:text-sm font-bold text-slate-600 mt-0.5">
                         {courseIsFinalExamEnabled 
                           ? 'مفعل ومعروض حالياً: يظهر عمود الامتحان النهائي (من 50) للأستاذ والطلبة وتُحتسب النتائج.' 
                           : 'مغلق ومحجوب: عمود الامتحان النهائي مخفي ويقتصر العرض على السعي الفصلي التكويني فقط.'}
@@ -6475,40 +6858,82 @@ export default function DepartmentPortalPage() {
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => setCourseIsFinalExamEnabled(!courseIsFinalExamEnabled)}
-                    className={`px-4 py-2.5 rounded-xl text-sm font-black transition cursor-pointer border flex items-center justify-center gap-2 shrink-0 active:scale-95 ${
-                      courseIsFinalExamEnabled 
-                        ? 'bg-emerald-100 text-emerald-950 border-emerald-400 ring-2 ring-emerald-400/20 shadow-2xs' 
-                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100 shadow-2xs'
-                    }`}
-                  >
-                    {courseIsFinalExamEnabled ? (
-                      <>
-                        <Check className="w-4 h-4 text-emerald-700 stroke-[3]" />
-                        <span>مفعّل ومعروض 🟢</span>
-                      </>
-                    ) : (
-                      <>
-                        <Lock className="w-4 h-4 text-slate-500" />
-                        <span>مغلق ومحجوب 🔒</span>
-                      </>
-                    )}
-                  </button>
+                  {/* زرا التحكم بالامتحان النهائي: إغلاق وفتح بتصميم كحلي ملكي موحد وأيقونات SVG ناصعة */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    {/* زر إغلاق */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (courseIsFinalExamEnabled) {
+                          setExamToggleConfirmation({
+                            isOpen: true,
+                            examType: 'final',
+                            targetState: false,
+                            title: 'تأكيد إغلاق وحجب الامتحان النهائي (الدور الأول)',
+                            description: 'هل أنت متأكد من رغبتك في إغلاق وحجب عمود الامتحان النهائي؟ سيقتصر العرض على السعي الفصلي التكويني فقط ولن يتمكن الأستاذ من تعديل الدرجات النهائية.',
+                          });
+                        }
+                      }}
+                      className={`px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer border flex items-center justify-center gap-1.5 active:scale-95 ${
+                        !courseIsFinalExamEnabled
+                          ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-sm ring-2 ring-slate-400/30'
+                          : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100 hover:border-slate-400 shadow-2xs'
+                      }`}
+                    >
+                      <Lock className={`w-4 h-4 ${!courseIsFinalExamEnabled ? 'text-cyan-300' : 'text-slate-500'}`} />
+                      <span>إغلاق</span>
+                    </button>
+
+                    {/* زر فتح بتصميم كحلي ملكي مطابق تماماً لزر الغلق */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!courseIsFinalExamEnabled) {
+                          setExamToggleConfirmation({
+                            isOpen: true,
+                            examType: 'final',
+                            targetState: true,
+                            title: 'تأكيد فتح الامتحان النهائي (الدور الأول)',
+                            description: 'هل أنت متأكد من رغبتك في فتح وتفعيل عمود الامتحان النهائي (من 50)؟ سيتمكن الأستاذ من رصد الدرجات وستظهر للطلبة ضمن النتائج.',
+                          });
+                        }
+                      }}
+                      className={`px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer border flex items-center justify-center gap-1.5 active:scale-95 ${
+                        courseIsFinalExamEnabled
+                          ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-sm ring-2 ring-slate-400/30'
+                          : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100 hover:border-slate-400 shadow-2xs'
+                      }`}
+                    >
+                      <Unlock className={`w-4 h-4 ${courseIsFinalExamEnabled ? 'text-cyan-300' : 'text-slate-500'}`} />
+                      <span>فتح</span>
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              {/* 🔄 القسم الثالث: خيار تفعيل فترة رصد درجات الدور الثاني (الإكمال) */}
+              {/* 🔄 القسم الخامس: خيار تفعيل فترة رصد درجات الدور الثاني (الإكمال) - زران: إغلاق وفتح بتصميم كحلي موحد */}
               <div className="bg-slate-50/80 border border-slate-200 rounded-3xl p-5 sm:p-6 space-y-3 shadow-2xs">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="flex items-center gap-3">
-                    <div className={`p-2.5 rounded-2xl shadow-2xs ${courseIsSupplementaryEnabled ? 'bg-sky-600 text-white' : 'bg-slate-200 text-slate-700'}`}>
-                      <RotateCcw className="w-5 h-5" />
+                    <div className={`p-2.5 rounded-2xl shadow-2xs ${courseIsSupplementaryEnabled ? 'bg-[#0F2942] text-white' : 'bg-slate-200 text-slate-700'}`}>
+                      {courseIsSupplementaryEnabled ? (
+                        <Unlock className="w-5 h-5 text-cyan-300" />
+                      ) : (
+                        <Lock className="w-5 h-5 text-slate-700" />
+                      )}
                     </div>
                     <div>
-                      <h4 className="text-base sm:text-lg font-black text-slate-950">فترة رصد درجات الدور الثاني (الإكمال)</h4>
-                      <p className="text-xs sm:text-sm font-bold text-slate-600">
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-base sm:text-lg font-black text-slate-950">فترة رصد درجات الدور الثاني (الإكمال)</h4>
+                        <span className={`text-xs px-2.5 py-0.5 rounded-full font-black ${
+                          courseIsSupplementaryEnabled 
+                            ? 'bg-blue-50 text-[#0F2942] border border-blue-200' 
+                            : 'bg-slate-200 text-slate-700 border border-slate-300'
+                        }`}>
+                          {courseIsSupplementaryEnabled ? 'مفتوح ومفعّل' : 'مغلق (الافتراضي)'}
+                        </span>
+                      </div>
+                      <p className="text-xs sm:text-sm font-bold text-slate-600 mt-0.5">
                         {courseIsSupplementaryEnabled 
                           ? 'مفعلة حالياً: سيظهر عمود الدور الثاني (من 50) في جدول الأستاذ لرصد درجات المكملين.' 
                           : 'مغلقة (الدور الأول فقط): عمود الدور الثاني مخفي تماماً لمنع التشتت والتضارب الأكاديمي.'}
@@ -6516,27 +6941,56 @@ export default function DepartmentPortalPage() {
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => setCourseIsSupplementaryEnabled(!courseIsSupplementaryEnabled)}
-                    className={`px-4 py-2.5 rounded-xl text-sm font-black transition cursor-pointer border flex items-center justify-center gap-2 shrink-0 active:scale-95 ${
-                      courseIsSupplementaryEnabled 
-                        ? 'bg-sky-100 text-sky-950 border-sky-400 ring-2 ring-sky-400/20 shadow-2xs' 
-                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100 shadow-2xs'
-                    }`}
-                  >
-                    {courseIsSupplementaryEnabled ? (
-                      <>
-                        <Check className="w-4 h-4 text-sky-700 stroke-[3]" />
-                        <span>مفعّل ومفتوح للأستاذ 🔄</span>
-                      </>
-                    ) : (
-                      <>
-                        <Lock className="w-4 h-4 text-slate-500" />
-                        <span>مغلق (الدور الأول فقط) 🔒</span>
-                      </>
-                    )}
-                  </button>
+                  {/* زرا التحكم بالدور الثاني: إغلاق وفتح بتصميم كحلي ملكي موحد وأيقونات SVG ناصعة */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    {/* زر إغلاق */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (courseIsSupplementaryEnabled) {
+                          setExamToggleConfirmation({
+                            isOpen: true,
+                            examType: 'supplementary',
+                            targetState: false,
+                            title: 'تأكيد إغلاق فترة الدور الثاني',
+                            description: 'هل أنت متأكد من إغلاق فترة الدور الثاني؟ سيتم حجب عمود درجات الإكمال عن واجهة الأستاذ للحفاظ على استقرار السجلات الأكاديمية.',
+                          });
+                        }
+                      }}
+                      className={`px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer border flex items-center justify-center gap-1.5 active:scale-95 ${
+                        !courseIsSupplementaryEnabled
+                          ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-sm ring-2 ring-slate-400/30'
+                          : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100 hover:border-slate-400 shadow-2xs'
+                      }`}
+                    >
+                      <Lock className={`w-4 h-4 ${!courseIsSupplementaryEnabled ? 'text-cyan-300' : 'text-slate-500'}`} />
+                      <span>إغلاق</span>
+                    </button>
+
+                    {/* زر فتح بتصميم كحلي ملكي مطابق تماماً لزر الغلق */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!courseIsSupplementaryEnabled) {
+                          setExamToggleConfirmation({
+                            isOpen: true,
+                            examType: 'supplementary',
+                            targetState: true,
+                            title: 'تأكيد فتح رصد درجات الدور الثاني (الإكمال)',
+                            description: 'هل أنت متأكد من فتح فترة رصد درجات الدور الثاني؟ سيظهر عمود الدور الثاني (من 50) في جدول الأستاذ لرصد درجات الطلبة المكملين.',
+                          });
+                        }
+                      }}
+                      className={`px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer border flex items-center justify-center gap-1.5 active:scale-95 ${
+                        courseIsSupplementaryEnabled
+                          ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-sm ring-2 ring-slate-400/30'
+                          : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100 hover:border-slate-400 shadow-2xs'
+                      }`}
+                    >
+                      <Unlock className={`w-4 h-4 ${courseIsSupplementaryEnabled ? 'text-cyan-300' : 'text-slate-500'}`} />
+                      <span>فتح</span>
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -6550,6 +7004,129 @@ export default function DepartmentPortalPage() {
 
             </div>
           </FloatingCrudModal>
+
+          {/* 🔐 نافذة تأكيد تغيير حالة الامتحان (فتح أو إغلاق الدور الأول أو الدور الثاني) */}
+          {/* 🔐 نافذة تأكيد تغيير حالة الامتحان الموحدة بنسبة 100% في منتصف الشاشة بدون أي سكرول */}
+          {examToggleConfirmation && examToggleConfirmation.isOpen && typeof document !== 'undefined' && createPortal(
+            <div className="fixed inset-0 z-[9999999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-xs animate-in fade-in duration-150" dir="rtl">
+              <div 
+                className="bg-white border-2 border-slate-300 rounded-3xl max-w-md w-full shadow-2xl p-5 space-y-3 text-right relative animate-in zoom-in-95 duration-150 my-auto"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* ❌ زر الإغلاق السريع باللون الأسود */}
+                <button
+                  type="button"
+                  onClick={() => setExamToggleConfirmation(null)}
+                  className="absolute top-4 left-4 p-2 text-slate-950 hover:text-black hover:bg-slate-100 rounded-xl transition cursor-pointer"
+                  title="إغلاق"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+
+                {/* 🛡️ شارة وأيقونة رأس المودال المركزية الفاخرة بدون مبالغة بالحجم */}
+                <div className="flex flex-col items-center justify-center text-center pt-1">
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-sm mb-1.5 ${
+                    examToggleConfirmation.targetState 
+                      ? 'bg-[#0F2942] text-white ring-3 ring-[#0F2942]/15' 
+                      : 'bg-slate-800 text-white ring-3 ring-slate-800/15'
+                  }`}>
+                    {examToggleConfirmation.targetState ? (
+                      <Unlock className="w-6 h-6 text-emerald-400" />
+                    ) : (
+                      <Lock className="w-6 h-6 text-slate-300" />
+                    )}
+                  </div>
+
+                  <span className="px-3 py-1 rounded-lg text-xs font-black inline-flex items-center gap-1.5 border shadow-2xs bg-slate-100 text-slate-950 border-slate-300">
+                    {examToggleConfirmation.targetState ? (
+                      <>
+                        <CheckCircle2 className="w-3.5 h-3.5 text-[#0F2942]" />
+                        <span>طلب فتح وتفعيل رسمي</span>
+                      </>
+                    ) : (
+                      <>
+                        <Lock className="w-3.5 h-3.5 text-slate-950" />
+                        <span>طلب إغلاق وحجب رسمي</span>
+                      </>
+                    )}
+                  </span>
+
+                  <h3 className="text-lg sm:text-xl font-black text-slate-950 mt-1.5">
+                    {examToggleConfirmation.title}
+                  </h3>
+                  <p className="text-xs sm:text-sm font-black text-slate-950 mt-1 leading-relaxed">
+                    {examToggleConfirmation.description}
+                  </p>
+                </div>
+
+                {/* 📋 صندوق تفاصيل العملية ونطاق التأثير بنصوص سوداء وواضحة جداً 100% */}
+                <div className="bg-slate-50 p-3 sm:p-3.5 rounded-2xl border border-slate-200 space-y-1.5 text-xs sm:text-sm font-black text-slate-950">
+                  <div className="flex items-center justify-between py-1 border-b border-slate-200">
+                    <span className="text-slate-950 font-black">الدور الأكاديمي:</span>
+                    <span className="text-slate-950 font-black">
+                      {examToggleConfirmation.examType === 'final' ? 'الامتحان النهائي (الدور الأول)' : 'الدور الثاني (الإكمال)'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between py-1 border-b border-slate-200">
+                    <span className="text-slate-950 font-black">الكورس الدراسي:</span>
+                    <span className="text-slate-950 font-black">
+                      {(courseSemester || 1) === 1 ? 'الكورس الأول' : 'الكورس الثاني'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between py-1 border-b border-slate-200">
+                    <span className="text-slate-950 font-black">المادة الدراسية:</span>
+                    <span className="text-slate-950 font-black">
+                      {courseName.trim() || 'المادة الدراسية الحالية'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between py-1">
+                    <span className="text-slate-950 font-black">المرحلة الدراسية:</span>
+                    <span className="px-2.5 py-0.5 bg-[#0F2942] text-white rounded-lg font-mono font-bold text-xs shadow-2xs">
+                      المرحلة {getStageNameInArabic(courseStage || 1)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* 💡 إشعار وتنبيه توجيهي رسمي بنص أسود صريح ومدمج */}
+                <div className="p-2.5 sm:p-3 bg-slate-100/90 border border-slate-300 rounded-xl text-xs sm:text-sm font-black text-slate-950 flex items-start gap-2">
+                  <Info className="w-4 h-4 text-[#0F2942] shrink-0 mt-0.5" />
+                  <div className="leading-relaxed">
+                    {examToggleConfirmation.targetState ? (
+                      <span>
+                        فور التأكيد، سيتم تفعيل إمكانية رصد وإدخال درجات هذا الدور من قبل التدريسي المكلف، وستنعكس مباشرة وبشكل حي في بوابات الطلبة.
+                      </span>
+                    ) : (
+                      <span>
+                        فور التأكيد، سيتم قفل وتجميد إدخال درجات هذا الدور وحجبها عن بوابات الطلبة، واقتصار العرض على السعي الفصلي التكويني فقط لحين الاعتماد الرسمي.
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* 🔘 أزرار اتخاذ القرار والتنفيذ الموزونة والفاخرة */}
+                <div className="flex items-center gap-2.5 pt-1">
+                  <button
+                    type="button"
+                    onClick={handleConfirmExamToggle}
+                    className="flex-1 py-2.5 px-4 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-xl font-black text-sm transition shadow-md flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+                  >
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    <span>
+                      {examToggleConfirmation.targetState ? 'نعم، تأكيد الفتح والتفعيل' : 'نعم، تأكيد الإغلاق والحجب'}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setExamToggleConfirmation(null)}
+                    className="py-2.5 px-5 bg-white hover:bg-slate-100 text-slate-950 rounded-xl font-black text-sm transition border border-slate-300 cursor-pointer active:scale-95 shadow-2xs"
+                  >
+                    تراجع وإلغاء
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.body
+          )}
 
           {/* جدول مواد القسم مع تفاصيل النظري والعملي والتحكم الكامل */}
           <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
@@ -6580,229 +7157,450 @@ export default function DepartmentPortalPage() {
                 </div>
               </div>
 
-              {/* 🏷️ شريط فلاتر متعدد الأبعاد: المرحلة + الكورس + نوع المادة */}
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+              {/* 🏷️ شريط الفلاتر والتبويبات المنظم والأنيق بتصميم عصري ومرتب 100% */}
+              <div className="space-y-3.5 pt-2"> {/* 📦 الحاوية الرأسية للفلاتر والتبويبات بتصميم فاخر */}
                 
-                {/* 1. تصفية المرحلة الدراسية بالهوية الكحلية الملكية */}
-                <div className="flex-1 flex items-center bg-slate-100 p-1 rounded-2xl border border-slate-300 gap-1 overflow-x-auto min-w-[300px]">
-                  <button
-                    type="button"
-                    onClick={() => setFilterCourseStage('all')}
-                    className={`flex-1 py-1.5 px-2 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
-                      filterCourseStage === 'all'
-                        ? 'bg-[#1A3C6E] text-white shadow-xs'
-                        : 'text-slate-700 hover:bg-white'
-                    }`}
-                  >
-                    <span>كافة المراحل</span>
-                    <span className={`px-1.5 py-0.5 rounded-full text-xs font-mono font-black ${
-                      filterCourseStage === 'all' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800'
-                    }`}>
-                      {deptCourses.length}
+                {/* 📌 الصف الأول: تصفية المراحل الدراسية في شريط تبويبات كبسولي احترافي */}
+                <div className="flex items-center justify-between flex-wrap gap-2.5"> {/* 🧭 صف تبويبات المراحل */}
+                  <div className="flex items-center bg-slate-100/90 p-1.5 rounded-2xl border border-slate-300 gap-1.5 flex-wrap"> {/* 🎨 كبسولة تبويبات المراحل الرصاصية */}
+                    <span className="text-sm sm:text-base font-black text-slate-950 px-2.5 flex items-center gap-1.5"> {/* 🏷️ عنوان تصفية المرحلة */}
+                      <Layers className="w-4 h-4 text-[#0F2942]" /> {/* 📑 أيقونة الطبقات الكحلية */}
+                      <span>المرحلة:</span> {/* 🏷️ نص تسمية المرحلة */}
                     </span>
-                  </button>
 
-                  {[
-                    { num: 1, name: 'الأولى' },
-                    { num: 2, name: 'الثانية' },
-                    { num: 3, name: 'الثالثة' },
-                    { num: 4, name: 'الرابعة' },
-                  ].map((st) => {
-                    const count = deptCourses.filter((c) => (c.stage_number || 1) === st.num).length;
-                    return (
+                    {/* 🔘 تبويب كافة المراحل */}
+                    <button
+                      type="button" // 🛑 نوع الزر لمنع الإرسال
+                      onClick={() => setFilterCourseStage('all')} // ⚡ تصفية كافة المراحل
+                      className={`py-2 px-3.5 sm:px-4 rounded-xl text-sm sm:text-base font-black transition cursor-pointer flex items-center justify-center gap-2 whitespace-nowrap active:scale-95 ${ // 🎨 تنسيقات الزر
+                        filterCourseStage === 'all' // 🔍 هل التبويب نشط؟
+                          ? 'bg-[#0F2942] text-white shadow-xs border border-[#163a5f]' // 👑 كحلي ملكي راقي للتبويب النشط
+                          : 'text-slate-800 hover:bg-white hover:text-slate-950 border border-transparent hover:border-slate-200' // ⚪ تبويب غير نشط
+                      }`}
+                    >
+                      <span>كافة المراحل</span> {/* 🏷️ نص التبويب */}
+                      <span className={`px-2 py-0.5 rounded-full text-xs sm:text-sm font-mono font-black ${ // 🔢 بادج العداد
+                        filterCourseStage === 'all' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800' // 🎨 لون البادج
+                      }`}>
+                        {deptCourses.length} {/* 🔢 إجمالي المواد بالقسم */}
+                      </span>
+                    </button>
+
+                    {/* 🔘 أزرار المراحل الأربعة بالقسم */}
+                    {[
+                      { num: 1, name: 'الأولى' }, // 🥇 المرحلة الأولى
+                      { num: 2, name: 'الثانية' }, // 🥈 المرحلة الثانية
+                      { num: 3, name: 'الثالثة' }, // 🥉 المرحلة الثالثة
+                      { num: 4, name: 'الرابعة' }, // 🎓 المرحلة الرابعة
+                    ].map((st) => { // 🔄 تكرار المراحل
+                      const count = deptCourses.filter((c) => (Number(c.stage_number) || 1) === st.num).length; // 🧮 حساب عدد مواد كل مرحلة بدقة
+                      return (
+                        <button
+                          key={st.num} // 🔑 المفتاح الفريد
+                          type="button" // 🛑 نوع الزر
+                          onClick={() => setFilterCourseStage(st.num)} // ⚡ تصفية مواد المرحلة المختارة
+                          className={`py-2 px-3.5 sm:px-4 rounded-xl text-sm sm:text-base font-black transition cursor-pointer flex items-center justify-center gap-2 whitespace-nowrap active:scale-95 ${ // 🎨 التنسيقات
+                            filterCourseStage === st.num // 🔍 هل المرحلة مختارة؟
+                              ? 'bg-[#0F2942] text-white shadow-xs border border-[#163a5f]' // 👑 كحلي ملكي للمرحلة النشطة
+                              : 'text-slate-800 hover:bg-white hover:text-slate-950 border border-transparent hover:border-slate-200' // ⚪ مرحلة غير نشطة
+                          }`}
+                        >
+                          <span>المرحلة {st.name}</span> {/* 🏷️ اسم المرحلة */}
+                          <span className={`px-2 py-0.5 rounded-full text-xs sm:text-sm font-mono font-black ${ // 🔢 بادج العداد
+                            filterCourseStage === st.num ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800' // 🎨 لون البادج
+                          }`}>
+                            {count} {/* 🔢 عدد مواد المرحلة */}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 📌 الصف الثاني: تصفية الكورس الدراسي وتصفية نوع المقرر */}
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-2.5 border-t border-slate-200"> {/* 🧭 صف الكورس والنوع */}
+                  {/* 1. تصفية الكورس الدراسي */}
+                  <div className="flex items-center gap-2 flex-wrap"> {/* 📅 حاوية أزرار الكورسات */}
+                    <span className="text-sm sm:text-base font-black text-slate-950 flex items-center gap-1.5 ml-1"> {/* 🏷️ عنوان فلتر الكورس */}
+                      <Calendar className="w-4 h-4 text-[#0F2942]" /> {/* 📅 أيقونة التقويم للكورس */}
+                      <span>الكورس:</span> {/* 🏷️ النص التوضيحي للكورس */}
+                    </span>
+
+                    <button
+                      type="button" // 🛑 نوع الزر
+                      onClick={() => setFilterCourseSemester('all')} // ⚡ عرض كافة الكورسات
+                      className={`px-3.5 sm:px-4 py-2 rounded-xl text-sm sm:text-base font-black transition cursor-pointer flex items-center gap-2 whitespace-nowrap active:scale-95 ${ // 🎨 التنسيقات
+                        filterCourseSemester === 'all' // 🔍 هل التبويب نشط؟
+                          ? 'bg-[#0F2942] text-white shadow-xs border border-[#163a5f]' // 👑 كحلي ملكي للنشط
+                          : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300' // ⚪ زر غير نشط
+                      }`}
+                    >
+                      <span>كافة الكورسات</span> {/* 🏷️ النص */}
+                      <span className={`px-2 py-0.5 rounded-full text-xs sm:text-sm font-mono font-black ${ // 🔢 بادج العداد
+                        filterCourseSemester === 'all' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800' // 🎨 لون البادج
+                      }`}>
+                        {deptCourses.length} {/* 🔢 العدد الكلي */}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button" // 🛑 نوع الزر
+                      onClick={() => setFilterCourseSemester(1)} // ⚡ تصفية الكورس الأول
+                      className={`px-3.5 sm:px-4 py-2 rounded-xl text-sm sm:text-base font-black transition cursor-pointer flex items-center gap-2 whitespace-nowrap active:scale-95 ${ // 🎨 التنسيقات
+                        filterCourseSemester === 1 // 🔍 هل الكورس الأول نشط؟
+                          ? 'bg-[#0F2942] text-white shadow-xs border border-[#163a5f]' // 👑 كحلي ملكي للنشط
+                          : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300' // ⚪ زر غير نشط
+                      }`}
+                    >
+                      <span>الكورس الأول</span> {/* 🏷️ الكورس الأول */}
+                      <span className={`px-2 py-0.5 rounded-full text-xs sm:text-sm font-mono font-black ${ // 🔢 بادج العداد
+                        filterCourseSemester === 1 ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800' // 🎨 لون البادج
+                      }`}>
+                        {deptCourses.filter((c) => (Number(c.semester) || 1) === 1).length} {/* 🔢 عدد مواد الكورس الأول */}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button" // 🛑 نوع الزر
+                      onClick={() => setFilterCourseSemester(2)} // ⚡ تصفية الكورس الثاني
+                      className={`px-3.5 sm:px-4 py-2 rounded-xl text-sm sm:text-base font-black transition cursor-pointer flex items-center gap-2 whitespace-nowrap active:scale-95 ${ // 🎨 التنسيقات
+                        filterCourseSemester === 2 // 🔍 هل الكورس الثاني نشط؟
+                          ? 'bg-[#0F2942] text-white shadow-xs border border-[#163a5f]' // 👑 كحلي ملكي للنشط
+                          : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300' // ⚪ زر غير نشط
+                      }`}
+                    >
+                      <span>الكورس الثاني</span> {/* 🏷️ الكورس الثاني */}
+                      <span className={`px-2 py-0.5 rounded-full text-xs sm:text-sm font-mono font-black ${ // 🔢 بادج العداد
+                        filterCourseSemester === 2 ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800' // 🎨 لون البادج
+                      }`}>
+                        {deptCourses.filter((c) => (Number(c.semester) || 1) === 2).length} {/* 🔢 عدد مواد الكورس الثاني */}
+                      </span>
+                    </button>
+                  </div>
+
+                  {/* 2. تصفية نوع المقرر */}
+                  <div className="flex items-center gap-2 flex-wrap"> {/* 🧪 حاوية أزرار نوع المقرر */}
+                    <span className="text-sm sm:text-base font-black text-slate-950 flex items-center gap-1.5 ml-1"> {/* 🏷️ عنوان الفلتر */}
+                      <Sparkles className="w-4 h-4 text-[#0F2942]" /> {/* ✨ أيقونة التمييز للنوع */}
+                      <span>النوع:</span> {/* 🏷️ نص تسمية نوع المادة */}
+                    </span>
+                    <button
+                      type="button" // 🛑 نوع الزر
+                      onClick={() => setFilterCourseType('all')} // ⚡ عرض كافة الأنواع
+                      className={`px-3.5 sm:px-4 py-2 rounded-xl text-sm sm:text-base font-black transition cursor-pointer whitespace-nowrap active:scale-95 ${ // 🎨 التنسيقات
+                        filterCourseType === 'all' // 🔍 هل الكل نشط؟
+                          ? 'bg-[#0F2942] text-white shadow-xs border border-[#163a5f]' // 👑 كحلي ملكي للنشط
+                          : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300' // ⚪ زر غير نشط
+                      }`}
+                    >
+                      الكل {/* 🏷️ كافة الأنواع */}
+                    </button>
+                    <button
+                      type="button" // 🛑 نوع الزر
+                      onClick={() => setFilterCourseType('theory_and_practical')} // ⚡ تصفية نظري وعملي
+                      className={`px-3.5 sm:px-4 py-2 rounded-xl text-sm sm:text-base font-black transition cursor-pointer flex items-center gap-2 whitespace-nowrap active:scale-95 ${ // 🎨 التنسيقات
+                        filterCourseType === 'theory_and_practical' // 🔍 هل نظري وعملي نشط؟
+                          ? 'bg-[#0F2942] text-white shadow-xs border border-[#163a5f]' // 👑 كحلي ملكي للنشط
+                          : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300' // ⚪ زر غير نشط
+                      }`}
+                    >
+                      <FlaskConical className="w-4 h-4" /> {/* 🧪 أيقونة المختبر */}
+                      <span>نظري وعملي</span> {/* 🏷️ نظري وعملي */}
+                    </button>
+                    <button
+                      type="button" // 🛑 نوع الزر
+                      onClick={() => setFilterCourseType('theory_only')} // ⚡ تصفية نظري فقط
+                      className={`px-3.5 sm:px-4 py-2 rounded-xl text-sm sm:text-base font-black transition cursor-pointer flex items-center gap-2 whitespace-nowrap active:scale-95 ${ // 🎨 التنسيقات
+                        filterCourseType === 'theory_only' // 🔍 هل نظري فقط نشط؟
+                          ? 'bg-[#0F2942] text-white shadow-xs border border-[#163a5f]' // 👑 كحلي ملكي للنشط
+                          : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300' // ⚪ زر غير نشط
+                      }`}
+                    >
+                      <BookOpen className="w-4 h-4" /> {/* 📖 أيقونة الكتاب */}
+                      <span>نظري فقط</span> {/* 🏷️ نظري فقط */}
+                    </button>
+                  </div>
+                </div>
+
+                {/* 📌 الصف الثالث: التحكم الجماعي بالدور الأول والدور الثاني للمرحلة والكورس أو المواد المحددة بمقاسات متوسطة وأنيقة */}
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t-2 border-slate-200 bg-gradient-to-r from-slate-100/90 via-blue-50/40 to-slate-100/90 p-3 sm:p-3.5 rounded-2xl border shadow-2xs"> {/* 🛡️ حاوية التحكم الجماعي الفاخرة بمقاس متوسط */}
+                  
+                  {/* 🎯 التحكم الجماعي بالامتحان النهائي (الدور الأول): نصوص متوسطة وشارة حالة وزران شغالين تفاعلياً */}
+                  <div className="flex items-center gap-2.5 flex-wrap"> {/* 🎯 مجموعة الدور الأول */}
+                    <span className="text-sm sm:text-base font-black text-slate-900 flex items-center gap-1.5"> {/* 🏷️ النص التوضيحي بمقاس متوسط ومريح */}
+                      <FileText className="w-4 h-4 text-[#0F2942]" /> {/* 📄 أيقونة الامتحان */}
+                      <span>
+                        {selectedCourseIds.length > 0 // 🔍 هل اكو مواد محددة بالـ checkbox؟
+                          ? `النهائي (الدور الأول) — للمحدد (${selectedCourseIds.length}):` // 🎯 عنوان مخصص للمحدد
+                          : filterCourseSemester === 1 // 🔍 هل فلتر الكورس الأول مفعّل؟
+                          ? 'النهائي (الدور الأول) — الكورس الأول:' // 🎯 عنوان الكورس الأول
+                          : filterCourseSemester === 2 // 🔍 هل فلتر الكورس الثاني مفعّل؟
+                          ? 'النهائي (الدور الأول) — الكورس الثاني:' // 🎯 عنوان الكورس الثاني
+                          : 'النهائي (الدور الأول):'} {/* 🎯 العنوان العام */}
+                      </span>
+                    </span>
+
+                    {/* شارة حالة الدور الأول للمواد المستهدفة حالياً بمقاس متوسط رشيق */}
+                    {isBulkFinalOpen ? ( // 🔍 هل كافة المواد مفتوحة؟
+                      <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-950 border border-emerald-300 rounded-lg text-xs font-black inline-flex items-center gap-1.5 shadow-2xs"> {/* 🟢 شارة النجاح الأخضر */}
+                        <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse"></span> {/* 🟢 نقطة نبض خضراء */}
+                        <span>مفتوح ومفعّل ({finalOpenCount}/{activeTargetRoundCourses.length})</span> {/* 🏷️ نص الحالة مع العداد الدقيق */}
+                      </span>
+                    ) : isBulkFinalPartial ? ( // 🔍 هل اكو فتح جزئي لبعض المواد؟
+                      <span className="px-2.5 py-0.5 bg-sky-50 text-sky-950 border border-sky-300 rounded-lg text-xs font-black inline-flex items-center gap-1.5 shadow-2xs"> {/* 🩵 شارة الفتح الجزئي النيلية الهادئة */}
+                        <span className="w-2 h-2 rounded-full bg-sky-600"></span> {/* 🩵 نقطة نيلية هادئة مريحة للعين */}
+                        <span>مفتوح جزئياً ({finalOpenCount}/{activeTargetRoundCourses.length})</span> {/* 🏷️ نص الفتح الجزئي الدقيق */}
+                      </span>
+                    ) : ( // 🔍 الحالة الافتراضية: مغلق
+                      <span className="px-2.5 py-0.5 bg-slate-200/90 text-slate-900 border border-slate-300 rounded-lg text-xs font-black inline-flex items-center gap-1.5 shadow-2xs"> {/* ⚪ شارة القفل الرصاصية */}
+                        <Lock className="w-3 h-3 text-slate-700" /> {/* 🔒 قفل رصاصي مصغر */}
+                        <span>مغلق (الافتراضي)</span> {/* 🏷️ نص الغلق الافتراضي */}
+                      </span>
+                    )}
+
+                    {/* كبسولة زري إغلاق وفتح بحجم متوسط متناسق وأداء تفاعلي حقيقي 100% */}
+                    <div className="inline-flex items-center bg-white border border-slate-300 rounded-xl p-0.5 shadow-2xs gap-1"> {/* 📦 كبسولة الزرين بمقاس مدمج */}
+                      {/* زر إغلاق النهائي للمرحلة */}
                       <button
-                        key={st.num}
-                        type="button"
-                        onClick={() => setFilterCourseStage(st.num)}
-                        className={`flex-1 py-1.5 px-2 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
-                          filterCourseStage === st.num
-                            ? 'bg-[#1A3C6E] text-white shadow-xs'
-                            : 'text-slate-700 hover:bg-white'
+                        type="button" // 🛑 نوع الزر
+                        onClick={() => handleBulkToggleFinalExam(false)} // 🔒 إغلاق النهائي مع استهداف المفتوح فقط
+                        className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition cursor-pointer flex items-center gap-1.5 active:scale-95 whitespace-nowrap ${ // 🎨 التنسيقات المتوسطة
+                          !isBulkFinalOpen && !isBulkFinalPartial // 🔍 إذا مغلق بالكامل
+                            ? 'bg-[#0F2942] text-white shadow-xs ring-1 ring-[#0F2942]' // 👑 كحلي ملكي مفعل
+                            : 'bg-transparent text-slate-800 hover:bg-slate-100 hover:text-slate-950' // ⚪ شفاف بانتظار الضغط
                         }`}
+                        title="إغلاق وحجب الامتحان النهائي للمواد المفتوحة فقط مع طلب تأكيد رسمي" // 💡 تلميح الزر
                       >
-                        <span>المرحلة {st.name}</span>
-                        <span className={`px-1.5 py-0.5 rounded-full text-xs font-mono font-black ${
-                          filterCourseStage === st.num ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800'
-                        }`}>
-                          {count}
-                        </span>
+                        <Lock className={`w-3.5 h-3.5 ${!isBulkFinalOpen && !isBulkFinalPartial ? 'text-cyan-300' : 'text-slate-600'}`} /> {/* 🔒 أيقونة القفل */}
+                        <span>إغلاق</span> {/* 🏷️ نص الإغلاق */}
                       </button>
-                    );
-                  })}
-                </div>
 
-                {/* 2. تصفية الكورس الدراسي بالأزرار الكحلية الملكية */}
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-sm font-black text-slate-950 ml-1">الكورس:</span>
-                  <button
-                    type="button"
-                    onClick={() => setFilterCourseSemester('all')}
-                    className={`px-3 py-1.5 rounded-xl text-sm font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-                      filterCourseSemester === 'all'
-                        ? 'bg-[#1A3C6E] text-white shadow-xs'
-                        : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300'
-                    }`}
-                  >
-                    <span>كافة الكورسات</span>
-                    <span className={`px-1.5 py-0.5 rounded-full text-xs font-mono font-black ${
-                      filterCourseSemester === 'all' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800'
-                    }`}>
-                      {deptCourses.length}
+                      {/* زر فتح النهائي للمرحلة مع تمييز واضح وبارز عند الفتح الجزئي */}
+                      <button
+                        type="button" // 🛑 نوع الزر
+                        onClick={() => handleBulkToggleFinalExam(true)} // 🔓 فتح النهائي مع طلب تأكيد
+                        className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition cursor-pointer flex items-center gap-1.5 active:scale-95 whitespace-nowrap ${ // 🎨 التنسيقات المتوسطة
+                          isBulkFinalOpen // 🔍 إذا مفتوح بالكامل 100%
+                            ? 'bg-[#0F2942] text-white shadow-xs ring-1 ring-[#0F2942]' // 👑 تصميم كحلي ملكي مفعل بالكامل
+                            : isBulkFinalPartial // 🌟 عند الفتح الجزئي نجعله زراً محدداً ومميزاً بوضوح تام ليعرفه المستخدم
+                            ? 'bg-sky-100 text-sky-950 border-2 border-sky-400 font-black shadow-xs ring-1 ring-sky-300' // 🩵 زر محدد بوضوح للفتح الجزئي
+                            : 'bg-transparent text-slate-800 hover:bg-slate-100 hover:text-slate-950' // ⚪ تصميم أبيض هادئ بانتظار النقر
+                        }`}
+                        title="فتح وتفعيل درجات الامتحان النهائي للدور الأول مع طلب تأكيد رسمي" // 💡 تلميح الزر
+                      >
+                        <Unlock className={`w-3.5 h-3.5 ${isBulkFinalOpen ? 'text-cyan-300' : isBulkFinalPartial ? 'text-sky-700' : 'text-slate-600'}`} /> {/* 🔓 أيقونة الفتح */}
+                        <span>فتح</span> {/* 🏷️ نص الفتح */}
+                        {isBulkFinalPartial && <span className="w-1.5 h-1.5 rounded-full bg-sky-600 animate-pulse"></span>} {/* 🩵 نقطة نبض دلالية للفتح الجزئي */}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 🔄 التحكم الجماعي بفترة الدور الثاني: نصوص متوسطة وشارة حالة وزران شغالين تفاعلياً */}
+                  <div className="flex items-center gap-2.5 flex-wrap"> {/* 🔄 مجموعة الدور الثاني */}
+                    <span className="text-sm sm:text-base font-black text-slate-900 flex items-center gap-1.5"> {/* 🏷️ النص التوضيحي بمقاس متوسط */}
+                      <Award className="w-4 h-4 text-[#0F2942]" /> {/* 🏆 أيقونة الدور الثاني */}
+                      <span>
+                        {selectedCourseIds.length > 0 // 🔍 هل اكو مواد محددة بالـ checkbox؟
+                          ? `فترة الدور الثاني — للمحدد (${selectedCourseIds.length}):` // 🎯 عنوان مخصص للمحدد
+                          : filterCourseSemester === 1 // 🔍 هل فلتر الكورس الأول مفعّل؟
+                          ? 'فترة الدور الثاني — الكورس الأول:' // 🎯 عنوان الكورس الأول
+                          : filterCourseSemester === 2 // 🔍 هل فلتر الكورس الثاني مفعّل؟
+                          ? 'فترة الدور الثاني — الكورس الثاني:' // 🎯 عنوان الكورس الثاني
+                          : 'فترة الدور الثاني:'} {/* 🎯 العنوان العام */}
+                      </span>
                     </span>
-                  </button>
 
-                  <button
-                    type="button"
-                    onClick={() => setFilterCourseSemester(1)}
-                    className={`px-3 py-1.5 rounded-xl text-sm font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-                      filterCourseSemester === 1
-                        ? 'bg-[#1A3C6E] text-white shadow-xs'
-                        : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300'
-                    }`}
-                  >
-                    <span>الكورس الأول</span>
-                    <span className={`px-1.5 py-0.5 rounded-full text-xs font-mono font-black ${
-                      filterCourseSemester === 1 ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800'
-                    }`}>
-                      {deptCourses.filter((c) => (c.semester || 1) === 1).length}
+                    {/* شارة حالة الدور الثاني للمواد المستهدفة حالياً بمقاس متوسط */}
+                    {isBulkSupOpen ? ( // 🔍 هل كافة المواد مفتوحة بالدور الثاني؟
+                      <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-950 border border-emerald-300 rounded-lg text-xs font-black inline-flex items-center gap-1.5 shadow-2xs"> {/* 🟢 شارة النجاح الأخضر */}
+                        <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse"></span> {/* 🟢 نقطة نبض خضراء */}
+                        <span>مفتوح ومفعّل ({supOpenCount}/{activeTargetRoundCourses.length})</span> {/* 🏷️ نص الحالة مع العداد الدقيق */}
+                      </span>
+                    ) : isBulkSupPartial ? ( // 🔍 هل اكو فتح جزئي للدور الثاني؟
+                      <span className="px-2.5 py-0.5 bg-sky-50 text-sky-950 border border-sky-300 rounded-lg text-xs font-black inline-flex items-center gap-1.5 shadow-2xs"> {/* 🩵 شارة الفتح الجزئي النيلية الهادئة */}
+                        <span className="w-2 h-2 rounded-full bg-sky-600"></span> {/* 🩵 نقطة نيلية هادئة مريحة للعين */}
+                        <span>مفتوح جزئياً ({supOpenCount}/{activeTargetRoundCourses.length})</span> {/* 🏷️ نص الفتح الجزئي الدقيق */}
+                      </span>
+                    ) : ( // 🔍 الحالة الافتراضية: مغلق
+                      <span className="px-2.5 py-0.5 bg-slate-200/90 text-slate-900 border border-slate-300 rounded-lg text-xs font-black inline-flex items-center gap-1.5 shadow-2xs"> {/* ⚪ شارة القفل الرصاصية */}
+                        <Lock className="w-3 h-3 text-slate-700" /> {/* 🔒 قفل رصاصي */}
+                        <span>مغلق (الافتراضي)</span> {/* 🏷️ نص الغلق الافتراضي */}
+                      </span>
+                    )}
+
+                    {/* كبسولة زري إغلاق وفتح بمقاس متوسط متناسق وأداء تفاعلي حقيقي 100% */}
+                    <div className="inline-flex items-center bg-white border border-slate-300 rounded-xl p-0.5 shadow-2xs gap-1"> {/* 📦 كبسولة الزرين */}
+                      {/* زر إغلاق الدور الثاني للمرحلة */}
+                      <button
+                        type="button" // 🛑 نوع الزر
+                        onClick={() => handleBulkToggleSupplementaryExam(false)} // 🔒 إغلاق الدور الثاني للمفتوح فقط
+                        className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition cursor-pointer flex items-center gap-1.5 active:scale-95 whitespace-nowrap ${ // 🎨 التنسيقات المتوسطة
+                          !isBulkSupOpen && !isBulkSupPartial // 🔍 إذا مغلق حالياً
+                            ? 'bg-[#0F2942] text-white shadow-xs ring-1 ring-[#0F2942]' // 👑 تصميم كحلي ملكي مفعّل
+                            : 'bg-transparent text-slate-800 hover:bg-slate-100 hover:text-slate-950' // ⚪ تصميم أبيض هادئ بانتظار النقر
+                        }`}
+                        title="إغلاق رصد الدور الثاني للمواد المفتوحة فقط مع طلب تأكيد رسمي" // 💡 تلميح الزر
+                      >
+                        <Lock className={`w-3.5 h-3.5 ${!isBulkSupOpen && !isBulkSupPartial ? 'text-cyan-300' : 'text-slate-600'}`} /> {/* 🔒 أيقونة القفل */}
+                        <span>إغلاق</span> {/* 🏷️ نص الإغلاق */}
+                      </button>
+
+                      {/* زر فتح الدور الثاني للمرحلة مع تمييز واضح للفتح الجزئي */}
+                      <button
+                        type="button" // 🛑 نوع الزر
+                        onClick={() => handleBulkToggleSupplementaryExam(true)} // 🔓 فتح الدور الثاني مع طلب تأكيد
+                        className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition cursor-pointer flex items-center gap-1.5 active:scale-95 whitespace-nowrap ${ // 🎨 التنسيقات المتوسطة
+                          isBulkSupOpen // 🔍 إذا مفتوح بالكامل
+                            ? 'bg-[#0F2942] text-white shadow-xs ring-1 ring-[#0F2942]' // 👑 تصميم كحلي ملكي مفعّل
+                            : isBulkSupPartial // 🌟 عند الفتح الجزئي نجعله زراً محدداً ومميزاً بوضوح تام ليعرفه المستخدم
+                            ? 'bg-sky-100 text-sky-950 border-2 border-sky-400 font-black shadow-xs ring-1 ring-sky-300' // 🩵 زر محدد بوضوح للفتح الجزئي
+                            : 'bg-transparent text-slate-800 hover:bg-slate-100 hover:text-slate-950' // ⚪ تصميم أبيض هادئ بانتظار النقر
+                        }`}
+                        title="فتح وتفعيل فترة رصد درجات الدور الثاني مع طلب تأكيد رسمي" // 💡 تلميح الزر
+                      >
+                        <Unlock className={`w-3.5 h-3.5 ${isBulkSupOpen ? 'text-cyan-300' : isBulkSupPartial ? 'text-sky-700' : 'text-slate-600'}`} /> {/* 🔓 أيقونة الفتح */}
+                        <span>فتح</span> {/* 🏷️ نص الفتح */}
+                        {isBulkSupPartial && <span className="w-1.5 h-1.5 rounded-full bg-sky-600 animate-pulse"></span>} {/* 🩵 نقطة نبض دلالية للفتح الجزئي */}
+                      </button>
+                    </div>
+                  </div>
+
+                </div>
+
+                {/* 📌 الصف الرابع (أسفل): صف التحديد السريع للمواد مع أزرار مصغرة وأنيقة وزر كحلي ملكي لتحديد كل الكورسات */}
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-200"> {/* 🧭 حاوية التحديد السريع في أسفل الكارد */}
+                  
+                  {/* أزرار التحديد السريع للكورسات بحجم مصغر احترافي */}
+                  <div className="flex items-center gap-2 flex-wrap"> {/* 🎯 مجموعة أزرار التحديد السريع */}
+                    <span className="text-xs sm:text-sm font-black text-slate-950 flex items-center gap-1.5 ml-1"> {/* 🏷️ عنوان التحديد السريع */}
+                      <CheckSquare className="w-4 h-4 text-[#0F2942]" /> {/* ☑️ أيقونة المربع المحدد */}
+                      <span>تحديد سريع:</span> {/* 🏷️ نص التحديد السريع */}
                     </span>
-                  </button>
 
-                  <button
-                    type="button"
-                    onClick={() => setFilterCourseSemester(2)}
-                    className={`px-3 py-1.5 rounded-xl text-sm font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-                      filterCourseSemester === 2
-                        ? 'bg-[#1A3C6E] text-white shadow-xs'
-                        : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300'
-                    }`}
-                  >
-                    <span>الكورس الثاني</span>
-                    <span className={`px-1.5 py-0.5 rounded-full text-xs font-mono font-black ${
-                      filterCourseSemester === 2 ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800'
-                    }`}>
-                      {deptCourses.filter((c) => (c.semester || 1) === 2).length}
-                    </span>
-                  </button>
+                    {/* زر تحديد كل الكورسات مثل ألوان أزرار الكورسين بحجم مصغر */}
+                    <button
+                      type="button" // 🛑 نوع الزر
+                      onClick={() => { // ⚡ ضغطة تحديد كل الكورسات
+                        const allIds = deptCourses.map((c) => c.id); // 📋 معرفات كل مواد الكورسات في القسم
+                        const isAllSelected = allIds.length > 0 && allIds.every((id) => selectedCourseIds.includes(id)); // 🔍 هل كل الكورسات محددة حالياً؟
+                        if (isAllSelected) { // 🔍 إذا كلهن محددات
+                          setSelectedCourseIds([]); // ❌ نلغي التحديد بالكامل
+                        } else { // 🔍 إذا مو كلهن محددات
+                          setSelectedCourseIds(allIds); // 👑 نحدد كل كورسات ومواد القسم دفعة واحدة
+                        } // 🔚 نهاية الشرط
+                      }}
+                      className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center gap-1.5 active:scale-95 border ${ // 🎨 التنسيقات المصغرة
+                        deptCourses.length > 0 && deptCourses.every((c) => selectedCourseIds.includes(c.id)) // 🔍 هل كل الكورسات محددة حالياً؟
+                          ? 'bg-[#0F2942] text-white border-[#163a5f] shadow-xs' // 👑 كحلي ملكي للنشط
+                          : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border-slate-300' // ⚪ رمادي فاتح لغير النشط مثل باقي الأزرار
+                      }`}
+                      title="تحديد أو إلغاء تحديد كافة كورسات ومواد القسم" // 💡 تلميح الزر
+                    >
+                      <CheckCircle2 className={`w-3.5 h-3.5 ${deptCourses.length > 0 && deptCourses.every((c) => selectedCourseIds.includes(c.id)) ? 'text-cyan-300' : 'text-slate-600'}`} /> {/* ✅ أيقونة الصح مطابقة لأزرار الكورسات */}
+                      <span>تحديد كل الكورسات</span> {/* 🏷️ تسمية الزر المعتمدة */}
+                      <span className={`px-1.5 py-0.5 rounded-md text-xs font-mono font-black ${ // 🔢 بادج العداد
+                        deptCourses.length > 0 && deptCourses.every((c) => selectedCourseIds.includes(c.id)) ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800' // 🎨 لون البادج
+                      }`}>
+                        {deptCourses.length} {/* 🔢 عدد كل المواد بالقسم */}
+                      </span>
+                    </button>
+
+                    {/* زر التحديد السريع لمواد الكورس الأول بحجم مصغر احترافي وتسمية محدثة */}
+                    <button
+                      type="button" // 🛑 نوع الزر
+                      onClick={() => { // ⚡ ضغطة تحديد مواد الكورس الأول
+                        const isAllSem1Selected = deptSem1CourseIds.length > 0 && deptSem1CourseIds.every((id) => selectedCourseIds.includes(id)); // 🔍 فحص هل كل مواد الكورس الأول محددة
+                        if (isAllSem1Selected) { // 🔍 إذا كلهن محددات
+                          setSelectedCourseIds(selectedCourseIds.filter((id) => !deptSem1CourseIds.includes(id))); // ❌ نلغي تحديد مواد الكورس الأول
+                        } else { // 🔍 إذا مو كلهن محددات
+                          setSelectedCourseIds(Array.from(new Set([...selectedCourseIds, ...deptSem1CourseIds]))); // ✅ نضيف مواد الكورس الأول للتحديد
+                        } // 🔚 نهاية الشرط
+                      }}
+                      className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center gap-1.5 active:scale-95 border ${ // 🎨 التنسيقات المصغرة
+                        deptSem1CourseIds.length > 0 && deptSem1CourseIds.every((id) => selectedCourseIds.includes(id)) // 🔍 هل مواد الكورس الأول محددة بالكامل؟
+                          ? 'bg-[#0F2942] text-white border-[#163a5f] shadow-xs' // 👑 كحلي ملكي للنشط
+                          : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border-slate-300' // ⚪ رمادي فاتح لغير النشط
+                      }`}
+                      title="تحديد أو إلغاء تحديد كافة مواد الكورس الأول للقسم" // 💡 تلميح الزر
+                    >
+                      <CheckCircle2 className={`w-3.5 h-3.5 ${deptSem1CourseIds.length > 0 && deptSem1CourseIds.every((id) => selectedCourseIds.includes(id)) ? 'text-cyan-300' : 'text-slate-600'}`} /> {/* ✅ أيقونة الصح */}
+                      <span>تحديد مواد الكورس الأول</span> {/* 🏷️ نص الزر المحدث */}
+                      <span className={`px-1.5 py-0.5 rounded-md text-xs font-mono font-black ${ // 🔢 بادج العداد المصغر
+                        deptSem1CourseIds.length > 0 && deptSem1CourseIds.every((id) => selectedCourseIds.includes(id)) ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800' // 🎨 لون البادج
+                      }`}>
+                        {deptSem1CourseIds.length} {/* 🔢 عدد مواد الكورس الأول */}
+                      </span>
+                    </button>
+
+                    {/* زر التحديد السريع لمواد الكورس الثاني بحجم مصغر احترافي وتسمية محدثة */}
+                    <button
+                      type="button" // 🛑 نوع الزر
+                      onClick={() => { // ⚡ ضغطة تحديد مواد الكورس الثاني
+                        const isAllSem2Selected = deptSem2CourseIds.length > 0 && deptSem2CourseIds.every((id) => selectedCourseIds.includes(id)); // 🔍 فحص هل كل مواد الكورس الثاني محددة
+                        if (isAllSem2Selected) { // 🔍 إذا كلهن محددات
+                          setSelectedCourseIds(selectedCourseIds.filter((id) => !deptSem2CourseIds.includes(id))); // ❌ نلغي تحديد مواد الكورس الثاني
+                        } else { // 🔍 إذا مو كلهن محددات
+                          setSelectedCourseIds(Array.from(new Set([...selectedCourseIds, ...deptSem2CourseIds]))); // ✅ نضيف مواد الكورس الثاني للتحديد
+                        } // 🔚 نهاية الشرط
+                      }}
+                      className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center gap-1.5 active:scale-95 border ${ // 🎨 التنسيقات المصغرة
+                        deptSem2CourseIds.length > 0 && deptSem2CourseIds.every((id) => selectedCourseIds.includes(id)) // 🔍 هل مواد الكورس الثاني محددة بالكامل؟
+                          ? 'bg-[#0F2942] text-white border-[#163a5f] shadow-xs' // 👑 كحلي ملكي للنشط
+                          : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border-slate-300' // ⚪ رمادي فاتح لغير النشط
+                      }`}
+                      title="تحديد أو إلغاء تحديد كافة مواد الكورس الثاني للقسم" // 💡 تلميح الزر
+                    >
+                      <CheckCircle2 className={`w-3.5 h-3.5 ${deptSem2CourseIds.length > 0 && deptSem2CourseIds.every((id) => selectedCourseIds.includes(id)) ? 'text-cyan-300' : 'text-slate-600'}`} /> {/* ✅ أيقونة الصح */}
+                      <span>تحديد مواد الكورس الثاني</span> {/* 🏷️ نص الزر المحدث */}
+                      <span className={`px-1.5 py-0.5 rounded-md text-xs font-mono font-black ${ // 🔢 بادج العداد المصغر
+                        deptSem2CourseIds.length > 0 && deptSem2CourseIds.every((id) => selectedCourseIds.includes(id)) ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800' // 🎨 لون البادج
+                      }`}>
+                        {deptSem2CourseIds.length} {/* 🔢 عدد مواد الكورس الثاني */}
+                      </span>
+                    </button>
+                  </div>
+
+                  {/* أزرار الحذف وإلغاء التحديد والطباعة السريعة تظهر بجانب التحديد السريع عند وجود مواد محددة بنفس الحجم المصغر الاحترافي */}
+                  {selectedCourseIds.length > 0 && ( // 🔍 تظهر فقط عند وجود مواد محددة
+                    <div className="flex items-center gap-2"> {/* 🛡️ حاوية الحذف والإلغاء والطباعة بجانب التحديد السريع */}
+                      {/* 🖨️ زر طباعة المواد المحددة بصيغة PDF الفاخرة */}
+                      <button
+                        type="button" // 🛑 نوع الزر
+                        onClick={handleExportCoursesPDF} // ⚡ تشغيل طباعة المواد المحددة
+                        disabled={isExportingCoursesPDF} // 🛑 تعطيل الزر أثناء التصدير
+                        className="px-3 py-1.5 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-xl font-black text-xs sm:text-sm transition flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95 border border-[#163a5f] disabled:opacity-50" // 🎨 تنسيق كحلي ملكي مصغر
+                        title="طباعة وتصدير المواد المحددة فقط بصيغة PDF الرسمية" // 💡 تلميح الزر
+                      >
+                        <Printer className="w-3.5 h-3.5 text-rose-300" /> {/* 🖨️ أيقونة الطابعة */}
+                        <span>{isExportingCoursesPDF ? 'جاري التصدير...' : `طباعة PDF (${selectedCourseIds.length})`}</span> {/* 🏷️ نص الزر */}
+                      </button>
+
+                      {/* زر حذف المواد المحددة بنفس الحجم */}
+                      <button
+                        type="button" // 🛑 نوع الزر
+                        onClick={handleBulkDeleteCourses} // 🗑️ حذف المواد المحددة
+                        className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-black text-xs sm:text-sm transition flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95" // 🎨 التنسيقات المصغرة الاحترافية
+                        title="حذف المواد الدراسية المحددة نهائياً" // 💡 تلميح الزر
+                      >
+                        <Trash2 className="w-3.5 h-3.5" /> {/* 🗑️ أيقونة سلة المهملات */}
+                        <span>حذف ({selectedCourseIds.length})</span> {/* 🏷️ نص الحذف مع العداد */}
+                      </button>
+
+                      {/* زر إلغاء التحديد بنفس الحجم */}
+                      <button
+                        type="button" // 🛑 نوع الزر
+                        onClick={() => setSelectedCourseIds([])} // ⚡ تصفير التحديد
+                        className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-900 border border-slate-300 rounded-xl font-black text-xs sm:text-sm transition cursor-pointer active:scale-95 shadow-2xs" // 🎨 التنسيقات المصغرة الاحترافية
+                        title="إلغاء اختيار المواد المحددة" // 💡 تلميح الزر
+                      >
+                        إلغاء التحديد ({selectedCourseIds.length}) {/* 🏷️ نص الإلغاء مع العداد */}
+                      </button>
+                    </div>
+                  )}
                 </div>
-
-                {/* 3. تصفية نوع المقرر بالكحلي الملكي */}
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-sm font-black text-slate-950 ml-1">النوع:</span>
-                  <button
-                    type="button"
-                    onClick={() => setFilterCourseType('all')}
-                    className={`px-3 py-1.5 rounded-xl text-sm font-black transition cursor-pointer whitespace-nowrap ${
-                      filterCourseType === 'all'
-                        ? 'bg-[#1A3C6E] text-white shadow-xs'
-                        : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300'
-                    }`}
-                  >
-                    الكل
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFilterCourseType('theory_and_practical')}
-                    className={`px-3 py-1.5 rounded-xl text-sm font-black transition cursor-pointer flex items-center gap-1 whitespace-nowrap ${
-                      filterCourseType === 'theory_and_practical'
-                        ? 'bg-[#1A3C6E] text-white shadow-xs'
-                        : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300'
-                    }`}
-                  >
-                    <FlaskConical className="w-3.5 h-3.5" />
-                    <span>نظري وعملي</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFilterCourseType('theory_only')}
-                    className={`px-3 py-1.5 rounded-xl text-sm font-black transition cursor-pointer flex items-center gap-1 whitespace-nowrap ${
-                      filterCourseType === 'theory_only'
-                        ? 'bg-[#1A3C6E] text-white shadow-xs'
-                        : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300'
-                    }`}
-                  >
-                    <BookOpen className="w-3.5 h-3.5" />
-                    <span>نظري فقط</span>
-                  </button>
-                </div>
-
-                {/* 🎯 4. أزرار التحكم الجماعي الذكي بالامتحان النهائي الدور الأول للمرحلة */}
-                <div className="flex items-center gap-1.5 bg-emerald-50 p-1.5 rounded-2xl border border-emerald-300">
-                  <span className="text-xs sm:text-sm font-black text-emerald-950 px-1">النهائي (الدور الأول):</span>
-                  <button
-                    type="button"
-                    onClick={() => handleBulkToggleFinalExam(true)}
-                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs sm:text-sm font-black transition flex items-center gap-1 shadow-2xs cursor-pointer active:scale-95"
-                    title="تفعيل وعرض درجات الامتحان النهائي للدور الأول لكافة مواد المرحلة المحددة"
-                  >
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>تفعيل للمرحلة 🟢</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleBulkToggleFinalExam(false)}
-                    className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl text-xs sm:text-sm font-black transition flex items-center gap-1 cursor-pointer active:scale-95 border border-slate-300"
-                    title="إغلاق وحجب درجات الامتحان النهائي للدور الأول لكافة مواد المرحلة"
-                  >
-                    <Lock className="w-3.5 h-3.5 text-slate-600" />
-                    <span>إغلاق وحجب 🔒</span>
-                  </button>
-                </div>
-
-                {/* 🔄 5. أزرار التحكم الجماعي الذكي بفترة الدور الثاني للمرحلة */}
-                <div className="flex items-center gap-1.5 bg-slate-100 p-1.5 rounded-2xl border border-slate-300">
-                  <span className="text-xs sm:text-sm font-black text-slate-950 px-1">فترة الدور الثاني:</span>
-                  <button
-                    type="button"
-                    onClick={() => handleBulkToggleSupplementaryExam(true)}
-                    className="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs sm:text-sm font-black transition flex items-center gap-1 shadow-2xs cursor-pointer active:scale-95"
-                    title="فتح وتفعيل رصد درجات الدور الثاني لكافة مواد المرحلة المحددة"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                    <span>تفعيل للمرحلة 🔄</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleBulkToggleSupplementaryExam(false)}
-                    className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl text-xs sm:text-sm font-black transition flex items-center gap-1 cursor-pointer active:scale-95 border border-slate-300"
-                    title="إغلاق رصد الدور الثاني والاعتماد على الدور الأول لكافة مواد المرحلة"
-                  >
-                    <Lock className="w-3.5 h-3.5 text-slate-600" />
-                    <span>إغلاق (الدور الأول) 🔒</span>
-                  </button>
-                </div>
-
               </div>
             </div>
 
-            {/* 🔘 شريط الإجراءات الجماعية العائم للمواد المحددة */}
-            {selectedCourseIds.length > 0 && (
-              <div className="p-3.5 bg-blue-50 border-2 border-blue-300 rounded-2xl flex flex-wrap items-center justify-between gap-3 animate-in slide-in-from-top-2 duration-150">
-                <div className="flex items-center gap-2.5">
-                  <CheckSquare className="w-5 h-5 text-blue-700" />
-                  <span className="font-black text-blue-950 text-base">
-                    تم تحديد <strong className="font-mono">{selectedCourseIds.length}</strong> مواد دراسية
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={handleBulkDeleteCourses}
-                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl font-black text-sm transition flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    <span>حذف المواد المحددة ({selectedCourseIds.length})</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedCourseIds([])}
-                    className="px-3.5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl font-black text-sm transition cursor-pointer"
-                  >
-                    إلغاء التحديد
-                  </button>
-                </div>
-              </div>
-            )}
             
             {filteredCourses.length === 0 ? (
               <div className="text-center py-12 bg-slate-50 rounded-3xl border border-slate-200 text-slate-950 font-black text-base space-y-1">
@@ -6814,23 +7612,37 @@ export default function DepartmentPortalPage() {
               <div className="overflow-x-auto rounded-2xl border border-slate-200">
                 <table className="w-full text-right border-collapse text-sm font-black whitespace-nowrap">
                   <thead>
-                    <tr className="bg-[#1A3C6E] text-white font-black text-sm whitespace-nowrap border-b border-[#1A3C6E]">
+                    <tr className="bg-[#0F2942] text-white font-black text-sm whitespace-nowrap border-b border-[#0F2942]">
                       <th className="p-3.5 text-center text-sm w-12 whitespace-nowrap text-white">
-                        <input
-                          type="checkbox"
-                          checked={filteredCourses.length > 0 && filteredCourses.every((c) => selectedCourseIds.includes(c.id))}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              const visibleIds = filteredCourses.map((c) => c.id);
-                              setSelectedCourseIds(Array.from(new Set([...selectedCourseIds, ...visibleIds])));
-                            } else {
-                              const visibleIds = new Set(filteredCourses.map((c) => c.id));
-                              setSelectedCourseIds(selectedCourseIds.filter((id) => !visibleIds.has(id)));
-                            }
+                        {/* زر تحديد كافة المواد المعروضة في رأس الجدول باللون الأبيض لكي يتميز بوضوح تام */}
+                        <button
+                          type="button" // 🛑 نوع الزر
+                          onClick={() => { // ⚡ تبديل تحديد كافة المواد المعروضة
+                            const allVisibleSelected = filteredCourses.length > 0 && filteredCourses.every((c) => selectedCourseIds.includes(c.id)); // 🔍 فحص هل كل المعروض محدد
+                            if (allVisibleSelected) { // 🔍 إذا كلهن محددات
+                              const visibleIds = new Set(filteredCourses.map((c) => c.id)); // 📋 معرفات المعروض
+                              setSelectedCourseIds(selectedCourseIds.filter((id) => !visibleIds.has(id))); // ❌ إلغاء تحديد المعروض
+                            } else { // 🔍 إذا مو كلهن محددات
+                              const visibleIds = filteredCourses.map((c) => c.id); // 📋 معرفات المعروض
+                              setSelectedCourseIds(Array.from(new Set([...selectedCourseIds, ...visibleIds]))); // ✅ إضافة كافة المعروض للتحديد
+                            } // 🔚 نهاية الشرط
                           }}
-                          className="w-4 h-4 rounded text-white focus:ring-white cursor-pointer accent-[#1A3C6E]"
-                          title="تحديد الكل"
-                        />
+                          className={`w-4.5 h-4.5 mx-auto rounded-md border-2 transition flex items-center justify-center cursor-pointer shadow-xs active:scale-95 ${ // 🎨 التنسيقات البيضاء المميزة
+                            filteredCourses.length > 0 && filteredCourses.every((c) => selectedCourseIds.includes(c.id)) // 🔍 هل الكل محدد؟
+                              ? 'bg-white text-[#0F2942] border-white shadow-sm ring-2 ring-white/50' // ⚪ مربع أبيض ناصع مع علامة صح كحلية لكي يتميز بوضوح تام
+                              : filteredCourses.some((c) => selectedCourseIds.includes(c.id)) // 🔍 هل جزء محدد؟
+                              ? 'bg-white/20 text-white border-white' // 🔲 مربع بتحديد جزئي بخط أبيض
+                              : 'bg-transparent text-transparent border-white hover:bg-white/20' // 🔲 مربع بحدود بيضاء ناصعة على الخلفية الكحلية
+                          }`}
+                          title="تحديد الكل" // 💡 تلميح الزر
+                          aria-label="تحديد كافة المواد المعروضة" // ♿ دعم إمكانية الوصول
+                        >
+                          {filteredCourses.length > 0 && filteredCourses.every((c) => selectedCourseIds.includes(c.id)) ? ( // 🔍 فحص اكتمال التحديد
+                            <Check className="w-3.5 h-3.5 stroke-[3.5]" /> // ✔️ علامة الصح الكحلية البارزة
+                          ) : filteredCourses.some((c) => selectedCourseIds.includes(c.id)) ? ( // 🔍 فحص التحديد الجزئي
+                            <span className="w-2 h-0.5 bg-white rounded-full"></span> // ➖ خط التحديد الجزئي الأبيض
+                          ) : null}
+                        </button>
                       </th>
                       <th className="p-3.5 text-center text-sm w-14 whitespace-nowrap text-white">ت</th>
                       <th className="p-3.5 text-right text-sm whitespace-nowrap text-white">اسم المادة الدراسية</th>
@@ -6873,7 +7685,7 @@ export default function DepartmentPortalPage() {
                                   setSelectedCourseIds([...selectedCourseIds, c.id]);
                                 }
                               }}
-                              className="w-4 h-4 rounded text-[#1A3C6E] focus:ring-[#1A3C6E] cursor-pointer"
+                              className="w-4 h-4 rounded text-[#0F2942] focus:ring-[#0F2942] cursor-pointer"
                             />
                           </td>
                           <td className="p-3 text-center font-black text-slate-950 text-sm whitespace-nowrap">
@@ -6886,7 +7698,7 @@ export default function DepartmentPortalPage() {
                           <td className="p-3 whitespace-nowrap">
                             <span className="text-slate-950 font-black text-sm">المرحلة {getStageNameInArabic(c.stage_number || 1)}</span>
                             <span className="text-slate-400 font-bold mx-1">•</span>
-                            <span className={`px-2 py-0.5 rounded-lg text-xs font-black border whitespace-nowrap ${ c.semester === 2 ? 'bg-teal-50 text-teal-950 border-teal-300 shadow-2xs' : 'bg-[#1A3C6E]/10 text-[#1A3C6E] border-[#1A3C6E]/20 shadow-2xs' }`}>
+                            <span className={`px-2 py-0.5 rounded-lg text-xs font-black border whitespace-nowrap ${ c.semester === 2 ? 'bg-teal-50 text-teal-950 border-teal-300 shadow-2xs' : 'bg-[#0F2942]/10 text-[#0F2942] border-[#0F2942]/20 shadow-2xs' }`}>
                               الكورس {c.semester === 2 ? 'الثاني' : 'الأول'}
                             </span>
                           </td>
@@ -6897,8 +7709,8 @@ export default function DepartmentPortalPage() {
                                 <span>نظري وعملي</span>
                               </span>
                             ) : (
-                              <span className="px-2.5 py-1 bg-[#1A3C6E]/10 text-[#1A3C6E] border border-[#1A3C6E]/20 rounded-xl text-xs font-black inline-flex items-center gap-1.5 whitespace-nowrap">
-                                <BookOpen className="w-3.5 h-3.5 text-[#1A3C6E]" />
+                              <span className="px-2.5 py-1 bg-[#0F2942]/10 text-[#0F2942] border border-[#0F2942]/20 rounded-xl text-xs font-black inline-flex items-center gap-1.5 whitespace-nowrap">
+                                <BookOpen className="w-3.5 h-3.5 text-[#0F2942]" />
                                 <span>نظري فقط</span>
                               </span>
                             )}
@@ -6906,7 +7718,7 @@ export default function DepartmentPortalPage() {
                           <td className="p-3 whitespace-nowrap">
                             {c.theory_teacher_name ? (
                               <span className="font-black text-slate-950 inline-flex items-center gap-1.5 text-sm whitespace-nowrap">
-                                <Users className="w-4 h-4 text-[#1A3C6E]" />
+                                <Users className="w-4 h-4 text-[#0F2942]" />
                                 <span>{c.theory_teacher_name}</span>
                               </span>
                             ) : (
@@ -6928,63 +7740,117 @@ export default function DepartmentPortalPage() {
                             )}
                           </td>
 
-                          {/* 🎯 عمود مفتاح التحكم التفاعلي بالامتحان النهائي الدور الأول */}
-                          <td className="p-3 text-center whitespace-nowrap">
-                            <button
-                              type="button"
-                              onClick={() => handleToggleCourseFinalExam(c)}
-                              className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all inline-flex items-center justify-center gap-1 mx-auto cursor-pointer border shadow-2xs active:scale-95 whitespace-nowrap ${
-                                isFinalActive
-                                  ? 'bg-emerald-100 text-emerald-950 border-emerald-400 hover:bg-emerald-200 ring-2 ring-emerald-400/20'
-                                  : 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
-                              }`}
-                              title={isFinalActive ? 'الامتحان النهائي معروض ومفعل حالياً للأستاذ والطلبة، انقر للإغلاق والحجب' : 'انقر لفتح وتفعيل عرض ورصد درجات الامتحان النهائي للدور الأول'}
-                            >
-                              {isFinalActive ? (
-                                <>
-                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
-                                  <span>مفعّل ومعروض 🟢</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Lock className="w-3.5 h-3.5 text-slate-500" />
-                                  <span>مغلق ومحجوب 🔒</span>
-                                </>
-                              )}
-                            </button>
+                          {/* 🎯 عمود مفتاح التحكم بالامتحان النهائي الدور الأول - زران: إغلاق وفتح والافتراضي مغلق ويطلب تأكيد */}
+                          <td className="p-3 text-center whitespace-nowrap"> {/* 🏷️ خلية الدور الأول بالجدول */}
+                            <div className="inline-flex items-center bg-slate-100 border border-slate-300 rounded-xl p-0.5 shadow-2xs gap-1"> {/* 📦 كبسولة الزرين المتناسقة */}
+                              {/* زر إغلاق الامتحان النهائي للمادة */}
+                              <button
+                                type="button" // 🛑 نوع الزر لمنع التقديم
+                                onClick={() => { // ⚡ حدث النقر لطلب الإغلاق
+                                  if (isFinalActive) { // 🔍 إذا كان مفتوحاً نطلب تأكيد الإغلاق
+                                    requestToggleRoundAction({ // 🛡️ فتح نافذة التأكيد الرسمية
+                                      round: 'final', // 🎯 استهداف الدور الأول
+                                      enable: false, // 🔒 طلب القفل والحجب
+                                      courseId: c.id, // 🔑 معرف المادة الحالية
+                                      courseName: c.name, // 🏷️ اسم المادة للتوضيح
+                                    });
+                                  }
+                                }}
+                                className={`px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1 active:scale-95 whitespace-nowrap ${ // 🎨 التنسيقات العامة
+                                  !isFinalActive // 🔍 فحص هل المادة مغلقة حالياً
+                                    ? 'bg-[#0F2942] text-white shadow-xs' // 👑 كحلي ملكي راقي لحالة الإغلاق (الافتراضي)
+                                    : 'bg-transparent text-slate-600 hover:bg-white hover:text-slate-950' // ⚪ زر أبيض هادئ عند الفتح
+                                }`}
+                                title={!isFinalActive ? 'الامتحان النهائي مغلق ومحجوب حالياً (الافتراضي)' : 'انقر لإغلاق وحجب الامتحان النهائي مع طلب تأكيد'} // 💡 تلميح الزر
+                              >
+                                <Lock className={`w-3.5 h-3.5 ${!isFinalActive ? 'text-cyan-300' : 'text-slate-500'}`} /> {/* 🔒 أيقونة القفل الفيكتور */}
+                                <span>إغلاق</span> {/* 🏷️ نص الإغلاق */}
+                              </button>
+
+                              {/* زر فتح الامتحان النهائي للمادة */}
+                              <button
+                                type="button" // 🛑 نوع الزر لمنع التقديم
+                                onClick={() => { // ⚡ حدث النقر لطلب الفتح
+                                  if (!isFinalActive) { // 🔍 إذا كان مغلقاً نطلب تأكيد الفتح
+                                    requestToggleRoundAction({ // 🛡️ فتح نافذة التأكيد الرسمية
+                                      round: 'final', // 🎯 استهداف الدور الأول
+                                      enable: true, // 🔓 طلب الفتح والتفعيل
+                                      courseId: c.id, // 🔑 معرف المادة الحالية
+                                      courseName: c.name, // 🏷️ اسم المادة للتوضيح
+                                    });
+                                  }
+                                }}
+                                className={`px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1 active:scale-95 whitespace-nowrap ${ // 🎨 التنسيقات العامة
+                                  isFinalActive // 🔍 فحص هل المادة مفتوحة حالياً
+                                    ? 'bg-[#0F2942] text-white shadow-xs' // 👑 كحلي ملكي راقي لحالة الفتح
+                                    : 'bg-transparent text-slate-600 hover:bg-white hover:text-slate-950' // ⚪ زر أبيض هادئ عند القفل
+                                }`}
+                                title={isFinalActive ? 'الامتحان النهائي مفتوح ومفعّل حالياً' : 'انقر لفتح وتفعيل الامتحان النهائي مع طلب تأكيد'} // 💡 تلميح الزر
+                              >
+                                <Unlock className={`w-3.5 h-3.5 ${isFinalActive ? 'text-cyan-300' : 'text-slate-500'}`} /> {/* 🔓 أيقونة الفتح الفيكتور */}
+                                <span>فتح</span> {/* 🏷️ نص الفتح */}
+                              </button>
+                            </div>
                           </td>
 
-                          {/* 🔄 عمود مفتاح التحكم التفاعلي بالدور الثاني للمادة */}
-                          <td className="p-3 text-center whitespace-nowrap">
-                            <button
-                              type="button"
-                              onClick={() => handleToggleCourseSupplementaryExam(c)}
-                              className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all inline-flex items-center justify-center gap-1 mx-auto cursor-pointer border shadow-2xs active:scale-95 whitespace-nowrap ${
-                                isSupActive
-                                  ? 'bg-sky-100 text-sky-950 border-sky-400 hover:bg-sky-200 ring-2 ring-sky-400/20'
-                                  : 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
-                              }`}
-                              title={isSupActive ? 'فترة الدور الثاني مفتوحة حالياً للأستاذ، انقر للقفل والعودة للدور الأول' : 'انقر لفتح وتفعيل فترة رصد درجات الدور الثاني لهذه المادة'}
-                            >
-                              {isSupActive ? (
-                                <>
-                                  <RotateCcw className="w-3.5 h-3.5 text-sky-700" />
-                                  <span>مفعّل ومفتوح 🔄</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Lock className="w-3.5 h-3.5 text-slate-500" />
-                                  <span>مغلق (الدور الأول) 🔒</span>
-                                </>
-                              )}
-                            </button>
+                          {/* 🔄 عمود مفتاح التحكم بالدور الثاني للمادة - زران: إغلاق وفتح والافتراضي مغلق ويطلب تأكيد */}
+                          <td className="p-3 text-center whitespace-nowrap"> {/* 🏷️ خلية الدور الثاني بالجدول */}
+                            <div className="inline-flex items-center bg-slate-100 border border-slate-300 rounded-xl p-0.5 shadow-2xs gap-1"> {/* 📦 كبسولة الزرين المتناسقة */}
+                              {/* زر إغلاق الدور الثاني للمادة */}
+                              <button
+                                type="button" // 🛑 نوع الزر لمنع التقديم
+                                onClick={() => { // ⚡ حدث النقر لطلب الإغلاق
+                                  if (isSupActive) { // 🔍 إذا كان مفتوحاً نطلب تأكيد الإغلاق
+                                    requestToggleRoundAction({ // 🛡️ فتح نافذة التأكيد الرسمية
+                                      round: 'supplementary', // 🔄 استهداف الدور الثاني
+                                      enable: false, // 🔒 طلب القفل والاعتماد على الدور الأول
+                                      courseId: c.id, // 🔑 معرف المادة الحالية
+                                      courseName: c.name, // 🏷️ اسم المادة للتوضيح
+                                    });
+                                  }
+                                }}
+                                className={`px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1 active:scale-95 whitespace-nowrap ${ // 🎨 التنسيقات العامة
+                                  !isSupActive // 🔍 فحص هل الدور الثاني مغلق حالياً
+                                    ? 'bg-[#0F2942] text-white shadow-xs' // 👑 كحلي ملكي راقي لحالة الإغلاق (الافتراضي)
+                                    : 'bg-transparent text-slate-600 hover:bg-white hover:text-slate-950' // ⚪ زر أبيض هادئ عند الفتح
+                                }`}
+                                title={!isSupActive ? 'فترة الدور الثاني مغلقة حالياً (الافتراضي)' : 'انقر لإغلاق الدور الثاني مع طلب تأكيد'} // 💡 تلميح الزر
+                              >
+                                <Lock className={`w-3.5 h-3.5 ${!isSupActive ? 'text-cyan-300' : 'text-slate-500'}`} /> {/* 🔒 أيقونة القفل الفيكتور */}
+                                <span>إغلاق</span> {/* 🏷️ نص الإغلاق */}
+                              </button>
+
+                              {/* زر فتح الدور الثاني للمادة */}
+                              <button
+                                type="button" // 🛑 نوع الزر لمنع التقديم
+                                onClick={() => { // ⚡ حدث النقر لطلب الفتح
+                                  if (!isSupActive) { // 🔍 إذا كان مغلقاً نطلب تأكيد الفتح
+                                    requestToggleRoundAction({ // 🛡️ فتح نافذة التأكيد الرسمية
+                                      round: 'supplementary', // 🔄 استهداف الدور الثاني
+                                      enable: true, // 🔓 طلب فتح وتفعيل الدور الثاني
+                                      courseId: c.id, // 🔑 معرف المادة الحالية
+                                      courseName: c.name, // 🏷️ اسم المادة للتوضيح
+                                    });
+                                  }
+                                }}
+                                className={`px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1 active:scale-95 whitespace-nowrap ${ // 🎨 التنسيقات العامة
+                                  isSupActive // 🔍 فحص هل الدور الثاني مفتوح حالياً
+                                    ? 'bg-[#0F2942] text-white shadow-xs' // 👑 كحلي ملكي راقي لحالة الفتح
+                                    : 'bg-transparent text-slate-600 hover:bg-white hover:text-slate-950' // ⚪ زر أبيض هادئ عند القفل
+                                }`}
+                                title={isSupActive ? 'فترة الدور الثاني مفتوحة ومفعّلة حالياً' : 'انقر لفتح وتفعيل فترة الدور الثاني مع طلب تأكيد'} // 💡 تلميح الزر
+                              >
+                                <Unlock className={`w-3.5 h-3.5 ${isSupActive ? 'text-cyan-300' : 'text-slate-500'}`} /> {/* 🔓 أيقونة الفتح الفيكتور */}
+                                <span>فتح</span> {/* 🏷️ نص الفتح */}
+                              </button>
+                            </div>
                           </td>
 
                           <td className="p-3 text-center whitespace-nowrap">
                             <button
                               type="button"
                               onClick={() => handleOpenAssessmentModal(c)}
-                              className="px-3 py-1.5 bg-[#1A3C6E] hover:bg-[#15305B] text-white rounded-xl text-xs font-black transition shadow-2xs inline-flex items-center justify-center gap-1.5 mx-auto cursor-pointer border border-[#1A3C6E] whitespace-nowrap active:scale-95"
+                              className="px-3 py-1.5 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-xl text-xs font-black transition shadow-2xs inline-flex items-center justify-center gap-1.5 mx-auto cursor-pointer border border-[#0F2942] whitespace-nowrap active:scale-95"
                               title="تخصيص أوزان وعناوين بنود التقييم الـ 7"
                             >
                               <Sliders className="w-3.5 h-3.5 text-cyan-300" />
@@ -6993,7 +7859,7 @@ export default function DepartmentPortalPage() {
                           </td>
                           <td className="p-3 whitespace-nowrap">
                             <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
-                              {/* ✏️ زر تعديل المادة الدراسية بتصميم كحلي ملكي فاخر */}
+                              {/* ✏️ زر تعديل المادة الدراسية باللون الأبيض الفاخر وأيقونة كحلية واضحة */}
                               <button
                                 type="button"
                                 onClick={() => {
@@ -7010,10 +7876,10 @@ export default function DepartmentPortalPage() {
                                   setCourseIsFinalExamEnabled(c.is_final_exam_enabled === true); // 🎯 تحميل حالة الامتحان النهائي الدور الأول للمادة
                                   setIsCourseModalOpen(true);
                                 }}
-                                className="p-2 bg-[#1A3C6E] hover:bg-[#15305B] text-white rounded-xl transition cursor-pointer border border-[#1A3C6E] shadow-2xs hover:shadow-md active:scale-95"
+                                className="p-2 bg-white hover:bg-slate-100 text-[#0F2942] rounded-xl transition cursor-pointer border border-slate-300 shadow-2xs hover:shadow-md active:scale-95"
                                 title="تعديل المادة"
                               >
-                                <Edit3 className="w-4 h-4 text-cyan-300" />
+                                <Edit3 className="w-4 h-4 text-[#0F2942]" />
                               </button>
                               {/* 🗑️ زر حذف المادة الياقوتي البارز والواضح */}
                               <button
@@ -7091,7 +7957,7 @@ export default function DepartmentPortalPage() {
                   setSelectedCourseId('');
                   setIsAssignmentModalOpen(true);
                 }}
-                className="px-5 py-2.5 bg-[#1A3C6E] hover:bg-[#15305B] text-white font-black rounded-2xl text-sm shadow-md transition flex items-center gap-2 cursor-pointer border border-[#1A3C6E] shrink-0 active:scale-95 whitespace-nowrap"
+                className="px-5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black rounded-2xl text-sm shadow-md transition flex items-center gap-2 cursor-pointer border border-[#0F2942] shrink-0 active:scale-95 whitespace-nowrap"
               >
                 <Plus className="w-4 h-4" />
                 <span>تكليف أستاذ بمادة جديدة</span>
@@ -7127,7 +7993,7 @@ export default function DepartmentPortalPage() {
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 bg-[#1A3C6E] hover:bg-[#15305B] text-white font-black rounded-2xl text-sm shadow-md transition flex items-center gap-2 cursor-pointer border border-[#1A3C6E] active:scale-95 whitespace-nowrap"
+                  className="px-6 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black rounded-2xl text-sm shadow-md transition flex items-center gap-2 cursor-pointer border border-[#0F2942] active:scale-95 whitespace-nowrap"
                 >
                   <CheckCircle2 className="w-4 h-4 text-emerald-300" />
                   <span>تثبيت التكليف الأكاديمي</span>
@@ -7146,10 +8012,10 @@ export default function DepartmentPortalPage() {
                       ref={assignTeacherButtonRef}
                       type="button"
                       onClick={handleToggleAssignTeacherDropdown}
-                      className="w-full px-4 py-3.5 bg-white hover:bg-slate-50 border-2 border-slate-400 hover:border-[#1A3C6E] focus:border-[#1A3C6E] rounded-2xl text-slate-950 font-black text-base focus:outline-none flex items-center justify-between cursor-pointer shadow-2xs transition-all text-right"
+                      className="w-full px-4 py-3.5 bg-white hover:bg-slate-50 border-2 border-slate-400 hover:border-[#0F2942] focus:border-[#0F2942] rounded-2xl text-slate-950 font-black text-base focus:outline-none flex items-center justify-between cursor-pointer shadow-2xs transition-all text-right"
                     >
                       <div className="flex items-center gap-3 truncate">
-                        <div className="w-9 h-9 rounded-xl bg-[#1A3C6E] text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
+                        <div className="w-9 h-9 rounded-xl bg-[#0F2942] text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
                           <Users className="w-4 h-4 text-cyan-300" />
                         </div>
                         {selectedTeacherId ? (
@@ -7165,7 +8031,7 @@ export default function DepartmentPortalPage() {
                           <span className="text-slate-950 font-black text-base">-- انقر لاختيار الأستاذ من كادر القسم --</span>
                         )}
                       </div>
-                      <ChevronDown className={`w-5 h-5 text-slate-900 transition-transform duration-200 shrink-0 ${isAssignTeacherDropdownOpen ? 'rotate-180 text-[#1A3C6E]' : ''}`} />
+                      <ChevronDown className={`w-5 h-5 text-slate-900 transition-transform duration-200 shrink-0 ${isAssignTeacherDropdownOpen ? 'rotate-180 text-[#0F2942]' : ''}`} />
                     </button>
 
                     {/* 📋 القائمة المنسدلة الاحترافية العائمة ملتصقة بالزر مباشرة عبر Portal */}
@@ -7223,7 +8089,7 @@ export default function DepartmentPortalPage() {
                                     }}
                                     className={`w-full p-2.5 rounded-xl text-right font-black text-base transition flex items-center justify-between cursor-pointer border ${
                                       isSelected
-                                        ? 'bg-[#1A3C6E] text-white border-[#1A3C6E] shadow-xs'
+                                        ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-xs'
                                         : 'text-slate-950 hover:bg-slate-100 border-transparent'
                                     }`}
                                   >
@@ -7271,7 +8137,7 @@ export default function DepartmentPortalPage() {
                       ref={assignCourseButtonRef}
                       type="button"
                       onClick={handleToggleAssignCourseDropdown}
-                      className="w-full px-4 py-3.5 bg-white hover:bg-slate-50 border-2 border-slate-400 hover:border-[#1A3C6E] focus:border-[#1A3C6E] rounded-2xl text-slate-950 font-black text-base focus:outline-none flex items-center justify-between cursor-pointer shadow-2xs transition-all text-right"
+                      className="w-full px-4 py-3.5 bg-white hover:bg-slate-50 border-2 border-slate-400 hover:border-[#0F2942] focus:border-[#0F2942] rounded-2xl text-slate-950 font-black text-base focus:outline-none flex items-center justify-between cursor-pointer shadow-2xs transition-all text-right"
                     >
                       <div className="flex items-center gap-3 truncate">
                         <div className="w-9 h-9 rounded-xl bg-indigo-900 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
@@ -7300,7 +8166,7 @@ export default function DepartmentPortalPage() {
                           <span className="text-slate-950 font-black text-base">-- انقر لاختيار المادة الدراسية من القسم --</span>
                         )}
                       </div>
-                      <ChevronDown className={`w-5 h-5 text-slate-900 transition-transform duration-200 shrink-0 ${isAssignCourseDropdownOpen ? 'rotate-180 text-[#1A3C6E]' : ''}`} />
+                      <ChevronDown className={`w-5 h-5 text-slate-900 transition-transform duration-200 shrink-0 ${isAssignCourseDropdownOpen ? 'rotate-180 text-[#0F2942]' : ''}`} />
                     </button>
 
                     {/* 📋 القائمة المنسدلة الاحترافية العائمة ملتصقة بالزر مباشرة عبر Portal */}
@@ -7373,7 +8239,7 @@ export default function DepartmentPortalPage() {
                                     }}
                                     className={`w-full p-2.5 rounded-xl text-right font-black text-base transition flex items-center justify-between cursor-pointer border ${
                                       isSelected
-                                        ? 'bg-[#1A3C6E] text-white border-[#1A3C6E] shadow-xs'
+                                        ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-xs'
                                         : 'text-slate-950 hover:bg-slate-100 border-transparent'
                                     }`}
                                   >
@@ -7485,7 +8351,7 @@ export default function DepartmentPortalPage() {
                     onClick={() => setFilterAssignmentStage('all')}
                     className={`flex-1 py-1.5 px-2 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
                       filterAssignmentStage === 'all'
-                        ? 'bg-[#1A3C6E] text-white shadow-xs'
+                        ? 'bg-[#0F2942] text-white shadow-xs'
                         : 'text-slate-700 hover:bg-white'
                     }`}
                   >
@@ -7514,7 +8380,7 @@ export default function DepartmentPortalPage() {
                         onClick={() => setFilterAssignmentStage(st.num)}
                         className={`flex-1 py-1.5 px-2 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
                           filterAssignmentStage === st.num
-                            ? 'bg-[#1A3C6E] text-white shadow-xs'
+                            ? 'bg-[#0F2942] text-white shadow-xs'
                             : 'text-slate-700 hover:bg-white'
                         }`}
                       >
@@ -7537,7 +8403,7 @@ export default function DepartmentPortalPage() {
                     onClick={() => setFilterAssignmentSemester('all')}
                     className={`px-3 py-1.5 rounded-xl text-sm font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
                       filterAssignmentSemester === 'all'
-                        ? 'bg-[#1A3C6E] text-white shadow-xs'
+                        ? 'bg-[#0F2942] text-white shadow-xs'
                         : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300'
                     }`}
                   >
@@ -7554,7 +8420,7 @@ export default function DepartmentPortalPage() {
                     onClick={() => setFilterAssignmentSemester(1)}
                     className={`px-3 py-1.5 rounded-xl text-sm font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
                       filterAssignmentSemester === 1
-                        ? 'bg-[#1A3C6E] text-white shadow-xs'
+                        ? 'bg-[#0F2942] text-white shadow-xs'
                         : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300'
                     }`}
                   >
@@ -7571,7 +8437,7 @@ export default function DepartmentPortalPage() {
                     onClick={() => setFilterAssignmentSemester(2)}
                     className={`px-3 py-1.5 rounded-xl text-sm font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
                       filterAssignmentSemester === 2
-                        ? 'bg-[#1A3C6E] text-white shadow-xs'
+                        ? 'bg-[#0F2942] text-white shadow-xs'
                         : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300'
                     }`}
                   >
@@ -7592,7 +8458,7 @@ export default function DepartmentPortalPage() {
                     onClick={() => setFilterAssignmentTeacher('all')}
                     className={`px-3 py-1.5 rounded-xl text-sm font-black transition cursor-pointer whitespace-nowrap ${
                       filterAssignmentTeacher === 'all'
-                        ? 'bg-[#1A3C6E] text-white shadow-xs'
+                        ? 'bg-[#0F2942] text-white shadow-xs'
                         : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300'
                     }`}
                   >
@@ -7608,7 +8474,7 @@ export default function DepartmentPortalPage() {
                         onClick={() => setFilterAssignmentTeacher(t.id)}
                         className={`px-3 py-1.5 rounded-xl text-sm font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
                           filterAssignmentTeacher === t.id
-                            ? 'bg-[#1A3C6E] text-white shadow-xs'
+                            ? 'bg-[#0F2942] text-white shadow-xs'
                             : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300'
                         }`}
                       >
@@ -7665,7 +8531,7 @@ export default function DepartmentPortalPage() {
               <div className="overflow-x-auto rounded-2xl border border-slate-200">
                 <table className="w-full text-right border-collapse text-sm font-black whitespace-nowrap">
                   <thead>
-                    <tr className="bg-[#1A3C6E] text-white font-black text-sm whitespace-nowrap border-b border-[#1A3C6E]">
+                    <tr className="bg-[#0F2942] text-white font-black text-sm whitespace-nowrap border-b border-[#0F2942]">
                       <th className="p-3.5 text-center text-sm w-12 whitespace-nowrap text-white">
                         <input
                           type="checkbox"
@@ -7679,7 +8545,7 @@ export default function DepartmentPortalPage() {
                               setSelectedAssignmentIds(selectedAssignmentIds.filter((id) => !visibleIds.has(id)));
                             }
                           }}
-                          className="w-4 h-4 rounded text-white focus:ring-white cursor-pointer accent-[#1A3C6E]"
+                          className="w-4 h-4 rounded text-white focus:ring-white cursor-pointer accent-[#0F2942]"
                           title="تحديد الكل"
                         />
                       </th>
@@ -7715,7 +8581,7 @@ export default function DepartmentPortalPage() {
                                     setSelectedAssignmentIds([...selectedAssignmentIds, tc.id]);
                                   }
                                 }}
-                                className="w-4 h-4 rounded text-[#1A3C6E] focus:ring-[#1A3C6E] cursor-pointer"
+                                className="w-4 h-4 rounded text-[#0F2942] focus:ring-[#0F2942] cursor-pointer"
                               />
                             </td>
                             <td className="p-3 text-center font-black text-slate-950 text-sm whitespace-nowrap">
@@ -7725,7 +8591,7 @@ export default function DepartmentPortalPage() {
                             </td>
                             <td className="p-3 font-black text-slate-950 text-base whitespace-nowrap">
                               <span className="inline-flex items-center gap-1.5">
-                                <Users className="w-4 h-4 text-[#1A3C6E]" />
+                                <Users className="w-4 h-4 text-[#0F2942]" />
                                 <span>{tc.teacher_name}</span>
                               </span>
                             </td>
@@ -7736,7 +8602,7 @@ export default function DepartmentPortalPage() {
                               </span>
                             </td>
                             <td className="p-3 whitespace-nowrap">
-                              <span className={`px-2 py-0.5 rounded-lg text-xs font-black border whitespace-nowrap ${ tc.semester === 2 ? 'bg-teal-50 text-teal-950 border-teal-300 shadow-2xs' : 'bg-[#1A3C6E]/10 text-[#1A3C6E] border-[#1A3C6E]/20 shadow-2xs' }`}>
+                              <span className={`px-2 py-0.5 rounded-lg text-xs font-black border whitespace-nowrap ${ tc.semester === 2 ? 'bg-teal-50 text-teal-950 border-teal-300 shadow-2xs' : 'bg-[#0F2942]/10 text-[#0F2942] border-[#0F2942]/20 shadow-2xs' }`}>
                                 الكورس {tc.semester === 2 ? 'الثاني' : 'الأول'}
                               </span>
                             </td>
@@ -7830,7 +8696,7 @@ export default function DepartmentPortalPage() {
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
               <div>
                 <h2 className="text-xl sm:text-2xl font-black text-slate-950 flex items-center gap-2.5">
-                  <FileSpreadsheet className="w-7 h-7 text-[#1A3C6E]" />
+                  <FileSpreadsheet className="w-7 h-7 text-[#0F2942]" />
                   <span>سجلات درجات وسعيات مسار بولونيا لطلاب قسم {deptName} ({filteredGrades.length})</span>
                 </h2>
                 <p className="text-sm sm:text-base font-black text-slate-950 mt-1">
@@ -7850,7 +8716,7 @@ export default function DepartmentPortalPage() {
                     value={gradeSearch}
                     onChange={(e) => setGradeSearch(e.target.value)}
                     placeholder="بحث باسم الطالب، المادة، أو الرقم الجامعي..."
-                    className="w-full pl-4 pr-11 py-2.5 bg-slate-50 border border-slate-300 rounded-2xl text-base font-black text-slate-950 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1A3C6E]"
+                    className="w-full pl-4 pr-11 py-2.5 bg-slate-50 border border-slate-300 rounded-2xl text-base font-black text-slate-950 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0F2942]"
                   />
                 </div>
 
@@ -7861,9 +8727,9 @@ export default function DepartmentPortalPage() {
                     onClick={() => setIsGradeCourseDropdownOpen((prev) => !prev)}
                     className={`w-full px-4 py-2.5 rounded-2xl border text-sm font-black transition-all flex items-center justify-between gap-3 shadow-2xs cursor-pointer ${
                       isGradeCourseDropdownOpen
-                        ? 'bg-white border-[#1A3C6E] ring-2 ring-[#1A3C6E]/20 text-[#1A3C6E]'
+                        ? 'bg-white border-[#0F2942] ring-2 ring-[#0F2942]/20 text-[#0F2942]'
                         : filterGradeCourse !== 'all'
-                        ? 'bg-[#1A3C6E] text-white border-[#1A3C6E] shadow-sm'
+                        ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-sm'
                         : 'bg-slate-50 hover:bg-slate-100 text-slate-950 border-slate-300'
                     }`}
                   >
@@ -7879,7 +8745,7 @@ export default function DepartmentPortalPage() {
                     </div>
                     <ChevronDown
                       className={`w-4 h-4 shrink-0 transition-transform duration-200 ${
-                        isGradeCourseDropdownOpen ? 'rotate-180 text-[#1A3C6E]' : filterGradeCourse !== 'all' ? 'text-white' : 'text-slate-600'
+                        isGradeCourseDropdownOpen ? 'rotate-180 text-[#0F2942]' : filterGradeCourse !== 'all' ? 'text-white' : 'text-slate-600'
                       }`}
                     />
                   </button>
@@ -7907,7 +8773,7 @@ export default function DepartmentPortalPage() {
                           }}
                           className={`w-full p-2.5 rounded-xl text-right transition-all flex items-center justify-between gap-2 cursor-pointer ${
                             filterGradeCourse === 'all'
-                              ? 'bg-[#1A3C6E] text-white shadow-xs font-black'
+                              ? 'bg-[#0F2942] text-white shadow-xs font-black'
                               : 'hover:bg-slate-100 text-slate-900 font-bold'
                           }`}
                         >
@@ -7935,7 +8801,7 @@ export default function DepartmentPortalPage() {
                               }}
                               className={`w-full p-2.5 rounded-xl text-right transition-all flex items-center justify-between gap-2 cursor-pointer ${
                                 isSelected
-                                  ? 'bg-[#1A3C6E] text-white shadow-xs'
+                                  ? 'bg-[#0F2942] text-white shadow-xs'
                                   : 'hover:bg-slate-100 text-slate-950'
                               }`}
                             >
@@ -7979,7 +8845,7 @@ export default function DepartmentPortalPage() {
                     }}
                     className={`flex-1 py-2 px-3 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
                       filterGradeStage === 'all'
-                        ? 'bg-[#1A3C6E] text-white shadow-2xs'
+                        ? 'bg-[#0F2942] text-white shadow-2xs'
                         : 'text-slate-700 hover:bg-white'
                     }`}
                   >
@@ -8006,7 +8872,7 @@ export default function DepartmentPortalPage() {
                         }}
                         className={`flex-1 py-2 px-3 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
                           isSel
-                            ? 'bg-[#1A3C6E] text-white shadow-2xs'
+                            ? 'bg-[#0F2942] text-white shadow-2xs'
                             : 'text-slate-700 hover:bg-white'
                         }`}
                       >
@@ -8031,7 +8897,7 @@ export default function DepartmentPortalPage() {
                     }}
                     className={`flex-1 sm:flex-initial py-2 px-3.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
                       filterGradeSemester === 'all'
-                        ? 'bg-[#1A3C6E] text-white shadow-2xs'
+                        ? 'bg-[#0F2942] text-white shadow-2xs'
                         : 'text-slate-700 hover:bg-white'
                     }`}
                   >
@@ -8050,13 +8916,13 @@ export default function DepartmentPortalPage() {
                     }}
                     className={`flex-1 sm:flex-initial py-2 px-3.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
                       filterGradeSemester === 1
-                        ? 'bg-sky-700 text-white shadow-2xs'
-                        : 'text-sky-950 hover:bg-white'
+                        ? 'bg-[#0F2942] text-white shadow-2xs'
+                        : 'text-slate-700 hover:bg-white'
                     }`}
                   >
                     <span>الكورس الأول</span>
                     <span className={`px-2 py-0.5 rounded-full text-xs font-mono font-black ${
-                      filterGradeSemester === 1 ? 'bg-white/20 text-white' : 'bg-sky-200 text-sky-950'
+                      filterGradeSemester === 1 ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800'
                     }`}>
                       {deptGrades.filter((g) => {
                         const c = courses.find((crs) => crs.id === g.course_id);
@@ -8072,13 +8938,13 @@ export default function DepartmentPortalPage() {
                     }}
                     className={`flex-1 sm:flex-initial py-2 px-3.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
                       filterGradeSemester === 2
-                        ? 'bg-teal-700 text-white shadow-2xs'
-                        : 'text-teal-950 hover:bg-white'
+                        ? 'bg-[#0F2942] text-white shadow-2xs'
+                        : 'text-slate-700 hover:bg-white'
                     }`}
                   >
                     <span>الكورس الثاني</span>
                     <span className={`px-2 py-0.5 rounded-full text-xs font-mono font-black ${
-                      filterGradeSemester === 2 ? 'bg-white/20 text-white' : 'bg-teal-200 text-teal-950'
+                      filterGradeSemester === 2 ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800'
                     }`}>
                       {deptGrades.filter((g) => {
                         const c = courses.find((crs) => crs.id === g.course_id);
@@ -8157,7 +9023,7 @@ export default function DepartmentPortalPage() {
                       <th className="p-3 text-center text-sm font-black text-slate-950 whitespace-nowrap" title={`البند الأول: ${currentActiveScheme.quiz1?.title_ar || 'كويز (1)'}`}>
                         <div className="flex items-center justify-center gap-1.5">
                           <span>{currentActiveScheme.quiz1?.title_ar || 'كويز (1)'}</span>
-                          <span className="px-1.5 py-0.5 rounded-md bg-[#1A3C6E] text-white text-xs font-black shadow-2xs">
+                          <span className="px-1.5 py-0.5 rounded-md bg-[#0F2942] text-white text-xs font-black shadow-2xs">
                             {currentActiveScheme.quiz1?.max_score ?? 5}
                           </span>
                         </div>
@@ -8165,7 +9031,7 @@ export default function DepartmentPortalPage() {
                       <th className="p-3 text-center text-sm font-black text-slate-950 whitespace-nowrap" title={`البند الثاني: ${currentActiveScheme.quiz2?.title_ar || 'كويز (2)'}`}>
                         <div className="flex items-center justify-center gap-1.5">
                           <span>{currentActiveScheme.quiz2?.title_ar || 'كويز (2)'}</span>
-                          <span className="px-1.5 py-0.5 rounded-md bg-[#1A3C6E] text-white text-xs font-black shadow-2xs">
+                          <span className="px-1.5 py-0.5 rounded-md bg-[#0F2942] text-white text-xs font-black shadow-2xs">
                             {currentActiveScheme.quiz2?.max_score ?? 5}
                           </span>
                         </div>
@@ -8173,7 +9039,7 @@ export default function DepartmentPortalPage() {
                       <th className="p-3 text-center text-sm font-black text-slate-950 whitespace-nowrap" title={`البند الثالث: ${currentActiveScheme.assignment1?.title_ar || 'واجب (1)'}`}>
                         <div className="flex items-center justify-center gap-1.5">
                           <span>{currentActiveScheme.assignment1?.title_ar || 'واجب (1)'}</span>
-                          <span className="px-1.5 py-0.5 rounded-md bg-[#1A3C6E] text-white text-xs font-black shadow-2xs">
+                          <span className="px-1.5 py-0.5 rounded-md bg-[#0F2942] text-white text-xs font-black shadow-2xs">
                             {currentActiveScheme.assignment1?.max_score ?? 5}
                           </span>
                         </div>
@@ -8181,7 +9047,7 @@ export default function DepartmentPortalPage() {
                       <th className="p-3 text-center text-sm font-black text-slate-950 whitespace-nowrap" title={`البند الرابع: ${currentActiveScheme.assignment2?.title_ar || 'واجب (2)'}`}>
                         <div className="flex items-center justify-center gap-1.5">
                           <span>{currentActiveScheme.assignment2?.title_ar || 'واجب (2)'}</span>
-                          <span className="px-1.5 py-0.5 rounded-md bg-[#1A3C6E] text-white text-xs font-black shadow-2xs">
+                          <span className="px-1.5 py-0.5 rounded-md bg-[#0F2942] text-white text-xs font-black shadow-2xs">
                             {currentActiveScheme.assignment2?.max_score ?? 5}
                           </span>
                         </div>
@@ -8189,7 +9055,7 @@ export default function DepartmentPortalPage() {
                       <th className="p-3 text-center text-sm font-black text-slate-950 whitespace-nowrap" title={`بند التقرير والنشاط: ${currentActiveScheme.report?.title_ar || 'تقرير وبحث'}`}>
                         <div className="flex items-center justify-center gap-1.5">
                           <span>{currentActiveScheme.report?.title_ar || 'تقرير'}</span>
-                          <span className="px-1.5 py-0.5 rounded-md bg-[#1A3C6E] text-white text-xs font-black shadow-2xs">
+                          <span className="px-1.5 py-0.5 rounded-md bg-[#0F2942] text-white text-xs font-black shadow-2xs">
                             {currentActiveScheme.report?.max_score ?? 10}
                           </span>
                         </div>
@@ -8197,7 +9063,7 @@ export default function DepartmentPortalPage() {
                       <th className="p-3 text-center text-sm font-black text-slate-950 whitespace-nowrap" title={`امتحان منتصف الفصل: ${currentActiveScheme.midterm?.title_ar || 'امتحان نصفي'}`}>
                         <div className="flex items-center justify-center gap-1.5">
                           <span>{currentActiveScheme.midterm?.title_ar || 'نصفي'}</span>
-                          <span className="px-1.5 py-0.5 rounded-md bg-[#1A3C6E] text-white text-xs font-black shadow-2xs">
+                          <span className="px-1.5 py-0.5 rounded-md bg-[#0F2942] text-white text-xs font-black shadow-2xs">
                             {currentActiveScheme.midterm?.max_score ?? 10}
                           </span>
                         </div>
@@ -8205,7 +9071,7 @@ export default function DepartmentPortalPage() {
                       <th className="p-3 text-center text-sm font-black text-slate-950 whitespace-nowrap" title={`التقييم العملي والمختبري: ${currentActiveScheme.practical?.title_ar || 'مختبر وعملي'}`}>
                         <div className="flex items-center justify-center gap-1.5">
                           <span>{currentActiveScheme.practical?.title_ar || 'عملي'}</span>
-                          <span className="px-1.5 py-0.5 rounded-md bg-[#1A3C6E] text-white text-xs font-black shadow-2xs">
+                          <span className="px-1.5 py-0.5 rounded-md bg-[#0F2942] text-white text-xs font-black shadow-2xs">
                             {currentActiveScheme.practical?.max_score ?? 10}
                           </span>
                         </div>
@@ -8225,7 +9091,7 @@ export default function DepartmentPortalPage() {
                       <th className="p-3 text-center bg-blue-50 text-blue-950 text-base font-black whitespace-nowrap">
                         <div className="flex items-center justify-center gap-1.5">
                           <span>المجموع</span>
-                          <span className="px-1.5 py-0.5 rounded-md bg-[#1A3C6E] text-white text-xs font-black shadow-2xs">100</span>
+                          <span className="px-1.5 py-0.5 rounded-md bg-[#0F2942] text-white text-xs font-black shadow-2xs">100</span>
                         </div>
                       </th>
                       <th className="p-3 text-center text-base whitespace-nowrap">التقدير</th>
@@ -8384,7 +9250,7 @@ export default function DepartmentPortalPage() {
           <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-7 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
             <div className="space-y-2">
               <div className="flex items-center gap-2.5 flex-wrap">
-                <span className="px-4 py-1.5 bg-[#1A3C6E] text-white font-black text-sm sm:text-base rounded-xl shadow-xs flex items-center gap-2">
+                <span className="px-4 py-1.5 bg-[#0F2942] text-white font-black text-sm sm:text-base rounded-xl shadow-xs flex items-center gap-2">
                   <Clock className="w-5 h-5 text-cyan-300" />
                   <span>نظام إدارة الجداول الأسبوعية والمخطط الزمني</span>
                 </span>
@@ -8410,7 +9276,7 @@ export default function DepartmentPortalPage() {
                   setLecNotes('');
                   setIsLectureModalOpen(true);
                 }}
-                className="px-5 py-3 bg-[#1A3C6E] hover:bg-[#15305B] text-white rounded-2xl font-black text-base flex items-center gap-2.5 shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer border border-[#1A3C6E] shrink-0"
+                className="px-5 py-3 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-2xl font-black text-base flex items-center gap-2.5 shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer border border-[#0F2942] shrink-0"
                 title="إضافة محاضرة دراسية جديدة إلى الجدول الأسبوعي"
               >
                 <Plus className="w-5 h-5 text-cyan-300" />
@@ -8421,7 +9287,7 @@ export default function DepartmentPortalPage() {
               <button
                 type="button" // 🔘 نوع الزر لمنع أي إرسال غير مقصود
                 onClick={handleDownloadScheduleTemplate} // ⚡ تشغيل دالة تنزيل قالب جدول المحاضرات
-                className="px-5 py-3 bg-[#1A3C6E] hover:bg-[#15305B] text-white rounded-2xl font-black text-base flex items-center gap-2.5 shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer border border-[#1A3C6E] shrink-0" // 🎨 تصميم كحلي ملكي موحد
+                className="px-5 py-3 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-2xl font-black text-base flex items-center gap-2.5 shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer border border-[#0F2942] shrink-0" // 🎨 تصميم كحلي ملكي موحد
                 title="تنزيل نموذج Excel المعتمد لمحاضرات الجدول الأسبوعي للقسم" // 💡 نص التلميح
               >
                 <Download className="w-5 h-5 text-emerald-300" /> {/* 📥 أيقونة التنزيل باللون الزمردي الزاهي */}
@@ -8432,7 +9298,7 @@ export default function DepartmentPortalPage() {
               <button
                 type="button" // 🔘 نوع الزر لمنع أي إرسال غير مقصود
                 onClick={() => setShowScheduleExcelInstructions(true)} // ⚡ فتح نافذة التعليمات للجدول
-                className="px-5 py-3 bg-[#1A3C6E] hover:bg-[#15305B] text-white rounded-2xl font-black text-base flex items-center gap-2.5 shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer border border-[#1A3C6E] shrink-0" // 🎨 تصميم كحلي ملكي موحد
+                className="px-5 py-3 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-2xl font-black text-base flex items-center gap-2.5 shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer border border-[#0F2942] shrink-0" // 🎨 تصميم كحلي ملكي موحد
                 title="تعليمات وضوابط استيراد محاضرات الجدول الأسبوعي" // 💡 نص التلميح
               >
                 <Info className="w-5 h-5 text-sky-300" /> {/* ℹ️ أيقونة المعلومات بلون سماوي جميل */}
@@ -8440,7 +9306,7 @@ export default function DepartmentPortalPage() {
               </button>
 
               {/* 📤 زر استيراد ملف Excel للجدول بتصميم كحلي فاخر مطابق لزر إضافة محاضرة */}
-              <label className="px-5 py-3 bg-[#1A3C6E] hover:bg-[#15305B] text-white text-base font-black rounded-2xl transition flex items-center gap-2.5 cursor-pointer shadow-md hover:shadow-lg active:scale-95 border border-[#1A3C6E] shrink-0">
+              <label className="px-5 py-3 bg-[#0F2942] hover:bg-[#163a5f] text-white text-base font-black rounded-2xl transition flex items-center gap-2.5 cursor-pointer shadow-md hover:shadow-lg active:scale-95 border border-[#0F2942] shrink-0">
                 <Upload className="w-5 h-5 text-cyan-300" /> {/* 📤 أيقونة الرفع بلون سماوي زاهي */}
                 <span>{isImportingScheduleExcel ? 'جاري الاستيراد...' : 'استيراد Excel'}</span> {/* 📝 نص الزر */}
                 <input
@@ -8456,7 +9322,7 @@ export default function DepartmentPortalPage() {
               <button
                 type="button" // 🔘 نوع الزر لمنع أي إرسال غير مقصود
                 onClick={handleExportScheduleToExcel} // ⚡ تصدير الجدول لملف إكسل معتمد
-                className="px-5 py-3 bg-[#1A3C6E] hover:bg-[#15305B] text-white rounded-2xl font-black text-base flex items-center gap-2.5 shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer border border-[#1A3C6E] shrink-0" // 🎨 تصميم كحلي ملكي موحد
+                className="px-5 py-3 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-2xl font-black text-base flex items-center gap-2.5 shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer border border-[#0F2942] shrink-0" // 🎨 تصميم كحلي ملكي موحد
                 title="تصدير جدول محاضرات القسم الحالي بالكامل إلى ملف Excel" // 💡 نص التلميح
               >
                 <FileSpreadsheet className="w-5 h-5 text-emerald-300" /> {/* 📊 أيقونة الإكسل بلون زمردي زاهي */}
@@ -8481,7 +9347,7 @@ export default function DepartmentPortalPage() {
             {/* محدد المرحلة */}
             <div className="flex items-center gap-2.5 shrink-0">
               <span className="text-base font-black text-slate-950 flex items-center gap-1.5 shrink-0">
-                <GraduationCap className="w-5 h-5 text-[#1A3C6E]" />
+                <GraduationCap className="w-5 h-5 text-[#0F2942]" />
                 <span>المرحلة:</span>
               </span>
               <div className="flex items-center gap-1.5 flex-nowrap">
@@ -8505,7 +9371,7 @@ export default function DepartmentPortalPage() {
                       }}
                       className={`px-3.5 py-2 rounded-xl text-sm font-black transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${
                         isSel
-                          ? 'bg-[#1A3C6E] text-white shadow-md ring-2 ring-blue-500/20'
+                          ? 'bg-[#0F2942] text-white shadow-md ring-2 ring-blue-500/20'
                           : 'bg-white text-slate-950 hover:bg-slate-100 border border-slate-300'
                       }`}
                     >
@@ -8546,7 +9412,7 @@ export default function DepartmentPortalPage() {
               return (
                 <div className="flex items-center gap-2.5 shrink-0">
                   <span className="text-base font-black text-slate-950 flex items-center gap-1.5 shrink-0">
-                    <Layers className="w-5 h-5 text-[#1A3C6E]" />
+                    <Layers className="w-5 h-5 text-[#0F2942]" />
                     <span>الكورس:</span>
                   </span>
                   <div className="flex items-center gap-1.5 flex-nowrap">
@@ -8558,7 +9424,7 @@ export default function DepartmentPortalPage() {
                       }}
                       className={`px-3.5 py-2 rounded-xl text-sm font-black transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${
                         selectedScheduleSemester === 1
-                          ? 'bg-[#1A3C6E] text-white shadow-md ring-2 ring-blue-500/20'
+                          ? 'bg-[#0F2942] text-white shadow-md ring-2 ring-blue-500/20'
                           : 'bg-white text-slate-950 hover:bg-slate-100 border border-slate-300'
                       }`}
                     >
@@ -8584,7 +9450,7 @@ export default function DepartmentPortalPage() {
                       }}
                       className={`px-3.5 py-2 rounded-xl text-sm font-black transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${
                         selectedScheduleSemester === 2
-                          ? 'bg-[#1A3C6E] text-white shadow-md ring-2 ring-blue-500/20'
+                          ? 'bg-[#0F2942] text-white shadow-md ring-2 ring-blue-500/20'
                           : 'bg-white text-slate-950 hover:bg-slate-100 border border-slate-300'
                       }`}
                     >
@@ -8627,7 +9493,7 @@ export default function DepartmentPortalPage() {
               return (
                 <div className="flex items-center gap-2.5 shrink-0">
                   <span className="text-base font-black text-slate-950 flex items-center gap-1.5 shrink-0">
-                    <Clock className="w-5 h-5 text-[#1A3C6E]" />
+                    <Clock className="w-5 h-5 text-[#0F2942]" />
                     <span>الفترة:</span>
                   </span>
                   <div className="flex items-center gap-1.5 flex-nowrap">
@@ -8636,7 +9502,7 @@ export default function DepartmentPortalPage() {
                       onClick={() => setSelectedScheduleStudyType('morning')}
                       className={`px-3.5 py-2 rounded-xl text-sm font-black transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${
                         selectedScheduleStudyType === 'morning'
-                          ? 'bg-sky-600 text-white shadow-md ring-2 ring-sky-500/20'
+                          ? 'bg-[#0F2942] text-white shadow-md ring-2 ring-[#0F2942]/20 border border-[#163a5f]'
                           : 'bg-white text-slate-950 hover:bg-slate-100 border border-slate-300'
                       }`}
                     >
@@ -8647,7 +9513,7 @@ export default function DepartmentPortalPage() {
                           selectedScheduleStudyType === 'morning'
                             ? 'bg-white/20 text-white border-white/30'
                             : morningCount > 0
-                            ? 'bg-sky-100 text-sky-950 border-sky-300'
+                            ? 'bg-blue-100 text-blue-950 border-blue-300'
                             : 'bg-slate-100 text-slate-500 border-slate-200'
                         }`}
                         title={`${morningCount} محاضرة صباحية مجدولة للمرحلة ${getStageNameInArabic(selectedScheduleStage)} (الكورس ${selectedScheduleSemester === 1 ? 'الأول' : 'الثاني'})`}
@@ -8660,7 +9526,7 @@ export default function DepartmentPortalPage() {
                       onClick={() => setSelectedScheduleStudyType('evening')}
                       className={`px-3.5 py-2 rounded-xl text-sm font-black transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${
                         selectedScheduleStudyType === 'evening'
-                          ? 'bg-indigo-600 text-white shadow-md ring-2 ring-indigo-500/20'
+                          ? 'bg-[#0F2942] text-white shadow-md ring-2 ring-[#0F2942]/20 border border-[#163a5f]'
                           : 'bg-white text-slate-950 hover:bg-slate-100 border border-slate-300'
                       }`}
                     >
@@ -8671,7 +9537,7 @@ export default function DepartmentPortalPage() {
                           selectedScheduleStudyType === 'evening'
                             ? 'bg-white/20 text-white border-white/30'
                             : eveningCount > 0
-                            ? 'bg-indigo-100 text-indigo-950 border-indigo-300'
+                            ? 'bg-blue-100 text-blue-950 border-blue-300'
                             : 'bg-slate-100 text-slate-500 border-slate-200'
                         }`}
                         title={`${eveningCount} محاضرة مسائية مجدولة للمرحلة ${getStageNameInArabic(selectedScheduleStage)} (الكورس ${selectedScheduleSemester === 1 ? 'الأول' : 'الثاني'})`}
@@ -8845,7 +9711,7 @@ onClose={() => {
                   <button
                     type="submit"
                     onClick={() => setCloseModalAfterSave(false)}
-                    className="px-5 sm:px-6 py-2.5 bg-[#1A3C6E] hover:bg-[#15305B] text-white rounded-xl font-black text-sm sm:text-base shadow-md transition flex items-center gap-2 cursor-pointer border border-[#1A3C6E] active:scale-95 ring-2 ring-blue-500/20"
+                    className="px-5 sm:px-6 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-xl font-black text-sm sm:text-base shadow-md transition flex items-center gap-2 cursor-pointer border border-[#0F2942] active:scale-95 ring-2 ring-blue-500/20"
                     title={editingLectureId ? 'حفظ التعديلات والبقاء في النافذة' : 'إدراج المحاضرة في الجدول والاستمرار بإدخال المحاضرات التالية'}
                   >
                     {editingLectureId ? <Check className="w-4 h-4 text-cyan-300" /> : <Plus className="w-4 h-4 text-cyan-300" />}
@@ -8887,7 +9753,7 @@ onClose={() => {
                 {/* المرحلة */}
                 <div className="flex items-center gap-2 shrink-0">
                   <span className="text-sm font-black text-slate-950 flex items-center gap-1.5 shrink-0">
-                    <GraduationCap className="w-4 h-4 text-[#1A3C6E]" />
+                    <GraduationCap className="w-4 h-4 text-[#0F2942]" />
                     <span>المرحلة:</span>
                   </span>
                   <div className="flex items-center gap-1.5 flex-nowrap">
@@ -8903,7 +9769,7 @@ onClose={() => {
                         onClick={() => setSelectedScheduleStage(stg.num)}
                         className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer whitespace-nowrap ${
                           selectedScheduleStage === stg.num
-                            ? 'bg-[#1A3C6E] text-white shadow-xs'
+                            ? 'bg-[#0F2942] text-white shadow-xs'
                             : 'bg-white text-slate-950 border border-slate-300 hover:bg-slate-100'
                         }`}
                       >
@@ -8916,7 +9782,7 @@ onClose={() => {
                 {/* الكورس */}
                 <div className="flex items-center gap-2 shrink-0">
                   <span className="text-sm font-black text-slate-950 flex items-center gap-1.5 shrink-0">
-                    <Layers className="w-4 h-4 text-[#1A3C6E]" />
+                    <Layers className="w-4 h-4 text-[#0F2942]" />
                     <span>الكورس:</span>
                   </span>
                   <div className="flex items-center gap-1.5 flex-nowrap">
@@ -8925,7 +9791,7 @@ onClose={() => {
                       onClick={() => setSelectedScheduleSemester(1)}
                       className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer whitespace-nowrap ${
                         selectedScheduleSemester === 1
-                          ? 'bg-[#1A3C6E] text-white shadow-xs'
+                          ? 'bg-[#0F2942] text-white shadow-xs'
                           : 'bg-white text-slate-950 border border-slate-300 hover:bg-slate-100'
                       }`}
                     >
@@ -8936,7 +9802,7 @@ onClose={() => {
                       onClick={() => setSelectedScheduleSemester(2)}
                       className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer whitespace-nowrap ${
                         selectedScheduleSemester === 2
-                          ? 'bg-[#1A3C6E] text-white shadow-xs'
+                          ? 'bg-[#0F2942] text-white shadow-xs'
                           : 'bg-white text-slate-950 border border-slate-300 hover:bg-slate-100'
                       }`}
                     >
@@ -8948,29 +9814,30 @@ onClose={() => {
                 {/* الفترة: الصباحي / المسائي */}
                 <div className="flex items-center gap-2 shrink-0">
                   <span className="text-sm font-black text-slate-950 flex items-center gap-1.5 shrink-0">
-                    <Clock className="w-4 h-4 text-[#1A3C6E]" />
+                    <Clock className="w-4 h-4 text-[#0F2942]" />
                     <span>الفترة:</span>
                   </span>
                   <div className="flex items-center gap-1.5 flex-nowrap">
+                    {/* ☀️ زر الفترة الصباحية بنمط الكحلي الملكي الفاخر #0F2942 */}
                     <button
                       type="button"
                       onClick={() => setLecStudyType('morning')}
                       className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
                         lecStudyType === 'morning'
-                          ? 'bg-sky-600 text-white shadow-xs'
+                          ? 'bg-[#0F2942] text-white shadow-xs'
                           : 'bg-white text-slate-950 border border-slate-300 hover:bg-slate-100'
                       }`}
                     >
                       <Sun className="w-4 h-4 shrink-0" />
                       <span>الصباحي</span>
                     </button>
-                    {/* 🌙 زر الفترة المسائية بتصميم مطابق لزر الكورس الأول والثاني #1A3C6E */}
+                    {/* 🌙 زر الفترة المسائية بتصميم مطابق لزر الكورس الأول والثاني #0F2942 */}
                     <button
                       type="button"
                       onClick={() => setLecStudyType('evening')}
                       className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
                         lecStudyType === 'evening'
-                          ? 'bg-[#1A3C6E] text-white shadow-xs'
+                          ? 'bg-[#0F2942] text-white shadow-xs'
                           : 'bg-white text-slate-950 border border-slate-300 hover:bg-slate-100'
                       }`}
                     >
@@ -8992,7 +9859,7 @@ onClose={() => {
                     {/* اليوم */}
                     <div className="space-y-1.5 relative">
                       <label className="block text-sm font-black text-slate-950 flex items-center gap-1.5">
-                        <Calendar className="w-4 h-4 text-[#1A3C6E]" />
+                        <Calendar className="w-4 h-4 text-[#0F2942]" />
                         <span>اليوم الأسبوعي <span className="text-red-600">*</span></span>
                       </label>
                       <div>
@@ -9000,7 +9867,7 @@ onClose={() => {
                           ref={lecDayButtonRef}
                           type="button"
                           onClick={handleToggleLecDayDropdown}
-                          className="w-full px-3.5 py-2.5 bg-slate-50 hover:bg-white border-2 border-slate-300 focus:border-[#1A3C6E] rounded-xl text-sm font-black text-slate-950 flex items-center justify-between cursor-pointer shadow-2xs transition-all text-right"
+                          className="w-full px-3.5 py-2.5 bg-slate-50 hover:bg-white border-2 border-slate-300 focus:border-[#0F2942] rounded-xl text-sm font-black text-slate-950 flex items-center justify-between cursor-pointer shadow-2xs transition-all text-right"
                         >
                           <div className="flex items-center gap-2 truncate">
                             {lecDay ? (
@@ -9026,7 +9893,7 @@ onClose={() => {
                               </>
                             )}
                           </div>
-                          <ChevronDown className={`w-4 h-4 text-slate-600 transition-transform duration-200 shrink-0 ${isLecDayDropdownOpen ? 'rotate-180 text-[#1A3C6E]' : ''}`} />
+                          <ChevronDown className={`w-4 h-4 text-slate-600 transition-transform duration-200 shrink-0 ${isLecDayDropdownOpen ? 'rotate-180 text-[#0F2942]' : ''}`} />
                         </button>
 
                         {isLecDayDropdownOpen && lecDayCoords && typeof document !== 'undefined' && createPortal(
@@ -9057,7 +9924,7 @@ onClose={() => {
                                 }}
                                 className={`w-full p-2.5 rounded-xl text-right font-black text-sm transition flex items-center justify-between cursor-pointer ${
                                   !lecDay
-                                    ? 'bg-[#1A3C6E] text-white shadow-xs'
+                                    ? 'bg-[#0F2942] text-white shadow-xs'
                                     : 'text-slate-950 hover:bg-slate-100'
                                 }`}
                               >
@@ -9081,7 +9948,7 @@ onClose={() => {
                                     }}
                                     className={`w-full p-3 rounded-xl text-right font-black text-base transition flex items-center justify-between cursor-pointer ${
                                       isSel
-                                        ? 'bg-[#1A3C6E] text-white shadow-xs'
+                                        ? 'bg-[#0F2942] text-white shadow-xs'
                                         : 'text-slate-950 hover:bg-slate-100'
                                     }`}
                                   >
@@ -9116,7 +9983,7 @@ onClose={() => {
                     {/* طبيعة المحاضرة */}
                     <div className="space-y-1.5 relative">
                       <label className="block text-sm font-black text-slate-950 flex items-center gap-1.5">
-                        <Layers className="w-4 h-4 text-[#1A3C6E]" />
+                        <Layers className="w-4 h-4 text-[#0F2942]" />
                         <span>طبيعة المحاضرة <span className="text-red-600">*</span></span>
                       </label>
                       <div>
@@ -9124,7 +9991,7 @@ onClose={() => {
                           ref={lecTypeButtonRef}
                           type="button"
                           onClick={handleToggleLecTypeDropdown}
-                          className="w-full px-3.5 py-2.5 bg-slate-50 hover:bg-white border-2 border-slate-300 focus:border-[#1A3C6E] rounded-xl text-sm font-black text-slate-950 flex items-center justify-between cursor-pointer shadow-2xs transition-all text-right"
+                          className="w-full px-3.5 py-2.5 bg-slate-50 hover:bg-white border-2 border-slate-300 focus:border-[#0F2942] rounded-xl text-sm font-black text-slate-950 flex items-center justify-between cursor-pointer shadow-2xs transition-all text-right"
                         >
                           <div className="flex items-center gap-2 truncate">
                             {lecType === 'practical' ? (
@@ -9136,7 +10003,7 @@ onClose={() => {
                               {lecType === 'practical' ? 'مختبر وتطبيق عملي' : 'محاضرة نظرية'}
                             </span>
                           </div>
-                          <ChevronDown className={`w-4 h-4 text-slate-600 transition-transform duration-200 shrink-0 ${isLecTypeDropdownOpen ? 'rotate-180 text-[#1A3C6E]' : ''}`} />
+                          <ChevronDown className={`w-4 h-4 text-slate-600 transition-transform duration-200 shrink-0 ${isLecTypeDropdownOpen ? 'rotate-180 text-[#0F2942]' : ''}`} />
                         </button>
 
                         {isLecTypeDropdownOpen && lecTypeCoords && typeof document !== 'undefined' && createPortal(
@@ -9168,7 +10035,7 @@ onClose={() => {
                                 }}
                                 className={`w-full p-2.5 rounded-xl text-right font-black text-sm transition flex items-center justify-between cursor-pointer ${
                                   !lecType
-                                    ? 'bg-[#1A3C6E] text-white shadow-xs'
+                                    ? 'bg-[#0F2942] text-white shadow-xs'
                                     : 'text-slate-950 hover:bg-slate-100'
                                 }`}
                               >
@@ -9210,7 +10077,7 @@ onClose={() => {
                                           }}
                                     className={`w-full p-3 rounded-xl text-right font-black transition flex items-center justify-between cursor-pointer ${
                                       isSel
-                                        ? 'bg-[#1A3C6E] text-white shadow-xs'
+                                        ? 'bg-[#0F2942] text-white shadow-xs'
                                         : 'text-slate-950 hover:bg-slate-100'
                                     }`}
                                   >
@@ -9238,7 +10105,7 @@ onClose={() => {
                   {/* 2. المادة الدراسية والمقرر الأكاديمي */}
                   <div className="space-y-1.5 relative">
                     <label className="block text-sm font-black text-slate-950 flex items-center gap-1.5">
-                      <BookOpen className="w-4 h-4 text-[#1A3C6E]" />
+                      <BookOpen className="w-4 h-4 text-[#0F2942]" />
                       <span>المادة والمقرر الأكاديمي <span className="text-red-600">*</span></span>
                     </label>
                     <div>
@@ -9250,7 +10117,7 @@ onClose={() => {
                               ref={lecCourseButtonRef}
                               type="button"
                               onClick={handleToggleLecCourseDropdown}
-                              className="w-full px-3.5 py-2.5 bg-slate-50 hover:bg-white border-2 border-slate-300 focus:border-[#1A3C6E] rounded-xl text-sm font-black text-slate-950 flex items-center justify-between cursor-pointer shadow-2xs transition-all text-right"
+                              className="w-full px-3.5 py-2.5 bg-slate-50 hover:bg-white border-2 border-slate-300 focus:border-[#0F2942] rounded-xl text-sm font-black text-slate-950 flex items-center justify-between cursor-pointer shadow-2xs transition-all text-right"
                             >
                               <div className="flex items-center gap-2.5 truncate">
                                 <div className="p-1.5 bg-blue-100 text-blue-900 rounded-lg shrink-0">
@@ -9267,7 +10134,7 @@ onClose={() => {
                                   <span className="text-slate-950 font-black text-xs sm:text-sm">-- اضغط هنا لاختيار المادة الدراسية من قائمة المواد --</span>
                                 )}
                               </div>
-                              <ChevronDown className={`w-4 h-4 text-slate-600 transition-transform duration-200 shrink-0 ${isLecCourseDropdownOpen ? 'rotate-180 text-[#1A3C6E]' : ''}`} />
+                              <ChevronDown className={`w-4 h-4 text-slate-600 transition-transform duration-200 shrink-0 ${isLecCourseDropdownOpen ? 'rotate-180 text-[#0F2942]' : ''}`} />
                             </button>
 
                             {isLecCourseDropdownOpen && lecCourseCoords && typeof document !== 'undefined' && createPortal(
@@ -9362,7 +10229,7 @@ onClose={() => {
                                           }}
                                           className={`w-full p-3 rounded-xl text-right font-black transition flex items-center justify-between cursor-pointer ${
                                             isSel
-                                              ? 'bg-[#1A3C6E] text-white shadow-xs'
+                                              ? 'bg-[#0F2942] text-white shadow-xs'
                                               : 'text-slate-950 hover:bg-slate-100'
                                           }`}
                                         >
@@ -9406,7 +10273,7 @@ onClose={() => {
                     {/* الأستاذ */}
                     <div className="space-y-1.5 relative">
                       <label className="block text-sm font-black text-slate-950 flex items-center gap-1.5">
-                        <UserCheck className="w-4 h-4 text-[#1A3C6E]" />
+                        <UserCheck className="w-4 h-4 text-[#0F2942]" />
                         <span>الأستاذ المحاضر</span>
                       </label>
                       <div>
@@ -9418,7 +10285,7 @@ onClose={() => {
                                 ref={lecTeacherButtonRef}
                                 type="button"
                                 onClick={handleToggleLecTeacherDropdown}
-                                className="w-full px-3.5 py-2.5 bg-slate-50 hover:bg-white border-2 border-slate-300 focus:border-[#1A3C6E] rounded-xl text-sm font-black text-slate-950 flex items-center justify-between cursor-pointer shadow-2xs transition-all text-right"
+                                className="w-full px-3.5 py-2.5 bg-slate-50 hover:bg-white border-2 border-slate-300 focus:border-[#0F2942] rounded-xl text-sm font-black text-slate-950 flex items-center justify-between cursor-pointer shadow-2xs transition-all text-right"
                               >
                                 <div className="flex items-center gap-2 truncate">
                                   <UserCheck className="w-4 h-4 text-blue-700 shrink-0" />
@@ -9426,7 +10293,7 @@ onClose={() => {
                                     {selectedTeacherObj ? selectedTeacherObj.full_name : '-- بدون تحديد أستاذ --'}
                                   </span>
                                 </div>
-                                <ChevronDown className={`w-4 h-4 text-slate-600 transition-transform duration-200 shrink-0 ${isLecTeacherDropdownOpen ? 'rotate-180 text-[#1A3C6E]' : ''}`} />
+                                <ChevronDown className={`w-4 h-4 text-slate-600 transition-transform duration-200 shrink-0 ${isLecTeacherDropdownOpen ? 'rotate-180 text-[#0F2942]' : ''}`} />
                               </button>
 
                               {isLecTeacherDropdownOpen && lecTeacherCoords && typeof document !== 'undefined' && createPortal(
@@ -9456,7 +10323,7 @@ onClose={() => {
                                       }}
                                       className={`w-full p-3 rounded-xl text-right font-black text-base transition flex items-center justify-between cursor-pointer ${
                                         !lecTeacherId
-                                          ? 'bg-[#1A3C6E] text-white shadow-xs'
+                                          ? 'bg-[#0F2942] text-white shadow-xs'
                                           : 'text-slate-700 hover:bg-slate-100'
                                       }`}
                                     >
@@ -9479,7 +10346,7 @@ onClose={() => {
                                           }}
                                           className={`w-full p-3 rounded-xl text-right font-black text-base transition flex items-center justify-between cursor-pointer ${
                                             isSel
-                                              ? 'bg-[#1A3C6E] text-white shadow-xs'
+                                              ? 'bg-[#0F2942] text-white shadow-xs'
                                               : 'text-slate-950 hover:bg-slate-100'
                                           }`}
                                         >
@@ -9505,7 +10372,7 @@ onClose={() => {
                     <div className="space-y-1.5">
                       <label className="block text-sm font-black text-slate-950 flex items-center justify-between">
                         <span className="flex items-center gap-1.5">
-                          <DoorClosed className="w-4 h-4 text-[#1A3C6E]" />
+                          <DoorClosed className="w-4 h-4 text-[#0F2942]" />
                           <span>القاعة / المختبر <span className="text-red-600">*</span></span>
                         </span>
                         <span className="text-xs font-black text-emerald-950 bg-emerald-100 px-2 py-0.5 rounded-lg border border-emerald-300">
@@ -9518,7 +10385,7 @@ onClose={() => {
                         onChange={(e) => setLecRoom(e.target.value)}
                         placeholder="مثال: مدرج الخوارزمي، قاعة 204..."
                         required
-                        className="w-full px-3.5 py-2.5 bg-slate-50 hover:bg-white border-2 border-slate-300 focus:border-[#1A3C6E] rounded-xl text-sm font-black text-slate-950 focus:outline-none focus:ring-4 focus:ring-[#1A3C6E]/10 transition-all shadow-2xs"
+                        className="w-full px-3.5 py-2.5 bg-slate-50 hover:bg-white border-2 border-slate-300 focus:border-[#0F2942] rounded-xl text-sm font-black text-slate-950 focus:outline-none focus:ring-4 focus:ring-[#0F2942]/10 transition-all shadow-2xs"
                       />
                     </div>
                   </div>
@@ -9528,7 +10395,7 @@ onClose={() => {
                     {/* البدء */}
                     <div className="space-y-1.5 relative">
                       <label className="block text-sm font-black text-slate-950 flex items-center gap-1.5">
-                        <Clock className="w-4 h-4 text-[#1A3C6E]" />
+                        <Clock className="w-4 h-4 text-[#0F2942]" />
                         <span>وقت بدء المحاضرة <span className="text-red-600">*</span></span>
                       </label>
                       <div>
@@ -9541,7 +10408,7 @@ onClose={() => {
                                 type="button"
                                 onClick={handleToggleLecStartTimeDropdown}
                                 className={`w-full px-3.5 py-2.5 bg-slate-50 hover:bg-white border-2 rounded-xl text-sm font-black text-slate-950 flex items-center justify-between cursor-pointer shadow-2xs transition-all text-right ${
-                                  isLecStartTimeDropdownOpen ? 'border-[#1A3C6E] ring-2 ring-[#1A3C6E]/20' : 'border-slate-300'
+                                  isLecStartTimeDropdownOpen ? 'border-[#0F2942] ring-2 ring-[#0F2942]/20' : 'border-slate-300'
                                 }`}
                               >
                                 <div className="flex items-center gap-2">
@@ -9557,7 +10424,7 @@ onClose={() => {
                                     </span>
                                   </div>
                                 </div>
-                                <ChevronDown className={`w-4 h-4 text-slate-600 transition-transform duration-200 shrink-0 ${isLecStartTimeDropdownOpen ? 'rotate-180 text-[#1A3C6E]' : ''}`} />
+                                <ChevronDown className={`w-4 h-4 text-slate-600 transition-transform duration-200 shrink-0 ${isLecStartTimeDropdownOpen ? 'rotate-180 text-[#0F2942]' : ''}`} />
                               </button>
 
                               {isLecStartTimeDropdownOpen && lecStartTimeCoords && typeof document !== 'undefined' && createPortal(
@@ -9593,7 +10460,7 @@ onClose={() => {
                     {/* الانتهاء */}
                     <div className="space-y-1.5 relative">
                       <label className="block text-sm font-black text-slate-950 flex items-center gap-1.5">
-                        <Clock className="w-4 h-4 text-[#1A3C6E]" />
+                        <Clock className="w-4 h-4 text-[#0F2942]" />
                         <span>وقت انتهاء المحاضرة <span className="text-red-600">*</span></span>
                       </label>
                       <div>
@@ -9606,7 +10473,7 @@ onClose={() => {
                                 type="button"
                                 onClick={handleToggleLecEndTimeDropdown}
                                 className={`w-full px-3.5 py-2.5 bg-slate-50 hover:bg-white border-2 rounded-xl text-sm font-black text-slate-950 flex items-center justify-between cursor-pointer shadow-2xs transition-all text-right ${
-                                  isLecEndTimeDropdownOpen ? 'border-[#1A3C6E] ring-2 ring-[#1A3C6E]/20' : 'border-slate-300'
+                                  isLecEndTimeDropdownOpen ? 'border-[#0F2942] ring-2 ring-[#0F2942]/20' : 'border-slate-300'
                                 }`}
                               >
                                 <div className="flex items-center gap-2">
@@ -9622,7 +10489,7 @@ onClose={() => {
                                     </span>
                                   </div>
                                 </div>
-                                <ChevronDown className={`w-4 h-4 text-slate-600 transition-transform duration-200 shrink-0 ${isLecEndTimeDropdownOpen ? 'rotate-180 text-[#1A3C6E]' : ''}`} />
+                                <ChevronDown className={`w-4 h-4 text-slate-600 transition-transform duration-200 shrink-0 ${isLecEndTimeDropdownOpen ? 'rotate-180 text-[#0F2942]' : ''}`} />
                               </button>
 
                               {isLecEndTimeDropdownOpen && lecEndTimeCoords && typeof document !== 'undefined' && createPortal(
@@ -9692,7 +10559,7 @@ onClose={() => {
                   <div className="bg-slate-50 border border-slate-300 p-3.5 rounded-2xl space-y-2.5 shadow-2xs">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-sm font-black text-black flex items-center gap-1.5">
-                        <Calendar className="w-4 h-4 text-[#1A3C6E]" />
+                        <Calendar className="w-4 h-4 text-[#0F2942]" />
                         <span>محاضرات ({lecDay ? (DAYS_OF_WEEK_LIST.find((d) => d.key === lecDay)?.label_ar || lecDay) : 'غير محدد'}) ({lecStudyType === 'evening' ? 'مسائي' : 'صباحي'}):</span>
                       </span>
                       <span className="text-xs font-black text-black bg-white px-2.5 py-1 rounded-lg border border-slate-300">
@@ -9836,7 +10703,7 @@ onClose={() => {
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-200 pb-4">
               <div>
                 <h3 className="text-xl sm:text-2xl font-black text-slate-950 flex items-center gap-2.5">
-                  <Calendar className="w-6 h-6 text-[#1A3C6E]" />
+                  <Calendar className="w-6 h-6 text-[#0F2942]" />
                   <span>جدول محاضرات {getStageNameInArabic(selectedScheduleStage)} — الكورس {selectedScheduleSemester === 1 ? 'الأول' : 'الثاني'}</span>
                 </h3>
                 <p className="text-sm sm:text-base font-black text-slate-800 mt-1">
@@ -9934,7 +10801,7 @@ onClose={() => {
                               }}
                               className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-black transition-all flex items-center gap-2 cursor-pointer shadow-xs active:scale-95 border-2 ${
                                 isAllDaySelected
-                                  ? 'bg-blue-50 hover:bg-blue-100 text-[#1A3C6E] border-[#1A3C6E]'
+                                  ? 'bg-blue-50 hover:bg-blue-100 text-[#0F2942] border-[#0F2942]'
                                   : 'bg-white hover:bg-slate-100 text-slate-950 border-slate-300'
                               }`}
                               title={isAllDaySelected ? 'إلغاء تحديد كافة محاضرات هذا اليوم' : 'تحديد كافة محاضرات هذا اليوم'}
@@ -9966,7 +10833,7 @@ onClose={() => {
                             setLecModalSuccessMsg(''); // 🧹 مسح رسالة النجاح التفاعلية
                             setIsLectureModalOpen(true); // 🚀 فتح كارت CRUD المخصص للمحاضرات فورياً
                           }}
-                          className="px-4 py-2 bg-[#1A3C6E] hover:bg-[#15305B] text-white border border-[#1A3C6E] text-sm sm:text-base font-black rounded-xl transition cursor-pointer shadow-2xs flex items-center gap-2 active:scale-95"
+                          className="px-4 py-2 bg-[#0F2942] hover:bg-[#163a5f] text-white border border-[#0F2942] text-sm sm:text-base font-black rounded-xl transition cursor-pointer shadow-2xs flex items-center gap-2 active:scale-95"
                         >
                           <Plus className="w-4 h-4 text-cyan-300" />
                           <span>+ إضافة لهذا اليوم</span>
@@ -10051,12 +10918,12 @@ onClose={() => {
 
                                 <div className="text-base font-black text-slate-950 space-y-1.5">
                                   <p className="flex items-center gap-2">
-                                    <DoorClosed className="w-5 h-5 text-[#1A3C6E] inline flex-shrink-0" />
+                                    <DoorClosed className="w-5 h-5 text-[#0F2942] inline flex-shrink-0" />
                                     <span>القاعة: <strong className="text-slate-950">{lec.room || 'غير محددة'}</strong></span>
                                   </p>
                                   {lec.teacher_name && (
                                     <p className="flex items-center gap-2">
-                                      <Users className="w-5 h-5 text-[#1A3C6E] inline flex-shrink-0" />
+                                      <Users className="w-5 h-5 text-[#0F2942] inline flex-shrink-0" />
                                       <span>الأستاذ: <strong className="text-slate-950">{lec.teacher_name}</strong></span>
                                     </p>
                                   )}
@@ -10139,7 +11006,7 @@ onClose={() => {
                   onClick={() => setAttendanceViewMode('list')}
                   className={`px-4 py-2.5 rounded-xl text-sm sm:text-base font-black transition-all cursor-pointer flex items-center gap-2 ${
                     attendanceViewMode === 'list'
-                      ? 'bg-[#1A3C6E] text-white shadow-sm border border-[#1A3C6E]'
+                      ? 'bg-[#0F2942] text-white shadow-sm border border-[#0F2942]'
                       : 'bg-white text-slate-950 hover:bg-slate-50 border border-slate-300'
                   }`}
                 >
@@ -10152,7 +11019,7 @@ onClose={() => {
                   onClick={() => setAttendanceViewMode('analytics')}
                   className={`px-4 py-2.5 rounded-xl text-sm sm:text-base font-black transition-all cursor-pointer flex items-center gap-2 ${
                     attendanceViewMode === 'analytics'
-                      ? 'bg-[#1A3C6E] text-white shadow-sm border border-[#1A3C6E]'
+                      ? 'bg-[#0F2942] text-white shadow-sm border border-[#0F2942]'
                       : 'bg-white text-slate-950 hover:bg-slate-50 border border-slate-300'
                   }`}
                 >
@@ -10165,7 +11032,7 @@ onClose={() => {
               <button
                 type="button"
                 onClick={() => setIsDurationSettingsModalOpen(true)}
-                className="px-4 py-2.5 bg-[#1A3C6E] hover:bg-[#15305B] text-white rounded-2xl text-sm sm:text-base font-black transition cursor-pointer flex items-center gap-2 border-2 border-[#1A3C6E] shadow-sm active:scale-95"
+                className="px-4 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-2xl text-sm sm:text-base font-black transition cursor-pointer flex items-center gap-2 border-2 border-[#0F2942] shadow-sm active:scale-95"
                 title="تخصيص وإعداد مدد وساعات المحاضرات للقسم ومواده"
               >
                 <SlidersHorizontal className="w-4 h-4 text-cyan-300" />
@@ -10180,7 +11047,7 @@ onClose={() => {
                   setAttendanceNoticeDefaultCategory('general_announcement');
                   setIsAttendanceNoticeModalOpen(true);
                 }}
-                className="px-4 py-2.5 bg-[#1A3C6E] hover:bg-[#15305B] text-white rounded-2xl text-sm sm:text-base font-black transition cursor-pointer flex items-center gap-2 border-2 border-[#1A3C6E] shadow-sm active:scale-95"
+                className="px-4 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-2xl text-sm sm:text-base font-black transition cursor-pointer flex items-center gap-2 border-2 border-[#0F2942] shadow-sm active:scale-95"
               >
                 <Send className="w-4 h-4 text-cyan-300" />
                 <span>إرسال تبليغ عام للمرحلة</span>
@@ -10208,7 +11075,7 @@ onClose={() => {
               {/* 🎓 تصفية المرحلة الدراسية */}
               <div className="flex items-center gap-2.5 flex-wrap">
                 <span className="text-sm sm:text-base font-black text-slate-950 flex items-center gap-1.5 shrink-0">
-                  <GraduationCap className="w-5 h-5 text-[#1A3C6E]" />
+                  <GraduationCap className="w-5 h-5 text-[#0F2942]" />
                   <span>المرحلة:</span>
                 </span>
                 <div className="flex items-center gap-1.5 flex-wrap">
@@ -10217,7 +11084,7 @@ onClose={() => {
                     onClick={() => setFilterAttendanceStage('all')}
                     className={`px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
                       filterAttendanceStage === 'all'
-                        ? 'bg-[#1A3C6E] text-white shadow-xs'
+                        ? 'bg-[#0F2942] text-white shadow-xs'
                         : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300'
                     }`}
                   >
@@ -10238,7 +11105,7 @@ onClose={() => {
                         onClick={() => setFilterAttendanceStage(stg)}
                         className={`px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
                           filterAttendanceStage === stg
-                            ? 'bg-[#1A3C6E] text-white shadow-xs'
+                            ? 'bg-[#0F2942] text-white shadow-xs'
                             : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300'
                         }`}
                       >
@@ -10261,7 +11128,7 @@ onClose={() => {
               {/* 📚 تصفية الكورس الدراسي */}
               <div className="flex items-center gap-2.5 shrink-0">
                 <span className="text-sm sm:text-base font-black text-slate-950 flex items-center gap-1.5 shrink-0">
-                  <Layers className="w-5 h-5 text-[#1A3C6E]" />
+                  <Layers className="w-5 h-5 text-[#0F2942]" />
                   <span>الكورس:</span>
                 </span>
                 <div className="flex items-center gap-1.5 flex-nowrap">
@@ -10270,7 +11137,7 @@ onClose={() => {
                     onClick={() => setFilterAttendanceSemester('all')}
                     className={`px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer whitespace-nowrap ${
                       filterAttendanceSemester === 'all'
-                        ? 'bg-[#1A3C6E] text-white shadow-xs'
+                        ? 'bg-[#0F2942] text-white shadow-xs'
                         : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300'
                     }`}
                   >
@@ -10281,7 +11148,7 @@ onClose={() => {
                     onClick={() => setFilterAttendanceSemester(1)}
                     className={`px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer whitespace-nowrap ${
                       filterAttendanceSemester === 1
-                        ? 'bg-[#1A3C6E] text-white shadow-xs'
+                        ? 'bg-[#0F2942] text-white shadow-xs'
                         : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300'
                     }`}
                   >
@@ -10292,7 +11159,7 @@ onClose={() => {
                     onClick={() => setFilterAttendanceSemester(2)}
                     className={`px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer whitespace-nowrap ${
                       filterAttendanceSemester === 2
-                        ? 'bg-[#1A3C6E] text-white shadow-xs'
+                        ? 'bg-[#0F2942] text-white shadow-xs'
                         : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300'
                     }`}
                   >
@@ -10304,7 +11171,7 @@ onClose={() => {
               {/* ☀️🌙 تصفية الفترة الدراسية (الصباحي / المسائي) */}
               <div className="flex items-center gap-2.5 shrink-0">
                 <span className="text-sm sm:text-base font-black text-slate-950 flex items-center gap-1.5 shrink-0">
-                  <Clock className="w-5 h-5 text-[#1A3C6E]" />
+                  <Clock className="w-5 h-5 text-[#0F2942]" />
                   <span>الفترة:</span>
                 </span>
                 <div className="flex items-center gap-1.5 flex-nowrap">
@@ -10313,7 +11180,7 @@ onClose={() => {
                     onClick={() => setFilterAttendanceStudyType('all')}
                     className={`px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
                       filterAttendanceStudyType === 'all'
-                        ? 'bg-[#1A3C6E] text-white shadow-xs'
+                        ? 'bg-[#0F2942] text-white shadow-xs'
                         : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300'
                     }`}
                   >
@@ -10324,13 +11191,13 @@ onClose={() => {
                       {deptStudents.length}
                     </span>
                   </button>
-                  {/* ☀️ زر تصفية الفترة الصباحية بتصميم كحلي فاخر #1A3C6E */}
+                  {/* ☀️ زر تصفية الفترة الصباحية بتصميم كحلي فاخر #0F2942 */}
                   <button
                     type="button"
                     onClick={() => setFilterAttendanceStudyType('morning')}
                     className={`px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
                       filterAttendanceStudyType === 'morning'
-                        ? 'bg-[#1A3C6E] text-white shadow-xs'
+                        ? 'bg-[#0F2942] text-white shadow-xs'
                         : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300'
                     }`}
                   >
@@ -10344,13 +11211,13 @@ onClose={() => {
                       {deptStudents.filter((s) => (s.study_type || 'morning') === 'morning').length}
                     </span>
                   </button>
-                  {/* 🌙 زر تصفية الفترة المسائية بتصميم كحلي فاخر #1A3C6E */}
+                  {/* 🌙 زر تصفية الفترة المسائية بتصميم كحلي فاخر #0F2942 */}
                   <button
                     type="button"
                     onClick={() => setFilterAttendanceStudyType('evening')}
                     className={`px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
                       filterAttendanceStudyType === 'evening'
-                        ? 'bg-[#1A3C6E] text-white shadow-xs'
+                        ? 'bg-[#0F2942] text-white shadow-xs'
                         : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300'
                     }`}
                   >
@@ -10382,7 +11249,7 @@ onClose={() => {
                   value={attendanceSearch}
                   onChange={(e) => setAttendanceSearch(e.target.value)}
                   placeholder="بحث باسم الطالب..."
-                  className="w-full pr-10 pl-3 py-2.5 bg-slate-50 border border-slate-300 rounded-2xl text-sm sm:text-base font-black text-slate-950 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1A3C6E]/20"
+                  className="w-full pr-10 pl-3 py-2.5 bg-slate-50 border border-slate-300 rounded-2xl text-sm sm:text-base font-black text-slate-950 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0F2942]/20"
                 />
               </div>
 
@@ -10422,7 +11289,7 @@ onClose={() => {
                         }}
                         className={`w-full p-2.5 rounded-xl text-right text-sm font-black flex items-center justify-between transition cursor-pointer ${
                           filterAttendanceCourse === 'all'
-                            ? 'bg-[#1A3C6E] text-white'
+                            ? 'bg-[#0F2942] text-white'
                             : 'text-slate-950 hover:bg-slate-100'
                         }`}
                       >
@@ -10446,7 +11313,7 @@ onClose={() => {
                             }}
                             className={`w-full p-2.5 rounded-xl text-right text-sm font-black flex items-center justify-between transition cursor-pointer ${
                               filterAttendanceCourse === c.id
-                                ? 'bg-[#1A3C6E] text-white'
+                                ? 'bg-[#0F2942] text-white'
                                 : 'text-slate-950 hover:bg-slate-100'
                             }`}
                           >
@@ -10521,7 +11388,7 @@ onClose={() => {
                           }}
                           className={`w-full p-2.5 rounded-xl text-right text-sm font-black flex items-center justify-between transition cursor-pointer ${
                             filterAttendanceStatus === item.val
-                              ? 'bg-[#1A3C6E] text-white'
+                              ? 'bg-[#0F2942] text-white'
                               : 'text-slate-950 hover:bg-slate-100'
                           }`}
                         >
@@ -10893,7 +11760,7 @@ onClose={() => {
                                   setAttendanceNoticeDefaultCategory(defaultCat);
                                   setIsAttendanceNoticeModalOpen(true);
                                 }}
-                                className="px-3 py-1.5 bg-[#1A3C6E] hover:bg-[#15305B] text-white rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center gap-1 shadow-xs border border-[#1A3C6E] active:scale-95"
+                                className="px-3 py-1.5 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center gap-1 shadow-xs border border-[#0F2942] active:scale-95"
                                 title="إرسال تنبيه مخصص للطالب"
                               >
                                 <Send className="w-3.5 h-3.5 text-cyan-300" />
@@ -10961,7 +11828,7 @@ onClose={() => {
 
                   {/* 🚀 شريط الإجراءات الجماعية العائم عند التحديد */}
                   {selectedAttendanceStudentIds.length > 0 && (
-                    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-[#1A3C6E] text-white px-6 py-3.5 rounded-2xl shadow-2xl z-50 flex items-center gap-4 border border-[#1A3C6E] animate-in slide-in-from-bottom-5">
+                    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-[#0F2942] text-white px-6 py-3.5 rounded-2xl shadow-2xl z-50 flex items-center gap-4 border border-[#0F2942] animate-in slide-in-from-bottom-5">
                       <div className="flex items-center gap-2">
                         <Users className="w-5 h-5 text-cyan-300" />
                         <span className="text-sm sm:text-base font-black">
@@ -11131,7 +11998,7 @@ onClose={() => {
                     {/* ترويسة الكارد الصغير */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="w-6 h-6 rounded-full bg-[#1A3C6E] text-white font-black text-xs flex items-center justify-center shadow-xs">
+                        <span className="w-6 h-6 rounded-full bg-[#0F2942] text-white font-black text-xs flex items-center justify-center shadow-xs">
                           {idx + 1}
                         </span>
                         <span className="font-black text-sm text-slate-950">
@@ -11168,7 +12035,7 @@ onClose={() => {
                               },
                             });
                           }}
-                          className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-black text-slate-950 placeholder:text-slate-400 focus:bg-white focus:border-[#1A3C6E] focus:outline-none transition shadow-2xs"
+                          className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-black text-slate-950 placeholder:text-slate-400 focus:bg-white focus:border-[#0F2942] focus:outline-none transition shadow-2xs"
                           placeholder={item.defaultAr}
                         />
                       </div>
@@ -11192,7 +12059,7 @@ onClose={() => {
                                 },
                               });
                             }}
-                            className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-base font-black text-slate-950 text-center focus:bg-white focus:border-[#1A3C6E] focus:outline-none transition shadow-2xs font-mono"
+                            className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-base font-black text-slate-950 text-center focus:bg-white focus:border-[#0F2942] focus:outline-none transition shadow-2xs font-mono"
                           />
                         </div>
                       </div>
@@ -11267,7 +12134,7 @@ onClose={() => {
               <button
                 type="button"
                 onClick={handleSaveAssessmentSchemeModal}
-                className="px-6 py-2.5 bg-[#1A3C6E] hover:bg-[#15305B] text-white font-black rounded-xl text-sm font-black shadow-md transition flex items-center gap-1.5 cursor-pointer border border-[#1A3C6E]"
+                className="px-6 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black rounded-xl text-sm font-black shadow-md transition flex items-center gap-1.5 cursor-pointer border border-[#0F2942]"
               >
                 <Check className="w-4 h-4 text-emerald-300" />
                 <span>حفظ وتثبيت التوزيع المخصص</span>
@@ -11388,20 +12255,22 @@ onClose={() => {
               </div>
             </div>
 
-            <div className="flex items-center justify-between pt-3 border-t border-slate-200">
+            {/* 🔘 أزرار التفاعل السفلية بالنافذة المنبثقة */}
+            <div className="flex items-center justify-between pt-3 border-t border-slate-200"> {/* 📦 حاوية أزرار الفوتر المتناسقة */}
+              {/* 📥 زر تنزيل النموذج المعتمد بتصميم كحلي ملكي وأيقونة سماوية فاخرة */}
               <button
-                type="button"
-                onClick={handleDownloadTeacherTemplate}
-                className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-950 font-black rounded-xl text-base transition flex items-center gap-2 cursor-pointer border border-slate-300"
+                type="button" // 🛑 نوع الزر لمنع التقديم
+                onClick={handleDownloadTeacherTemplate} // ⚡ دالة تنزيل نموذج الأساتذة
+                className="px-5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black rounded-xl text-base transition flex items-center gap-2 cursor-pointer border border-[#0F2942] shadow-sm active:scale-95" // 👑 تصميم كحلي ملكي
               >
-                <Download className="w-4 h-4 text-emerald-700" />
-                <span>تنزيل النموذج المعتمد</span>
+                <Download className="w-4 h-4 text-cyan-300" /> {/* 📥 أيقونة التنزيل الفيكتور */}
+                <span>تنزيل النموذج المعتمد</span> {/* 🏷️ نص التنزيل */}
               </button>
 
               <button
                 type="button"
                 onClick={() => setShowExcelInstructions(false)}
-                className="px-6 py-2.5 bg-[#1A3C6E] hover:bg-[#15305B] text-white font-black rounded-xl text-base transition cursor-pointer border border-[#1A3C6E]"
+                className="px-6 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black rounded-xl text-base transition cursor-pointer border border-[#0F2942]"
               >
                 فهمت ذلك
               </button>
@@ -11593,7 +12462,7 @@ onClose={() => {
               <button
                 type="button"
                 onClick={() => setImportReport(null)}
-                className="px-6 py-2.5 bg-[#1A3C6E] hover:bg-[#15305B] text-white font-black rounded-xl text-base transition cursor-pointer border border-[#1A3C6E]"
+                className="px-6 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black rounded-xl text-base transition cursor-pointer border border-[#0F2942]"
               >
                 إغلاق التقرير
               </button>
@@ -11669,19 +12538,20 @@ onClose={() => {
             </div>
 
             <div className="flex items-center justify-between pt-3 border-t border-slate-200">
+              {/* 📥 زر تنزيل النموذج المعتمد بتصميم كحلي ملكي وأيقونة سماوية فاخرة */}
               <button
                 type="button"
                 onClick={handleDownloadStudentTemplate}
-                className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-950 font-black rounded-xl text-base transition flex items-center gap-2 cursor-pointer border border-slate-300"
+                className="px-5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black rounded-xl text-base transition flex items-center gap-2 cursor-pointer border border-[#0F2942] shadow-sm active:scale-95"
               >
-                <Download className="w-4 h-4 text-emerald-700" />
+                <Download className="w-4 h-4 text-cyan-300" />
                 <span>تنزيل النموذج المعتمد</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setShowStudentExcelInstructions(false)}
-                className="px-6 py-2.5 bg-[#1A3C6E] hover:bg-[#15305B] text-white font-black rounded-xl text-base transition cursor-pointer border border-[#1A3C6E]"
+                className="px-6 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black rounded-xl text-base transition cursor-pointer border border-[#0F2942]"
               >
                 فهمت ذلك
               </button>
@@ -11873,7 +12743,7 @@ onClose={() => {
               <button
                 type="button"
                 onClick={() => setStudentImportReport(null)}
-                className="px-6 py-2.5 bg-[#1A3C6E] hover:bg-[#15305B] text-white font-black rounded-xl text-base transition cursor-pointer border border-[#1A3C6E]"
+                className="px-6 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black rounded-xl text-base transition cursor-pointer border border-[#0F2942]"
               >
                 إغلاق التقرير
               </button>
@@ -11959,19 +12829,20 @@ onClose={() => {
             </div>
 
             <div className="flex items-center justify-between pt-3 border-t border-slate-200">
+              {/* 📥 زر تنزيل النموذج المعتمد بتصميم كحلي ملكي وأيقونة سماوية فاخرة */}
               <button
                 type="button"
                 onClick={handleDownloadCourseTemplate}
-                className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-950 font-black rounded-xl text-base transition flex items-center gap-2 cursor-pointer border border-slate-300"
+                className="px-5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black rounded-xl text-base transition flex items-center gap-2 cursor-pointer border border-[#0F2942] shadow-sm active:scale-95"
               >
-                <Download className="w-4 h-4 text-emerald-700" />
+                <Download className="w-4 h-4 text-cyan-300" />
                 <span>تنزيل النموذج المعتمد</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setShowCourseExcelInstructions(false)}
-                className="px-6 py-2.5 bg-[#1A3C6E] hover:bg-[#15305B] text-white font-black rounded-xl text-base transition cursor-pointer border border-[#1A3C6E]"
+                className="px-6 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black rounded-xl text-base transition cursor-pointer border border-[#0F2942]"
               >
                 فهمت ذلك
               </button>
@@ -12163,7 +13034,7 @@ onClose={() => {
               <button
                 type="button"
                 onClick={() => setCourseImportReport(null)}
-                className="px-6 py-2.5 bg-[#1A3C6E] hover:bg-[#15305B] text-white font-black rounded-xl text-base transition cursor-pointer border border-[#1A3C6E]"
+                className="px-6 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black rounded-xl text-base transition cursor-pointer border border-[#0F2942]"
               >
                 إغلاق التقرير
               </button>
@@ -12259,19 +13130,20 @@ onClose={() => {
             </div>
 
             <div className="flex items-center justify-between pt-3 border-t border-slate-200">
+              {/* 📥 زر تنزيل النموذج المعتمد بتصميم كحلي ملكي وأيقونة سماوية فاخرة */}
               <button
                 type="button"
                 onClick={handleDownloadScheduleTemplate}
-                className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-950 font-black rounded-xl text-base transition flex items-center gap-2 cursor-pointer border border-slate-300"
+                className="px-5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black rounded-xl text-base transition flex items-center gap-2 cursor-pointer border border-[#0F2942] shadow-sm active:scale-95"
               >
-                <Download className="w-4 h-4 text-emerald-700" />
+                <Download className="w-4 h-4 text-cyan-300" />
                 <span>تنزيل النموذج المعتمد</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setShowScheduleExcelInstructions(false)}
-                className="px-6 py-2.5 bg-[#1A3C6E] hover:bg-[#15305B] text-white font-black rounded-xl text-base transition cursor-pointer border border-[#1A3C6E]"
+                className="px-6 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black rounded-xl text-base transition cursor-pointer border border-[#0F2942]"
               >
                 فهمت ذلك
               </button>
@@ -12463,7 +13335,7 @@ onClose={() => {
               <button
                 type="button"
                 onClick={() => setScheduleImportReport(null)}
-                className="px-6 py-2.5 bg-[#1A3C6E] hover:bg-[#15305B] text-white font-black rounded-xl text-base transition cursor-pointer border border-[#1A3C6E]"
+                className="px-6 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black rounded-xl text-base transition cursor-pointer border border-[#0F2942]"
               >
                 إغلاق التقرير
               </button>
@@ -12521,69 +13393,70 @@ onClose={() => {
       />
 
       {/* 🔒 نافذة التأكيد الاحترافية الفاخرة لفتح وقفل الأدوار الأكاديمية (الدور الأول / الثاني للكورسين) */}
+      {/* 🔐 كارت تأكيد الفتح والإغلاق العام بنصوص سوداء في المنتصف بدون أي سكرول */}
       {roundConfirmModal?.isOpen && (
-        <div className="fixed inset-0 top-0 left-0 right-0 bottom-0 w-screen h-screen min-h-[100dvh] bg-slate-950/80 backdrop-blur-md flex items-center justify-center z-[9999999] p-3 sm:p-4 animate-in fade-in duration-150 overflow-y-auto">
+        <div className="fixed inset-0 z-[9999999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-xs animate-in fade-in duration-150" dir="rtl">
           <div 
-            className="bg-white border-2 border-slate-300 rounded-3xl max-w-lg w-full shadow-2xl p-5 sm:p-6 space-y-4 text-right relative animate-in zoom-in-95 duration-200"
+            className="bg-white border-2 border-slate-300 rounded-3xl max-w-md w-full shadow-2xl p-5 space-y-3 text-right relative animate-in zoom-in-95 duration-150 my-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* ❌ زر الإغلاق السريع */}
+            {/* ❌ زر الإغلاق السريع باللون الأسود */}
             <button
               type="button"
               onClick={() => setRoundConfirmModal(null)}
-              className="absolute top-4 left-4 p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+              className="absolute top-4 left-4 p-2 text-slate-950 hover:text-black hover:bg-slate-100 rounded-xl transition cursor-pointer"
               title="إغلاق"
             >
               <X className="w-5 h-5" />
             </button>
 
-            {/* 🛡️ شارة وأيقونة رأس المودال */}
-            <div className="flex flex-col items-center justify-center text-center pt-2">
-              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-md mb-2 ${
+            {/* 🛡️ شارة وأيقونة رأس المودال المركزية الفاخرة بدون مبالغة بالحجم */}
+            <div className="flex flex-col items-center justify-center text-center pt-1">
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-sm mb-1.5 ${
                 roundConfirmModal.enable 
-                  ? 'bg-[#1A3C6E] text-white ring-4 ring-[#1A3C6E]/15' 
-                  : 'bg-slate-800 text-white ring-4 ring-slate-800/15'
+                  ? 'bg-[#0F2942] text-white ring-3 ring-[#0F2942]/15' 
+                  : 'bg-slate-800 text-white ring-3 ring-slate-800/15'
               }`}>
                 {roundConfirmModal.enable ? (
-                  <Unlock className="w-7 h-7 text-emerald-400" />
+                  <Unlock className="w-6 h-6 text-emerald-400" />
                 ) : (
-                  <Lock className="w-7 h-7 text-slate-300" />
+                  <Lock className="w-6 h-6 text-slate-300" />
                 )}
               </div>
 
-              <span className="px-3 py-1 rounded-xl text-xs font-black inline-flex items-center gap-1.5 border shadow-2xs bg-slate-100 text-slate-900 border-slate-300">
+              <span className="px-3 py-1 rounded-lg text-xs font-black inline-flex items-center gap-1.5 border shadow-2xs bg-slate-100 text-slate-950 border-slate-300">
                 {roundConfirmModal.enable ? (
                   <>
-                    <CheckCircle2 className="w-3.5 h-3.5 text-[#1A3C6E]" />
+                    <CheckCircle2 className="w-3.5 h-3.5 text-[#0F2942]" />
                     <span>طلب فتح وتفعيل رسمي</span>
                   </>
                 ) : (
                   <>
-                    <Lock className="w-3.5 h-3.5 text-slate-700" />
+                    <Lock className="w-3.5 h-3.5 text-slate-950" />
                     <span>طلب إغلاق وحجب رسمي</span>
                   </>
                 )}
               </span>
 
-              <h3 className="text-xl font-black text-slate-950 mt-2">
+              <h3 className="text-lg sm:text-xl font-black text-slate-950 mt-1.5">
                 {roundConfirmModal.title}
               </h3>
-              <p className="text-sm font-black text-slate-700 mt-1 leading-relaxed">
+              <p className="text-xs sm:text-sm font-black text-slate-950 mt-1 leading-relaxed">
                 {roundConfirmModal.description}
               </p>
             </div>
 
-            {/* 📋 صندوق تفاصيل العملية ونطاق التأثير */}
-            <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-2 text-xs font-black text-slate-800">
+            {/* 📋 صندوق تفاصيل العملية ونطاق التأثير بنصوص سوداء وواضحة جداً 100% */}
+            <div className="bg-slate-50 p-3 sm:p-3.5 rounded-2xl border border-slate-200 space-y-1.5 text-xs sm:text-sm font-black text-slate-950">
               <div className="flex items-center justify-between py-1 border-b border-slate-200">
-                <span className="text-slate-600">الدور الأكاديمي:</span>
-                <span className="text-slate-950 font-bold">
+                <span className="text-slate-950 font-black">الدور الأكاديمي:</span>
+                <span className="text-slate-950 font-black">
                   {roundConfirmModal.round === 'final' ? 'الامتحان النهائي (الدور الأول)' : 'الدور الثاني'}
                 </span>
               </div>
               <div className="flex items-center justify-between py-1 border-b border-slate-200">
-                <span className="text-slate-600">الكورس الدراسي:</span>
-                <span className="text-slate-950 font-bold">
+                <span className="text-slate-950 font-black">الكورس الدراسي:</span>
+                <span className="text-slate-950 font-black">
                   {roundConfirmModal.targetSemester === 1 
                     ? 'الكورس الأول' 
                     : roundConfirmModal.targetSemester === 2 
@@ -12592,8 +13465,8 @@ onClose={() => {
                 </span>
               </div>
               <div className="flex items-center justify-between py-1 border-b border-slate-200">
-                <span className="text-slate-600">النطاق الأكاديمي:</span>
-                <span className="text-slate-950 font-bold">
+                <span className="text-slate-950 font-black">النطاق الأكاديمي:</span>
+                <span className="text-slate-950 font-black">
                   {roundConfirmModal.targetCourseId
                     ? (roundConfirmModal.targetCourseName || 'مادة دراسية محددة')
                     : roundConfirmModal.targetStage === 'all'
@@ -12602,16 +13475,16 @@ onClose={() => {
                 </span>
               </div>
               <div className="flex items-center justify-between py-1">
-                <span className="text-slate-600">عدد المواد المتأثرة:</span>
-                <span className="px-2.5 py-0.5 bg-[#1A3C6E] text-white rounded-lg font-mono font-bold text-xs shadow-2xs">
+                <span className="text-slate-950 font-black">عدد المواد المتأثرة:</span>
+                <span className="px-2.5 py-0.5 bg-[#0F2942] text-white rounded-lg font-mono font-bold text-xs shadow-2xs">
                   {roundConfirmModal.affectedCount} مواد دراسية
                 </span>
               </div>
             </div>
 
-            {/* 💡 إشعار وتنبيه توجيهي رسمي */}
-            <div className="p-3 bg-slate-100/90 border border-slate-300 rounded-2xl text-xs font-bold text-slate-900 flex items-start gap-2.5">
-              <Info className="w-4 h-4 text-[#1A3C6E] shrink-0 mt-0.5" />
+            {/* 💡 إشعار وتنبيه توجيهي رسمي بنص أسود صريح ومدمج */}
+            <div className="p-2.5 sm:p-3 bg-slate-100/90 border border-slate-300 rounded-xl text-xs sm:text-sm font-black text-slate-950 flex items-start gap-2">
+              <Info className="w-4 h-4 text-[#0F2942] shrink-0 mt-0.5" />
               <div className="leading-relaxed">
                 {roundConfirmModal.enable ? (
                   <span>
@@ -12625,12 +13498,12 @@ onClose={() => {
               </div>
             </div>
 
-            {/* 🔘 أزرار اتخاذ القرار والتنفيذ */}
-            <div className="flex items-center gap-3 pt-2">
+            {/* 🔘 أزرار اتخاذ القرار والتنفيذ الموزونة والفاخرة */}
+            <div className="flex items-center gap-2.5 pt-1">
               <button
                 type="button"
                 onClick={executeConfirmToggleRoundAction}
-                className="flex-1 py-3 px-4 bg-[#1A3C6E] hover:bg-[#15305B] text-white rounded-2xl font-black text-sm transition shadow-md flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+                className="flex-1 py-2.5 px-4 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-xl font-black text-sm transition shadow-md flex items-center justify-center gap-2 cursor-pointer active:scale-95"
               >
                 <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                 <span>
@@ -12640,7 +13513,7 @@ onClose={() => {
               <button
                 type="button"
                 onClick={() => setRoundConfirmModal(null)}
-                className="py-3 px-5 bg-white hover:bg-slate-100 text-slate-800 rounded-2xl font-black text-sm transition border border-slate-300 cursor-pointer active:scale-95 shadow-2xs"
+                className="py-2.5 px-5 bg-white hover:bg-slate-100 text-slate-950 rounded-xl font-black text-sm transition border border-slate-300 cursor-pointer active:scale-95 shadow-2xs"
               >
                 تراجع وإلغاء
               </button>
@@ -12656,7 +13529,7 @@ onClose={() => {
             {/* 📌 هيدر ثابت ومستقر ما يتحرك أبداً ويه سكرول الجدول */}
             <div className="p-4 sm:p-5 flex items-center justify-between border-b border-slate-200 bg-white shrink-0 z-30 shadow-2xs">
               <div className="flex items-center gap-2.5">
-                <div className="p-2 bg-[#1A3C6E] text-white rounded-xl shadow-2xs">
+                <div className="p-2 bg-[#0F2942] text-white rounded-xl shadow-2xs">
                   <Calendar className="w-5 h-5 text-cyan-300" />
                 </div>
                 <h3 className="text-lg sm:text-xl font-black text-slate-950">المعاينة الحية لجدول المحاضرات للطلبة</h3>
@@ -12743,7 +13616,7 @@ onClose={() => {
               {/* شريط الأدوات العلوي */}
               <div className="p-4 sm:p-5 border-b-2 border-slate-300 bg-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0 z-10 print:hidden no-print">
                 <div className="flex items-center gap-3">
-                  <div className="p-2.5 bg-[#1A3C6E] text-cyan-300 rounded-2xl shadow-xs">
+                  <div className="p-2.5 bg-[#0F2942] text-cyan-300 rounded-2xl shadow-xs">
                     <Printer className="w-6 h-6" />
                   </div>
                   <div>
@@ -12775,7 +13648,7 @@ onClose={() => {
                     type="button"
                     onClick={() => window.print()}
                     disabled={printList.length === 0}
-                    className="px-5 py-2.5 bg-[#1A3C6E] hover:bg-[#15305B] disabled:bg-slate-300 text-white rounded-2xl text-xs sm:text-sm font-black transition flex items-center gap-2 shadow-xs cursor-pointer border border-[#1A3C6E] active:scale-95"
+                    className="px-5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] disabled:bg-slate-300 text-white rounded-2xl text-xs sm:text-sm font-black transition flex items-center gap-2 shadow-xs cursor-pointer border border-[#0F2942] active:scale-95"
                   >
                     <Printer className="w-4 h-4 text-cyan-300" />
                     <span>طباعة الآن ({printList.length})</span>
@@ -13029,7 +13902,7 @@ onClose={() => {
               {/* شريط الأدوات العلوي */}
               <div className="p-4 sm:p-5 border-b-2 border-slate-300 bg-slate-50 flex flex-col lg:flex-row lg:items-center justify-between gap-4 shrink-0 z-10 print:hidden no-print">
                 <div className="flex items-center gap-3">
-                  <div className="p-2.5 bg-[#1A3C6E] text-cyan-300 rounded-2xl shadow-xs">
+                  <div className="p-2.5 bg-[#0F2942] text-cyan-300 rounded-2xl shadow-xs">
                     <Printer className="w-6 h-6" />
                   </div>
                   <div>
@@ -13051,7 +13924,7 @@ onClose={() => {
                     <div className="flex items-center gap-2.5">
                       <PrintFilterDropdown<number | 'all'>
                         ariaLabel="تصفية طباعة الطلاب حسب المرحلة الأكاديمية"
-                        icon={<GraduationCap className="w-4 h-4 text-[#1A3C6E]" />}
+                        icon={<GraduationCap className="w-4 h-4 text-[#0F2942]" />}
                         options={stageOptions}
                         selectedValue={studentPrintStageFilter}
                         onSelect={(val) => setStudentPrintStageFilter(val)}
@@ -13059,7 +13932,7 @@ onClose={() => {
 
                       <PrintFilterDropdown<'all' | 'morning' | 'evening'>
                         ariaLabel="تصفية طباعة الطلاب حسب الفترة الدراسية"
-                        icon={<Clock className="w-4 h-4 text-[#1A3C6E]" />}
+                        icon={<Clock className="w-4 h-4 text-[#0F2942]" />}
                         options={studyOptions}
                         selectedValue={studentPrintStudyFilter}
                         onSelect={(val) => setStudentPrintStudyFilter(val)}
@@ -13082,7 +13955,7 @@ onClose={() => {
                     type="button"
                     onClick={() => window.print()}
                     disabled={printList.length === 0}
-                    className="px-5 py-2.5 bg-[#1A3C6E] hover:bg-[#15305B] disabled:bg-slate-300 text-white rounded-2xl text-xs sm:text-sm font-black transition flex items-center gap-2 shadow-xs cursor-pointer border border-[#1A3C6E] active:scale-95"
+                    className="px-5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] disabled:bg-slate-300 text-white rounded-2xl text-xs sm:text-sm font-black transition flex items-center gap-2 shadow-xs cursor-pointer border border-[#0F2942] active:scale-95"
                   >
                     <Printer className="w-4 h-4 text-cyan-300" />
                     <span>طباعة الآن ({printList.length})</span>

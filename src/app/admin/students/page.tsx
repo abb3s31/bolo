@@ -912,7 +912,7 @@ export default function AdminStudentsPage() {
                 onClick={() => { setSelectedGenderFilter(g.id as 'ALL' | 'male' | 'female'); setCurrentPage(1); }}
                 className={`px-3.5 py-1.5 rounded-xl text-sm font-black transition-all cursor-pointer ${
                   selectedGenderFilter === g.id
-                    ? 'bg-[#1A3C6E] text-white shadow-xs'
+                    ? 'bg-[#0F2942] text-white shadow-xs'
                     : 'text-slate-950 hover:text-black hover:bg-slate-200/60 font-black'
                 }`}
               >
@@ -1569,7 +1569,7 @@ export default function AdminStudentsPage() {
                   onClick={() => setAddGender('male')}
                   className={`py-2.5 px-3 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer border ${
                     addGender === 'male'
-                      ? 'bg-[#1A3C6E] text-white border-[#1A3C6E] shadow-xs'
+                      ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-xs'
                       : 'bg-slate-50 text-slate-800 border-slate-300 hover:bg-slate-100'
                   }`}
                 >
@@ -1580,7 +1580,7 @@ export default function AdminStudentsPage() {
                   onClick={() => setAddGender('female')}
                   className={`py-2.5 px-3 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer border ${
                     addGender === 'female'
-                      ? 'bg-[#1A3C6E] text-white border-[#1A3C6E] shadow-xs'
+                      ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-xs'
                       : 'bg-slate-50 text-slate-800 border-slate-300 hover:bg-slate-100'
                   }`}
                 >
@@ -1844,7 +1844,7 @@ export default function AdminStudentsPage() {
                   onClick={() => setEditGender('male')}
                   className={`p-3 rounded-xl border text-sm font-black flex items-center justify-center gap-2 transition cursor-pointer ${
                     editGender === 'male'
-                      ? 'bg-[#1A3C6E] text-white border-[#1A3C6E] shadow-xs'
+                      ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-xs'
                       : 'bg-slate-50 text-slate-800 border-slate-300 hover:bg-slate-100'
                   }`}
                 >
@@ -1856,7 +1856,7 @@ export default function AdminStudentsPage() {
                   onClick={() => setEditGender('female')}
                   className={`p-3 rounded-xl border text-sm font-black flex items-center justify-center gap-2 transition cursor-pointer ${
                     editGender === 'female'
-                      ? 'bg-[#1A3C6E] text-white border-[#1A3C6E] shadow-xs'
+                      ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-xs'
                       : 'bg-slate-50 text-slate-800 border-slate-300 hover:bg-slate-100'
                   }`}
                 >

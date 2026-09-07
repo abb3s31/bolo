@@ -244,7 +244,7 @@ export function DepartmentAssessmentsOverview({
       <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-7 shadow-xs space-y-6">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 pb-6 border-b border-slate-200">
           <div className="flex items-start sm:items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-[#1A3C6E] text-white flex items-center justify-center shadow-md shrink-0 border border-[#1A3C6E]">
+            <div className="w-14 h-14 rounded-2xl bg-[#0F2942] text-white flex items-center justify-center shadow-md shrink-0 border border-[#0F2942]">
               <ShieldCheck className="w-8 h-8 text-cyan-300" />
             </div>
             <div>
@@ -266,7 +266,7 @@ export function DepartmentAssessmentsOverview({
           <div className="flex items-center gap-2.5 self-start lg:self-auto">
             <div className="px-4 py-2.5 bg-slate-50 rounded-2xl border border-slate-300 text-sm font-black text-slate-900 flex items-center gap-2 shadow-2xs">
               <span>إجمالي المهام المعتمدة:</span>
-              <span className="px-2.5 py-0.5 rounded-lg bg-[#1A3C6E] text-white font-mono font-black text-base shadow-2xs">
+              <span className="px-2.5 py-0.5 rounded-lg bg-[#0F2942] text-white font-mono font-black text-base shadow-2xs">
                 {stats.total}
               </span>
             </div>
@@ -282,7 +282,7 @@ export function DepartmentAssessmentsOverview({
             onClick={() => setSelectedType(selectedType === 'quiz' ? 'all' : 'quiz')}
             className={`p-4 rounded-2xl border transition-all text-right cursor-pointer flex flex-col justify-between ${
               selectedType === 'quiz'
-                ? 'bg-[#1A3C6E] text-white border-[#1A3C6E] shadow-md ring-2 ring-[#1A3C6E]/30'
+                ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-md ring-2 ring-[#0F2942]/30'
                 : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-950'
             }`}
           >
@@ -451,7 +451,7 @@ export function DepartmentAssessmentsOverview({
                 onClick={() => setSelectedStage(stg.id)}
                 className={`flex-1 py-2 px-2.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
                   selectedStage === stg.id
-                    ? 'bg-[#1A3C6E] text-white shadow-xs'
+                    ? 'bg-[#0F2942] text-white shadow-xs'
                     : 'text-slate-700 hover:bg-white'
                 }`}
               >
@@ -475,7 +475,7 @@ export function DepartmentAssessmentsOverview({
               <div className="flex items-center gap-2">
                 <Filter className="w-4 h-4 text-slate-700" />
                 <span className="text-xs sm:text-sm font-black text-slate-900">النوع:</span>
-                <span className="text-xs sm:text-sm font-black text-[#1A3C6E]">
+                <span className="text-xs sm:text-sm font-black text-[#0F2942]">
                   {selectedType === 'all' && `كافة الأنواع (${stats.total})`}
                   {selectedType === 'quiz' && `الكويزات والاختبارات (${stats.quizzes})`}
                   {selectedType === 'assignment' && `الواجبات والتطبيقات (${stats.assignments})`}
@@ -508,7 +508,7 @@ export function DepartmentAssessmentsOverview({
                         setIsTypeDropdownOpen(false);
                       }}
                       className={`w-full px-3 py-2.5 rounded-xl font-black text-xs sm:text-sm text-right transition cursor-pointer flex items-center justify-between gap-2 ${
-                        isSel ? 'bg-[#1A3C6E] text-white shadow-xs' : 'text-slate-950 hover:bg-slate-100'
+                        isSel ? 'bg-[#0F2942] text-white shadow-xs' : 'text-slate-950 hover:bg-slate-100'
                       }`}
                     >
                       <div className="flex items-center gap-2">
@@ -538,7 +538,7 @@ export function DepartmentAssessmentsOverview({
               <div className="flex items-center gap-2">
                 <Calendar className="w-4 h-4 text-slate-700" />
                 <span className="text-xs sm:text-sm font-black text-slate-900">الفترة:</span>
-                <span className="text-xs sm:text-sm font-black text-[#1A3C6E]">
+                <span className="text-xs sm:text-sm font-black text-[#0F2942]">
                   {selectedStudyType === 'all' && `كافة الفترات (${stats.total})`}
                   {selectedStudyType === 'morning' && `الدراسة الصباحية (${stats.morningTasks})`}
                   {selectedStudyType === 'evening' && `الدراسة المسائية (${stats.eveningTasks})`}
@@ -567,7 +567,7 @@ export function DepartmentAssessmentsOverview({
                         setIsStudyDropdownOpen(false);
                       }}
                       className={`w-full px-3 py-2.5 rounded-xl font-black text-xs sm:text-sm text-right transition cursor-pointer flex items-center justify-between gap-2 ${
-                        isSel ? 'bg-[#1A3C6E] text-white shadow-xs' : 'text-slate-950 hover:bg-slate-100'
+                        isSel ? 'bg-[#0F2942] text-white shadow-xs' : 'text-slate-950 hover:bg-slate-100'
                       }`}
                     >
                       <div className="flex items-center gap-2">
@@ -596,7 +596,7 @@ export function DepartmentAssessmentsOverview({
         <div className="overflow-x-auto">
           <table className="w-full text-right border-collapse whitespace-nowrap">
             <thead>
-              <tr className="bg-[#1A3C6E] text-white text-xs sm:text-sm font-black border-b border-[#1A3C6E]">
+              <tr className="bg-[#0F2942] text-white text-xs sm:text-sm font-black border-b border-[#0F2942]">
                 <th className="p-3.5 text-center w-12 whitespace-nowrap">#</th>
                 <th className="p-3.5 text-center whitespace-nowrap">نوع التكليف</th>
                 <th className="p-3.5 text-right whitespace-nowrap">المادة الدراسية</th>
@@ -726,7 +726,7 @@ export function DepartmentAssessmentsOverview({
                         </td>
                         <td className="p-3.5 text-center whitespace-nowrap">
                           <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-950 border border-slate-300 rounded-xl text-xs sm:text-sm font-black shadow-2xs">
-                            <Users className="w-3.5 h-3.5 text-[#1A3C6E]" />
+                            <Users className="w-3.5 h-3.5 text-[#0F2942]" />
                             <span>{task.teacher_name}</span>
                           </div>
                         </td>
@@ -797,7 +797,7 @@ export function DepartmentAssessmentsOverview({
                               <button
                                 type="button"
                                 onClick={() => setInspectingTask(task)}
-                                className="px-3.5 py-2 bg-[#1A3C6E] hover:bg-[#15305B] text-white rounded-xl border border-[#1A3C6E] transition-all inline-flex items-center gap-1.5 text-xs font-black cursor-pointer shadow-2xs active:scale-95 whitespace-nowrap"
+                                className="px-3.5 py-2 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-xl border border-[#0F2942] transition-all inline-flex items-center gap-1.5 text-xs font-black cursor-pointer shadow-2xs active:scale-95 whitespace-nowrap"
                                 title="معاينة تسليمات الطلاب وقرارات التدقيق"
                               >
                                 <Eye className="w-4 h-4 text-white" />
@@ -895,7 +895,7 @@ export function DepartmentAssessmentsOverview({
                     setToastMsg(`تم تصدير كشف تسليمات (${inspectingTask.title}) بنجاح! 📊`);
                     setTimeout(() => setToastMsg(''), 4000);
                   }}
-                  className="px-4 py-2.5 bg-[#1A3C6E] hover:bg-[#15305B] text-white text-xs sm:text-sm font-black rounded-xl transition flex items-center gap-2 cursor-pointer shadow-xs border border-[#1A3C6E] active:scale-95"
+                  className="px-4 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white text-xs sm:text-sm font-black rounded-xl transition flex items-center gap-2 cursor-pointer shadow-xs border border-[#0F2942] active:scale-95"
                 >
                   <Printer className="w-4 h-4 text-cyan-300" />
                   <span>تصدير كشف رسمي معتمد PDF</span>
@@ -1015,7 +1015,7 @@ export function DepartmentAssessmentsOverview({
               <button
                 type="button"
                 onClick={() => setInspectingTask(null)}
-                className="px-6 py-2.5 bg-[#1A3C6E] hover:bg-[#15305B] text-white text-xs sm:text-sm font-black rounded-xl transition cursor-pointer shadow-xs"
+                className="px-6 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white text-xs sm:text-sm font-black rounded-xl transition cursor-pointer shadow-xs"
               >
                 إغلاق
               </button>

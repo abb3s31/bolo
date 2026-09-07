@@ -31,6 +31,12 @@ export default function OfficialTranscript({ student, grades, courses }: Officia
   // 🔲 رابط التوثيق للـ QR
   const verifyUrl = `http://localhost:3000/verify/${student.university_number}`;
 
+  // 🎯 فحص هل يوجد أي مادة بالوثيقة مفعل فيها الفاينل لإظهار عمود النهائي
+  const hasAnyFinalActive = grades.some((g) => {
+    const cObj = courses.find((c) => c.id === g.course_id); // 🔍 مطابقة كائن المادة
+    return cObj?.is_final_exam_enabled === true; // 🎯 هل الفاينل مفعل؟
+  });
+
   return (
     <div className="bg-white text-slate-900 p-8 sm:p-10 border border-slate-300 rounded-3xl max-w-4xl mx-auto my-6 space-y-7 font-sans shadow-2xl relative overflow-hidden">
       
@@ -82,7 +88,7 @@ export default function OfficialTranscript({ student, grades, courses }: Officia
               <th className="p-4 border border-slate-300 text-right">المادة الدراسية (الكورس)</th>
               <th className="p-4 border border-slate-300 font-mono">الساعات المعتمدة</th>
               <th className="p-4 border border-slate-300 font-mono">السعي (50)</th>
-              <th className="p-4 border border-slate-300 font-mono">النهائي (50)</th>
+              {hasAnyFinalActive && <th className="p-4 border border-slate-300 font-mono">النهائي (50)</th>}
               <th className="p-4 border border-slate-300 font-mono">المجموع (100)</th>
               <th className="p-4 border border-slate-300">التقدير الحرفي</th>
             </tr>
@@ -107,7 +113,7 @@ export default function OfficialTranscript({ student, grades, courses }: Officia
                   <td className="p-3.5 border border-slate-300 text-right font-black text-slate-950">{g.course_name}</td>
                   <td className="p-3.5 border border-slate-300 font-black font-mono">{cObj?.credit_hours || 3}</td>
                   <td className="p-3.5 border border-slate-300 font-black font-mono">{g.final_coursework_total}</td>
-                  <td className="p-3.5 border border-slate-300 font-black font-mono">{examGradeText}</td>
+                  {hasAnyFinalActive && <td className="p-3.5 border border-slate-300 font-black font-mono">{examGradeText}</td>}
                   <td className="p-3.5 border border-slate-300 font-black text-slate-950 font-mono">{finalTot}</td>
                   <td className="p-3.5 border border-slate-300 font-black text-center whitespace-nowrap">{letterGrad}</td>
                 </tr>
