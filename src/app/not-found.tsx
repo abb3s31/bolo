@@ -16,23 +16,23 @@ export default function NotFound() {
 
   // 🎨 إرجاع هيكل الواجهة لصفحة الخطأ المتناسقة
   return (
-    // 🧱 الحاوية الرئيسية لكامل الصفحة متمركزة 100% في منتصف الشاشة عمودياً وأفقياً
-    <div className="flex-1 min-h-screen w-full flex flex-col items-center justify-center bg-slate-50 py-8 px-4 font-sans select-none text-center">
+    // 🧱 الحاوية الرئيسية لكامل الصفحة متمركزة 100% في منتصف الشاشة بدون أي سكرول
+    <div className="flex-1 min-h-screen sm:h-screen w-full flex flex-col items-center justify-center bg-slate-50 p-4 font-sans select-none text-center overflow-y-auto sm:overflow-hidden">
       
       {/* 🏛️ بطاقة الخطأ الأكاديمية الفاخرة المنسقة بألوان متناسقة مع الصفحة */}
-      <div className="w-full max-w-lg bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xl space-y-6">
+      <div className="w-full max-w-lg bg-white border border-slate-200 rounded-3xl p-5 sm:p-7 shadow-xl space-y-4">
         
         {/* 🔝 1. هوية واسم الجامعة في أعلى البطاقة وبشكل واضح ومكبّر وبدون حدود سوداء */}
-        <div className="space-y-3 pb-4 border-b border-slate-100">
+        <div className="space-y-2 pb-3 border-b border-slate-100">
           
           {/* 🖼️ حاوية شعار الجامعة النظيف والمكبّر بدون أي إطار أو حدود سوداء */}
           <div className="flex justify-center">
-            <div className="relative w-28 h-28 sm:w-32 sm:h-32 flex items-center justify-center">
+            <div className="relative w-20 h-20 sm:w-24 sm:h-24 flex items-center justify-center">
               <Image
                 src="/logo.webp"
                 alt="شعار جامعة الإمام جعفر الصادق (ع) - فرع ميسان"
-                width={128}
-                height={128}
+                width={96}
+                height={96}
                 className="object-contain"
                 priority
               />
@@ -40,11 +40,11 @@ export default function NotFound() {
           </div>
 
           {/* 🏛️ نص اسم الجامعة بحجم مكبّر وواضح جداً وبارز في الأعلى */}
-          <div className="space-y-1">
+          <div className="space-y-0.5">
             <h2 className="text-xl sm:text-2xl font-black text-slate-950 leading-tight">
               جامعة الإمام جعفر الصادق (ع)
             </h2>
-            <p className="text-base font-black text-slate-700">
+            <p className="text-sm sm:text-base font-black text-slate-700">
               فرع ميسان — المنظومة الأكاديمية المركزية
             </p>
           </div>
@@ -52,66 +52,38 @@ export default function NotFound() {
         </div>
 
         {/* 🔢 2. رمز الخطأ 404 بنص مكبّر وألوان رمادية كحلية متناسقة */}
-        <div className="space-y-3">
+        <div className="space-y-2">
           
           {/* 🏷️ شارة الخطأ البارزة بنص مكبّر متناسق تماماً مع هوية الموقع */}
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 border border-slate-300 rounded-2xl text-slate-800 text-base font-black shadow-xs">
-            <AlertCircle className="w-5 h-5 text-slate-700" />
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-slate-100 border border-slate-300 rounded-2xl text-slate-800 text-sm sm:text-base font-black shadow-xs">
+            <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-slate-700" />
             <span>خطأ 404 — الصفحة غير موجودة</span>
           </div>
 
           {/* 📢 العنوان الرئيسي لتنبيه عدم توفر الصفحة */}
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-950">
+          <h1 className="text-xl sm:text-2xl font-black text-slate-950">
             الصفحة المطلوبة غير متوفرة
           </h1>
 
           {/* 📝 الشرح التوضيحي للخطأ بلون ناعم ومريح */}
-          <p className="text-base text-slate-700 font-black leading-relaxed max-w-sm mx-auto">
+          <p className="text-sm sm:text-base text-slate-700 font-black leading-relaxed max-w-sm mx-auto">
             يبدو أن الرابط الذي حاولت الوصول إليه غير صحيح أو تم نقله في المنظومة الأكاديمية.
           </p>
 
         </div>
 
-        {/* 🔀 3. زر العودة للبوابة الرئيسية مع أيقونة كحلية متناسقة */}
-        <div className="pt-2 space-y-4">
+        {/* 🔀 3. زر العودة للبوابة الرئيسية مع أيقونة كحلية وتصميم احترافي مركّز */}
+        <div className="pt-1">
+          {/* 🔗 رابط التنقل المباشر لصفحة البداية الرسمية للمنظومة */}
           <Link
             href="/"
-            className="w-full py-4 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl font-black text-base sm:text-lg flex items-center justify-center gap-2.5 shadow-md transition cursor-pointer"
+            className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl font-black text-base sm:text-lg flex items-center justify-center gap-2.5 shadow-md transition cursor-pointer"
           >
+            {/* 🏠 أيقونة البيت الأنيقة */}
             <Home className="w-5 h-5 text-slate-200" />
+            {/* 📝 نص العودة للبوابة الرئيسية */}
             <span>العودة للبوابة الرئيسية</span>
           </Link>
-
-          {/* 🌐 روابط البوابات المباشرة */}
-          <div className="pt-3 border-t border-slate-100">
-            <p className="text-base font-black text-slate-950 mb-3">أو التوجه المباشر لبوابتك:</p>
-            <div className="grid grid-cols-2 gap-2 text-base font-black">
-              <Link
-                href="/sadmin"
-                className="p-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-900 transition flex items-center justify-center"
-              >
-                👑 المسؤول العام
-              </Link>
-              <Link
-                href="/admin"
-                className="p-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-900 transition flex items-center justify-center"
-              >
-                🏢 رئيس / مقرر القسم
-              </Link>
-              <Link
-                href="/?portal=teacher"
-                className="p-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-900 transition flex items-center justify-center font-bold"
-              >
-                بوابة الأساتذة
-              </Link>
-              <Link
-                href="/?portal=student"
-                className="p-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-900 transition flex items-center justify-center font-bold"
-              >
-                🎓 بوابة الطلاب
-              </Link>
-            </div>
-          </div>
         </div>
 
       </div>

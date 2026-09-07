@@ -134,81 +134,35 @@ code, pre, kbd, samp, .font-mono, [class*="font-mono"] {
     border: none !important;
   }
 
-  /* 🎴 9. هندسة شبكة الـ 8 بطاقات بالصفحة الواحدة A4 (2 عمود × 4 صفوف بارتفاع دقيق 66mm لتثبيت 8 بطاقات لكل صفحة) */
-  .cards-grid-8 {
-    display: grid !important;
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    gap: 3mm !important;
-    width: 100% !important;
-    page-break-inside: auto !important;
+  /* 🎴 9. هندسة شبكة الـ 10 بطاقات بالصفحة الواحدة A4 (2 عمود × 5 صفوف بارتفاع هندسي محكم 52mm لتثبيت 10 بطاقات بالضبط لكل ورقة) */
+  .cards-grid-8,
+  .cards-grid-10 {
+    display: grid !important; /* 🔲 تفعيل نظام الشبكة للطباعة */
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important; /* ✌️ عمودين متساويين بالضبط بكل صف */
+    gap: 2mm !important; /* 📏 مسافة بينية محسوبة بدقة 2 ملم تضمن احتواء 5 صفوف بالكامل */
+    width: 100% !important; /* 📐 استغلال كامل عرض الورقة */
+    page-break-inside: auto !important; /* 📄 سماح بانتقال الصفحات التلقائي بعد كل 10 كروت */
   }
 
-  .card-item-8 {
-    break-inside: avoid !important;
-    page-break-inside: avoid !important;
-    height: 66mm !important;
-    max-height: 66mm !important;
-    box-sizing: border-box !important;
-    overflow: hidden !important;
-    display: flex !important;
-    flex-direction: column !important;
-    justify-content: flex-start !important;
-    gap: 0.8mm !important;
-    padding: 1mm !important;
+  .card-item-8,
+  .card-item-10 {
+    break-inside: avoid !important; /* 🚫 منع انكسار الكارد الواحد بين صفحتين */
+    page-break-inside: avoid !important; /* 🚫 حماية الكارد من الانقسام الورقي */
+    height: 52mm !important; /* 📏 ارتفاع هندسي دقيق 52 ملم يضمن 10 كروت بالورقة A4 */
+    max-height: 52.5mm !important; /* 🔒 قفل أقصى ارتفاع لمنع أي زيادة غير مرغوبة */
+    box-sizing: border-box !important; /* 📐 احتساب الحدود والبادنغ ضمن الارتفاع الكلي */
+    overflow: hidden !important; /* 🛡️ منع أي تدفق للخارج */
+    display: flex !important; /* 📦 نظام فليكس عمودي مرن ومضغوط */
+    flex-direction: column !important; /* ⬇️ ترتيب العناصر من الأعلى للأسفل */
+    justify-content: space-between !important; /* ⚖️ توزيع الأقسام الداخلية الأربعة بتناسق */
+    gap: 0.8mm !important; /* 🤏 فجوات مجهرية متناسقة تملأ كامل الكارد */
+    padding: 1.8mm 2.2mm !important; /* 🔲 حشوة متوازنة تملأ الكارد بالكامل بدون فراغات زائدة */
   }
 
-  /* 📏 تمديد حاوية الجدول بارتفاع صريح 48mm لتشغل كامل المساحة حتى نهاية الكارد الـ 66mm */
-  .card-item-8 .card-table-container {
-    flex: 1 1 auto !important;
-    display: flex !important;
-    flex-direction: column !important;
-    min-height: 48mm !important;
-    height: 48mm !important;
-    max-height: 48mm !important;
-    width: 100% !important;
-  }
-
-  .card-item-8 table {
-    width: 100% !important;
-    min-width: 100% !important;
-    max-width: 100% !important;
-    height: 48mm !important;
-    min-height: 48mm !important;
-    border-collapse: collapse !important;
-    table-layout: fixed !important;
-    flex: 1 1 auto !important;
-  }
-
-  .card-item-8 tbody {
-    display: table-row-group !important;
-    height: 48mm !important;
-  }
-
-  /* 📐 تقسيم الصفوف الثلاثة بالتساوي بارتفاع مليمترى صريح 16mm لكل صف لملء الكارد بالكامل */
-  .card-item-8 tr {
-    height: 16mm !important;
-    min-height: 16mm !important;
-    max-height: 16mm !important;
-  }
-
-  /* 🔒 تثبيت ارتفاع كل خلية بـ 16mm وتوسيط محتواها وعزلها تماماً لمنع أي تسريب أو قص */
-  .card-item-8 td {
-    height: 16mm !important;
-    min-height: 16mm !important;
-    max-height: 16mm !important;
-    vertical-align: middle !important;
-    padding-top: 0.5mm !important;
-    padding-bottom: 0.5mm !important;
-    padding-left: 0.8mm !important;
-    padding-right: 0.8mm !important;
-    overflow: hidden !important;
-    box-sizing: border-box !important;
-  }
-
-  /* 🛡️ منع أي عنصر داخلي من تجاوز عرض الخلية المخصصة له */
-  .card-item-8 td * {
-    max-width: 100% !important;
-    box-sizing: border-box !important;
+  /* 🛡️ منع أي عنصر داخلي من تجاوز أبعاد الكارد المحددة */
+  .card-item-8 *,
+  .card-item-10 * {
+    box-sizing: border-box !important; /* 📐 التزام تام بأبعاد الصندوق الحاوي */
   }
 }
 
@@ -225,9 +179,9 @@ select, option {
   text-align: right;
 }
 
-/* 🔒 منع أي تدفق أفقي وتثبيت مجرى شريط التمرير العمودي دائماً لمنع قفز وتحرك العناصر */
+/* 🔒 منع أي تدفق أفقي مع إتاحة التمرير التلقائي الذكي فقط عند زيادة المحتوى لمنع ظهور السكرول الزائد */
 html {
-  overflow-y: scroll;
+  overflow-y: auto;
 }
 
 @supports (scrollbar-gutter: stable) {

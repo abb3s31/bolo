@@ -303,7 +303,7 @@ export default function DepartmentPortalPage() {
   const stageButtonRef = useRef<HTMLButtonElement | null>(null); // 🎯 مرجع زر المرحلة لحساب الموضع بالمليمتر
   const [stageDropdownCoords, setStageDropdownCoords] = useState<{ top?: number; bottom?: number; left: number; width: number; maxHeight?: number; openUpwards?: boolean } | null>(null); // 📍 إحداثيات القائمة المنسدلة بالبكسل
 
-  // 🖨️ حالات طباعة وتصدير بطاقات اعتماد الأساتذة والطلاب (8 بطاقات بالورقة الواحدة A4)
+  // 🖨️ حالات طباعة وتصدير بطاقات اعتماد الأساتذة والطلاب (10 بطاقات بالورقة الواحدة A4)
   const [showTeacherPrintModal, setShowTeacherPrintModal] = useState<boolean>(false); // 🖨️ نافذة معاينة وطباعة بطاقات الأساتذة
   const [singleTeacherPrintProfile, setSingleTeacherPrintProfile] = useState<UserProfile | null>(null); // 👤 طباعة بطاقة فردية لأستاذ محدد
   const [showStudentPrintModal, setShowStudentPrintModal] = useState<boolean>(false); // 🖨️ نافذة معاينة وطباعة بطاقات الطلاب
@@ -4626,6 +4626,20 @@ export default function DepartmentPortalPage() {
                   <span>إضافة أستاذ جديد</span>
                 </button>
 
+                {/* 🖨️ زر طباعة وتصدير بطاقات اعتماد الأساتذة بصيغة PDF (10 بطاقات بالورقة الواحدة A4) */}
+                <button
+                  type="button" // 🔘 نوع الزر لمنع أي إرسال غير مقصود
+                  onClick={() => {
+                    setSingleTeacherPrintProfile(null); // 🔄 تصفير البطاقة الفردية لعرض كافة الأساتذة أو المحددين
+                    setShowTeacherPrintModal(true); // 🖨️ فتح نافذة معاينة وطباعة بطاقات الأساتذة A4
+                  }}
+                  className="px-5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-2xl font-black text-base flex items-center gap-2 shadow-sm transition-all active:scale-95 cursor-pointer border border-[#163a5f] shrink-0 whitespace-nowrap"
+                  title="طباعة بطاقات حسابات الأساتذة وتصديرها كملف PDF"
+                >
+                  <Printer className="w-5 h-5 text-cyan-300" /> {/* 🖨️ أيقونة الطابعة والـ PDF باللون الفيروزي المشرق المتناسق */}
+                  <span>طباعة البطاقات (PDF)</span> {/* 📝 نص الزر الرسمي */}
+                </button>
+
                 {/* 📥 زر تنزيل نموذج Excel المعتمد بتصميم كحلي فاخر مطابق لزر إضافة أستاذ */}
                 <button
                   type="button" // 🔘 نوع الزر لمنع أي إرسال غير مقصود
@@ -5118,6 +5132,18 @@ export default function DepartmentPortalPage() {
                               </td>
                               <td className="p-4 whitespace-nowrap">
                                 <div className="flex items-center justify-center gap-2">
+                                  {/* 🖨️ زر طباعة بطاقة هذا الأستاذ بمفرده كملف PDF على ورق A4 */}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setSingleTeacherPrintProfile(t); // 🎯 تخصيص هذا الأستاذ حصراً للطباعة الفردية
+                                      setShowTeacherPrintModal(true); // 🖨️ فتح نافذة المعاينة والطباعة
+                                    }}
+                                    className="p-2.5 bg-white hover:bg-slate-100 text-[#0F2942] rounded-xl transition cursor-pointer border border-slate-300 shadow-2xs hover:shadow-md active:scale-95"
+                                    title="طباعة بطاقة حساب الأستاذ (PDF)"
+                                  >
+                                    <Printer className="w-5 h-5 text-[#0F2942]" />
+                                  </button>
                                   {/* 🪪 زر بطاقة الأستاذ ورمز QR باللون الأبيض الفاخر وأيقونة كحلية واضحة */}
                                   <button
                                     type="button"
@@ -5259,6 +5285,20 @@ export default function DepartmentPortalPage() {
                 >
                   <Plus className="w-5 h-5 text-cyan-300" />
                   <span>تسجيل طالب جديد</span>
+                </button>
+
+                {/* 🖨️ زر طباعة وتصدير بطاقات اعتماد الطلبة بصيغة PDF (10 بطاقات بالورقة الواحدة A4) */}
+                <button
+                  type="button" // 🔘 نوع الزر لمنع أي إرسال غير مقصود
+                  onClick={() => {
+                    setSingleStudentPrintProfile(null); // 🔄 تصفير البطاقة الفردية لعرض كافة الطلبة أو حسب الفلاتر
+                    setShowStudentPrintModal(true); // 🖨️ فتح نافذة معاينة وطباعة بطاقات الطلبة A4
+                  }}
+                  className="px-5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-2xl font-black text-base flex items-center gap-2 shadow-sm transition-all active:scale-95 cursor-pointer border border-[#163a5f] shrink-0 whitespace-nowrap"
+                  title="طباعة بطاقات حسابات الطلبة وتصديرها كملف PDF"
+                >
+                  <Printer className="w-5 h-5 text-cyan-300" /> {/* 🖨️ أيقونة الطابعة والـ PDF باللون الفيروزي المشرق المتناسق */}
+                  <span>طباعة البطاقات (PDF)</span> {/* 📝 نص الزر الرسمي */}
                 </button>
 
                 {/* 📥 زر تنزيل نموذج Excel لطلبة القسم بتصميم كحلي فاخر مطابق لزر إضافة طالب */}
@@ -5999,6 +6039,18 @@ export default function DepartmentPortalPage() {
                             {/* 🛠️ الإجراءات الأساسية */}
                             <td className="p-4">
                               <div className="flex items-center justify-center gap-2">
+                                {/* 🖨️ زر طباعة بطاقة هذا الطالب بمفرده كملف PDF على ورق A4 */}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSingleStudentPrintProfile(s); // 🎯 تخصيص هذا الطالب حصراً للطباعة الفردية
+                                    setShowStudentPrintModal(true); // 🖨️ فتح نافذة المعاينة والطباعة
+                                  }}
+                                  className="p-2.5 bg-white hover:bg-slate-100 text-[#0F2942] rounded-xl transition cursor-pointer border border-slate-300 shadow-2xs hover:shadow-md active:scale-95"
+                                  title="طباعة بطاقة حساب الطالب (PDF)"
+                                >
+                                  <Printer className="w-5 h-5 text-[#0F2942]" />
+                                </button>
                                 {/* 🪪 زر بطاقة الطالب ورمز QR باللون الأبيض الفاخر وأيقونة كحلية واضحة */}
                                 <button
                                   type="button"
@@ -13595,7 +13647,7 @@ onClose={() => {
         }}
       />
 
-      {/* 🖨️ 1. نافذة معاينة وطباعة بطاقات اعتماد الأساتذة (8 بطاقات بالورقة الواحدة A4 بنظام الشبكة 2x4) */}
+      {/* 🖨️ 1. نافذة معاينة وطباعة بطاقات اعتماد الأساتذة (10 بطاقات بالورقة الواحدة A4 بنظام الشبكة 2x5) */}
       {showTeacherPrintModal && isMounted && typeof document !== 'undefined' && createPortal((() => {
         const printList = singleTeacherPrintProfile
           ? [singleTeacherPrintProfile]
@@ -13611,7 +13663,7 @@ onClose={() => {
             className="fixed inset-0 top-0 left-0 right-0 bottom-0 w-screen h-screen min-h-[100dvh] z-[999999] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 overflow-hidden print:p-0 print:static print:bg-white print:backdrop-blur-none print:w-full print:h-auto print:min-h-0 print:overflow-visible print:block" 
             dir="rtl"
           >
-            <div className="bg-white border-2 border-slate-400 rounded-3xl w-full max-w-7xl max-h-[94vh] shadow-2xl flex flex-col relative overflow-hidden text-right print:max-h-none print:shadow-none print:border-none print:w-full print:rounded-none print:overflow-visible print:static print:block print:h-auto">
+            <div className="bg-white border-2 border-slate-400 rounded-3xl w-full max-w-5xl max-h-[94vh] shadow-2xl flex flex-col relative overflow-hidden text-right print:max-h-none print:shadow-none print:border-none print:w-full print:rounded-none print:overflow-visible print:static print:block print:h-auto">
               
               {/* شريط الأدوات العلوي */}
               <div className="p-4 sm:p-5 border-b-2 border-slate-300 bg-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0 z-10 print:hidden no-print">
@@ -13620,19 +13672,19 @@ onClose={() => {
                     <Printer className="w-6 h-6" />
                   </div>
                   <div>
-                    <h3 className="text-base sm:text-lg font-black text-black flex items-center gap-2">
+                    <h3 className="text-base sm:text-lg font-black text-black flex flex-wrap sm:flex-nowrap items-center gap-2">
                       <span>معاينة وطباعة بطاقات اعتماد الأساتذة — قسم {deptName}</span>
-                      <span className="px-3 py-0.5 rounded-full bg-slate-200 text-black text-xs font-black border border-slate-300">
-                        {printList.length} بطاقة (8 بطاقات بالورقة الواحدة A4)
+                      <span className="px-3 py-1 rounded-full bg-slate-200 text-black text-xs font-black border border-slate-300 whitespace-nowrap shrink-0 inline-block">
+                        {printList.length} بطاقة (10 بطاقات بالورقة الواحدة A4)
                       </span>
                     </h3>
-                    <p className="text-xs sm:text-sm font-black text-slate-700">
-                      شبكة ثنائية 2x4 فائقة الكفاءة بسطر واحد لكل خانة لتوفير استهلاك الأوراق
+                    <p className="text-xs sm:text-sm font-black text-slate-800">
+                      شبكة ثنائية 2x5 فائقة الكفاءة ومضغوطة لتوفير استهلاك الأوراق
                     </p>
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-3">
+                <div className="flex flex-wrap items-center justify-end gap-2.5 shrink-0">
                   {singleTeacherPrintProfile && (
                     <button
                       type="button"
@@ -13649,9 +13701,10 @@ onClose={() => {
                     onClick={() => window.print()}
                     disabled={printList.length === 0}
                     className="px-5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] disabled:bg-slate-300 text-white rounded-2xl text-xs sm:text-sm font-black transition flex items-center gap-2 shadow-xs cursor-pointer border border-[#0F2942] active:scale-95"
+                    title="طباعة مباشرة أو حفظ بتنسيق PDF على ورق A4 (10 بطاقات بالصفحة)"
                   >
                     <Printer className="w-4 h-4 text-cyan-300" />
-                    <span>طباعة الآن ({printList.length})</span>
+                    <span>طباعة وتصدير PDF الآن ({printList.length})</span>
                   </button>
 
                   <button
@@ -13660,7 +13713,7 @@ onClose={() => {
                       setShowTeacherPrintModal(false);
                       setSingleTeacherPrintProfile(null);
                     }}
-                    className="p-2.5 bg-slate-200 hover:bg-slate-300 text-black rounded-2xl transition cursor-pointer"
+                    className="p-2.5 bg-slate-200 hover:bg-slate-300 text-black rounded-2xl transition cursor-pointer shrink-0"
                     title="إغلاق"
                   >
                     <X className="w-5 h-5" />
@@ -13668,7 +13721,7 @@ onClose={() => {
                 </div>
               </div>
 
-              {/* منطقة الطباعة بنظام الشبكة 2 عمود × 4 صفوف */}
+              {/* منطقة الطباعة بنظام الشبكة 2 عمود × 5 صفوف */}
               <div className="p-3 sm:p-5 overflow-y-auto flex-1 overscroll-contain printable-batch-area bg-slate-100 print:bg-white print:p-0 print:overflow-visible print:static print:block print:h-auto">
                 {printList.length === 0 ? (
                   <div className="p-12 text-center bg-white rounded-3xl border-2 border-slate-300 space-y-3 my-6">
@@ -13676,7 +13729,7 @@ onClose={() => {
                     <p className="text-base font-black text-black">لا يوجد أساتذة محددين للطباعة حالياً.</p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 print:grid-cols-2 print:gap-1.5 w-full cards-grid-8">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 print:grid-cols-2 print:gap-1 w-full cards-grid-8 max-w-5xl mx-auto">
                     {printList.map((teacher: UserProfile, index: number) => {
                       const isFemale = (teacher.gender || detectArabicGender(teacher.full_name)) === 'female';
                       const roleTitle = isFemale ? 'أستاذة جامعية' : 'أستاذ جامعي';
@@ -13686,145 +13739,86 @@ onClose={() => {
 
                       return (
                         <div
-                          key={teacher.id || index}
-                          className="bg-white border border-slate-900 rounded-lg p-2 print:p-1 shadow-xs break-inside-avoid print:break-inside-avoid print:border print:border-slate-950 print:rounded-md print:shadow-none w-full flex flex-col gap-1 print:gap-0.5 card-item-8"
+                          key={teacher.id || index} // 🔑 مفتاح فريد لكل كارد أستاذ بالرندر
+                          className="bg-white border border-slate-400 rounded-xl p-2 print:p-1.5 shadow-xs break-inside-avoid print:break-inside-avoid print:border print:border-slate-500 print:rounded-lg print:shadow-none w-full flex flex-col justify-between card-item-8" // 🗂️ حاوية الكارد الأكاديمي بارتفاع 52 ملم تملأ الورقة بالكامل بدون فراغات زائدة
                         >
-                          {/* 🏛️ ترويسة البطاقة الرسمية بسطرين متناسقين ومرتبين بجانب الشعار */}
-                          <div className="flex items-center justify-between border-b border-slate-900 pb-1 print:pb-0.5">
-                            <div className="flex items-center gap-2 overflow-hidden w-full">
-                              {/* شعار الجامعة الرسمي */}
-                              <div className="relative w-7 h-7 print:w-6 print:h-6 flex-shrink-0">
-                                <Image
-                                  src="/logo.webp"
-                                  alt="شعار جامعة الصادق"
-                                  width={28}
-                                  height={28}
-                                  className="object-contain"
-                                  priority
-                                  unoptimized
+                          {/* 🏛️ 1. ترويسة الكارد الرسمية: الشعار وعنوان الجامعة وشارة التدريسي بخطوط سوداء فاحمة وواضحة */}
+                          <div className="flex items-center justify-between border-b border-slate-300 pb-1 print:pb-0.5"> {/* 📐 حاوية الترويسة مع خط فاصل داكن */}
+                            <div className="flex items-center gap-1.5 overflow-hidden"> {/* 🏢 مجمع الشعار والعناوين الرسمية */}
+                              {/* شعار الجامعة الرسمي بجودة واضحة وبحجم مدمج */}
+                              <div className="relative w-8 h-8 print:w-7 print:h-7 flex-shrink-0"> {/* 🖼️ إطار أبعاد الشعار الرسمي */}
+                                <Image // 🖼️ مكون صورة الشعار
+                                  src="/logo.webp" // 📍 مسار الشعار المعتمد
+                                  alt="شعار جامعة الصادق" // 🏷️ نص بديل لأغراض الوصولية
+                                  width={32} // 📏 العرض بالبكسل
+                                  height={32} // 📏 الارتفاع بالبكسل
+                                  className="object-contain" // 🎨 احتواء الصورة بالكامل بدون تشويه
+                                  priority // ⚡ تحميل سريع وفوري
+                                  unoptimized // 🚀 بدون تحسين إضافي للملفات المحلية
                                 />
                               </div>
-                              {/* النصوص الرسمية للترويسة بسطرين مرتبين ومنسقين */}
-                              <div className="flex flex-col justify-center leading-none min-w-0">
-                                <h4 className="text-[11px] print:text-[9.5px] font-black text-black whitespace-nowrap leading-tight">
-                                  جامعة الإمام جعفر الصادق (عليه السلام) — فرع ميسان
+                              {/* العناوين الرسمية لجامعة الإمام الصادق ومسار بولونيا بخط أسود بارز ومقروء */}
+                              <div className="flex flex-col justify-center leading-none min-w-0"> {/* 📝 نصوص اسم الجامعة والوزارة */}
+                                <h4 className="text-xs print:text-[11px] font-black text-black whitespace-nowrap leading-tight"> {/* 🏛️ اسم الجامعة وفرع ميسان بلون أسود عريض وواضح */}
+                                  جامعة الإمام جعفر الصادق (ع) — فرع ميسان
                                 </h4>
-                                <p className="text-[9.5px] print:text-[8px] text-slate-700 font-bold whitespace-nowrap leading-tight mt-0.5">
-                                  جمهورية العراق — وزارة التعليم العالي والبحث العلمي (مسار بولونيا)
+                                <p className="text-[10px] print:text-[9.5px] text-black font-extrabold whitespace-nowrap leading-tight mt-0.5"> {/* 📜 اسم الوزارة والمسار بخط أسود بارز */}
+                                  وزارة التعليم العالي والبحث العلمي — مسار بولونيا
                                 </p>
+                              </div>
+                            </div>
+                            {/* شارة الهوية الرسمية للأستاذ أو الأستاذة بخط أسود بارز ومحاط بإطار أنيق */}
+                            <span className="px-2 py-0.5 rounded-md bg-white text-black text-[10px] print:text-[9.5px] font-black border border-slate-300 whitespace-nowrap shrink-0 shadow-2xs"> {/* 🏷️ باج الهوية الأكاديمية */}
+                              {roleTitle}
+                            </span>
+                          </div>
+
+                          {/* 👤 2. شريط هوية الأستاذ والقسم التابع إله بخطوط سوداء عريضة */}
+                          <div className="flex items-center justify-between gap-2 py-0.5 px-0.5"> {/* 📌 حاوية اسم التدريسي والقسم العلمي بتنسيق ممتلئ وأنيق */}
+                            <div className="flex items-center gap-1.5 overflow-hidden"> {/* 🏷️ أيقونة واسم الأستاذ */}
+                              <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center shrink-0 border border-slate-300"> {/* ⭕ دائرة أيقونة المستخدم */}
+                                <User className="w-3 h-3 text-[#0F2942]" /> {/* 👤 أيقونة الأستاذ باللون النيلي */}
+                              </div>
+                              <span className="text-sm print:text-[12px] font-black text-black truncate"> {/* ✍️ الاسم الكامل للتدريسي بخط أسود كبير وواضح */}
+                                {teacher.full_name}
+                              </span>
+                            </div>
+                            <span className="text-[10.5px] print:text-[10px] font-black text-black bg-white px-2 py-0.5 rounded-md border border-slate-300 whitespace-nowrap shrink-0 shadow-2xs"> {/* 🏢 اسم القسم العلمي بخط أسود عريض */}
+                              {deptName}
+                            </span>
+                          </div>
+
+                          {/* 🔐 3. شبكة بيانات الدخول (ألوان موحدة وخانات بيضاء نقية بخطوط سوداء فاحمة) */}
+                          <div className="grid grid-cols-2 gap-1.5 print:gap-1 my-0.5"> {/* 🔲 شبكة بعمودين متوازيين للبيانات بتصميم متوحد ونظيف */}
+                            {/* صندوق البريد الإلكتروني الأكاديمي بخانة بيضاء نقية مثل الرمز السري تماماً */}
+                            <div className="bg-slate-50 border border-slate-300 rounded-md p-1.5 flex flex-col justify-center"> {/* ✉️ بوكس الإيميل الأكاديمي الموحد بحشوة متناسقة */}
+                              <div className="flex items-center gap-1 text-[10px] print:text-[9.5px] font-black text-black mb-1"> {/* 🏷️ عنوان حقل الإيميل بخط أسود بارز */}
+                                <Mail className="w-3 h-3 text-[#0F2942] shrink-0" /> {/* ✉️ أيقونة البريد بلون نيلي موحد */}
+                                <span>البريد الأكاديمي</span>
+                              </div>
+                              <div className="font-mono text-[10.5px] print:text-[10px] font-black text-black truncate text-center select-all bg-white py-1 px-1.5 rounded border border-slate-300 shadow-2xs" dir="ltr"> {/* 🔤 خانة البريد بيضاء نقية ومحاطة بإطار أنيق مريح */}
+                                {teacher.generated_email}
+                              </div>
+                            </div>
+
+                            {/* صندوق الرمز السري المؤقت بتصميم موحد تماماً مع صندوق البريد بخط أسود */}
+                            <div className="bg-slate-50 border border-slate-300 rounded-md p-1.5 flex flex-col justify-center"> {/* 🔑 بوكس كلمة المرور موحد بلون متناسق وبدون أخضر */}
+                              <div className="flex items-center gap-1 text-[10px] print:text-[9.5px] font-black text-black mb-1"> {/* 🏷️ عنوان حقل كلمة السر بخط أسود بارز */}
+                                <KeyRound className="w-3 h-3 text-[#0F2942] shrink-0" /> {/* 🔑 أيقونة المفتاح بلون نيلي موحد */}
+                                <span>كلمة المرور المؤقتة</span>
+                              </div>
+                              <div className="font-mono text-[12px] print:text-[11px] font-black tracking-widest text-black truncate text-center select-all bg-white py-1 px-1.5 rounded border border-slate-300 shadow-2xs" dir="ltr"> {/* 🔢 خانة الباسورد بيضاء نقية بخط أسود عريض ومتباعد */}
+                                {teacher.temp_password || '********'}
                               </div>
                             </div>
                           </div>
 
-                          {/* 📝 عنوان محضر التسليم بسطر واحد مدمج ومحكم المسافات */}
-                          <div className="text-center py-0.5 bg-slate-100 rounded border border-slate-300 flex items-center justify-center gap-1.5 print:py-0.5 whitespace-nowrap shrink-0">
-                            <Award className="w-3 h-3 text-indigo-950 shrink-0" />
-                            <h5 className="text-[10px] print:text-[9.5px] font-black text-black whitespace-nowrap leading-tight">
-                              بطاقة تسليم بيانات الاعتماد الأكاديمي الرسمي ({roleTitle})
-                            </h5>
-                          </div>
-
-                          {/* 📋 جدول بيانات الاعتماد والتسليم الموسع والمريح لكافة الخانات الـ 6 */}
-                          <div className="overflow-hidden border border-slate-900 rounded flex-1 flex flex-col card-table-container">
-                            <table className="w-full h-full border-collapse text-right text-xs print:text-[10px] flex-1 table-fixed">
-                              <colgroup>
-                                <col style={{ width: '16%' }} />
-                                <col style={{ width: '28%' }} />
-                                <col style={{ width: '17%' }} />
-                                <col style={{ width: '39%' }} />
-                              </colgroup>
-                              <tbody className="h-full">
-                                {/* الصف الأول: اسم الأستاذ + الصفة الأكاديمية */}
-                                <tr className="border-b border-slate-900 h-1/3">
-                                  {/* خانة تسمية الاسم */}
-                                  <td className="w-[16%] bg-slate-100 px-1 py-0.5 font-black text-black border-l border-slate-900 whitespace-nowrap shrink-0 align-middle overflow-hidden">
-                                    <div className="flex items-center gap-0.5 whitespace-nowrap text-[9px] print:text-[8.5px] font-black text-slate-900">
-                                      <User className="w-2.5 h-2.5 print:w-2 print:h-2 text-indigo-950 shrink-0" />
-                                      <span>اسم الأستاذ:</span>
-                                    </div>
-                                  </td>
-                                  {/* خانة قيمة الاسم بخط كبير وعريض وواضح جداً */}
-                                  <td className="w-[28%] bg-white px-1.5 py-0.5 font-black text-black border-l border-slate-900 align-middle overflow-hidden">
-                                    <div className="w-full text-right break-words leading-tight text-xs print:text-[10.5px] font-black text-black">
-                                      {teacher.full_name}
-                                    </div>
-                                  </td>
-                                  {/* خانة تسمية الصفة */}
-                                  <td className="w-[17%] bg-slate-100 px-1 py-0.5 font-black text-black border-l border-slate-900 whitespace-nowrap shrink-0 align-middle overflow-hidden">
-                                    <div className="flex items-center gap-0.5 whitespace-nowrap text-[9px] print:text-[8.5px] font-black text-slate-900">
-                                      <Award className="w-2.5 h-2.5 print:w-2 print:h-2 text-indigo-950 shrink-0" />
-                                      <span>الصفة:</span>
-                                    </div>
-                                  </td>
-                                  {/* خانة قيمة الصفة بخط بارز وواضح جداً */}
-                                  <td className="w-[39%] bg-white px-1.5 py-0.5 font-black text-black align-middle overflow-hidden">
-                                    <div className="w-full text-right break-words leading-tight text-xs print:text-[10.5px] font-black text-black">
-                                      {isFemale ? 'تدريسية' : 'تدريسي'}
-                                    </div>
-                                  </td>
-                                </tr>
-
-                                {/* الصف الثاني: القسم العلمي + البريد الأكاديمي */}
-                                <tr className="border-b border-slate-900 h-1/3">
-                                  {/* خانة تسمية القسم العلمي */}
-                                  <td className="w-[16%] bg-slate-100 px-1 py-0.5 font-black text-black border-l border-slate-900 whitespace-nowrap shrink-0 align-middle overflow-hidden">
-                                    <div className="flex items-center gap-0.5 whitespace-nowrap text-[9px] print:text-[8.5px] font-black text-slate-900">
-                                      <Building2 className="w-2.5 h-2.5 print:w-2 print:h-2 text-indigo-950 shrink-0" />
-                                      <span>القسم العلمي:</span>
-                                    </div>
-                                  </td>
-                                  {/* خانة قيمة القسم العلمي مضمونة الظهور وبخط واضح جداً */}
-                                  <td className="w-[28%] bg-white px-1.5 py-0.5 font-black text-black border-l border-slate-900 align-middle overflow-hidden">
-                                    <div className="w-full text-right break-words leading-tight text-xs print:text-[10px] font-black text-black">
-                                      {deptName}
-                                    </div>
-                                  </td>
-                                  {/* خانة تسمية البريد الأكاديمي */}
-                                  <td className="w-[17%] bg-slate-100 px-1 py-0.5 font-black text-black border-l border-slate-900 whitespace-nowrap shrink-0 align-middle overflow-hidden">
-                                    <div className="flex items-center gap-0.5 whitespace-nowrap text-[9px] print:text-[8.5px] font-black text-slate-900">
-                                      <Mail className="w-2.5 h-2.5 print:w-2 print:h-2 text-indigo-950 shrink-0" />
-                                      <span>البريد الأكاديمي:</span>
-                                    </div>
-                                  </td>
-                                  {/* خانة قيمة البريد الأكاديمي بخط أسود عريض وواضح جداً */}
-                                  <td className="w-[39%] bg-white px-1.5 py-0.5 font-black text-black select-all font-mono align-middle overflow-hidden">
-                                    <div className="w-full text-left font-mono break-all leading-tight text-[10px] print:text-[9.5px] font-black tracking-tight text-black" dir="ltr">
-                                      {teacher.generated_email}
-                                    </div>
-                                  </td>
-                                </tr>
-
-                                {/* الصف الثالث: كلمة المرور + بوابة الدخول */}
-                                <tr className="h-1/3">
-                                  {/* خانة تسمية كلمة المرور */}
-                                  <td className="w-[16%] bg-slate-100 px-1 py-0.5 font-black text-black border-l border-slate-900 whitespace-nowrap shrink-0 align-middle overflow-hidden">
-                                    <div className="flex items-center gap-0.5 whitespace-nowrap text-[9px] print:text-[8.5px] font-black text-slate-900">
-                                      <KeyRound className="w-2.5 h-2.5 print:w-2 print:h-2 text-indigo-950 shrink-0" />
-                                      <span>كلمة المرور:</span>
-                                    </div>
-                                  </td>
-                                  {/* خانة قيمة كلمة المرور بخط كبير جداً 12px وبارز لمنع أي لبس */}
-                                  <td className="w-[28%] bg-white px-1.5 py-0.5 font-black text-black select-all font-mono border-l border-slate-900 align-middle overflow-hidden text-center" dir="ltr">
-                                    <div className="w-full text-center font-mono break-all leading-tight text-sm print:text-[12px] font-black tracking-wider text-black" dir="ltr">
-                                      {teacher.temp_password || '********'}
-                                    </div>
-                                  </td>
-                                  {/* خانة تسمية بوابة الدخول */}
-                                  <td className="w-[17%] bg-slate-100 px-1 py-0.5 font-black text-black border-l border-slate-900 whitespace-nowrap shrink-0 align-middle overflow-hidden">
-                                    <div className="flex items-center gap-0.5 whitespace-nowrap text-[9px] print:text-[8.5px] font-black text-slate-900">
-                                      <Globe className="w-2.5 h-2.5 print:w-2 print:h-2 text-indigo-950 shrink-0" />
-                                      <span>بوابة الدخول:</span>
-                                    </div>
-                                  </td>
-                                  {/* خانة قيمة رابط المنصة بخط واضح وأسود عريض */}
-                                  <td className="w-[39%] bg-white px-1.5 py-0.5 font-black text-black select-all font-mono align-middle overflow-hidden">
-                                    <div className="w-full text-left font-mono break-all leading-tight text-[10px] print:text-[9.5px] font-black tracking-tight text-black" dir="ltr">
-                                      {loginPortalCleanUrl}
-                                    </div>
-                                  </td>
-                                </tr>
-                              </tbody>
-                            </table>
+                          {/* 🌐 4. رابط المنصة المباشر بحجم خط مطابق لاسم الأستاذ بدون توقيع المستلم وبخط أسود فاحم */}
+                          <div className="flex items-center justify-center border-t border-slate-300 pt-1.5 print:pt-1"> {/* 📄 شريط رابط البوابة في المنتصف ومضغوط المساحة */}
+                            <div className="flex items-center gap-1.5 font-mono text-xs print:text-[11.5px] font-black text-black truncate select-all bg-slate-50 border border-slate-200 px-2.5 py-0.5 rounded-md" dir="ltr"> {/* 🔗 رابط الدخول بحجم مساوٍ لاسم الأستاذ مع إطار ناعم */}
+                              <Globe className="w-3.5 h-3.5 text-[#0F2942] shrink-0" /> {/* 🌐 أيقونة الكرة الأرضية بلون نيلي */}
+                              <span className="truncate">{loginPortalCleanUrl}</span> {/* 🌐 رابط البوابة النظيف والواضح */}
+                            </div>
                           </div>
                         </div>
                       );
@@ -13837,7 +13831,7 @@ onClose={() => {
         );
       })(), document.body)}
 
-      {/* 🖨️ 2. نافذة معاينة وطباعة بطاقات اعتماد الطلبة (8 بطاقات بالورقة الواحدة A4 بنظام الشبكة 2x4) */}
+      {/* 🖨️ 2. نافذة معاينة وطباعة بطاقات اعتماد الطلبة (10 بطاقات بالورقة الواحدة A4 بنظام الشبكة 2x5) */}
       {showStudentPrintModal && isMounted && typeof document !== 'undefined' && createPortal((() => {
         let printList = singleStudentPrintProfile
           ? [singleStudentPrintProfile]
@@ -13897,7 +13891,7 @@ onClose={() => {
             className="fixed inset-0 top-0 left-0 right-0 bottom-0 w-screen h-screen min-h-[100dvh] z-[999999] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 overflow-hidden print:p-0 print:static print:bg-white print:backdrop-blur-none print:w-full print:h-auto print:min-h-0 print:overflow-visible print:block" 
             dir="rtl"
           >
-            <div className="bg-white border-2 border-slate-400 rounded-3xl w-full max-w-7xl max-h-[94vh] shadow-2xl flex flex-col relative overflow-hidden text-right print:max-h-none print:shadow-none print:border-none print:w-full print:rounded-none print:overflow-visible print:static print:block print:h-auto">
+            <div className="bg-white border-2 border-slate-400 rounded-3xl w-full max-w-5xl max-h-[94vh] shadow-2xl flex flex-col relative overflow-hidden text-right print:max-h-none print:shadow-none print:border-none print:w-full print:rounded-none print:overflow-visible print:static print:block print:h-auto">
               
               {/* شريط الأدوات العلوي */}
               <div className="p-4 sm:p-5 border-b-2 border-slate-300 bg-slate-50 flex flex-col lg:flex-row lg:items-center justify-between gap-4 shrink-0 z-10 print:hidden no-print">
@@ -13906,19 +13900,19 @@ onClose={() => {
                     <Printer className="w-6 h-6" />
                   </div>
                   <div>
-                    <h3 className="text-base sm:text-lg font-black text-black flex items-center gap-2">
+                    <h3 className="text-base sm:text-lg font-black text-black flex flex-wrap sm:flex-nowrap items-center gap-2">
                       <span>معاينة وطباعة بطاقات اعتماد الطلبة — قسم {deptName}</span>
-                      <span className="px-3 py-0.5 rounded-full bg-slate-200 text-black text-xs font-black border border-slate-300">
-                        {printList.length} بطاقة (8 بطاقات بالورقة الواحدة A4)
+                      <span className="px-3 py-1 rounded-full bg-slate-200 text-black text-xs font-black border border-slate-300 whitespace-nowrap shrink-0 inline-block">
+                        {printList.length} بطاقة (10 بطاقات بالورقة الواحدة A4)
                       </span>
                     </h3>
-                    <p className="text-xs sm:text-sm font-black text-slate-700">
-                      شبكة ثنائية 2x4 فائقة الكفاءة بسطر واحد لكل خانة لتوفير استهلاك الأوراق
+                    <p className="text-xs sm:text-sm font-black text-slate-800">
+                      شبكة ثنائية 2x5 فائقة الكفاءة ومضغوطة لتوفير استهلاك الأوراق
                     </p>
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-3">
+                <div className="flex flex-wrap items-center justify-end gap-2.5 shrink-0">
                   {/* فلاتر المرحلة والدراسة الاحترافية بتصميم حديث وأعداد دقيقة */}
                   {!singleStudentPrintProfile && (
                     <div className="flex items-center gap-2.5">
@@ -13956,9 +13950,10 @@ onClose={() => {
                     onClick={() => window.print()}
                     disabled={printList.length === 0}
                     className="px-5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] disabled:bg-slate-300 text-white rounded-2xl text-xs sm:text-sm font-black transition flex items-center gap-2 shadow-xs cursor-pointer border border-[#0F2942] active:scale-95"
+                    title="طباعة مباشرة أو حفظ بتنسيق PDF على ورق A4 (10 بطاقات بالصفحة)"
                   >
                     <Printer className="w-4 h-4 text-cyan-300" />
-                    <span>طباعة الآن ({printList.length})</span>
+                    <span>طباعة وتصدير PDF الآن ({printList.length})</span>
                   </button>
 
                   <button
@@ -13967,7 +13962,7 @@ onClose={() => {
                       setShowStudentPrintModal(false);
                       setSingleStudentPrintProfile(null);
                     }}
-                    className="p-2.5 bg-slate-200 hover:bg-slate-300 text-black rounded-2xl transition cursor-pointer"
+                    className="p-2.5 bg-slate-200 hover:bg-slate-300 text-black rounded-2xl transition cursor-pointer shrink-0"
                     title="إغلاق"
                   >
                     <X className="w-5 h-5" />
@@ -13975,7 +13970,7 @@ onClose={() => {
                 </div>
               </div>
 
-              {/* منطقة الطباعة بنظام الشبكة 2 عمود × 4 صفوف */}
+              {/* منطقة الطباعة بنظام الشبكة 2 عمود × 5 صفوف */}
               <div className="p-3 sm:p-5 overflow-y-auto flex-1 overscroll-contain printable-batch-area bg-slate-100 print:bg-white print:p-0 print:overflow-visible print:static print:block print:h-auto">
                 {printList.length === 0 ? (
                   <div className="p-12 text-center bg-white rounded-3xl border-2 border-slate-300 space-y-3 my-6">
@@ -13983,7 +13978,7 @@ onClose={() => {
                     <p className="text-base font-black text-black">لا يوجد طلاب مطابقين للخيارات المحددة حالياً.</p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 print:grid-cols-2 print:gap-1.5 w-full cards-grid-8">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 print:grid-cols-2 print:gap-1 w-full cards-grid-8 max-w-5xl mx-auto">
                     {printList.map((student: UserProfile, index: number) => {
                       const curStage = student.stage_number || 1;
                       const stageName = getStageNameInArabic(curStage);
@@ -13994,145 +13989,86 @@ onClose={() => {
 
                       return (
                         <div
-                          key={student.id || index}
-                          className="bg-white border border-slate-900 rounded-lg p-2 print:p-1 shadow-xs break-inside-avoid print:break-inside-avoid print:border print:border-slate-950 print:rounded-md print:shadow-none w-full flex flex-col gap-1 print:gap-0.5 card-item-8"
+                          key={student.id || index} // 🔑 مفتاح فريد لكل كارد طالب بالرندر
+                          className="bg-white border border-slate-400 rounded-xl p-2 print:p-1.5 shadow-xs break-inside-avoid print:break-inside-avoid print:border print:border-slate-500 print:rounded-lg print:shadow-none w-full flex flex-col justify-between card-item-8" // 🗂️ حاوية الكارد الأكاديمي بارتفاع 52 ملم تملأ الورقة بالكامل بدون فراغات زائدة
                         >
-                          {/* 🏛️ ترويسة البطاقة الرسمية بسطرين متناسقين ومرتبين بجانب الشعار */}
-                          <div className="flex items-center justify-between border-b border-slate-900 pb-1 print:pb-0.5">
-                            <div className="flex items-center gap-2 overflow-hidden w-full">
-                              {/* شعار الجامعة الرسمي */}
-                              <div className="relative w-7 h-7 print:w-6 print:h-6 flex-shrink-0">
-                                <Image
-                                  src="/logo.webp"
-                                  alt="شعار جامعة الصادق"
-                                  width={28}
-                                  height={28}
-                                  className="object-contain"
-                                  priority
-                                  unoptimized
+                          {/* 🏛️ 1. ترويسة الكارد الرسمية: الشعار وعنوان الجامعة وشارة الطالب بخطوط سوداء فاحمة وواضحة */}
+                          <div className="flex items-center justify-between border-b border-slate-300 pb-1 print:pb-0.5"> {/* 📐 حاوية الترويسة مع خط فاصل داكن */}
+                            <div className="flex items-center gap-1.5 overflow-hidden"> {/* 🏢 مجمع الشعار والعناوين الرسمية */}
+                              {/* شعار الجامعة الرسمي بجودة واضحة وبحجم مدمج */}
+                              <div className="relative w-8 h-8 print:w-7 print:h-7 flex-shrink-0"> {/* 🖼️ إطار أبعاد الشعار الرسمي */}
+                                <Image // 🖼️ مكون صورة الشعار
+                                  src="/logo.webp" // 📍 مسار الشعار المعتمد
+                                  alt="شعار جامعة الصادق" // 🏷️ نص بديل لأغراض الوصولية
+                                  width={32} // 📏 العرض بالبكسل
+                                  height={32} // 📏 الارتفاع بالبكسل
+                                  className="object-contain" // 🎨 احتواء الصورة بالكامل بدون تشويه
+                                  priority // ⚡ تحميل سريع وفوري
+                                  unoptimized // 🚀 بدون تحسين إضافي للملفات المحلية
                                 />
                               </div>
-                              {/* النصوص الرسمية للترويسة بسطرين مرتبين ومنسقين */}
-                              <div className="flex flex-col justify-center leading-none min-w-0">
-                                <h4 className="text-[11px] print:text-[9.5px] font-black text-black whitespace-nowrap leading-tight">
-                                  جامعة الإمام جعفر الصادق (عليه السلام) — فرع ميسان
+                              {/* العناوين الرسمية لجامعة الإمام الصادق ومسار بولونيا بخط أسود بارز ومقروء */}
+                              <div className="flex flex-col justify-center leading-none min-w-0"> {/* 📝 نصوص اسم الجامعة والوزارة */}
+                                <h4 className="text-xs print:text-[11px] font-black text-black whitespace-nowrap leading-tight"> {/* 🏛️ اسم الجامعة وفرع ميسان بلون أسود عريض وواضح */}
+                                  جامعة الإمام جعفر الصادق (ع) — فرع ميسان
                                 </h4>
-                                <p className="text-[9.5px] print:text-[8px] text-slate-700 font-bold whitespace-nowrap leading-tight mt-0.5">
-                                  جمهورية العراق — وزارة التعليم العالي والبحث العلمي (مسار بولونيا)
+                                <p className="text-[10px] print:text-[9.5px] text-black font-extrabold whitespace-nowrap leading-tight mt-0.5"> {/* 📜 اسم الوزارة والمسار بخط أسود بارز */}
+                                  وزارة التعليم العالي والبحث العلمي — مسار بولونيا
                                 </p>
+                              </div>
+                            </div>
+                            {/* شارة الهوية الرسمية للطالب الجامعي بخط أسود بارز ومحاط بإطار أنيق */}
+                            <span className="px-2 py-0.5 rounded-md bg-white text-black text-[10px] print:text-[9.5px] font-black border border-slate-300 whitespace-nowrap shrink-0 shadow-2xs"> {/* 🏷️ باج هوية الطالب */}
+                              بطاقة طالب
+                            </span>
+                          </div>
+
+                          {/* 👤 2. شريط هوية الطالب وقسمه ومرحلته الدراسية بخطوط سوداء عريضة */}
+                          <div className="flex items-center justify-between gap-2 py-0.5 px-0.5"> {/* 📌 حاوية اسم الطالب وبيانات المرحلة بتنسيق ممتلئ وأنيق */}
+                            <div className="flex items-center gap-1.5 overflow-hidden"> {/* 🏷️ أيقونة واسم الطالب */}
+                              <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center shrink-0 border border-slate-300"> {/* ⭕ دائرة أيقونة المستخدم */}
+                                <User className="w-3 h-3 text-[#0F2942]" /> {/* 👤 أيقونة الطالب باللون النيلي */}
+                              </div>
+                              <span className="text-sm print:text-[12px] font-black text-black truncate"> {/* ✍️ الاسم الكامل للطالب بخط أسود كبير وواضح */}
+                                {student.full_name}
+                              </span>
+                            </div>
+                            <span className="text-[10.5px] print:text-[10px] font-black text-black bg-white px-2 py-0.5 rounded-md border border-slate-300 whitespace-nowrap shrink-0 shadow-2xs"> {/* 🎓 المرحلة والدراسة بخط أسود عريض */}
+                              المرحلة {stageName} ({studyName})
+                            </span>
+                          </div>
+
+                          {/* 🔐 3. شبكة بيانات الدخول (ألوان موحدة وخانات بيضاء نقية بخطوط سوداء فاحمة) */}
+                          <div className="grid grid-cols-2 gap-1.5 print:gap-1 my-0.5"> {/* 🔲 شبكة بعمودين متوازيين للبيانات بتصميم متوحد ونظيف */}
+                            {/* صندوق البريد الإلكتروني الأكاديمي بخانة بيضاء نقية مثل الرمز السري تماماً */}
+                            <div className="bg-slate-50 border border-slate-300 rounded-md p-1.5 flex flex-col justify-center"> {/* ✉️ بوكس الإيميل الأكاديمي الموحد بحشوة متناسقة */}
+                              <div className="flex items-center gap-1 text-[10px] print:text-[9.5px] font-black text-black mb-1"> {/* 🏷️ عنوان حقل الإيميل بخط أسود بارز */}
+                                <Mail className="w-3 h-3 text-[#0F2942] shrink-0" /> {/* ✉️ أيقونة البريد بلون نيلي موحد */}
+                                <span>البريد الأكاديمي</span>
+                              </div>
+                              <div className="font-mono text-[10.5px] print:text-[10px] font-black text-black truncate text-center select-all bg-white py-1 px-1.5 rounded border border-slate-300 shadow-2xs" dir="ltr"> {/* 🔤 خانة البريد بيضاء نقية ومحاطة بإطار أنيق مريح */}
+                                {student.generated_email}
+                              </div>
+                            </div>
+
+                            {/* صندوق الرمز السري المؤقت بتصميم موحد تماماً مع صندوق البريد بخط أسود */}
+                            <div className="bg-slate-50 border border-slate-300 rounded-md p-1.5 flex flex-col justify-center"> {/* 🔑 بوكس كلمة المرور موحد بلون متناسق وبدون أخضر */}
+                              <div className="flex items-center gap-1 text-[10px] print:text-[9.5px] font-black text-black mb-1"> {/* 🏷️ عنوان حقل كلمة السر بخط أسود بارز */}
+                                <KeyRound className="w-3 h-3 text-[#0F2942] shrink-0" /> {/* 🔑 أيقونة المفتاح بلون نيلي موحد */}
+                                <span>كلمة المرور المؤقتة</span>
+                              </div>
+                              <div className="font-mono text-[12px] print:text-[11px] font-black tracking-widest text-black truncate text-center select-all bg-white py-1 px-1.5 rounded border border-slate-300 shadow-2xs" dir="ltr"> {/* 🔢 خانة الباسورد بيضاء نقية بخط أسود عريض ومتباعد */}
+                                {student.temp_password || '********'}
                               </div>
                             </div>
                           </div>
 
-                          {/* 📝 عنوان محضر التسليم بسطر واحد مدمج ومحكم المسافات */}
-                          <div className="text-center py-0.5 bg-slate-100 rounded border border-slate-300 flex items-center justify-center gap-1.5 print:py-0.5 whitespace-nowrap shrink-0">
-                            <Award className="w-3 h-3 text-indigo-950 shrink-0" />
-                            <h5 className="text-[10px] print:text-[9.5px] font-black text-black whitespace-nowrap leading-tight">
-                              بطاقة تسليم بيانات الاعتماد الأكاديمي الرسمي (طالب جامعي)
-                            </h5>
-                          </div>
-
-                          {/* 📋 جدول بيانات الاعتماد والتسليم الموسع والمريح لكافة الخانات الـ 6 */}
-                          <div className="overflow-hidden border border-slate-900 rounded flex-1 flex flex-col card-table-container">
-                            <table className="w-full h-full border-collapse text-right text-xs print:text-[10px] flex-1 table-fixed">
-                              <colgroup>
-                                <col style={{ width: '16%' }} />
-                                <col style={{ width: '28%' }} />
-                                <col style={{ width: '17%' }} />
-                                <col style={{ width: '39%' }} />
-                              </colgroup>
-                              <tbody className="h-full">
-                                {/* الصف الأول: اسم الطالب + المرحلة والدراسة */}
-                                <tr className="border-b border-slate-900 h-1/3">
-                                  {/* خانة تسمية اسم الطالب */}
-                                  <td className="w-[16%] bg-slate-100 px-1 py-0.5 font-black text-black border-l border-slate-900 whitespace-nowrap shrink-0 align-middle overflow-hidden">
-                                    <div className="flex items-center gap-0.5 whitespace-nowrap text-[9px] print:text-[8.5px] font-black text-slate-900">
-                                      <User className="w-2.5 h-2.5 print:w-2 print:h-2 text-indigo-950 shrink-0" />
-                                      <span>اسم الطالب:</span>
-                                    </div>
-                                  </td>
-                                  {/* خانة قيمة اسم الطالب بخط كبير وعريض وواضح جداً */}
-                                  <td className="w-[28%] bg-white px-1.5 py-0.5 font-black text-black border-l border-slate-900 align-middle overflow-hidden">
-                                    <div className="w-full text-right break-words leading-tight text-xs print:text-[10.5px] font-black text-black">
-                                      {student.full_name}
-                                    </div>
-                                  </td>
-                                  {/* خانة تسمية المرحلة والدراسة */}
-                                  <td className="w-[17%] bg-slate-100 px-1 py-0.5 font-black text-black border-l border-slate-900 whitespace-nowrap shrink-0 align-middle overflow-hidden">
-                                    <div className="flex items-center gap-0.5 whitespace-nowrap text-[9px] print:text-[8.5px] font-black text-slate-900">
-                                      <GraduationCap className="w-2.5 h-2.5 print:w-2 print:h-2 text-indigo-950 shrink-0" />
-                                      <span>المرحلة:</span>
-                                    </div>
-                                  </td>
-                                  {/* خانة قيمة المرحلة والدراسة بخط بارز وواضح جداً */}
-                                  <td className="w-[39%] bg-white px-1.5 py-0.5 font-black text-black align-middle overflow-hidden">
-                                    <div className="w-full text-right break-words leading-tight text-xs print:text-[10.5px] font-black text-black">
-                                      المرحلة {stageName} ({studyName})
-                                    </div>
-                                  </td>
-                                </tr>
-
-                                {/* الصف الثاني: القسم العلمي + البريد الأكاديمي */}
-                                <tr className="border-b border-slate-900 h-1/3">
-                                  {/* خانة تسمية القسم العلمي */}
-                                  <td className="w-[16%] bg-slate-100 px-1 py-0.5 font-black text-black border-l border-slate-900 whitespace-nowrap shrink-0 align-middle overflow-hidden">
-                                    <div className="flex items-center gap-0.5 whitespace-nowrap text-[9px] print:text-[8.5px] font-black text-slate-900">
-                                      <Building2 className="w-2.5 h-2.5 print:w-2 print:h-2 text-indigo-950 shrink-0" />
-                                      <span>القسم العلمي:</span>
-                                    </div>
-                                  </td>
-                                  {/* خانة قيمة القسم العلمي مضمونة الظهور وبخط واضح جداً */}
-                                  <td className="w-[28%] bg-white px-1.5 py-0.5 font-black text-black border-l border-slate-900 align-middle overflow-hidden">
-                                    <div className="w-full text-right break-words leading-tight text-xs print:text-[10px] font-black text-black">
-                                      {deptName}
-                                    </div>
-                                  </td>
-                                  {/* خانة تسمية البريد الأكاديمي */}
-                                  <td className="w-[17%] bg-slate-100 px-1 py-0.5 font-black text-black border-l border-slate-900 whitespace-nowrap shrink-0 align-middle overflow-hidden">
-                                    <div className="flex items-center gap-0.5 whitespace-nowrap text-[9px] print:text-[8.5px] font-black text-slate-900">
-                                      <Mail className="w-2.5 h-2.5 print:w-2 print:h-2 text-indigo-950 shrink-0" />
-                                      <span>البريد الأكاديمي:</span>
-                                    </div>
-                                  </td>
-                                  {/* خانة قيمة البريد الأكاديمي بخط أسود عريض وواضح جداً */}
-                                  <td className="w-[39%] bg-white px-1.5 py-0.5 font-black text-black select-all font-mono align-middle overflow-hidden">
-                                    <div className="w-full text-left font-mono break-all leading-tight text-[10px] print:text-[9.5px] font-black tracking-tight text-black" dir="ltr">
-                                      {student.generated_email}
-                                    </div>
-                                  </td>
-                                </tr>
-
-                                {/* الصف الثالث: كلمة المرور + بوابة الدخول */}
-                                <tr className="h-1/3">
-                                  {/* خانة تسمية كلمة المرور */}
-                                  <td className="w-[16%] bg-slate-100 px-1 py-0.5 font-black text-black border-l border-slate-900 whitespace-nowrap shrink-0 align-middle overflow-hidden">
-                                    <div className="flex items-center gap-0.5 whitespace-nowrap text-[9px] print:text-[8.5px] font-black text-slate-900">
-                                      <KeyRound className="w-2.5 h-2.5 print:w-2 print:h-2 text-indigo-950 shrink-0" />
-                                      <span>كلمة المرور:</span>
-                                    </div>
-                                  </td>
-                                  {/* خانة قيمة كلمة المرور بخط كبير جداً 12px وبارز لمنع أي لبس */}
-                                  <td className="w-[28%] bg-white px-1.5 py-0.5 font-black text-black select-all font-mono border-l border-slate-900 align-middle overflow-hidden text-center" dir="ltr">
-                                    <div className="w-full text-center font-mono break-all leading-tight text-sm print:text-[12px] font-black tracking-wider text-black" dir="ltr">
-                                      {student.temp_password || '********'}
-                                    </div>
-                                  </td>
-                                  {/* خانة تسمية بوابة الدخول */}
-                                  <td className="w-[17%] bg-slate-100 px-1 py-0.5 font-black text-black border-l border-slate-900 whitespace-nowrap shrink-0 align-middle overflow-hidden">
-                                    <div className="flex items-center gap-0.5 whitespace-nowrap text-[9px] print:text-[8.5px] font-black text-slate-900">
-                                      <Globe className="w-2.5 h-2.5 print:w-2 print:h-2 text-indigo-950 shrink-0" />
-                                      <span>بوابة الدخول:</span>
-                                    </div>
-                                  </td>
-                                  {/* خانة قيمة رابط المنصة بخط واضح وأسود عريض */}
-                                  <td className="w-[39%] bg-white px-1.5 py-0.5 font-black text-black select-all font-mono align-middle overflow-hidden">
-                                    <div className="w-full text-left font-mono break-all leading-tight text-[10px] print:text-[9.5px] font-black tracking-tight text-black" dir="ltr">
-                                      {loginPortalCleanUrl}
-                                    </div>
-                                  </td>
-                                </tr>
-                              </tbody>
-                            </table>
+                          {/* 🌐 4. رابط المنصة المباشر بحجم خط مطابق لاسم الطالب بدون توقيع المستلم وبخط أسود فاحم */}
+                          <div className="flex items-center justify-center border-t border-slate-300 pt-1.5 print:pt-1"> {/* 📄 شريط رابط البوابة في المنتصف ومضغوط المساحة */}
+                            <div className="flex items-center gap-1.5 font-mono text-xs print:text-[11.5px] font-black text-black truncate select-all bg-slate-50 border border-slate-200 px-2.5 py-0.5 rounded-md" dir="ltr"> {/* 🔗 رابط الدخول بحجم مساوٍ لاسم الطالب مع إطار ناعم */}
+                              <Globe className="w-3.5 h-3.5 text-[#0F2942] shrink-0" /> {/* 🌐 أيقونة الكرة الأرضية بلون نيلي */}
+                              <span className="truncate">{loginPortalCleanUrl}</span> {/* 🌐 رابط البوابة النظيف والواضح */}
+                            </div>
                           </div>
                         </div>
                       );

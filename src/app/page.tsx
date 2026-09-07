@@ -256,36 +256,37 @@ export default function BolognaPublicPortalPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 py-4 sm:py-8 px-4 sm:px-6 font-sans selection:bg-slate-900 selection:text-white">
+    // 🧱 الحاوية الرئيسية لكامل الصفحة متمركزة 100% بدون أي شريط تمرير إجباري
+    <div className="min-h-screen sm:h-screen w-full flex flex-col items-center justify-center bg-slate-50 p-4 sm:p-6 font-sans selection:bg-slate-900 selection:text-white overflow-y-auto sm:overflow-hidden">
       
       {/* 🏛️ الترويسة الأكاديمية الكحلية - مظهر أنيق ومحكم بدون هوامش مفرطة */}
-      <div className="w-full max-w-lg text-center space-y-2 mb-4 sm:mb-6">
+      <div className="w-full max-w-lg text-center space-y-1.5 mb-3 sm:mb-4">
         
         {/* 🖼️ شعار الجامعة المعتمد بحجم متناسق واحترافي */}
-        <div className="relative w-24 h-24 sm:w-28 sm:h-28 mx-auto flex items-center justify-center">
+        <div className="relative w-20 h-20 sm:w-24 sm:h-24 mx-auto flex items-center justify-center">
           <Image
             src="/logo.webp"
             alt="شعار جامعة الإمام جعفر الصادق (ع) - فرع ميسان"
-            width={112}
-            height={112}
+            width={96}
+            height={96}
             className="object-contain drop-shadow-sm"
             priority
           />
         </div>
 
-        <div className="space-y-1">
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-950 tracking-tight">
+        <div className="space-y-0.5">
+          <h1 className="text-xl sm:text-2xl font-black text-slate-950 tracking-tight">
             جامعة الإمام جعفر الصادق (ع)
           </h1>
-          <p className="text-base sm:text-lg font-black text-slate-700 mt-1">
+          <p className="text-sm sm:text-base font-black text-slate-700">
             فرع ميسان — البوابة الأكاديمية المركزية الموحدة
           </p>
         </div>
 
       </div>
 
-      {/* 🏛️ كارت الدخول الكحلي الأكاديمي المصمم بقياسات متناسقة 100% وبحدود ناعمة */}
-      <div className="w-full max-w-lg bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xl relative overflow-hidden space-y-5">
+      {/* 🏛️ كارت الدخول الكحلي الأكاديمي المصمم بقياسات متناسقة 100% وبحدود ناعمة وبدون سكرول */}
+      <div className="w-full max-w-lg bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 shadow-xl relative overflow-hidden space-y-4">
         
         {/* 🔀 تبويب الاختيار المزدوج للبوابة (استجابي ومحكم بحدود ناعمة) */}
         <div className="grid grid-cols-2 gap-2 bg-slate-50 p-1.5 rounded-2xl border border-slate-200">
@@ -294,7 +295,7 @@ export default function BolognaPublicPortalPage() {
           <button
             type="button"
             onClick={() => handleSwitchPortal('student')}
-            className={`py-3 px-3 rounded-xl font-black text-base transition-all flex items-center justify-center gap-2 cursor-pointer ${ activePortal === 'student' ? 'bg-[#0F2942] text-white shadow-xs' : 'text-slate-700 hover:text-slate-950 hover:bg-slate-100 font-bold' }`}
+            className={`py-2.5 px-3 rounded-xl font-black text-base transition-all flex items-center justify-center gap-2 cursor-pointer ${ activePortal === 'student' ? 'bg-[#0F2942] text-white shadow-xs' : 'text-slate-700 hover:text-slate-950 hover:bg-slate-100 font-bold' }`}
           >
             <GraduationCap className="w-5 h-5" />
             <span className="truncate">بوابة الطلاب</span>
@@ -304,7 +305,7 @@ export default function BolognaPublicPortalPage() {
           <button
             type="button"
             onClick={() => handleSwitchPortal('teacher')}
-            className={`py-3 px-3 rounded-xl font-black text-base transition-all flex items-center justify-center gap-2 cursor-pointer ${ activePortal === 'teacher' ? 'bg-[#0F2942] text-white shadow-xs' : 'text-slate-800 hover:text-slate-950 hover:bg-slate-200 font-black' }`}
+            className={`py-2.5 px-3 rounded-xl font-black text-base transition-all flex items-center justify-center gap-2 cursor-pointer ${ activePortal === 'teacher' ? 'bg-[#0F2942] text-white shadow-xs' : 'text-slate-800 hover:text-slate-950 hover:bg-slate-200 font-black' }`}
           >
             <BookOpen className="w-5 h-5" />
             <span className="truncate">بوابة الأساتذة</span>
@@ -314,7 +315,7 @@ export default function BolognaPublicPortalPage() {
 
         {/* 📋 عنوان البوابة المختارة */}
         <div className="text-center">
-          <h2 className="text-base sm:text-lg font-black text-slate-950 flex items-center justify-center gap-2">
+          <h2 className="text-sm sm:text-base font-black text-slate-950 flex items-center justify-center gap-2">
             {activePortal === 'student' ? (
               <>
                 <GraduationCap className="w-5 h-5 text-slate-900" />
@@ -370,10 +371,10 @@ export default function BolognaPublicPortalPage() {
         )}
 
         {/* 📝 نموذج الدخول (مع منع التنبيهات الإنجليزية التلقائية للمتصفح noValidate) */}
-        <form onSubmit={handleLoginSubmit} noValidate className="space-y-4" autoComplete="on">
+        <form onSubmit={handleLoginSubmit} noValidate className="space-y-3.5" autoComplete="on">
           
           {/* 📧 حقل إدخال البريد الأكاديمي */}
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <div className="relative flex items-center">
               {/* ✉️ أيقونة البريد أو علامة الصح عند استيفاء الصيغة */}
               <div className="absolute right-3.5 text-slate-900 pointer-events-none">
@@ -401,7 +402,7 @@ export default function BolognaPublicPortalPage() {
                   }
                 }}
                 placeholder={activePortal === 'student' ? 'أدخل بريدك الأكاديمي (مثال: student@sadiq.edu.iq)...' : 'أدخل بريدك الأكاديمي المعتمد...'}
-                className="w-full pl-11 pr-11 py-3.5 bg-slate-50 border border-slate-300 rounded-2xl text-slate-950 placeholder-slate-400 focus:outline-none focus:border-slate-500 text-base font-black transition-all shadow-xs"
+                className="w-full pl-11 pr-11 py-3 bg-slate-50 border border-slate-300 rounded-2xl text-slate-950 placeholder-slate-400 focus:outline-none focus:border-slate-500 text-base font-black transition-all shadow-xs"
               />
 
               {/* ❌ زر المسح السريع عند وجود نص مكتوب */}
@@ -423,12 +424,12 @@ export default function BolognaPublicPortalPage() {
 
             {/* 💡 شريط الإكمال السريع للنطاق بنص عربي واضح ومميز */}
             {showDomainHelper && (
-              <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2.5 animate-in fade-in duration-150">
-                <span className="text-base font-black text-slate-700">إكمال سريع للبريد الأكاديمي:</span>
+              <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-2xl px-3.5 py-1.5 animate-in fade-in duration-150">
+                <span className="text-sm font-black text-slate-700">إكمال سريع للبريد الأكاديمي:</span>
                 <button
                   type="button"
                   onClick={handleAppendDomain}
-                  className="px-3.5 py-1.5 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-xl transition font-black text-base shadow-xs cursor-pointer border border-[#1e4570]"
+                  className="px-3 py-1 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-xl transition font-black text-sm shadow-xs cursor-pointer border border-[#1e4570]"
                 >
                   + @sadiq.edu.iq
                 </button>
@@ -437,7 +438,7 @@ export default function BolognaPublicPortalPage() {
           </div>
 
           {/* 🔑 حقل كلمة المرور (الرمز الأكاديمي السري) للطالب والأستاذ */}
-          <div className="space-y-2 animate-in fade-in duration-150">
+          <div className="space-y-1.5 animate-in fade-in duration-150">
             <div className="relative flex items-center">
               {/* 🔒 أيقونة القفل */}
               <div className="absolute right-3.5 text-slate-900 pointer-events-none">
@@ -464,7 +465,7 @@ export default function BolognaPublicPortalPage() {
                     ? 'أدخل كلمة المرور الأكاديمية للطالب...'
                     : 'أدخل كلمة المرور الأكاديمية...'
                 }
-                className="w-full pl-12 pr-11 py-3.5 bg-slate-50 border border-slate-300 rounded-2xl text-slate-950 placeholder-slate-400 focus:outline-none focus:border-slate-500 text-base font-black transition-all shadow-xs font-mono"
+                className="w-full pl-12 pr-11 py-3 bg-slate-50 border border-slate-300 rounded-2xl text-slate-950 placeholder-slate-400 focus:outline-none focus:border-slate-500 text-base font-black transition-all shadow-xs font-mono"
               />
 
               {/* 👁️ زر إظهار وإخفاء كلمة المرور */}
@@ -480,8 +481,8 @@ export default function BolognaPublicPortalPage() {
           </div>
 
           {/* 🔘 خيار تذكرني على هذا الجهاز */}
-          <div className="flex items-center justify-between pt-1">
-            <label className="flex items-center gap-2 text-base font-black text-slate-800 cursor-pointer select-none">
+          <div className="flex items-center justify-between pt-0.5">
+            <label className="flex items-center gap-2 text-sm font-black text-slate-800 cursor-pointer select-none">
               <input
                 type="checkbox"
                 checked={rememberMe}
@@ -496,7 +497,7 @@ export default function BolognaPublicPortalPage() {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full py-4 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black rounded-2xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 text-base sm:text-lg border border-[#1e4570]"
+            className="w-full py-3.5 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black rounded-2xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 text-base sm:text-lg border border-[#1e4570]"
           >
             {isLoading ? 'جاري التحقق من قاعدة البيانات...' : `تسجيل الدخول إلى ${activePortal === 'student' ? 'بوابة الطلاب' : 'بوابة الأساتذة'}`}
           </button>

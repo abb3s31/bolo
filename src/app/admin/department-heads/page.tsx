@@ -3277,13 +3277,13 @@ export default function DepartmentHeadsManagementPage() {
                     </div>
                     <div>
                       <h3 className="text-base sm:text-lg font-black text-black flex items-center gap-2">
-                        <span>معاينة وطباعة بطاقات تسليم الاعتماد الأكاديمي</span>
-                        <span className="px-3 py-0.5 rounded-full bg-slate-200 text-black text-xs font-black border border-slate-300">
-                          {printList.length} {printList.length === 1 ? 'بطاقة جاهزة' : 'بطاقات جاهزة'}
+                        <span>معاينة وطباعة بطاقات اعتماد القيادات الأكاديمية</span>
+                        <span className="px-3 py-1 rounded-full bg-slate-200 text-black text-xs font-black border border-slate-300 whitespace-nowrap shrink-0 inline-block">
+                          {printList.length} بطاقة (10 بطاقات بالورقة الواحدة A4)
                         </span>
                       </h3>
                       <p className="text-xs sm:text-sm font-black text-black">
-                        وثائق رسمية تتضمن اسم رئيس القسم/المقرر، قسمه، بريده وكلمة المرور للتسليم اليدوي
+                        شبكة ثنائية 2x5 فائقة الكفاءة ومضغوطة لتوفير استهلاك الأوراق
                       </p>
                     </div>
                   </div>
@@ -3425,11 +3425,12 @@ export default function DepartmentHeadsManagementPage() {
                       <p className="text-sm font-black text-black">يرجى اختيار قسم آخر أو طباعة كافة الأقسام.</p>
                     </div>
                   ) : (
-                    <div className="space-y-6 print:space-y-4 w-full max-w-none print:max-w-none print:w-full">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 print:grid-cols-2 print:gap-1 w-full cards-grid-8 max-w-5xl mx-auto">
                       {printList.map((leader: UserProfile, index: number) => {
                         // 🔐 رابط البوابة الأكاديمية الرسمي للدخول (ديناميكي يتكيف مع الدومين والاستضافة تلقائياً)
                         const currentOrigin = typeof window !== 'undefined' && window.location.origin ? window.location.origin : 'http://192.168.0.185:3000';
                         const loginPortalUrl = `${currentOrigin}/admin`; // 🌐 رابط لوحة الإدارة
+                        const loginPortalCleanUrl = loginPortalUrl.replace(/^https?:\/\//, ''); // 🌐 الرابط النظيف المباشر
                         const isDeptHead = leader.role === 'department_head'; // 🏢 هل هو رئيس قسم؟
                         const isFemale = leader.gender === 'female'; // 🚻 هل المسؤول أنثى؟
                         const roleArabicTitle = isDeptHead // 🏷️ المسمى الوظيفي بالعربية الفصحى
@@ -3438,114 +3439,86 @@ export default function DepartmentHeadsManagementPage() {
 
                         return (
                           <div
-                            key={leader.id || index}
-                            className="bg-white border-2 border-slate-900 rounded-xl p-2.5 sm:p-3.5 space-y-2 shadow-md break-inside-avoid print:break-inside-avoid print:border-2 print:border-slate-950 print:rounded-lg print:p-2 print:mb-2 print:space-y-1 print:shadow-none w-full"
+                            key={leader.id || index} // 🔑 مفتاح فريد لكل كارد قيادي بالرندر
+                            className="bg-white border border-slate-400 rounded-xl p-2 print:p-1.5 shadow-xs break-inside-avoid print:break-inside-avoid print:border print:border-slate-500 print:rounded-lg print:shadow-none w-full flex flex-col justify-between card-item-8" // 🗂️ حاوية الكارد الأكاديمي بارتفاع 52 ملم تملأ الورقة بالكامل بدون فراغات زائدة
                           >
-                            {/* 🏛️ ترويسة البطاقة الرسمية بسطر واحد مدمج لتقليل استهلاك الورق */}
-                            <div className="flex items-center justify-between border-b-2 border-slate-900 pb-1.5 print:pb-0.5">
-                              <div className="flex items-center gap-2 overflow-hidden">
-                                <div className="relative w-8 h-8 sm:w-10 sm:h-10 flex-shrink-0 print:w-7 print:h-7">
-                                  <Image
-                                    src="/logo.webp"
-                                    alt="شعار جامعة الصادق"
-                                    width={40}
-                                    height={40}
-                                    className="object-contain"
-                                    priority
-                                    unoptimized
+                            {/* 🏛️ 1. ترويسة الكارد الرسمية: الشعار وعنوان الجامعة وفرع ميسان وشارة الموقع الأكاديمي بخطوط سوداء فاحمة */}
+                            <div className="flex items-center justify-between border-b border-slate-300 pb-1 print:pb-0.5"> {/* 📐 حاوية الترويسة مع خط فاصل داكن */}
+                              <div className="flex items-center gap-1.5 overflow-hidden"> {/* 🏢 مجمع الشعار والعناوين الرسمية */}
+                                {/* شعار الجامعة الرسمي بجودة واضحة وبحجم مدمج */}
+                                <div className="relative w-8 h-8 print:w-7 print:h-7 flex-shrink-0"> {/* 🖼️ إطار أبعاد الشعار الرسمي */}
+                                  <Image // 🖼️ مكون صورة الشعار
+                                    src="/logo.webp" // 📍 مسار الشعار المعتمد
+                                    alt="شعار جامعة الصادق" // 🏷️ نص بديل لأغراض الوصولية
+                                    width={32} // 📏 العرض بالبكسل
+                                    height={32} // 📏 الارتفاع بالبكسل
+                                    className="object-contain" // 🎨 احتواء الصورة بالكامل بدون تشويه
+                                    priority // ⚡ تحميل سريع وفوري
+                                    unoptimized // 🚀 بدون تحسين إضافي للملفات المحلية
                                   />
                                 </div>
-                                <div className="flex items-center gap-x-2 text-black font-black whitespace-nowrap flex-nowrap overflow-hidden">
-                                  <h4 className="text-xs sm:text-sm print:text-xs font-black text-black whitespace-nowrap leading-tight">
-                                    جامعة الإمام جعفر الصادق (عليه السلام) — فرع ميسان
+                                {/* العناوين الرسمية لجامعة الإمام الصادق ومسار بولونيا وفرع ميسان بخط أسود بارز ومقروء */}
+                                <div className="flex flex-col justify-center leading-none min-w-0"> {/* 📝 نصوص اسم الجامعة والوزارة */}
+                                  <h4 className="text-xs print:text-[11px] font-black text-black whitespace-nowrap leading-tight"> {/* 🏛️ اسم الجامعة وفرع ميسان بلون أسود عريض وواضح */}
+                                    جامعة الإمام جعفر الصادق (ع) — فرع ميسان
                                   </h4>
-                                  <span className="text-xs text-slate-400 hidden sm:inline print:inline font-bold">|</span>
-                                  <p className="text-[11px] sm:text-xs print:text-[11px] text-black font-black whitespace-nowrap leading-tight">
-                                    جمهورية العراق — وزارة التعليم العالي والبحث العلمي (مسار بولونيا)
+                                  <p className="text-[10px] print:text-[9.5px] text-black font-extrabold whitespace-nowrap leading-tight mt-0.5"> {/* 📜 اسم الوزارة والمسار بخط أسود بارز */}
+                                    وزارة التعليم العالي والبحث العلمي — مسار بولونيا
                                   </p>
+                                </div>
+                              </div>
+                              {/* شارة الهوية الرسمية لرئيس القسم أو المقرر بخط أسود بارز ومحاط بإطار أنيق */}
+                              <span className="px-2 py-0.5 rounded-md bg-white text-black text-[10px] print:text-[9.5px] font-black border border-slate-300 whitespace-nowrap shrink-0 shadow-2xs"> {/* 🏷️ باج المنصب الأكاديمي */}
+                                {roleArabicTitle}
+                              </span>
+                            </div>
+
+                            {/* 👤 2. شريط هوية المسؤول والقسم العلمي بخطوط سوداء عريضة */}
+                            <div className="flex items-center justify-between gap-2 py-0.5 px-0.5"> {/* 📌 حاوية اسم المسؤول والقسم بتنسيق ممتلئ وأنيق */}
+                              <div className="flex items-center gap-1.5 overflow-hidden"> {/* 🏷️ أيقونة واسم المسؤول */}
+                                <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center shrink-0 border border-slate-300"> {/* ⭕ دائرة أيقونة المستخدم */}
+                                  <User className="w-3 h-3 text-[#0F2942]" /> {/* 👤 أيقونة المسؤول بلون نيلي */}
+                                </div>
+                                <span className="text-sm print:text-[12px] font-black text-black truncate"> {/* ✍️ الاسم الكامل للمسؤول بخط أسود كبير وواضح */}
+                                  {leader.full_name}
+                                </span>
+                              </div>
+                              <span className="text-[10.5px] print:text-[10px] font-black text-black bg-white px-2 py-0.5 rounded-md border border-slate-300 whitespace-nowrap shrink-0 shadow-2xs"> {/* 🏢 اسم القسم العلمي بخط أسود عريض */}
+                                {leader.department_name || 'غير محدد'}
+                              </span>
+                            </div>
+
+                            {/* 🔐 3. شبكة بيانات الدخول (ألوان موحدة وخانات بيضاء نقية بخطوط سوداء فاحمة) */}
+                            <div className="grid grid-cols-2 gap-1.5 print:gap-1 my-0.5"> {/* 🔲 شبكة بعمودين متوازيين للبيانات بتصميم متوحد ونظيف */}
+                              {/* صندوق البريد الإلكتروني الأكاديمي بخانة بيضاء نقية مثل الرمز السري تماماً */}
+                              <div className="bg-slate-50 border border-slate-300 rounded-md p-1.5 flex flex-col justify-center"> {/* ✉️ بوكس الإيميل الأكاديمي الموحد بحشوة متناسقة */}
+                                <div className="flex items-center gap-1 text-[10px] print:text-[9.5px] font-black text-black mb-1"> {/* 🏷️ عنوان حقل الإيميل بخط أسود بارز */}
+                                  <Mail className="w-3 h-3 text-[#0F2942] shrink-0" /> {/* ✉️ أيقونة البريد بلون نيلي موحد */}
+                                  <span>البريد الأكاديمي</span>
+                                </div>
+                                <div className="font-mono text-[10.5px] print:text-[10px] font-black text-black truncate text-center select-all bg-white py-1 px-1.5 rounded border border-slate-300 shadow-2xs" dir="ltr"> {/* 🔤 خانة البريد بيضاء نقية ومحاطة بإطار أنيق مريح */}
+                                  {leader.generated_email}
+                                </div>
+                              </div>
+
+                              {/* صندوق الرمز السري المؤقت بتصميم موحد تماماً مع صندوق البريد بخط أسود */}
+                              <div className="bg-slate-50 border border-slate-300 rounded-md p-1.5 flex flex-col justify-center"> {/* 🔑 بوكس كلمة المرور موحد بلون متناسق وبدون أخضر */}
+                                <div className="flex items-center gap-1 text-[10px] print:text-[9.5px] font-black text-black mb-1"> {/* 🏷️ عنوان حقل كلمة السر بخط أسود بارز */}
+                                  <KeyRound className="w-3 h-3 text-[#0F2942] shrink-0" /> {/* 🔑 أيقونة المفتاح بلون نيلي موحد */}
+                                  <span>كلمة المرور المؤقتة</span>
+                                </div>
+                                <div className="font-mono text-[12px] print:text-[11px] font-black tracking-widest text-black truncate text-center select-all bg-white py-1 px-1.5 rounded border border-slate-300 shadow-2xs" dir="ltr"> {/* 🔢 خانة الباسورد بيضاء نقية بخط أسود عريض ومتباعد */}
+                                  {leader.temp_password || '********'}
                                 </div>
                               </div>
                             </div>
 
-                            {/* 📝 عنوان محضر التسليم الرئيسي بسطر واحد مدمج */}
-                            <div className="text-center py-1 bg-slate-100 rounded-lg border border-slate-300 flex items-center justify-center gap-2 print:py-0.5 whitespace-nowrap">
-                              <Award className="w-3.5 h-3.5 text-indigo-950 shrink-0" />
-                              <h5 className="text-xs sm:text-sm print:text-xs font-black text-black whitespace-nowrap leading-tight">
-                                بطاقة تسليم بيانات الاعتماد الأكاديمي الرسمي ({roleArabicTitle})
-                              </h5>
-                            </div>
-
-                            {/* 📋 جدول بيانات الاعتماد والتسليم الرسمي بسطر واحد لكل خانة لتقليل استهلاك الورق */}
-                            <div className="overflow-hidden border-2 border-slate-900 rounded-lg">
-                              <table className="w-full border-collapse text-right text-xs sm:text-sm print:text-xs">
-                                <tbody>
-                                  {/* الصف الأول: اسم المسؤول الأكاديمي + الموقع والصفة بسطر واحد */}
-                                  <tr className="border-b-2 border-slate-900">
-                                    <td className="w-[18%] bg-slate-100 px-2 py-1 sm:py-1.5 print:py-0.5 print:px-1.5 font-black text-black border-l-2 border-slate-900 whitespace-nowrap shrink-0">
-                                      <div className="flex items-center gap-1.5 whitespace-nowrap">
-                                        <User className="w-3.5 h-3.5 text-indigo-950 shrink-0" />
-                                        <span>اسم المسؤول:</span>
-                                      </div>
-                                    </td>
-                                    <td className="w-[32%] bg-white px-2.5 py-1 sm:py-1.5 print:py-0.5 print:px-2 font-black text-black text-xs sm:text-sm print:text-xs border-l-2 border-slate-900 whitespace-nowrap">
-                                      {leader.full_name}
-                                    </td>
-                                    <td className="w-[18%] bg-slate-100 px-2 py-1 sm:py-1.5 print:py-0.5 print:px-1.5 font-black text-black border-l-2 border-slate-900 whitespace-nowrap shrink-0">
-                                      <div className="flex items-center gap-1.5 whitespace-nowrap">
-                                        <Award className="w-3.5 h-3.5 text-indigo-950 shrink-0" />
-                                        <span>الموقع والصفة:</span>
-                                      </div>
-                                    </td>
-                                    <td className="w-[32%] bg-white px-2.5 py-1 sm:py-1.5 print:py-0.5 print:px-2 font-black text-black text-xs sm:text-sm print:text-xs whitespace-nowrap">
-                                      {roleArabicTitle}
-                                    </td>
-                                  </tr>
-
-                                  {/* الصف الثاني: القسم العلمي + البريد الأكاديمي بسطر واحد */}
-                                  <tr className="border-b-2 border-slate-900">
-                                    <td className="w-[18%] bg-slate-100 px-2 py-1 sm:py-1.5 print:py-0.5 print:px-1.5 font-black text-black border-l-2 border-slate-900 whitespace-nowrap shrink-0">
-                                      <div className="flex items-center gap-1.5 whitespace-nowrap">
-                                        <Building2 className="w-3.5 h-3.5 text-indigo-950 shrink-0" />
-                                        <span>القسم العلمي:</span>
-                                      </div>
-                                    </td>
-                                    <td className="w-[32%] bg-white px-2.5 py-1 sm:py-1.5 print:py-0.5 print:px-2 font-black text-black text-xs sm:text-sm print:text-xs border-l-2 border-slate-900 whitespace-nowrap">
-                                      {leader.department_name || 'غير محدد'}
-                                    </td>
-                                    <td className="w-[18%] bg-slate-100 px-2 py-1 sm:py-1.5 print:py-0.5 print:px-1.5 font-black text-black border-l-2 border-slate-900 whitespace-nowrap shrink-0">
-                                      <div className="flex items-center gap-1.5 whitespace-nowrap">
-                                        <Mail className="w-3.5 h-3.5 text-indigo-950 shrink-0" />
-                                        <span>البريد الأكاديمي:</span>
-                                      </div>
-                                    </td>
-                                    <td className="w-[32%] bg-white px-2.5 py-1 sm:py-1.5 print:py-0.5 print:px-2 font-black text-black text-xs sm:text-sm print:text-xs select-all font-mono whitespace-nowrap" dir="ltr">
-                                      {leader.generated_email}
-                                    </td>
-                                  </tr>
-
-                                  {/* الصف الثالث: كلمة المرور + بوابة الدخول بسطر واحد */}
-                                  <tr>
-                                    <td className="w-[18%] bg-slate-100 px-2 py-1 sm:py-1.5 print:py-0.5 print:px-1.5 font-black text-black border-l-2 border-slate-900 whitespace-nowrap shrink-0">
-                                      <div className="flex items-center gap-1.5 whitespace-nowrap">
-                                        <KeyRound className="w-3.5 h-3.5 text-indigo-950 shrink-0" />
-                                        <span>كلمة المرور:</span>
-                                      </div>
-                                    </td>
-                                    <td className="w-[32%] bg-white px-2.5 py-1 sm:py-1.5 print:py-0.5 print:px-2 font-black text-black text-xs sm:text-sm print:text-xs select-all font-mono border-l-2 border-slate-900 whitespace-nowrap" dir="ltr">
-                                      {leader.temp_password || '********'}
-                                    </td>
-                                    <td className="w-[18%] bg-slate-100 px-2 py-1 sm:py-1.5 print:py-0.5 print:px-1.5 font-black text-black border-l-2 border-slate-900 whitespace-nowrap shrink-0">
-                                      <div className="flex items-center gap-1.5 whitespace-nowrap">
-                                        <Globe className="w-3.5 h-3.5 text-indigo-950 shrink-0" />
-                                        <span>بوابة الدخول:</span>
-                                      </div>
-                                    </td>
-                                    <td className="w-[32%] bg-white px-2.5 py-1 sm:py-1.5 print:py-0.5 print:px-2 font-black text-black text-xs sm:text-sm print:text-xs select-all font-mono whitespace-nowrap" dir="ltr">
-                                      {loginPortalUrl}
-                                    </td>
-                                  </tr>
-                                </tbody>
-                              </table>
+                            {/* 🌐 4. رابط المنصة المباشر بحجم خط مطابق لاسم المسؤول بدون توقيع المستلم وبخط أسود فاحم */}
+                            <div className="flex items-center justify-center border-t border-slate-300 pt-1.5 print:pt-1"> {/* 📄 شريط رابط البوابة في المنتصف ومضغوط المساحة */}
+                              <div className="flex items-center gap-1.5 font-mono text-xs print:text-[11.5px] font-black text-black truncate select-all bg-slate-50 border border-slate-200 px-2.5 py-0.5 rounded-md" dir="ltr"> {/* 🔗 رابط الدخول بحجم مساوٍ لاسم المسؤول مع إطار ناعم */}
+                                <Globe className="w-3.5 h-3.5 text-[#0F2942] shrink-0" /> {/* 🌐 أيقونة الكرة الأرضية بلون نيلي */}
+                                <span className="truncate">{loginPortalCleanUrl}</span> {/* 🌐 رابط البوابة النظيف والواضح */}
+                              </div>
                             </div>
                           </div>
                         );
