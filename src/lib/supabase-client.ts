@@ -17,6 +17,7 @@ import {
   TeacherRecord,
   StudentRecord,
   ScheduleLecture,
+  DayOfWeek, // 📅 نوع اليوم الأسبوعي المعتمد في بولونيا
   DepartmentScheduleConfig,
   StudentAttendanceRecord,
   StudentTuitionRecord,
@@ -520,15 +521,11 @@ export async function loginStudentByEmailAndPassword(
     };
   }
 
-  // 🔀 6. في حال كان البريد مسجلاً لأستاذ أو إداري
+  // 🔀 6. في حال كان البريد مسجلاً لحساب برتبة أخرى (منع كشف وتخمين الرتب أمنياً)
   if (foundUser.role !== 'student') {
-    const actualRoleArabic = 
-      foundUser.role === 'teacher' ? 'أستاذ' : 
-      foundUser.role === 'department_head' ? 'رئيس قسم' : 
-      foundUser.role === 'rapporteur' ? 'مقرر قسم' : 'مسؤول عام';
     return {
-      user: null,
-      error: `هذا البريد مسجل كـ (${actualRoleArabic})، يرجى التوجه لبوابة التدريسيين أو البوابة المخصصة لك.`,
+      user: null, // 🔒 منع دخول غير الطلاب
+      error: 'هذا البريد مسجل، يرجى استخدام بريد آخر.', // 🛡️ رسالة أمنية موحدة تمنع كشف نوع الحساب
     };
   }
 
@@ -691,11 +688,11 @@ export async function loginTeacherByEmailAndPassword(email: string, pass: string
     };
   }
 
-  // 🔀 4. في حال كان البريد مسجلاً لطالب
-  if (foundUser.role === 'student') {
+  // 🔀 4. في حال كان الحساب لغير التدريسيين (منع كشف وتخمين الرتب أمنياً)
+  if (foundUser.role !== 'teacher') {
     return {
-      user: null,
-      error: 'هذا البريد مسجل كـ (طالب)، يرجى التبديل إلى (بوابة الطلاب).',
+      user: null, // 🔒 منع دخول غير التدريسيين
+      error: 'هذا البريد مسجل، يرجى استخدام بريد آخر.', // 🛡️ رسالة أمنية موحدة تمنع كشف نوع الحساب
     };
   }
 
@@ -845,22 +842,18 @@ export async function loginSuperAdmin(email: string, pass: string): Promise<{ us
 
   // 🛑 التحقق الصارم من أن الحساب مسؤول عام حصراً
   if (foundUser.role !== 'super_admin' && foundUser.role !== 'admin') {
-    const actualRoleArabic = 
-      foundUser.role === 'department_head' ? 'رئيس قسم' : 
-      foundUser.role === 'rapporteur' ? 'مقرر قسم' : 
-      foundUser.role === 'teacher' ? 'أستاذ' : 'طالب';
     logSecurityEvent({
-      eventType: 'UNAUTHORIZED_ROUTE_ACCESS',
-      actorId: foundUser.id,
-      actorName: foundUser.full_name,
-      actorRole: foundUser.role,
-      actorEmail: foundUser.generated_email,
-      details: `محاولة مستخدم برتبة (${actualRoleArabic}) تسجيل الدخول في بوابة المسؤول العام (/sadmin)`,
-      severity: 'HIGH',
+      eventType: 'UNAUTHORIZED_ROUTE_ACCESS', // 🚨 تسجيل محاولة دخول غير مصرح بها أمنياً
+      actorId: foundUser.id, // 🆔 معرّف الحساب
+      actorName: foundUser.full_name, // 👤 اسم الحساب
+      actorRole: foundUser.role, // 🎭 رتبة الحساب في السجل الأمني الداخلي
+      actorEmail: foundUser.generated_email, // 📧 البريد المسجل
+      details: `محاولة مستخدم تسجيل الدخول في بوابة المسؤول العام (/sadmin)`, // 📝 تفاصيل الحدث الأمني
+      severity: 'HIGH', // ⚠️ مستوى الخطورة
     });
     return {
-      user: null,
-      error: `هذا الحساب مسجل كـ (${actualRoleArabic}). هذه البوابة مخصصة حصراً للمسؤول العام عن النظام، يرجى التوجه للبوابة الإدارية الخاصة برؤساء الأقسام (/admin).`,
+      user: null, // 🔒 منع دخول غير المسؤول العام
+      error: 'هذا البريد مسجل، يرجى استخدام بريد آخر.', // 🛡️ رسالة أمنية موحدة تمنع كشف نوع الحساب
     };
   }
 
@@ -1095,16 +1088,9 @@ export async function loginDepartmentHeadOrRapporteur(email: string, pass: strin
 
   // 🛑 التحقق الصارم من أن الحساب رئيس قسم أو مقرر حصراً
   if (foundUser.role !== 'department_head' && foundUser.role !== 'rapporteur') {
-    if (foundUser.role === 'super_admin' || foundUser.role === 'admin') {
-      return {
-        user: null,
-        error: 'أنت مسجل كـ (المسؤول العام عن النظام)، يرجى التوجه لبوابة المسؤول العام المخصصة لك (/sadmin).',
-      };
-    }
-    const actualRoleArabic = foundUser.role === 'teacher' ? 'أستاذ' : 'طالب';
     return {
-      user: null,
-      error: `هذا الحساب مسجل كـ (${actualRoleArabic}). يرجى استخدام بوابة التدريسيين أو الطلاب.`,
+      user: null, // 🔒 منع دخول غير رؤساء الأقسام والمقررين
+      error: 'هذا البريد مسجل، يرجى استخدام بريد آخر.', // 🛡️ رسالة أمنية موحدة تمنع كشف نوع الحساب
     };
   }
 
@@ -1952,20 +1938,117 @@ export async function deleteTeacherCourseFromSupabase(id: string): Promise<boole
 }
 
 // ==============================================================================
+// ==============================================================================
 // 🗓️ دوال مزامنة وحفظ وحذف جدول المحاضرات الأسبوعي (schedule_lectures) في Supabase مع الدمج الذكي
 // ==============================================================================
+
+// 🛡️ دالة مساعدة لضمان وجود القسم والمرحلة والمادة في Supabase لتفادي خطأ Foreign Key 409
+async function ensureLectureDependenciesInSupabase(lec: ScheduleLecture): Promise<void> {
+  try {
+    const deptId = lec.department_id || 'dept-1';
+    // 0️⃣ ضمان وجود السنة الدراسية لتفادي أخطاء المفتاح الأجنبي للمادة
+    await supabase.from('academic_years').upsert({
+      id: 'year-2026',
+      label: '2026-2027',
+      is_current: true
+    }, { onConflict: 'id', ignoreDuplicates: true });
+
+    // 1️⃣ ضمان وجود القسم في جدول departments
+    await supabase.from('departments').upsert({
+      id: deptId,
+      name: 'القسم الأكاديمي',
+      code: 'DEPT'
+    }, { onConflict: 'id', ignoreDuplicates: true });
+
+    // 2️⃣ ضمان وجود المرحلة في جدول stages
+    const stageId = `${deptId}-stage-${lec.stage_number || 1}`;
+    await supabase.from('stages').upsert({
+      id: stageId,
+      department_id: deptId,
+      stage_number: lec.stage_number || 1
+    }, { onConflict: 'id', ignoreDuplicates: true });
+
+    // 3️⃣ ضمان وجود المادة في جدول courses إذا كانت محددة
+    if (lec.course_id) {
+      await supabase.from('courses').upsert({
+        id: lec.course_id,
+        department_id: deptId,
+        stage_id: stageId,
+        academic_year_id: 'year-2026',
+        name: lec.course_name || 'مادة دراسية',
+        code: lec.course_code || 'CRS',
+        credit_hours: 3
+      }, { onConflict: 'id', ignoreDuplicates: true });
+    }
+  } catch (depErr) {
+    console.warn('تنبيه أثناء تهيئة تبعيات المحاضرة في السحابة:', depErr);
+  }
+}
+
+// 📦 دالة مساعدة لتضمين وحفظ بيانات التقويم والأسابيع الـ 15 داخل حقل notes لحمايتها سحابياً
+function encodeLectureMetaIntoNotes(lec: ScheduleLecture): string | undefined {
+  const meta: Record<string, unknown> = {};
+  if (lec.date) meta.date = lec.date;
+  if (lec.week_number) meta.week_number = lec.week_number;
+  if (lec.custom_weekly_dates) meta.custom_weekly_dates = lec.custom_weekly_dates;
+  if (lec.weekly_overrides) meta.weekly_overrides = lec.weekly_overrides;
+
+  const rawNotes = lec.notes ? lec.notes.replace(/<!--\s*LEC_DATA:[\s\S]*?-->/g, '').trim() : '';
+  if (Object.keys(meta).length === 0) return rawNotes || undefined;
+  const metaTag = `<!-- LEC_DATA:${JSON.stringify(meta)} -->`;
+  return rawNotes ? `${rawNotes}\n${metaTag}` : metaTag;
+}
+
+// 📦 دالة مساعدة لاستخراج وفك تشفير بيانات التقويم والأسابيع الـ 15 من حقل notes السحابي
+function decodeLectureMetaFromNotes(lec: ScheduleLecture): ScheduleLecture {
+  if (!lec.notes || !lec.notes.includes('<!-- LEC_DATA:')) return lec;
+  try {
+    const match = lec.notes.match(/<!--\s*LEC_DATA:([\s\S]*?)-->/);
+    if (match && match[1]) {
+      const meta = JSON.parse(match[1]) as {
+        date?: string;
+        week_number?: number;
+        custom_weekly_dates?: Record<number, string>;
+        weekly_overrides?: Record<number, { day?: DayOfWeek; date?: string; start_time?: string; end_time?: string; room?: string; teacher_id?: string; teacher_name?: string }>;
+      };
+      const cleanNotes = lec.notes.replace(/<!--\s*LEC_DATA:[\s\S]*?-->/g, '').trim();
+      return {
+        ...lec,
+        date: lec.date || meta.date,
+        week_number: lec.week_number || meta.week_number || 1,
+        custom_weekly_dates: lec.custom_weekly_dates || meta.custom_weekly_dates,
+        weekly_overrides: lec.weekly_overrides || meta.weekly_overrides,
+        notes: cleanNotes || undefined,
+      };
+    }
+  } catch (parseErr) {
+    console.warn('تنبيه أثناء فك بيانات التقويم:', parseErr);
+  }
+  return lec;
+}
+
 export async function syncScheduleLecturesFromSupabase(): Promise<ScheduleLecture[]> {
   return smartCachedFetch(
     'supabase_schedule_lectures',
     async () => {
       try {
         const { data, error } = await supabase.from('schedule_lectures').select('*');
-        if (!error && data && data.length > 0) {
-          const localLecs = getStoredData<ScheduleLecture[]>('schedule_lectures', INITIAL_SCHEDULE_LECTURES);
+        if (!error && data) {
+          const localLecs = getStoredData<ScheduleLecture[]>('schedule_lectures', []);
           const lecMap = new Map<string, ScheduleLecture>();
-          data.forEach((l: ScheduleLecture) => lecMap.set(l.id, l));
-          localLecs.forEach((l) => {
-            if (!lecMap.has(l.id)) lecMap.set(l.id, l);
+          // ☁️ اعتماد السجلات السحابية أولاً مع فك تشفير وتضمين بيانات التقويم والأسابيع الـ 15
+          data.forEach((rawL: ScheduleLecture) => {
+            const l = decodeLectureMetaFromNotes(rawL); // 🔓 فك تشفير البيانات التقويمية
+            if (l.id && !l.id.startsWith('lec-sat-') && !l.id.startsWith('lec-sun-') && !l.id.startsWith('lec-mon-')) {
+              lecMap.set(l.id, l);
+            }
+          });
+          // 💾 دمج السجلات المحلية الحقيقية
+          localLecs.forEach((rawL) => {
+            const l = decodeLectureMetaFromNotes(rawL);
+            if (!l.id.startsWith('lec-sat-') && !l.id.startsWith('lec-sun-') && !l.id.startsWith('lec-mon-')) {
+              if (!lecMap.has(l.id)) lecMap.set(l.id, l);
+            }
           });
           const merged = Array.from(lecMap.values());
           saveStoredData('schedule_lectures', merged);
@@ -1974,18 +2057,112 @@ export async function syncScheduleLecturesFromSupabase(): Promise<ScheduleLectur
       } catch (err) {
         console.warn('تنبيه: تعذر جلب جدول المحاضرات من السحابة:', err);
       }
-      return getStoredData<ScheduleLecture[]>('schedule_lectures', INITIAL_SCHEDULE_LECTURES);
+      return getStoredData<ScheduleLecture[]>('schedule_lectures', []);
     },
-    { ttlSeconds: 30, swrSeconds: 120 }
+    { ttlSeconds: 15, swrSeconds: 60 }
   );
 }
 
 export async function saveScheduleLectureToSupabase(lec: ScheduleLecture): Promise<boolean> {
   try {
+    await ensureLectureDependenciesInSupabase(lec);
+    // 1️⃣ المحاولة المباشرة بالأعمدة المنفصلة
     const { error } = await supabase.from('schedule_lectures').upsert(lec);
-    if (!error) invalidateCacheKey('supabase_schedule_lectures');
-    return !error;
-  } catch {
+    if (!error) {
+      invalidateCacheKey('supabase_schedule_lectures');
+      return true;
+    }
+
+    // 2️⃣ الحفظ الذكي التلقائي البديل في حال عدم وجود الأعمدة المباشرة في السحابة
+    if (error && (error.code === 'PGRST204' || error.message?.includes('column'))) {
+      const fallbackPayload = {
+        id: lec.id,
+        department_id: lec.department_id,
+        stage_number: lec.stage_number,
+        semester: lec.semester,
+        academic_year_id: lec.academic_year_id || null,
+        day: lec.day,
+        course_id: lec.course_id,
+        course_name: lec.course_name,
+        course_code: lec.course_code,
+        teacher_id: lec.teacher_id || null,
+        teacher_name: lec.teacher_name || null,
+        room: lec.room,
+        start_time: lec.start_time,
+        end_time: lec.end_time,
+        color: lec.color,
+        type: lec.type,
+        study_type: lec.study_type || 'morning',
+        notes: encodeLectureMetaIntoNotes(lec) || null,
+        created_at: lec.created_at || new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      const { error: fallbackErr } = await supabase.from('schedule_lectures').upsert(fallbackPayload);
+      if (!fallbackErr) {
+        invalidateCacheKey('supabase_schedule_lectures');
+        return true;
+      }
+      console.warn('Supabase lecture fallback upsert error:', fallbackErr);
+      return false;
+    }
+
+    console.warn('Supabase lecture upsert error:', error);
+    return false;
+  } catch (err) {
+    console.warn('Supabase lecture save error:', err);
+    return false;
+  }
+}
+
+export async function saveScheduleLecturesBulkToSupabase(lecs: ScheduleLecture[]): Promise<boolean> {
+  if (!lecs || lecs.length === 0) return true;
+  try {
+    for (const l of lecs) {
+      await ensureLectureDependenciesInSupabase(l);
+    }
+    const { error } = await supabase.from('schedule_lectures').upsert(lecs);
+    if (!error) {
+      invalidateCacheKey('supabase_schedule_lectures');
+      return true;
+    }
+
+    // 2️⃣ الحفظ الجماعي البديل بتضمين الميتاداتا التقويمية
+    if (error && (error.code === 'PGRST204' || error.message?.includes('column'))) {
+      const fallbackList = lecs.map((lec) => ({
+        id: lec.id,
+        department_id: lec.department_id,
+        stage_number: lec.stage_number,
+        semester: lec.semester,
+        academic_year_id: lec.academic_year_id || null,
+        day: lec.day,
+        course_id: lec.course_id,
+        course_name: lec.course_name,
+        course_code: lec.course_code,
+        teacher_id: lec.teacher_id || null,
+        teacher_name: lec.teacher_name || null,
+        room: lec.room,
+        start_time: lec.start_time,
+        end_time: lec.end_time,
+        color: lec.color,
+        type: lec.type,
+        study_type: lec.study_type || 'morning',
+        notes: encodeLectureMetaIntoNotes(lec) || null,
+        created_at: lec.created_at || new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }));
+      const { error: fallbackErr } = await supabase.from('schedule_lectures').upsert(fallbackList);
+      if (!fallbackErr) {
+        invalidateCacheKey('supabase_schedule_lectures');
+        return true;
+      }
+      console.warn('Supabase bulk lecture fallback save error:', fallbackErr);
+      return false;
+    }
+
+    console.warn('Supabase bulk lecture save error:', error);
+    return false;
+  } catch (err) {
+    console.warn('Supabase bulk save exception:', err);
     return false;
   }
 }
@@ -1993,8 +2170,25 @@ export async function saveScheduleLectureToSupabase(lec: ScheduleLecture): Promi
 export async function deleteScheduleLectureFromSupabase(id: string): Promise<boolean> {
   try {
     const { error } = await supabase.from('schedule_lectures').delete().eq('id', id);
-    if (!error) invalidateCacheKey('supabase_schedule_lectures');
-    return !error;
+    if (!error) {
+      invalidateCacheKey('supabase_schedule_lectures');
+      return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+export async function deleteScheduleLecturesBulkFromSupabase(ids: string[]): Promise<boolean> {
+  if (!ids || ids.length === 0) return true;
+  try {
+    const { error } = await supabase.from('schedule_lectures').delete().in('id', ids);
+    if (!error) {
+      invalidateCacheKey('supabase_schedule_lectures');
+      return true;
+    }
+    return false;
   } catch {
     return false;
   }

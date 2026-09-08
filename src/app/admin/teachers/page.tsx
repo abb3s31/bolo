@@ -1842,13 +1842,7 @@ export default function AdminTeachersPage() {
                   <h2 className="text-lg sm:text-xl font-black text-slate-950">قائمة الأساتذة المسجلين بقاعدة البيانات الرسمية للكلية</h2>
                 </div>
                 <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => toggleSelectAll(filteredTeachers)}
-                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-950 rounded-xl font-black text-sm transition cursor-pointer border border-slate-300"
-                  >
-                    {selectedTeacherIds.length === filteredTeachers.length && filteredTeachers.length > 0 ? 'إلغاء تحديد الكل' : 'تحديد الكل'}
-                  </button>
+                  {/* 🧹 شلنا زر إلغاء تحديد الكل حتى ما يتكرر ويه زر إلغاء التحديد اللي جوة بالشريط الكحلي */}
                   <span className="text-base font-black text-slate-950 bg-slate-100 px-4 py-2 rounded-2xl border border-slate-300">
                     المعروض: {filteredTeachers.length} من {totalTch}
                   </span>

@@ -49,10 +49,19 @@ export const INITIAL_GRADES: Grade[] = [];
 // 📜 سجلات الرقابة والتدقيق الأمني (فارغة)
 export const INITIAL_AUDIT_LOGS: AuditLog[] = [];
 
-// ⚙️ إعدادات الجدول الدراسي (تعتمد ديناميكياً على الأقسام الحقيقية)
-export const INITIAL_SCHEDULE_CONFIGS: DepartmentScheduleConfig[] = [];
+// ⚙️ إعدادات الجدول الدراسي (تعتمد ديناميكياً على الأقسام الحقيقية مع عطلة الخميس والجمعة)
+export const INITIAL_SCHEDULE_CONFIGS: DepartmentScheduleConfig[] = [
+  {
+    id: 'cfg-default-stage1-sem1', // 🆔 معرف الإعداد الافتراضي
+    department_id: 'dept-1',       // 🏢 معرف القسم
+    stage_number: 1,               // 🎓 المرحلة الأولى
+    semester: 1,                   // 🗓️ الكورس الأول
+    working_days: ['saturday', 'sunday', 'monday', 'tuesday', 'wednesday'], // 📅 أيام الدوام
+    off_days: ['thursday', 'friday'], // 🏖️ أيام العطل الرسمية المعتمدة
+  },
+];
 
-// 📅 المحاضرات والجداول الأسبوعية (فارغة تماماً)
+// 📅 المحاضرات والجداول الأسبوعية المعتمدة رسمياً (فارغة تماماً للأقسام الجديدة)
 export const INITIAL_SCHEDULE_LECTURES: ScheduleLecture[] = [];
 
 // 📋 سجلات الحضور والغياب والإجازات (فارغة تماماً)
@@ -148,6 +157,20 @@ export function getStoredData<T>(key: string, initialFallback: T): T {
       // 🏷️ حفظ ختم الإصدار النظيف لمنع تكرار المسح
       localStorage.setItem('sadiq_univ_db_clean_version', CLEAN_DATABASE_VERSION);
     }
+
+    // 🗓️ تصفير شامل وفوري لجدول المحاضرات للأقسام الجديدة (0 محاضرات) بناءً على طلب المستخدم
+    const SCHEDULE_DATA_VERSION = 'v6_complete_zero_reset_2026'; // 🏷️ إصدار التصفير التام لتبدأ الأقسام من 0
+    const currentSchedVer = localStorage.getItem('sadiq_univ_schedule_version'); // 🔍 فحص إصدار الجدول المخزن بالمتصفح
+    if (currentSchedVer !== SCHEDULE_DATA_VERSION) { // 🔄 تصفير فوري وإفراغ كافة المحاضرات التجريبية السابقة
+      try {
+        localStorage.setItem('sadiq_univ_schedule_lectures', JSON.stringify([])); // 💾 تصفير التخزين المحلي إلى مصفوفة فارغة 100%
+        localStorage.removeItem('sadiq_univ_department_schedule_lectures'); // 🧹 تنظيف المفتاح القديم نهائياً
+      } catch (recoveryErr) {
+        console.warn('تنبيه أثناء تصفير المحاضرات:', recoveryErr);
+      }
+      localStorage.setItem('sadiq_univ_schedule_version', SCHEDULE_DATA_VERSION); // 🏷️ تحديث ختم الإصدار المصفّر النظيف
+    }
+
 
     // 📥 جلب السجل الفعلي المخزن من التخزين المحلي
     const item = localStorage.getItem(`sadiq_univ_${key}`);

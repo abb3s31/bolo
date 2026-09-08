@@ -258,8 +258,6 @@ export function getScheduleConfigOrDefault(
 // 🏢 قائمة القاعات والمختبرات الرسمية المعتمدة بفرع ميسان
 export const UNIVERSITY_ROOMS_CATALOG: { id: string; name: string; type: 'hall' | 'lab' | 'court' | 'seminar'; capacity: number }[] = [
   { id: 'hall-1', name: 'مدرج الخوارزمي (مدرج 1)', type: 'hall', capacity: 120 },
-  { id: 'hall-2', name: 'مدرج الفارابي (مدرج 2)', type: 'hall', capacity: 100 },
-  { id: 'hall-3', name: 'مدرج البيروني (مدرج 3)', type: 'hall', capacity: 90 },
   { id: 'lab-1', name: 'مختبر البرمجيات والشبكات 1', type: 'lab', capacity: 45 },
   { id: 'lab-2', name: 'مختبر الحاسوب والذكاء الاصطناعي 2', type: 'lab', capacity: 40 },
   { id: 'lab-3', name: 'مختبر الإلكترونيات والمعالجات 3', type: 'lab', capacity: 35 },
@@ -467,5 +465,153 @@ export function checkFinalExamCollisions(
   }
 
   return conflicts;
+}
+
+// ==============================================================================
+// 📅 دوال التعاقب والتحويل التقويمي الذكي للأسابيع الـ 15 لمسار بولونيا
+// ==============================================================================
+
+// 🗓️ دالة تحويل التاريخ التقويمي إلى اليوم الأكاديمي المعتمد (السبت، الأحد، ...)
+export function getDayOfWeekFromDateString(dateStr: string): DayOfWeek {
+  if (!dateStr) return 'saturday'; // 🛡️ حماية إذا كان التاريخ فارغاً
+  const parts = dateStr.split('-'); // ✂️ تقسيم YYYY-MM-DD
+  if (parts.length !== 3) return 'saturday'; // 🛡️ فحص اكتمال صيغة التاريخ
+  const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10)); // 📆 بناء كائن التاريخ بدقة
+  const dayIndex = d.getDay(); // 0 = الأحد, 1 = الاثنين, ..., 6 = السبت
+  const map: DayOfWeek[] = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  return map[dayIndex] || 'saturday'; // 🎯 إرجاع اليوم الأكاديمي
+}
+
+// 📆 دالة مساعدة لتنسيق التاريخ كـ YYYY-MM-DD
+export function formatDateToIsoString(d: Date): string {
+  const y = d.getFullYear(); // 📅 استخراج السنة
+  const m = String(d.getMonth() + 1).padStart(2, '0'); // 🗓️ الشهر بصفر البادئة
+  const day = String(d.getDate()).padStart(2, '0'); // 📆 اليوم بصفر البادئة
+  return `${y}-${m}-${day}`; // 📌 صيغة ISO القياسية
+}
+
+// 🧮 دالة احتساب التاريخ التقويمي الدقيق لأي يوم في أي أسبوع فصلي من الأسبوع 1 إلى 15
+export function calculateDateForAnyDayInWeek(
+  baseDateStr: string, // 📅 تاريخ الأساس للأسبوع الأول
+  baseWeek: number,    // 🔢 رقم الأسبوع الأساس (افتراضياً 1)
+  targetWeek: number,  // 🎯 الأسبوع المستهدف (1 إلى 15)
+  targetDay: DayOfWeek // 🗓️ اليوم المطلوب معرفة تاريخه
+): string {
+  if (!baseDateStr) return ''; // 🛡️ إذا لم يتوفر تاريخ أساس نرجع فارغاً
+  const baseDay = getDayOfWeekFromDateString(baseDateStr); // 🗓️ استخراج يوم تاريخ الأساس
+  const dayOrder: DayOfWeek[] = ['saturday', 'sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday']; // 📋 ترتيب أيام الأسبوع الأكاديمي
+  const dayOffset = dayOrder.indexOf(targetDay) - dayOrder.indexOf(baseDay); // 📏 فارق الأيام داخل نفس الأسبوع
+
+  const parts = baseDateStr.split('-'); // ✂️ تحليل التاريخ
+  const baseDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10)); // 📆 إنشاء كائن التاريخ
+  const weekDiff = targetWeek - baseWeek; // 🔢 فارق الأسابيع
+  const totalDayShift = weekDiff * 7 + dayOffset; // ➕ إجمالي الأيام المطلوبة للإزاحة
+
+  const targetDate = new Date(baseDate.getTime() + totalDayShift * 24 * 60 * 60 * 1000); // 🕒 احتساب التاريخ الجديد
+  return formatDateToIsoString(targetDate); // 🏁 إرجاع التاريخ بصيغة YYYY-MM-DD
+}
+
+// 🌟 دالة التوليد التلقائي لتواريخ كافة الأسابيع الـ 15 لمحاضرة معينة بنقرة واحدة
+export function generateAll15WeeksDates(
+  week1DateStr: string, // 📅 تاريخ محاضرة الأسبوع الأول
+  lectureDay: DayOfWeek // 🗓️ اليوم الأسبوعي للمحاضرة
+): Array<{ weekNumber: number; date: string; day: DayOfWeek; dayLabelAr: string }> {
+  const result: Array<{ weekNumber: number; date: string; day: DayOfWeek; dayLabelAr: string }> = [];
+  if (!week1DateStr) return result; // 🛡️ حماية إذا كان التاريخ غير محدد
+
+  for (let w = 1; w <= 15; w++) {
+    const computedDate = calculateDateForAnyDayInWeek(week1DateStr, 1, w, lectureDay); // 🧮 حساب تاريخ الأسبوع w
+    const dayMeta = DAYS_OF_WEEK_LIST.find((d) => d.key === lectureDay); // 🏷️ بيانات اليوم العربي
+    result.push({
+      weekNumber: w, // 🔢 رقم الأسبوع
+      date: computedDate, // 📅 التاريخ الفعلي المحسوب
+      day: lectureDay, // 🗓️ اليوم الأكاديمي
+      dayLabelAr: dayMeta?.label_ar || lectureDay, // 📝 الاسم العربي لليوم
+    });
+  }
+  return result; // 🏁 إرجاع قائمة الأسابيع الـ 15 كاملة
+}
+
+// 🔄 دالة النقل العام والتحويل الشامل بين أي يوم وأي يوم آخر (مثال: من السبت للأحد، أو من الاثنين للسبت)
+export function shiftLectureToAnyDay(
+  currentDay: DayOfWeek, // 📅 اليوم الأصلي للمحاضرة
+  newDay: DayOfWeek,     // 🗓️ اليوم الجديد المراد النقل إليه (أي يوم في الأسبوع)
+  fromWeek: number,      // 🔢 بدءاً من أي أسبوع (مثلاً من الأسبوع 3 فصاعداً)
+  baseDateStr: string,   // 📆 تاريخ الأساس الحالي
+  totalWeeks: number = 15 // 🔢 إجمالي أسابيع الفصل (15 أسبوعاً)
+): Record<number, { day: DayOfWeek; date: string }> {
+  const overrides: Record<number, { day: DayOfWeek; date: string }> = {};
+  if (!baseDateStr) return overrides; // 🛡️ حماية من التاريخ الفارغ
+
+  for (let w = fromWeek; w <= totalWeeks; w++) {
+    const newComputedDate = calculateDateForAnyDayInWeek(baseDateStr, 1, w, newDay); // 🧮 احتساب تاريخ اليوم الجديد لكل أسبوع لاحق
+    overrides[w] = {
+      day: newDay, // 🗓️ اليوم الجديد المنقول إليه
+      date: newComputedDate, // 📅 التاريخ التقويمي الدقيق لليوم الجديد
+    };
+  }
+  return overrides; // 🏁 إرجاع تخصيصات وتواريخ الأسابيع اللاحقة كاملة
+}
+
+// 🗓️ أسماء الشهور المعتمدة بالعراق والتقويم الأكاديمي الرسمي
+export const IRAQI_ARABIC_MONTHS = [
+  'كانون الثاني', // 1
+  'شباط',        // 2
+  'آذار',        // 3
+  'نيسان',       // 4
+  'أيار',        // 5
+  'حزيران',      // 6
+  'تموز',        // 7
+  'آب',          // 8
+  'أيلول',       // 9
+  'تشرين الأول', // 10
+  'تشرين الثاني',// 11
+  'كانون الأول', // 12
+];
+
+// 🧮 دالة احتساب رقم الأسبوع الدراسي (1 إلى 15) بناءً على الفارق الزمني عن تاريخ البداية
+export function calculateAcademicWeekFromDate(
+  baseStartDateStr: string, // 📅 تاريخ انطلاق الفصل الدراسي (الأسبوع 1)
+  targetDateStr: string     // 🎯 التاريخ المطلوب فحص أسبوعه
+): number {
+  if (!baseStartDateStr || !targetDateStr) return 1; // 🛡️ إذا لم تتوفر تواريخ نرجع الأسبوع الأول كقيمة آمنة
+  const p1 = baseStartDateStr.split('-').map(Number); // ✂️ تفكيك تاريخ البداية
+  const p2 = targetDateStr.split('-').map(Number); // ✂️ تفكيك التاريخ المستهدف
+  if (p1.length !== 3 || p2.length !== 3) return 1; // 🛡️ التحقق من اكتمال الأرقام
+  const d1 = new Date(p1[0], p1[1] - 1, p1[2]); // 📆 كائن تاريخ البداية
+  const d2 = new Date(p2[0], p2[1] - 1, p2[2]); // 📆 كائن التاريخ المستهدف
+  d1.setHours(0, 0, 0, 0); // 🕒 تصفير الساعات للدقة
+  d2.setHours(0, 0, 0, 0); // 🕒 تصفير الساعات للدقة
+  const diffTime = d2.getTime() - d1.getTime(); // ⏳ الفارق بالميلي ثانية
+  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24)); // 📅 الفارق بالأيام الفعلية
+  if (diffDays < 0) return 1; // 🔙 إذا كان التاريخ قبل بداية الفصل يعتبر الأسبوع الأول
+  const calcWeek = Math.floor(diffDays / 7) + 1; // 🔢 قسمة الأيام على 7 للحصول على الأسبوع بدقة
+  return Math.min(Math.max(calcWeek, 1), 15); // 🎯 قفل النطاق بين الأسبوع 1 إلى 15 لمسار بولونيا
+}
+
+// ⚡ دالة اكتشاف وتحديد الأسبوع الأكاديمي الحالي الذكي نسبةً لتاريخ اليوم الفعلي
+export function getCurrentAcademicWeek(baseStartDateStr?: string): number {
+  if (!baseStartDateStr) return 1; // 🛡️ حماية إذا لم يتوفر تاريخ البداية
+  const today = new Date(); // 🕒 تاريخ اليوم الحالي بالجهاز
+  const y = today.getFullYear(); // 📅 السنة الحالية
+  const m = String(today.getMonth() + 1).padStart(2, '0'); // 🗓️ الشهر بصفر البادئة
+  const d = String(today.getDate()).padStart(2, '0'); // 📆 اليوم بصفر البادئة
+  const todayIso = `${y}-${m}-${d}`; // 📌 صيغة ISO القياسية لتاريخ اليوم
+  return calculateAcademicWeekFromDate(baseStartDateStr, todayIso); // 🧮 احتساب الأسبوع الحالي الذكي
+}
+
+// 🏷️ دالة تنسيق التاريخ التقويمي بالعربية مع اسم اليوم ليكون فائق الوضوح والجمال
+export function formatDateArabicWithDay(dateStr: string): string {
+  if (!dateStr) return ''; // 🛡️ حماية من النص الفارغ
+  const dayKey = getDayOfWeekFromDateString(dateStr); // 🗓️ استخراج مفتاح اليوم
+  const dayMeta = DAYS_OF_WEEK_LIST.find((d) => d.key === dayKey); // 🏷️ بيانات اليوم العربي
+  const parts = dateStr.split('-'); // ✂️ تفكيك التاريخ YYYY-MM-DD
+  if (parts.length !== 3) return dateStr; // 🛡️ إذا لم تكن صيغة مكتملة نرجع النص كما هو
+  const year = parts[0]; // 📅 السنة
+  const monthIdx = parseInt(parts[1], 10) - 1; // 🗓️ فهرس الشهر
+  const dayNum = parseInt(parts[2], 10); // 📆 رقم اليوم بدون أصفار زائدة
+  const monthName = IRAQI_ARABIC_MONTHS[monthIdx] || parts[1]; // 🏷️ اسم الشهر بالعربية
+  const dayName = dayMeta?.label_ar || ''; // 📝 اسم اليوم بالعربية
+  return `${dayName ? `${dayName}، ` : ''}${dayNum} ${monthName} ${year}`; // 🌟 تنسيق كامل: الأحد، 20 أيلول 2026
 }
 

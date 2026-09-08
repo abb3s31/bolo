@@ -149,7 +149,7 @@ export default function ConfirmDeleteModal({
   const modalOverlay = (
     // 🔮 خلفية زجاجية غامقة وثابتة بالكامل تغطي 100% من أبعاد الشاشة بدون أي فجوة
     <div 
-      className="fixed inset-0 top-0 left-0 right-0 bottom-0 w-screen h-screen min-h-[100dvh] z-[999999] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 overflow-hidden animate-in fade-in duration-150"
+      className="fixed inset-0 top-0 left-0 right-0 bottom-0 w-screen h-screen min-h-[100dvh] z-[99999999] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 overflow-hidden animate-in fade-in duration-150"
       dir="rtl"
       onClick={onClose}
     >

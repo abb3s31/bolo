@@ -31,10 +31,15 @@ code, pre, kbd, samp, .font-mono, [class*="font-mono"] {
 
 /* 📜 نمط وطباعة البطاقات الأكاديمية والوثائق الرسمية A4 بجودة عالية 100% */
 @media print {
-  /* 📐 1. ضبط أبعاد ورقة A4 وتحديد هوامش طباعة دقيقة */
+  /* 📐 1. ضبط أبعاد ورقة A4 وتحديد هوامش طباعة دقيقة ومثالية */
   @page {
-    size: A4 portrait;
-    margin: 8mm 6mm;
+    margin: 5mm 5mm; /* 📏 ضبط هوامش موحدة ومرنة بدون فرض اتجاه طولي قسري يعطل الجداول العريضة */
+  }
+
+  /* 📄 1.1 ضبط نمط ورقة A4 أفقية مخصصة لطباعة الجداول الأكاديمية العريضة */
+  @page scheduleLandscape {
+    size: A4 landscape;
+    margin: 4mm 5mm;
   }
 
   /* 🌟 2. تصفير هوامش الصفحة بالكامل وفرض جودة الألوان والرسوميات بدون تشويش */
@@ -164,6 +169,86 @@ code, pre, kbd, samp, .font-mono, [class*="font-mono"] {
   .card-item-10 * {
     box-sizing: border-box !important; /* 📐 التزام تام بأبعاد الصندوق الحاوي */
   }
+
+  /* 📄 10. هندسة وثيقة جدول المحاضرات الأسبوعي المعتمد للطباعة في صفحة A4 أفقية واحدة محكمة بدون انقسام وملء كامل للورقة */
+  .official-schedule-document {
+    width: 100% !important; /* 📐 استغلال كامل عرض الورقة الأفقي (287 مم) */
+    max-width: 100% !important; /* 🔒 قفل العرض على كامل الصفحة */
+    height: 186mm !important; /* 📏 ارتفاع هندسي دقيق 186 ملم يملأ كامل الصفحة الأفقية ويلغي الفراغ الأبيض بالكامل */
+    min-height: 186mm !important; /* 📐 ضمان استغلال كامل مساحة الورقة A4 بالعرض */
+    max-height: 186mm !important; /* 🔒 حماية صارمة لمنع التمدد لصفحة ثانية نهائياً */
+    box-sizing: border-box !important; /* 📐 احتساب الحدود ضمن القياس */
+    margin: 0 !important; /* 🚫 تصفير أي هوامش تسبب فواصل بيضاء */
+    padding: 0 !important; /* 🔲 تصفير الحشوات الخارجية */
+    display: flex !important; /* 📦 توزيع الأقسام بنظام فليكس عمودي محكم */
+    flex-direction: column !important; /* ⬇️ ترتيب رأسي من الترويسة للجدول للتواقيع */
+    justify-content: space-between !important; /* ⚖️ تثبيت الترويسة بالأعلى والتواقيع بالأسفل وتمديد الجدول لملء الفراغ */
+  }
+
+  /* 📦 حاوية الجدول تستغل كامل المساحة العمودية المتاحة بالورقة */
+  .official-schedule-document .schedule-table-wrapper {
+    flex: 1 1 auto !important; /* 📈 استغلال كامل الارتفاع المتبقي بين الترويسة والتواقيع */
+    display: flex !important; /* 📦 تفعيل الفليكس لتمديد الجدول الداخلي */
+    flex-direction: column !important; /* ⬇️ تدفق عمودي */
+    min-height: 0 !important; /* 🛡️ منع الفليكس من تجاوز المساحة */
+    margin: 1.5mm 0 !important; /* 🤏 فاصل هوائي طفيف وأنيق */
+  }
+
+  /* 📊 جدول المحاضرات يتمدد لملء الحاوية بالكامل بنسب متساوية وواضحة */
+  .official-schedule-document table {
+    border-collapse: collapse !important; /* 🧱 دمج الحدود المتصلة */
+    width: 100% !important; /* 📐 استغلال كامل العرض */
+    height: 100% !important; /* 📏 استغلال كامل الارتفاع العمودي الممنوح للجدول */
+    flex: 1 1 auto !important; /* 📈 التمدد التلقائي مع الحاوية */
+    table-layout: fixed !important; /* 📐 تثبيت عرض الأعمدة بدقة */
+    margin: 0 !important; /* 🚫 تصفير الهوامش لمنع دفع الجدول للأسفل */
+  }
+
+  .official-schedule-document thead {
+    display: table-header-group !important; /* 📌 الحفاظ على ترويسة الجدول وتثبيتها */
+  }
+
+  .official-schedule-document thead tr {
+    height: 9mm !important; /* 📏 ارتفاع محسوب لترويسة الأعمدة */
+  }
+
+  .official-schedule-document tbody {
+    display: table-row-group !important; /* 📌 الحفاظ على تدفق صفوف المحاضرات المتناسق */
+    height: 100% !important; /* 📏 استغلال كامل ارتفاع جسم الجدول */
+  }
+
+  .official-schedule-document tbody tr {
+    page-break-inside: avoid !important; /* 🚫 منع انقسام الصف الواحد */
+    break-inside: avoid !important; /* 🛡️ حماية الصف الواحد من التمزق */
+    height: 1% !important; /* ⚖️ توزيع الارتفاع العمودي بالتساوي على جميع صفوف الأيام تلقائياً */
+  }
+
+  .official-schedule-document th,
+  .official-schedule-document td {
+    border: 1.5px solid #000000 !important; /* 🧱 خطوط واضحة وصريحة وسوداء بالكامل للطباعة */
+    -webkit-print-color-adjust: exact !important; /* 🎨 تثبيت ألوان وخلفيات الخلايا بجودة ناصعة */
+    print-color-adjust: exact !important; /* 🎨 التزام صارم بجودة الرسوميات بالكروم */
+    height: inherit !important; /* 📏 توريث ارتفاع الصف للخلايا الداخلية */
+  }
+
+  /* 🃏 كارت المحاضرة داخل الخلية يتمدد عمودياً لملء كامل المساحة ويوفر راحة ووضوح فائق للنصوص */
+  .official-schedule-document td .lecture-slot-card {
+    height: 100% !important; /* 📏 ملء كامل ارتفاع الخلية المتاحة */
+    display: flex !important; /* 📦 توزيع عناصر المحاضرة بفليكس عمودي */
+    flex-direction: column !important; /* ⬇️ توقيت بالأعلى ومادة بالوسط وأستاذ بالأسفل */
+    justify-content: space-between !important; /* ⚖️ توزيع فخم وفسيح يلغي أي ضيق بالنصوص */
+  }
+
+  /* 🗓️ خلية اليوم تتوسط عمودياً وأفقياً بدقة لمنع أي تداخل أو قفز فوق الخطوط الفاصلة */
+  .official-schedule-document td .day-column-cell {
+    height: 100% !important; /* 📏 استغلال ارتفاع خلية اليوم */
+    display: flex !important; /* 📦 نظام فليكس منظم */
+    flex-direction: column !important; /* ⬇️ ترتيب اسم اليوم وتحته عدد المحاضرات */
+    align-items: center !important; /* 🎯 توسيط أفقي محكم */
+    justify-content: center !important; /* 🎯 توسيط رأسي في قلب الخلية لمنع لمس الحدود */
+    gap: 1.5mm !important; /* 🤏 فجوة هوائية تحمي النصوص من التلاصق */
+    padding: 1mm 0 !important; /* 🔲 حشوة متوازنة تمنع الخروج عن الإطار */
+  }
 }
 
 /* 🎨 تأثير الألواح الكحلية الفاخرة (Navy Light Panel) */
@@ -179,20 +264,39 @@ select, option {
   text-align: right;
 }
 
+/* 🚫 1. تعطيل خاصية الارتكاز التلقائي (Scroll Anchoring) عالمياً على كافة عناصر المشروع لمنع قفز العناصر وانقلاب الفليكس بمتصفح كروم */
+*,
+*::before,
+*::after {
+  overflow-anchor: none !important; /* 🛑 إيقاف محاولات المتصفح الخاطئة لتثبيت الارتكاز في بيئة RTL */
+}
+
+/* 🔒 2. حجز مساحة شريط التمرير مسبقاً لكافة حاويات السكرول بالنظام لمنع أي Layout Shift أفقي عند التمرير السريع */
+html,
+body,
+[class*="overflow-y-auto"],
+[class*="overflow-y-scroll"],
+.overflow-y-auto,
+.overflow-y-scroll {
+  scrollbar-gutter: stable; /* 📐 حجز مساحة السكرول بار مسبقاً حتى ما يقفز العرض */
+  overscroll-behavior-y: contain; /* 🛡️ حصر التمرير داخل الحاوية ومنع الاهتزاز العكسي */
+}
+
+/* 🚀 3. تسريع المعالجة الرسومية بالـ GPU ومنع وميض وتذبذب العناصر في بيئة RTL */
+[class*="overflow-y-auto"] > *,
+[class*="overflow-y-scroll"] > * {
+  -webkit-backface-visibility: hidden; /* 🛡️ حماية الطبقات الرسومية من إعادة الرسم العشوائي */
+  backface-visibility: hidden; /* 🛡️ منع وميض واختفاء الكروت أثناء السكرول السريع */
+}
+
 /* 🔒 منع أي تدفق أفقي مع إتاحة التمرير التلقائي الذكي فقط عند زيادة المحتوى لمنع ظهور السكرول الزائد */
 html {
   overflow-y: auto;
 }
 
-@supports (scrollbar-gutter: stable) {
-  html {
-    scrollbar-gutter: stable;
-  }
-}
-
+/* 🔒 منع أي تدفق أفقي باستخدام clip بدلاً من hidden لضمان عمل position: sticky و fixed بثبات 100% دون كسر سياق التمرير */
 html, body {
-  overflow-x: hidden;
-  max-width: 100vw;
+  overflow-x: clip; /* ✂️ قص أي زيادة عرضية بدون ما نسوي scroll container يكسر ثبات الـ sticky */
 }
 
 /* 👁️ إخفاء زر إظهار كلمة المرور الافتراضي الخاص بالمتصفح (Edge/Chrome ::-ms-reveal) لمنع تكرار أيقونة العين */

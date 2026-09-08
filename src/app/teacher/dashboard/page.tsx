@@ -472,6 +472,7 @@ export default function TeacherDashboard() {
             departmentId={currentUser.department_id}
             lectures={scheduleLectures}
             configs={scheduleConfigs}
+            academicYear={academicYear} // 🗓️ تمرير العام الدراسي المعتمد المتزامن
             initialSemester={activeSemester}
           />
         )}

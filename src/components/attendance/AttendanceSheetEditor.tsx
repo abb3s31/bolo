@@ -12,6 +12,7 @@ import {
   LectureType,
   AttendanceExcuseRequest,
   CourseWeeklySessionSchedule, // 📅 نوع جدول توقيت المحاضرات المعتمد أسبوعياً
+  DepartmentScheduleConfig, // ⚙️ إعدادات جدول القسم والعطل
 } from '@/types'; // 🔗 استيراد الأنواع الرسمية المعتمدة في النظام الأكاديمي
 import {
   BOLOGNA_SEMESTER_WEEKS,
@@ -30,7 +31,14 @@ import {
   getCourseLecturesPerWeek,
 } from '@/lib/attendance-utils'; // 🕒 دوال حسابات الحضور وضوابط بولونيا الدقيقة وإعدادات الساعات
 import { detectArabicGender } from '@/lib/demographics-utils'; // 🧮 التعرف الذكي على جنس الطلاب
-import { DAYS_OF_WEEK_LIST } from '@/lib/schedule-utils'; // 🗓️ قائمة أيام الأسبوع المعربة
+import {
+  DAYS_OF_WEEK_LIST,
+  calculateDateForAnyDayInWeek,
+  getCurrentAcademicWeek,
+  formatDateArabicWithDay,
+  IRAQI_ARABIC_MONTHS,
+} from '@/lib/schedule-utils'; // 🗓️ دوال الجداول والأسابيع الـ 15 المعتمدة لمسار بولونيا
+import ArabicDatePicker from '@/components/schedule/ArabicDatePicker'; // 📅 مكون التقويم الأكاديمي العربي الفاخر
 import { getStoredData, saveStoredData, INITIAL_EXCUSE_REQUESTS } from '@/lib/mock-data'; // 💾 دوال التخزين المحلي
 import {
   syncDepartmentDurationConfigFromSupabase,
@@ -142,8 +150,31 @@ export default function AttendanceSheetEditor({
   departmentHeadName = 'رئاسة القسم العلمي',
   rapporteurName = 'مقررية القسم العلمي',
 }: AttendanceSheetEditorProps) {
-  // 📌 1. حالة الأسبوع الدراسي المختار من 1 إلى 15 (مسار بولونيا)
-  const [selectedWeek, setSelectedWeek] = useState<number>(1);
+  // 📆 استخراج تاريخ انطلاق الفصل الدراسي المعتمد للقسم (مسار بولونيا)
+  const effectiveStartDate = useMemo(() => {
+    if (typeof window !== 'undefined') {
+      const scheduleConfigs = getStoredData<DepartmentScheduleConfig[]>('department_schedule_configs', []);
+      const deptCfg = scheduleConfigs.find(
+        (c) => c.department_id === course.department_id && c.start_date && c.start_date.trim() !== ''
+      );
+      if (deptCfg?.start_date) return deptCfg.start_date;
+      const anyWithDate = scheduleConfigs.find((c) => c.start_date && c.start_date.trim() !== '');
+      if (anyWithDate?.start_date) return anyWithDate.start_date;
+    }
+    const lecWithDate = lectures.find((l) => l.date && l.date.trim() !== '');
+    if (lecWithDate?.date) return lecWithDate.date;
+    return '2026-09-20';
+  }, [course.department_id, lectures]);
+
+  // ⚡ احتساب الأسبوع الأكاديمي الحالي التلقائي نسبة لتاريخ اليوم الفعلي
+  const currentAcademicWeek = useMemo(() => {
+    return getCurrentAcademicWeek(effectiveStartDate);
+  }, [effectiveStartDate]);
+
+  // 📌 1. حالة الأسبوع الدراسي المختار من 1 إلى 15 (مسار بولونيا - يبدأ تلقائياً من الأسبوع الحالي)
+  const [selectedWeek, setSelectedWeek] = useState<number>(() => {
+    return getCurrentAcademicWeek(effectiveStartDate);
+  });
 
   // 🎯 2. حالة رقم المحاضرة في الأسبوع أو اليوم (المحاضرة 1 أو المحاضرة 2)
   const [selectedLectureSlot, setSelectedLectureSlot] = useState<1 | 2>(1);
@@ -581,13 +612,34 @@ export default function AttendanceSheetEditor({
         const scheduledDur = dur > 0 ? dur : typeDefault;
         const scheduledEnd = matchedLec?.end_time || calculateEndTime(scheduledStart, scheduledDur);
 
-        // 📅 تاريخ الأسبوع المتسلسل المحسوب بدقة (+7 أيام لكل أسبوع من تاريخ بداية الفصل)
-        const computedWeekDate = calculateCalendarWeekDate('2026-09-05', targetWeek, scheduledDay);
+        // 📅 تاريخ الأسبوع التقويمي المحسوب بدقة من جدول القسم والتعاقب الذكي للأسابيع الـ 15
+        let computedWeekDate = '';
+        if (matchedLec?.custom_weekly_dates && matchedLec.custom_weekly_dates[targetWeek]) {
+          computedWeekDate = matchedLec.custom_weekly_dates[targetWeek]; // 🗓️ أخذ التاريخ المحسوب تلقائياً لهذا الأسبوع
+        } else if (matchedLec?.weekly_overrides && matchedLec.weekly_overrides[targetWeek]?.date) {
+          const overrideVal = matchedLec.weekly_overrides[targetWeek]?.date;
+          computedWeekDate = overrideVal || ''; // 📌 أخذ استثناء تاريخ هذا الأسبوع المخصص
+        } else if (matchedLec?.date) {
+          // 🧮 احتساب التاريخ انطلاقاً من تاريخ الأسبوع المرجعي المحدد في جدول المحاضرات
+          const baseDate = new Date(matchedLec.date);
+          const weekOffset = (targetWeek - (matchedLec.week_number || 1)) * 7;
+          baseDate.setDate(baseDate.getDate() + weekOffset);
+          const y = baseDate.getFullYear();
+          const m = String(baseDate.getMonth() + 1).padStart(2, '0');
+          const d = String(baseDate.getDate()).padStart(2, '0');
+          computedWeekDate = `${y}-${m}-${d}`;
+        } else {
+          computedWeekDate = calculateDateForAnyDayInWeek(effectiveStartDate, 1, targetWeek, scheduledDay);
+        }
+
+        const overrideDay = (matchedLec?.weekly_overrides && matchedLec.weekly_overrides[targetWeek]?.day) || scheduledDay;
+        const overrideStart = (matchedLec?.weekly_overrides && matchedLec.weekly_overrides[targetWeek]?.start_time) || scheduledStart;
+        const overrideEnd = (matchedLec?.weekly_overrides && matchedLec.weekly_overrides[targetWeek]?.end_time) || scheduledEnd;
 
         setSelectedDate(computedWeekDate);
-        setSelectedDay(scheduledDay);
-        setSelectedStartTime(scheduledStart);
-        setSelectedEndTime(scheduledEnd);
+        setSelectedDay(overrideDay);
+        setSelectedStartTime(overrideStart);
+        setSelectedEndTime(overrideEnd);
         setSelectedDurationHours(scheduledDur);
       }
     }
@@ -1390,10 +1442,20 @@ export default function AttendanceSheetEditor({
                 <span>غير مرصود بعد</span>
               </div>
 
-              {/* شارة الأسبوع الحالي المفتوح */}
+              {/* شارة الأسبوع الحالي الفعلي بالتقويم */}
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-950 rounded-xl shadow-2xs border-2 border-emerald-400">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0 inline-block animate-pulse" />
+                <span className="text-xs font-black">
+                  الأسبوع الحالي: {currentAcademicWeek} ({formatDateArabicWithDay(calculateDateForAnyDayInWeek(effectiveStartDate, 1, currentAcademicWeek, 'saturday'))})
+                </span>
+              </div>
+
+              {/* شارة الأسبوع المفتوح حالياً للرصد */}
               <div className="flex items-center gap-1.5 px-3 py-1.5 bg-[#0F2942] text-white rounded-xl shadow-2xs border-2 border-[#0F2942]">
                 <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 shrink-0 inline-block animate-pulse" />
-                <span>الأسبوع المفتوح حالياً</span>
+                <span className="text-xs font-black">
+                  المعروض للرصد: أسبوع {selectedWeek} ({formatDateArabicWithDay(calculateDateForAnyDayInWeek(effectiveStartDate, 1, selectedWeek, 'saturday'))})
+                </span>
               </div>
             </div>
           </div>
@@ -1401,6 +1463,11 @@ export default function AttendanceSheetEditor({
           <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-15 gap-2 overflow-x-auto pb-1">
             {BOLOGNA_SEMESTER_WEEKS.map((w) => {
               const isSelected = selectedWeek === w.week;
+              const isCurr = currentAcademicWeek === w.week;
+              const weekSaturdayDate = calculateDateForAnyDayInWeek(effectiveStartDate, 1, w.week, 'saturday');
+              const dParts = weekSaturdayDate.split('-');
+              const dayNum = dParts.length === 3 ? parseInt(dParts[2], 10) : '';
+              const monthName = dParts.length === 3 ? (IRAQI_ARABIC_MONTHS[parseInt(dParts[1], 10) - 1] || '') : '';
 
               // 🔍 1. فحص هل تم رصد وتثبيت هذا الأسبوع للمسار والمحاضرة المحددة حالياً في قاعدة البيانات
               const isRecordedInStore = initialRecords.some(
@@ -1442,18 +1509,20 @@ export default function AttendanceSheetEditor({
                   key={w.week}
                   type="button"
                   onClick={() => handleWeekChange(w.week)}
-                  title={`الأسبوع ${w.week} (${trackNameAr} - ${maxLecturesPerWeek >= 2 ? `محاضرة ${selectedLectureSlot}` : 'محاضرة وحيدة'}): ${isCurrentSessionRecorded ? 'تم رصد وتثبيت الحضور ✓' : 'غير مرصود بعد'}`}
-                  className={`py-2 px-1.5 rounded-2xl text-center font-black transition-all cursor-pointer relative border-2 select-none active:scale-95 flex flex-col items-center justify-between min-h-[82px] ${
+                  title={`الأسبوع ${w.week} (${trackNameAr} - ${maxLecturesPerWeek >= 2 ? `محاضرة ${selectedLectureSlot}` : 'محاضرة وحيدة'})${isCurr ? ' - الأسبوع الفعلي الحالي' : ''}: ${isCurrentSessionRecorded ? 'تم رصد وتثبيت الحضور ✓' : 'غير مرصود بعد'}`}
+                  className={`py-2 px-1.5 rounded-2xl text-center font-black transition-all cursor-pointer relative border-2 select-none active:scale-95 flex flex-col items-center justify-between min-h-[84px] ${
                     isSelected
                       ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-md scale-105 z-10 ring-2 ring-blue-500/20'
-                      : isCurrentSessionRecorded
+                      : isCurr
                         ? 'bg-emerald-50 text-emerald-950 border-emerald-400 hover:bg-emerald-100 shadow-2xs'
-                        : 'bg-slate-50 text-slate-800 hover:bg-slate-100 hover:border-slate-400 border-slate-300'
+                        : isCurrentSessionRecorded
+                          ? 'bg-emerald-50/50 text-emerald-950 border-emerald-300 hover:bg-emerald-100 shadow-2xs'
+                          : 'bg-slate-50 text-slate-800 hover:bg-slate-100 hover:border-slate-400 border-slate-300'
                   }`}
                 >
                   {/* رأس الكارت: شارة الأسبوع مع مؤشر الرصد المصمم بدقة */}
                   <div className="w-full flex items-center justify-between px-0.5">
-                    <span className={`text-[11px] font-black ${isSelected ? 'text-cyan-300' : 'text-slate-600'}`}>
+                    <span className={`text-[11px] font-black ${isSelected ? 'text-cyan-300' : isCurr ? 'text-emerald-800' : 'text-slate-600'}`}>
                       أسبوع
                     </span>
 
@@ -1472,9 +1541,9 @@ export default function AttendanceSheetEditor({
                     ) : (
                       <span
                         className={`w-2 h-2 rounded-full shrink-0 ${
-                          isSelected ? 'bg-slate-600' : 'bg-slate-300'
+                          isSelected ? 'bg-slate-600' : isCurr ? 'bg-emerald-500' : 'bg-slate-300'
                         }`}
-                        title="غير مرصود بعد"
+                        title={isCurr ? 'الأسبوع الحالي غير مرصود بعد' : 'غير مرصود بعد'}
                       />
                     )}
                   </div>
@@ -1482,6 +1551,11 @@ export default function AttendanceSheetEditor({
                   {/* رقم الأسبوع البارز */}
                   <div className="text-lg sm:text-xl font-black font-mono leading-none my-0.5">
                     {w.week}
+                  </div>
+
+                  {/* تاريخ هذا الأسبوع المحسوب ديناميكياً */}
+                  <div className={`text-[9px] font-black leading-tight my-0.5 ${isSelected ? 'text-cyan-200' : 'text-slate-800'}`}>
+                    {dayNum} {monthName.substring(0, 5)}
                   </div>
 
                   {/* أسفل الكارت: إذا كان المسار بمحاضرتين تظهر شارات م1 وم2، وإذا بمحاضرة واحدة تظهر شارة مرصود/غير مسجل */}
@@ -1759,21 +1833,23 @@ export default function AttendanceSheetEditor({
                 )}
               </div>
               {isDeptAuthorized ? (
-                <input
-                  type="date"
+                <ArabicDatePicker
                   value={selectedDate}
-                  onChange={(e) => {
-                    const newDate = e.target.value;
+                  onChange={(newDate) => {
                     setSelectedDate(newDate);
                     if (newDate) {
                       setSelectedDay(getDayOfWeekFromDate(newDate));
                     }
                   }}
-                  className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-300 rounded-xl text-base sm:text-lg font-black text-slate-950 font-mono text-center shadow-inner outline-hidden focus:bg-white focus:border-blue-600 transition"
+                  onDayDeduce={(dayFound) => {
+                    setSelectedDay(dayFound);
+                  }}
+                  placeholder="حدد تاريخ المحاضرة"
                 />
               ) : (
-                <div className="w-full px-3 py-2.5 bg-white border-2 border-slate-300 rounded-xl text-base sm:text-lg font-black text-slate-950 font-mono text-center shadow-2xs select-all">
-                  {selectedDate || '—'}
+                <div className="w-full px-3.5 py-2.5 bg-white border-2 border-slate-300 rounded-xl text-sm sm:text-base font-black text-slate-950 text-center shadow-2xs select-all flex items-center justify-center gap-2">
+                  <Calendar className="w-4 h-4 text-blue-700 shrink-0" />
+                  <span>{selectedDate ? formatDateArabicWithDay(selectedDate) : '—'}</span>
                 </div>
               )}
             </div>
@@ -1801,7 +1877,7 @@ export default function AttendanceSheetEditor({
                   onChange={(e) => {
                     const newDay = e.target.value as DayOfWeek;
                     setSelectedDay(newDay);
-                    const updatedDate = calculateCalendarWeekDate('2026-09-05', selectedWeek, newDay);
+                    const updatedDate = calculateDateForAnyDayInWeek(effectiveStartDate, 1, selectedWeek, newDay);
                     setSelectedDate(updatedDate);
                   }}
                   className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-300 rounded-xl text-base sm:text-lg font-black text-slate-950 text-center shadow-inner outline-hidden focus:bg-white focus:border-blue-600 transition cursor-pointer"

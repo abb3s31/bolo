@@ -20,6 +20,11 @@ import {
   Award,
   Activity,
 } from 'lucide-react'; // 🎨 استيراد أيقونات SVG الصريحة بالكامل
+import {
+  calculateDateForAnyDayInWeek,
+  getCurrentAcademicWeek,
+  IRAQI_ARABIC_MONTHS,
+} from '@/lib/schedule-utils'; // 🗓️ دوال التقويم الأكاديمي وحساب الأسابيع الـ 15
 
 // 📋 واجهة خصائص المكون
 interface AttendanceAnalyticsChartsProps {
@@ -27,6 +32,7 @@ interface AttendanceAnalyticsChartsProps {
   students: UserProfile[]; // 👥 قائمة الطلبة
   records: StudentAttendanceRecord[]; // 📋 سجلات الحضور
   departmentName: string; // 🏢 اسم القسم الأكاديمي
+  startDate?: string; // 📅 تاريخ انطلاق الفصل الأكاديمي (مسار بولونيا)
 }
 
 // 🏛️ المكون الرئيسي للمخططات البيانية
@@ -35,6 +41,7 @@ export default function AttendanceAnalyticsCharts({
   students,
   records,
   departmentName,
+  startDate = '2026-09-20',
 }: AttendanceAnalyticsChartsProps) {
   // 🎛️ حالات التصفية للمرحلة والكورس
   const [selectedStage, setSelectedStage] = useState<number | 'all'>('all');
@@ -138,6 +145,9 @@ export default function AttendanceAnalyticsCharts({
 
   // 📅 اتجاه الغياب عبر الأسابيع الـ 15 (Weekly Trend)
   const weeklyTrends = useMemo(() => {
+    const baseD = startDate || '2026-09-20';
+    const currentWeekNum = getCurrentAcademicWeek(baseD);
+
     return BOLOGNA_SEMESTER_WEEKS.map((w) => {
       const weekRecords = records.filter((r) => {
         const matchWeek = r.week_number === w.week;
@@ -154,10 +164,19 @@ export default function AttendanceAnalyticsCharts({
       const totalWeekLogged = absences + presents + excused + late;
       const weekAttendanceRate = totalWeekLogged > 0 ? Math.round(((presents + late) / totalWeekLogged) * 100) : 100;
 
+      // 🗓️ احتساب التاريخ الفعلي المقابل لبداية هذا الأسبوع
+      const satDate = calculateDateForAnyDayInWeek(baseD, 1, w.week, 'saturday');
+      const dParts = satDate.split('-');
+      const dayNum = dParts.length === 3 ? parseInt(dParts[2], 10) : '';
+      const monthName = dParts.length === 3 ? (IRAQI_ARABIC_MONTHS[parseInt(dParts[1], 10) - 1] || '') : '';
+      const isCurr = currentWeekNum === w.week;
+
       return {
         weekNumber: w.week,
         weekLabel: `الأسبوع ${w.week}`,
         shortLabel: `أ ${w.week}`,
+        dateStr: `${dayNum} ${monthName}`,
+        isCurr,
         absences,
         presents,
         excused,
@@ -166,7 +185,7 @@ export default function AttendanceAnalyticsCharts({
         weekAttendanceRate,
       };
     });
-  }, [records, selectedSemester, selectedStage, students]);
+  }, [records, selectedSemester, selectedStage, students, startDate]);
 
   // 🏆 الأسبوع الأكثر التزاماً والأسبوع الأكثر غياباً
   const maxAbsenceWeek = useMemo(() => {
@@ -410,7 +429,7 @@ export default function AttendanceAnalyticsCharts({
 
           {/* شريط الانضباط الأكاديمي */}
           <div className="p-4 bg-[#0F2942] text-white rounded-2xl text-center text-base sm:text-lg font-black mt-4 shadow-sm flex items-center justify-center gap-2.5">
-            <Sparkles className="w-6 h-6 text-cyan-300 shrink-0" />
+            <Activity className="w-6 h-6 text-cyan-300 shrink-0" />
             <span>نسبة الانضباط الأكاديمي للقسم: {departmentStats.generalAttendanceRate}%</span>
           </div>
         </div>
@@ -470,12 +489,20 @@ export default function AttendanceAnalyticsCharts({
                     : 'bg-white border-slate-200 hover:border-[#0F2942]'
                 }`}
               >
-                {/* رأس البطاقة: رقم الأسبوع وشارة الحالة */}
-                <div className="w-full pb-2.5 border-b-2 border-slate-200 flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
+                {/* رأس البطاقة: رقم الأسبوع وشارة الحالة والتاريخ */}
+                <div className="w-full pb-2.5 border-b-2 border-slate-200 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="text-base sm:text-lg font-black text-slate-950">
                       {wt.weekLabel}
                     </span>
+                    <span className="text-[11px] font-black text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded-md border border-slate-200">
+                      {wt.dateStr}
+                    </span>
+                    {wt.isCurr && (
+                      <span className="text-[10px] font-black text-emerald-950 bg-emerald-100 px-1.5 py-0.5 rounded-full border border-emerald-300">
+                        الحالي
+                      </span>
+                    )}
                   </div>
                   {wt.absences === 0 ? (
                     <span className="px-2 py-0.5 bg-emerald-100 text-emerald-950 text-xs font-black rounded-lg border border-emerald-300">

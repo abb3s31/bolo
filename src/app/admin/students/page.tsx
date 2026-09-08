@@ -1006,13 +1006,7 @@ export default function AdminStudentsPage() {
             </h2>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => toggleSelectAll(filteredStudents)}
-              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-950 rounded-xl font-black text-sm transition cursor-pointer border border-slate-300"
-            >
-              {selectedStudentIds.length === filteredStudents.length && filteredStudents.length > 0 ? 'إلغاء تحديد الكل' : 'تحديد الكل'}
-            </button>
+            {/* 🧹 مسحنا زر إلغاء تحديد الكل لمنع الازدواجية ويه زر إلغاء التحديد بالشريط الكحلي ومربع رأس الجدول */}
             <span className="px-3.5 py-1.5 bg-slate-100 text-slate-950 text-sm font-black rounded-xl border border-slate-300">
               إجمالي المعروض: {filteredStudents.length} طالب
             </span>

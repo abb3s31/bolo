@@ -697,6 +697,7 @@ export default function StudentDashboard() {
       )}
 
       {/* 🗓️ 1. عرض شاشة الجدول الأسبوعي والـ Timeline الحركي */}
+      {/* 🗓️ 1. عرض شاشة جدول المحاضرات والـ Timeline التفاعلي */}
       {activeDashboardView === 'schedule' && (
         <StudentScheduleTimeline
           departmentId={currentUser?.department_id || 'dept-1'}
@@ -704,6 +705,7 @@ export default function StudentDashboard() {
           stageNumber={currentUser?.stage_number || 1}
           lectures={scheduleLectures}
           configs={scheduleConfigs}
+          academicYear={academicYear} // 🗓️ تمرير العام الدراسي المعتمد المتزامن
           initialSemester={activeSemester}
         />
       )}

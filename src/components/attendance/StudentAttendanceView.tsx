@@ -9,6 +9,7 @@ import {
   StudentCourseAttendanceSummary,
   AttendanceWarningStatus,
   AttendanceExcuseRequest,
+  DepartmentScheduleConfig, // ⚙️ إعدادات الجدول وتاريخ الانطلاق
 } from '@/types'; // 🔗 استيراد الأنواع الرسمية
 import { saveExcuseRequestToSupabase, syncExcuseRequestsFromSupabase } from '@/lib/supabase-client'; // ☁️ المزامنة السحابية للأعذار الطبية
 import {
@@ -21,6 +22,12 @@ import {
   getDepartmentDurationConfig,
   getCourseTotalScheduledHours,
 } from '@/lib/attendance-utils'; // 🕒 أدوات وحسابات الحضور وضوابط بولونيا الدقيقة
+import {
+  calculateDateForAnyDayInWeek,
+  getCurrentAcademicWeek,
+  formatDateArabicWithDay,
+  IRAQI_ARABIC_MONTHS,
+} from '@/lib/schedule-utils'; // 🗓️ دوال حسابات الأسابيع وتواريخ التقويم الذكية
 import { syncDepartmentDurationConfigFromSupabase } from '@/lib/supabase-client'; // 🔌 مزامنة قاعدة بيانات Supabase
 import { getStoredData, saveStoredData, INITIAL_EXCUSE_REQUESTS } from '@/lib/mock-data'; // 💾 التخزين المحلي
 import {
@@ -238,6 +245,25 @@ export default function StudentAttendanceView({
     return 'مسار محدد';
   }, [selectedTypeFilter]);
 
+  // 📆 استخراج تاريخ انطلاق الفصل الدراسي المعتمد للقسم (مسار بولونيا)
+  const effectiveStartDate = useMemo(() => {
+    if (typeof window !== 'undefined') {
+      const scheduleConfigs = getStoredData<DepartmentScheduleConfig[]>('department_schedule_configs', []);
+      const deptCfg = scheduleConfigs.find(
+        (c) => c.department_id === departmentId && c.start_date && c.start_date.trim() !== ''
+      );
+      if (deptCfg?.start_date) return deptCfg.start_date;
+      const anyWithDate = scheduleConfigs.find((c) => c.start_date && c.start_date.trim() !== '');
+      if (anyWithDate?.start_date) return anyWithDate.start_date;
+    }
+    return '2026-09-20';
+  }, [departmentId]);
+
+  // ⚡ احتساب الأسبوع الأكاديمي الحالي التلقائي نسبة لتاريخ اليوم الفعلي
+  const currentAcademicWeek = useMemo(() => {
+    return getCurrentAcademicWeek(effectiveStartDate);
+  }, [effectiveStartDate]);
+
   // 🏷️ قراءة اسم المادة المختارة للفلتر
   const selectedCourseLabel = useMemo(() => {
     if (selectedCourseId === 'all') return `كافة المواد الدراسية (${semesterCourses.length})`;
@@ -245,11 +271,17 @@ export default function StudentAttendanceView({
     return found ? `${found.name} (${found.code})` : 'مادة محددة';
   }, [selectedCourseId, semesterCourses]);
 
-  // 🏷️ قراءة اسم الأسبوع المختار للفلتر
+  // 🏷️ قراءة اسم الأسبوع المختار للفلتر مع التاريخ المحسوب وشارة الأسبوع الحالي
   const selectedWeekLabel = useMemo(() => {
     if (selectedWeek === 'all') return 'كافة الأسابيع (1 - 15)';
-    return `الأسبوع ${selectedWeek}`;
-  }, [selectedWeek]);
+    const wNum = parseInt(selectedWeek, 10);
+    const weekSaturdayDate = calculateDateForAnyDayInWeek(effectiveStartDate, 1, wNum, 'saturday');
+    const dParts = weekSaturdayDate.split('-');
+    const dayNum = dParts.length === 3 ? parseInt(dParts[2], 10) : '';
+    const monthName = dParts.length === 3 ? (IRAQI_ARABIC_MONTHS[parseInt(dParts[1], 10) - 1] || '') : '';
+    const isCurr = currentAcademicWeek === wNum;
+    return `الأسبوع ${wNum} (${dayNum} ${monthName})${isCurr ? ' — الأسبوع الحالي' : ''}`;
+  }, [selectedWeek, effectiveStartDate, currentAcademicWeek]);
 
   // 🏷️ قراءة اسم الحالة المختارة للفلتر
   const selectedStatusLabel = useMemo(() => {
@@ -666,6 +698,12 @@ export default function StudentAttendanceView({
                     </button>
                     {BOLOGNA_SEMESTER_WEEKS.map((w) => {
                       const isSel = selectedWeek === w.week.toString();
+                      const isCurr = currentAcademicWeek === w.week;
+                      const weekSaturdayDate = calculateDateForAnyDayInWeek(effectiveStartDate, 1, w.week, 'saturday');
+                      const dParts = weekSaturdayDate.split('-');
+                      const dayNum = dParts.length === 3 ? parseInt(dParts[2], 10) : '';
+                      const monthName = dParts.length === 3 ? (IRAQI_ARABIC_MONTHS[parseInt(dParts[1], 10) - 1] || '') : '';
+
                       return (
                         <button
                           key={w.week}
@@ -678,7 +716,19 @@ export default function StudentAttendanceView({
                             isSel ? 'bg-[#0F2942] text-white' : 'text-slate-950 hover:bg-slate-100'
                           }`}
                         >
-                          <span>الأسبوع {w.week}</span>
+                          <div className="flex items-center gap-2">
+                            <span>الأسبوع {w.week}</span>
+                            <span className={`text-xs ${isSel ? 'text-cyan-200' : 'text-slate-500'}`}>
+                              ({dayNum} {monthName})
+                            </span>
+                            {isCurr && (
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border ${
+                                isSel ? 'bg-cyan-400 text-slate-950 border-cyan-300' : 'bg-emerald-100 text-emerald-950 border-emerald-300'
+                              }`}>
+                                الحالي
+                              </span>
+                            )}
+                          </div>
                           {isSel && <Check className="w-4 h-4 text-cyan-300" />}
                         </button>
                       );

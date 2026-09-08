@@ -5,7 +5,7 @@ import { useState, useEffect, useMemo } from 'react'; // 🔗 خطافات ري�
 import Image from 'next/image'; // 🖼️ استيراد مكون الصور من نكست لطباعة شعار الجامعة الرسمي
 import { createPortal } from 'react-dom'; // 🚪 بورتال لعرض نافذة الطباعة مباشرة على جذر الصفحة
 import { DayOfWeek, ScheduleLecture, DepartmentScheduleConfig, LectureColor, UserProfile, Department } from '@/types'; // 🔗 استيراد الأنواع
-import { getStoredData, INITIAL_PROFILES, INITIAL_DEPARTMENTS } from '@/lib/mock-data'; // 💾 دوال وسجلات التخزين المحلي للبحث عن مسؤولي الأقسام
+import { getStoredData, INITIAL_PROFILES, INITIAL_DEPARTMENTS, getAcademicYear, formatAcademicYearDisplay } from '@/lib/mock-data'; // 💾 دوال وسجلات التخزين المحلي والعام الدراسي المعتمد
 import {
   DAYS_OF_WEEK_LIST,
   LECTURE_COLOR_THEMES,
@@ -15,8 +15,13 @@ import {
   getTodayDayOfWeek,
   getLectureLiveStatus,
   getLectureProgressPercentage,
-} from '@/lib/schedule-utils'; // 🕒 دوال حسابات الجدول
+  calculateDateForAnyDayInWeek,
+  getCurrentAcademicWeek,
+  formatDateArabicWithDay,
+  IRAQI_ARABIC_MONTHS,
+} from '@/lib/schedule-utils'; // 🕒 دوال حسابات الجدول والأسابيع الـ 15 والتواريخ الذكية
 import { getStageNameInArabic } from '@/lib/grade-utils'; // 🎓 أسماء المراحل بالعربية
+import { formatArabicScheduleTime, getAcademicSlotOrder, formatOfficialIssueDate, formatArabicLectureCount, formatAcademicRoomName } from '@/components/schedule/StudentScheduleTimeline'; // 🕒 أدوات التوقيت الأكاديمي الموحد ص وم والفرز الذكي وتاريخ الإصدار وصياغة أعداد المحاضرات الفصيحة وتنسيق القاعات
 import {
   Clock,
   Calendar,
@@ -50,6 +55,7 @@ interface TeacherScheduleTimelineProps {
   rapporteurName?: string;        // 📋 اسم مقرر القسم الفعلي
   lectures: ScheduleLecture[];    // 📚 كافة محاضرات النظام
   configs: DepartmentScheduleConfig[]; // ⚙️ إعدادات العطل
+  academicYear?: string;          // 🗓️ العام الدراسي المعتمد
   initialSemester?: 1 | 2;        // 🗓️ الفصل الدراسي المبدئي
 }
 
@@ -62,6 +68,7 @@ export default function TeacherScheduleTimeline({
   rapporteurName,
   lectures,
   configs,
+  academicYear,
   initialSemester = 1,
 }: TeacherScheduleTimelineProps) {
   // 📌 الحالات
@@ -76,20 +83,56 @@ export default function TeacherScheduleTimeline({
   const [isMounted, setIsMounted] = useState<boolean>(false); // ⚡ حالة التأكد من تحميل المكون على متصفح العميل
   const [isPrintModalOpen, setIsPrintModalOpen] = useState<boolean>(false); // 🖨️ حالة فتح وإغلاق نافذة المعاينة والطباعة الرسمية
 
+  // 📆 استخراج تاريخ انطلاق الفصل الدراسي المعتمد للقسم (مسار بولونيا)
+  const effectiveStartDate = useMemo(() => {
+    const foundWithDate = configs.find((c) => c.start_date && c.start_date.trim() !== ''); // 🔍 فحص هل أحد الإعدادات يحمل تاريخ بداية معتمد
+    return foundWithDate?.start_date || '2026-09-20'; // 📅 تاريخ الانطلاق الافتراضي 2026-09-20
+  }, [configs]);
+
+  // ⚡ احتساب الأسبوع الأكاديمي الحالي التلقائي نسبة لتاريخ اليوم الفعلي
+  const currentAcademicWeek = useMemo(() => {
+    return getCurrentAcademicWeek(effectiveStartDate); // 🧮 حساب رقم الأسبوع الحالي
+  }, [effectiveStartDate]);
+
+  // 📌 حالة الأسبوع المختار للعرض من 1 إلى 15 (افتراضياً الأسبوع الحالي)
+  const [selectedAcademicWeek, setSelectedAcademicWeek] = useState<number>(() => {
+    return getCurrentAcademicWeek(effectiveStartDate); // 🎯 البدء من الأسبوع الحالي الذكي
+  });
+
   // ⚡ تفعيل حالة الجاهزية للعميل
   useEffect(() => {
     setIsMounted(true); // 🚀 المكون اشتغل بالمتصفح
   }, []);
 
-  // 🖨️ إضافة وحذف كلاس الطباعة على وسم body لتفعيل عزل الصفحة بـ globals.css
+  // 🖨️ إضافة وحذف كلاس الطباعة ووسم الاتجاه العرضي Landscape على المتصفح لضمان صفحة واحدة عريضة وواضحة 100%
   useEffect(() => {
+    // ⚡ نتحقق إن النافذة مفتوحة حتى نطبق نمط الطباعة العرضي فوراً
     if (isPrintModalOpen) {
       document.body.classList.add('print-modal-active'); // 🔒 حجب باقي أجزاء الصفحة ومنع طباعتها
+      document.body.classList.add('schedule-print-mode'); // 📄 تفعيل كلاس النمط العرضي للجدول
+
+      // 📄 حقن وسم النمط العرضي مباشرة بهيد المستند لضمان اتجاه Landscape بمتصفح كروم بدون أي تعارض
+      let styleTag = document.getElementById('schedule-print-orientation-style') as HTMLStyleElement | null; // 🔍 فحص الوسم إذا كان موجوداً مسبقاً
+      if (!styleTag) {
+        styleTag = document.createElement('style'); // 🏗️ إنشاء عنصر ستايل جديد
+        styleTag.id = 'schedule-print-orientation-style'; // 🏷️ إسناد المعرف الثابت للوسم
+        styleTag.innerHTML = `@media print { @page { size: A4 landscape !important; margin: 4mm 5mm !important; } html, body { height: 100% !important; margin: 0 !important; padding: 0 !important; } }`; // 📐 فرض الاتجاه العرضي والهوامش المحكمة وملء كامل الصفحة
+      }
     } else {
       document.body.classList.remove('print-modal-active'); // 🔓 رفع الحجب بعد إغلاق نافذة الطباعة
+      document.body.classList.remove('schedule-print-mode'); // 🔓 إزالة كلاس النمط العرضي
+      const styleTag = document.getElementById('schedule-print-orientation-style'); // 🔍 استرجاع الوسم المحقون
+      if (styleTag) {
+        styleTag.remove(); // 🧹 إزالة وسم النمط العرضي لتفادي التأثير على باقي أقسام النظام
+      }
     }
     return () => {
       document.body.classList.remove('print-modal-active'); // 🧹 تنظيف التأثير عند تفريغ المكون
+      document.body.classList.remove('schedule-print-mode'); // 🧹 تنظيف كلاس العرضي
+      const styleTag = document.getElementById('schedule-print-orientation-style'); // 🔍 استرجاع الوسم عند تفريغ المكون
+      if (styleTag) {
+        styleTag.remove(); // 🧹 تنظيف عند إزالة المكون من الذاكرة
+      }
     };
   }, [isPrintModalOpen]);
 
@@ -239,6 +282,14 @@ export default function TeacherScheduleTimeline({
     });
     return Math.round((totalMinutes / 60) * 10) / 10;
   }, [myLectures]);
+
+  // 🗓️ استخراج وتنسيق العام الدراسي الفعلي المعتمد للنظام تلقائياً
+  const resolvedAcademicYear = useMemo(() => {
+    if (academicYear && academicYear.trim() !== '') {
+      return formatAcademicYearDisplay(academicYear);
+    }
+    return formatAcademicYearDisplay(getAcademicYear());
+  }, [academicYear]);
 
   return (
     <div className="bg-white border-2 border-slate-200 rounded-3xl shadow-sm overflow-hidden font-sans animate-in fade-in duration-200">
@@ -395,48 +446,144 @@ export default function TeacherScheduleTimeline({
         </div>
       </div>
 
-      {/* 🗓️ 2. شريط أزرار أيام الأسبوع الـ 7 */}
-      <div className="p-3 sm:p-4 bg-slate-50/80 border-b border-slate-200">
+      {/* 📅 شريط الأسابيع الـ 15 الأكاديمي الذكي المعتمد لمسار بولونيا */}
+      <div className="p-3 sm:p-4 bg-white border-b border-slate-200">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+          <div className="flex items-center gap-2.5">
+            <span className="p-2 bg-blue-50 border border-blue-200 text-[#0F2942] rounded-xl shadow-2xs">
+              <CalendarDays className="w-5 h-5 text-blue-700" />
+            </span>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-sm sm:text-base font-black text-slate-950">التقويم الأكاديمي للفصل (15 أسبوعاً)</h3>
+                <span className="px-2.5 py-0.5 bg-emerald-50 text-emerald-950 border border-emerald-400 font-black text-xs rounded-full flex items-center gap-1 shadow-2xs">
+                  <Sparkles className="w-3 h-3 text-emerald-600" />
+                  <span>الأسبوع الحالي: {currentAcademicWeek}</span>
+                </span>
+              </div>
+              <p className="text-xs font-black text-slate-800 mt-0.5">
+                تاريخ انطلاق الفصل: {formatDateArabicWithDay(effectiveStartDate)}
+              </p>
+            </div>
+          </div>
+          
+          {/* زر الرجوع السريع للأسبوع الحالي */}
+          {selectedAcademicWeek !== currentAcademicWeek && (
+            <button
+              type="button"
+              onClick={() => setSelectedAcademicWeek(currentAcademicWeek)}
+              className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-950 border border-blue-300 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 self-start sm:self-auto cursor-pointer shadow-2xs"
+            >
+              <span>الانتقال للأسبوع الحالي ({currentAcademicWeek})</span>
+            </button>
+          )}
+        </div>
+
+        {/* قائمة الأسابيع الـ 15 الأفقية */}
+        <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-15 gap-1.5 overflow-x-auto pb-1">
+          {Array.from({ length: 15 }, (_, i) => i + 1).map((wNum) => {
+            const isSel = selectedAcademicWeek === wNum;
+            const isCurr = currentAcademicWeek === wNum;
+            const weekSaturdayDate = calculateDateForAnyDayInWeek(effectiveStartDate, 1, wNum, 'saturday');
+            const dParts = weekSaturdayDate.split('-');
+            const dayNum = dParts.length === 3 ? parseInt(dParts[2], 10) : '';
+            const monthName = dParts.length === 3 ? (IRAQI_ARABIC_MONTHS[parseInt(dParts[1], 10) - 1] || '') : '';
+
+            return (
+              <button
+                key={wNum}
+                type="button"
+                onClick={() => setSelectedAcademicWeek(wNum)}
+                className={`py-2 px-1 rounded-xl text-center font-black transition-all cursor-pointer border-2 flex flex-col items-center justify-between min-h-[72px] sm:min-h-[76px] ${
+                  isSel
+                    ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-md ring-2 ring-blue-400/30'
+                    : isCurr
+                    ? 'bg-emerald-50 text-emerald-950 border-emerald-400 hover:bg-emerald-100'
+                    : 'bg-slate-50 text-slate-800 border-slate-200 hover:bg-slate-100 hover:border-slate-300'
+                }`}
+              >
+                <div className="w-full flex items-center justify-between px-1">
+                  <span className={`text-xs font-black ${isSel ? 'text-cyan-300' : isCurr ? 'text-emerald-950' : 'text-slate-950'}`}>
+                    أسبوع
+                  </span>
+                  {isCurr && (
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-emerald-300/40 animate-pulse" title="الأسبوع الحالي" />
+                  )}
+                </div>
+                <div className="text-base font-black font-mono leading-none my-0.5">
+                  {wNum}
+                </div>
+                {/* 📅 تكبير نص التاريخ للشهر واليوم ليكون مقروءاً وبخط داكن عريض */}
+                <div className={`text-[11px] sm:text-xs font-black leading-tight mt-0.5 ${isSel ? 'text-cyan-200' : 'text-slate-950'}`}>
+                  {dayNum} {monthName.substring(0, 5)}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 🗓️ 2. شريط أزرار أيام الأسبوع الـ 7 الموحد والمتناسق تماماً */}
+      <div className="px-2.5 py-3.5 sm:px-4 sm:py-4 bg-slate-50/90 border-b border-slate-200">
         <div className="grid grid-cols-7 gap-1.5 sm:gap-3">
           {DAYS_OF_WEEK_LIST.map((d) => {
-            const isSelected = selectedDay === d.key;
-            const isToday = currentRealDay === d.key;
-            const dayLecturesCount = myLectures.filter((l) => l.day === d.key).length;
+            const isSelected = selectedDay === d.key; // 🌟 هل هذا اليوم هو المختار حالياً للعرض
+            const isToday = currentRealDay === d.key; // 🕒 هل هذا اليوم هو اليوم الفعلي للتقويم
+            const dayLecturesCount = myLectures.filter((l) => l.day === d.key).length; // 📊 عدد محاضرات الأستاذ بهذا اليوم
+            const dayCalcDate = calculateDateForAnyDayInWeek(effectiveStartDate, 1, selectedAcademicWeek, d.key); // 🗓️ تاريخ اليوم المحسوب
+            const p = dayCalcDate.split('-'); // ✂️ تفكيك التاريخ لاستخراج اليوم والشهر
+            const formattedDayDate = p.length === 3
+              ? `${parseInt(p[2], 10)} ${IRAQI_ARABIC_MONTHS[parseInt(p[1], 10) - 1] || ''}`
+              : '';
 
             return (
               <button
                 key={d.key}
                 type="button"
                 onClick={() => setSelectedDay(d.key)}
-                className={`h-20 sm:h-22 p-2 sm:p-2.5 rounded-2xl border-2 transition-all flex flex-col items-center justify-between text-center cursor-pointer ${
+                className={`relative min-h-[92px] sm:min-h-[100px] p-2 sm:p-2.5 rounded-2xl border-2 transition-all flex flex-col items-center justify-between text-center cursor-pointer select-none ${
                   isSelected
-                    ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-md ring-2 ring-[#0F2942]/20'
+                    ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-md ring-2 ring-[#0F2942]/20 scale-[1.02] z-20'
+                    : isToday
+                    ? 'bg-white border-blue-500 text-slate-950 shadow-xs hover:border-blue-600 hover:bg-blue-50/30 z-10'
                     : 'bg-white border-slate-200 text-slate-900 hover:border-slate-300 hover:bg-slate-50 shadow-2xs'
                 }`}
               >
-                <div className="flex flex-col items-center gap-0.5 w-full">
-                  {isToday && (
-                    <span className="px-2 py-0.5 bg-rose-600 text-white text-[10px] sm:text-xs font-black rounded-full shadow-2xs flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                      <span>اليوم</span>
-                    </span>
-                  )}
-                  <span className={`text-xs sm:text-base font-black truncate w-full ${isSelected ? 'text-white' : 'text-slate-950'}`}>
+                {/* 🔴 شارة 'اليوم' العائمة بالأعلى باللون الأحمر وتكبير كلمة اليوم */}
+                {isToday && (
+                  <span className="absolute -top-3 right-1/2 translate-x-1/2 px-2.5 sm:px-3 py-0.5 sm:py-1 text-xs sm:text-sm font-black rounded-full shadow-md flex items-center gap-1.5 z-30 whitespace-nowrap border bg-rose-600 text-white border-rose-400 ring-2 ring-rose-500/20">
+                    <span className="w-2 h-2 rounded-full bg-white animate-pulse shrink-0" />
+                    <span className="font-black text-xs sm:text-sm">اليوم</span>
+                  </span>
+                )}
+
+                {/* 📅 اسم اليوم وتاريخه التقويمي بمحاذاة أفقية مستقيمة وموحدة لكافة الأيام الـ 7 */}
+                <div className="flex flex-col items-center gap-0.5 w-full pt-1">
+                  <span className={`text-xs sm:text-base font-black truncate w-full ${
+                    isSelected ? 'text-white' : 'text-slate-950'
+                  }`}>
                     {d.label_ar}
+                  </span>
+                  <span className={`text-[11px] sm:text-xs font-black leading-tight font-mono ${
+                    isSelected ? 'text-cyan-300' : 'text-slate-700'
+                  }`}>
+                    {formattedDayDate}
                   </span>
                 </div>
 
-                <div className="w-full flex justify-center">
+                {/* 🏷️ شارة الحالة السفلية (عدد المحاضرات / فارغ) بتصميم راقٍ ومتناسق */}
+                <div className="w-full flex justify-center pt-1">
                   <span
                     className={`px-2 py-0.5 rounded-lg text-[10px] sm:text-xs font-black truncate border ${
                       isSelected
-                        ? 'bg-white/20 text-white border-white/20'
+                        ? 'bg-white/20 text-white border-white/30'
                         : dayLecturesCount > 0
-                        ? 'bg-blue-50 text-blue-950 border-blue-200'
+                        ? 'bg-blue-50 text-blue-950 border-blue-300'
                         : 'bg-slate-100 text-slate-700 border-slate-200'
                     }`}
                   >
-                    {dayLecturesCount > 0 ? `${dayLecturesCount} محاضرات` : 'فارغ'}
+                    {/* 🔤 صياغة فصيحة ومضبوطة لعدد المحاضرات بدلاً من 1 محاضرات */}
+                    {dayLecturesCount > 0 ? formatArabicLectureCount(dayLecturesCount) : 'فارغ'}
                   </span>
                 </div>
               </button>
@@ -507,16 +654,19 @@ export default function TeacherScheduleTimeline({
                 <Calendar className="w-5 h-5 text-cyan-300" />
               </div>
               <div>
-                <h3 className="text-lg sm:text-xl font-black text-slate-950 flex items-center gap-2">
-                  <span>جدول محاضراتك ليوم {DAYS_OF_WEEK_LIST.find((d) => d.key === selectedDay)?.label_ar}</span>
-                  {selectedDay === currentRealDay && (
-                    <span className="px-3 py-0.5 bg-rose-100 text-rose-950 text-xs sm:text-sm font-black rounded-full border border-rose-300">
+                <h3 className="text-lg sm:text-xl font-black text-slate-950 flex items-center gap-2 flex-wrap">
+                  <span>
+                    جدول محاضراتك ليوم {formatDateArabicWithDay(calculateDateForAnyDayInWeek(effectiveStartDate, 1, selectedAcademicWeek, selectedDay))} (الأسبوع {selectedAcademicWeek})
+                  </span>
+                  {selectedDay === currentRealDay && selectedAcademicWeek === currentAcademicWeek && (
+                    <span className="px-3.5 py-1 bg-rose-100 text-rose-950 text-xs sm:text-sm font-black rounded-full border-2 border-rose-300 shadow-2xs">
                       اليوم الفعلي
                     </span>
                   )}
                 </h3>
                 <p className="text-sm sm:text-base text-slate-700 font-black mt-0.5">
-                  إجمالي المحاضرات المكلف بها: {dayLectures.length} محاضرة
+                  {/* 🔤 صياغة فصيحة ومضبوطة لعدد المحاضرات بدلاً من 1 محاضرات */}
+                  إجمالي المحاضرات المكلف بها: {formatArabicLectureCount(dayLectures.length)}
                 </p>
               </div>
             </div>
@@ -555,25 +705,34 @@ export default function TeacherScheduleTimeline({
                 return (
                   <div
                     key={lecture.id}
-                    className={`rounded-2xl border-2 p-4 sm:p-5 transition-all shadow-2xs ${
+                    className={`rounded-2xl border-2 p-4 sm:p-5 shadow-2xs transform-gpu [contain:paint_layout] ${
                       liveStatus === 'live'
                         ? 'bg-white border-rose-500 shadow-md ring-2 ring-rose-500/20'
-                        : `${theme.bgLight} ${theme.border} hover:border-slate-400`
+                        : `${theme.bgLight} ${theme.border}`
                     }`}
+                    style={{ transform: 'translateZ(0)', WebkitBackfaceVisibility: 'hidden', backfaceVisibility: 'hidden' }}
                   >
-                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/80 pb-3 mb-3">
-                      <div className="flex items-center gap-2.5">
-                        <span className="w-7 h-7 rounded-xl bg-[#0F2942] text-white font-black text-xs sm:text-sm flex items-center justify-center shadow-2xs">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/80 pb-3 mb-3 w-full">
+                      <div className="flex items-center gap-2.5 flex-wrap min-w-0">
+                        <span className="w-7 h-7 rounded-xl bg-[#0F2942] text-white font-black text-xs sm:text-sm flex items-center justify-center shadow-2xs shrink-0">
                           {idx + 1}
                         </span>
-                        <span className="px-3 py-1 bg-slate-950 text-white font-black text-xs sm:text-sm rounded-xl flex items-center gap-2 font-mono shadow-2xs">
-                          <Clock className="w-3.5 h-3.5 text-slate-400" />
-                          <span>{lecture.start_time} - {lecture.end_time}</span>
+                        <span className="px-3 py-1 bg-slate-950 text-white font-black text-xs sm:text-sm rounded-xl flex items-center gap-2 font-sans shadow-2xs shrink-0" dir="rtl">
+                          <Clock className="w-3.5 h-3.5 text-cyan-300 shrink-0" />
+                          <span className="font-sans font-black whitespace-nowrap">{formatArabicScheduleTime(`${lecture.start_time} - ${lecture.end_time}`)}</span>
                         </span>
-                        <span className="px-3 py-1 bg-blue-100 text-blue-950 border border-blue-200 font-black text-xs sm:text-sm rounded-xl">
+                        <span className="px-3 py-1 bg-blue-100 text-blue-950 border border-blue-200 font-black text-xs sm:text-sm rounded-xl shrink-0">
                           المرحلة {getStageNameInArabic(lecture.stage_number)}
                         </span>
-                        <span className={`px-3 py-1 ${theme.badgeBg} ${theme.badgeText} font-black text-xs sm:text-sm rounded-xl flex items-center gap-1.5`}>
+                        {(lecture.week_number || lecture.date) && (
+                          <span className="px-3 py-1 bg-indigo-50 text-indigo-950 border border-indigo-200 font-black text-xs sm:text-sm rounded-xl flex items-center gap-1.5 shrink-0">
+                            <Calendar className="w-3.5 h-3.5 text-indigo-700 shrink-0" />
+                            {lecture.week_number && <span>الأسبوع {lecture.week_number}</span>}
+                            {lecture.week_number && lecture.date && <span className="text-indigo-400">•</span>}
+                            {lecture.date && <span className="font-mono">{lecture.date}</span>}
+                          </span>
+                        )}
+                        <span className={`px-3 py-1 ${theme.badgeBg} ${theme.badgeText} font-black text-xs sm:text-sm rounded-xl flex items-center gap-1.5 shrink-0`}>
                           {lecture.type === 'practical' ? (
                             <FlaskConical className="w-3.5 h-3.5" />
                           ) : lecture.type === 'tutorial' ? (
@@ -584,7 +743,7 @@ export default function TeacherScheduleTimeline({
                           <span>{typeInfo.ar}</span>
                         </span>
 
-                        <span className={`px-2.5 py-1 rounded-xl text-xs sm:text-sm font-black border flex items-center gap-1.5 ${
+                        <span className={`px-2.5 py-1 rounded-xl text-xs sm:text-sm font-black border flex items-center gap-1.5 shrink-0 ${
                           (lecture.study_type || 'morning') === 'evening'
                             ? 'bg-indigo-50 text-indigo-950 border-indigo-200'
                             : 'bg-sky-50 text-sky-950 border-sky-300'
@@ -598,10 +757,10 @@ export default function TeacherScheduleTimeline({
                         </span>
                       </div>
 
-                      <div>
+                      <div className="shrink-0">
                         {liveStatus === 'live' && (
-                          <span className="px-3 py-1 bg-rose-600 text-white font-black text-xs sm:text-sm rounded-xl flex items-center gap-1.5 shadow-2xs animate-pulse">
-                            <span className="w-2 h-2 rounded-full bg-white animate-ping" />
+                          <span className="px-3 py-1 bg-rose-600 text-white font-black text-xs sm:text-sm rounded-xl flex items-center gap-1.5 shadow-2xs">
+                            <span className="w-2 h-2 rounded-full bg-white" />
                             <span>جارية الآن</span>
                           </span>
                         )}
@@ -620,19 +779,22 @@ export default function TeacherScheduleTimeline({
                       </div>
                     </div>
 
-                    <div className="space-y-2">
-                      <h4 className="text-base sm:text-xl font-black text-slate-950 flex items-center gap-2.5">
-                        <span>{lecture.course_name}</span>
-                        <span className="px-2.5 py-0.5 bg-slate-200 text-slate-900 text-xs font-mono font-black rounded-lg">
+                    <div className="space-y-2 w-full">
+                      <div className="flex items-center justify-between gap-2.5 w-full min-w-0" dir="rtl">
+                        <h4 className="text-base sm:text-xl font-black text-slate-950 text-right min-w-0 flex-1">
+                          {lecture.course_name}
+                        </h4>
+                        <span className="px-2.5 py-0.5 bg-slate-200 text-slate-900 text-xs font-mono font-black rounded-lg shrink-0" dir="ltr">
                           {lecture.course_code}
                         </span>
-                      </h4>
+                      </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1 text-sm sm:text-base font-black text-slate-800">
                         <div className="flex items-center gap-2 p-2.5 bg-white/90 rounded-xl border border-slate-300">
                           <MapPin className="w-4 h-4 text-[#0F2942]" />
                           <span>المكان المحدد:</span>
-                          <strong className="text-slate-950">{lecture.room}</strong>
+                          {/* 🏛️ عرض مسمى القاعة أو المختبر بأسلوب أكاديمي منسق */}
+                          <strong className="text-slate-950">{formatAcademicRoomName(lecture.room, lecture.type)}</strong>
                         </div>
 
                         <div className="flex items-center gap-2 p-2.5 bg-white/90 rounded-xl border border-slate-300">
@@ -686,7 +848,7 @@ export default function TeacherScheduleTimeline({
             {DAYS_OF_WEEK_LIST.map((d) => {
               const dayLecs = myLectures
                 .filter((l) => l.day === d.key)
-                .sort((a, b) => timeStringToMinutes(a.start_time) - timeStringToMinutes(b.start_time));
+                .sort((a, b) => getAcademicSlotOrder(a.start_time) - getAcademicSlotOrder(b.start_time));
               const isToday = currentRealDay === d.key;
 
               return (
@@ -718,7 +880,8 @@ export default function TeacherScheduleTimeline({
                         ? 'bg-blue-50 text-blue-950 border-blue-200'
                         : 'bg-slate-200 text-slate-700 border-slate-300'
                     }`}>
-                      {dayLecs.length > 0 ? `${dayLecs.length} محاضرات` : 'فارغ'}
+                      {/* 🔤 صياغة فصيحة ومضبوطة لعدد المحاضرات في الجدول الأسبوعي */}
+                      {dayLecs.length > 0 ? formatArabicLectureCount(dayLecs.length) : 'فارغ'}
                     </span>
                   </div>
 
@@ -756,7 +919,8 @@ export default function TeacherScheduleTimeline({
                               <div className="flex items-center justify-between gap-1 text-slate-900">
                                 <span className="flex items-center gap-1 truncate">
                                   <MapPin className="w-3 h-3 text-[#0F2942] shrink-0" />
-                                  <span className="truncate">{lec.room}</span>
+                                  {/* 🏛️ عرض مسمى القاعة أو المختبر بأسلوب أكاديمي منسق */}
+                                  <span className="truncate">{formatAcademicRoomName(lec.room, lec.type)}</span>
                                 </span>
                                 <span className="text-slate-600 font-bold shrink-0">{typeInfo.ar}</span>
                               </div>
@@ -793,26 +957,67 @@ export default function TeacherScheduleTimeline({
             className="fixed inset-0 top-0 left-0 right-0 bottom-0 w-screen h-screen min-h-[100dvh] z-[999999] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 overflow-hidden print:p-0 print:static print:bg-white print:backdrop-blur-none print:w-full print:h-auto print:min-h-0 print:overflow-visible print:block"
             dir="rtl"
           >
-            {/* 📄 تنسيقات الطباعة الإلزامية لفرض العرض الأفقي والتسطير الواضح للجدول */}
+            {/* 📄 تنسيقات الطباعة الإلزامية لفرض العرض الأفقي والتسطير الواضح للجدول وضمان صفحة واحدة بدقة 100% */}
             <style dangerouslySetInnerHTML={{ __html: `
               @media print {
                 @page {
                   size: A4 landscape !important;
-                  margin: 6mm !important;
+                  margin: 4mm 5mm !important;
                 }
-                #printable-modal-portal {
+                html, body {
                   width: 100% !important;
                   height: auto !important;
+                  min-height: 0 !important;
+                  max-height: none !important;
+                  overflow: visible !important;
+                  margin: 0 !important;
+                  padding: 0 !important;
+                  background: #ffffff !important;
+                  -webkit-print-color-adjust: exact !important;
+                  print-color-adjust: exact !important;
+                }
+                #printable-modal-portal {
+                  display: block !important;
+                  position: static !important;
+                  width: 100% !important;
+                  height: auto !important;
+                  min-height: 0 !important;
+                  max-height: none !important;
+                  overflow: visible !important;
                   padding: 0 !important;
                   margin: 0 !important;
                   background: #ffffff !important;
                 }
-                #printable-modal-portal table {
+                #printable-modal-portal * {
+                  box-sizing: border-box !important;
+                }
+                .official-schedule-document {
+                  display: flex !important;
+                  flex-direction: column !important;
+                  width: 100% !important;
+                  max-width: 100% !important;
+                  margin: 0 !important;
+                  padding: 0 !important;
+                  background: #ffffff !important;
+                }
+                .official-schedule-document table {
                   border-collapse: collapse !important;
                   width: 100% !important;
+                  table-layout: fixed !important;
+                  margin: 0 !important;
                 }
-                #printable-modal-portal th, 
-                #printable-modal-portal td {
+                .official-schedule-document thead {
+                  display: table-header-group !important;
+                }
+                .official-schedule-document tbody {
+                  display: table-row-group !important;
+                }
+                .official-schedule-document tr {
+                  page-break-inside: avoid !important;
+                  break-inside: avoid !important;
+                }
+                .official-schedule-document th, 
+                .official-schedule-document td {
                   border: 1.5px solid #000000 !important;
                   -webkit-print-color-adjust: exact !important;
                   print-color-adjust: exact !important;
@@ -839,7 +1044,7 @@ export default function TeacherScheduleTimeline({
                       </span>
                     </h3>
                     <p className="text-xs sm:text-sm font-black text-slate-700 mt-0.5">
-                      تنسيق أكاديمي رسمي مخصص للطباعة على ورقة A4 بنظام الصفوف والأعمدة المعتمد
+                      تنسيق أكاديمي رسمي مخصص بنظام الصفوف والأعمدة وحفظ الوثيقة بصيغة PDF
                     </p>
                   </div>
                 </div>
@@ -851,7 +1056,7 @@ export default function TeacherScheduleTimeline({
                     className="px-5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-2xl text-xs sm:text-sm font-black transition flex items-center gap-2 shadow-xs cursor-pointer border border-[#1e4570] active:scale-95"
                   >
                     <Printer className="w-4 h-4 text-cyan-300" />
-                    <span>طباعة الآن (A4)</span>
+                    <span>طباعة الآن (PDF)</span>
                   </button>
                   <button
                     type="button"
@@ -865,62 +1070,67 @@ export default function TeacherScheduleTimeline({
               </div>
 
               {/* 📄 منطقة الوثيقة الرسمية المجهزة للطباعة بنظام الصفوف والأعمدة */}
-              <div className="p-4 sm:p-8 overflow-y-auto flex-1 overscroll-contain bg-slate-100 print:bg-white print:p-0 print:overflow-visible print:static print:block print:h-auto">
-                <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-300 print:border-none print:p-1 max-w-6xl mx-auto shadow-sm print:shadow-none space-y-5">
+              <div className="p-4 sm:p-8 overflow-y-auto flex-1 overscroll-contain bg-slate-100 print:bg-white print:p-0 print:overflow-visible print:static print:block print:h-auto print:m-0">
+                <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-300 print:border-none print:p-0 max-w-7xl mx-auto shadow-sm print:shadow-none flex flex-col gap-3 print:gap-1.5 official-schedule-document w-full print:w-full print:h-[186mm] print:min-h-[186mm] print:max-h-[186mm] print:flex print:flex-col print:justify-between print:overflow-visible">
                   
                   {/* 🏛️ 1. الترويسة الأكاديمية الرسمية */}
-                  <div className="flex items-center justify-between border-b-2 border-black pb-4 text-black">
+                  <div className="flex items-center justify-between border-b-2 border-black pb-3 print:pb-1 text-black shrink-0">
                     {/* الجهة الأكاديمية - يمين */}
-                    <div className="text-right space-y-1">
-                      <div className="text-sm font-black text-black">جمهورية العراق</div>
-                      <div className="text-xs font-black text-black">وزارة التعليم العالي والبحث العلمي</div>
-                      <div className="text-sm font-black text-black">جامعة الإمام جعفر الصادق (ع)</div>
-                      <div className="text-xs font-black text-black">فرع ميسان — كلية تكنولوجيا المعلومات</div>
-                      <div className="text-xs font-black text-black">قسم {departmentName}</div>
+                    <div className="text-right space-y-0.5 text-xs print:text-[9.5px] leading-tight font-black text-black">
+                      <div className="text-sm print:text-[10.5px] font-black text-black">جمهورية العراق</div>
+                      <div className="text-xs print:text-[9px] font-black text-black">وزارة التعليم العالي والبحث العلمي</div>
+                      <div className="text-sm print:text-[10.5px] font-black text-black">جامعة الإمام جعفر الصادق (ع)</div>
+                      <div className="text-xs print:text-[8.5px] font-black text-black">فرع ميسان — كلية تكنولوجيا المعلومات</div>
+                      <div className="text-xs print:text-[9.5px] font-black text-black">قسم {departmentName}</div>
                     </div>
 
                     {/* الشعار والعنوان - وسط */}
                     <div className="flex flex-col items-center justify-center text-center">
-                      <div className="relative w-16 h-16 sm:w-20 sm:h-20 mb-1">
+                      <div className="relative w-16 h-16 sm:w-20 sm:h-20 print:w-11 print:h-11 mb-1 print:mb-0.5">
                         <Image
                           src="/logo.webp"
                           alt="شعار جامعة الإمام جعفر الصادق (ع)"
                           width={80}
                           height={80}
-                          className="object-contain mx-auto"
+                          className="object-contain mx-auto print:max-h-11"
                           priority
                         />
                       </div>
-                      <h1 className="text-base sm:text-lg font-black text-black tracking-tight">
+                      <h1 className="text-base sm:text-lg print:text-[12.5px] font-black text-black tracking-tight leading-tight">
                         جدول النصاب والعبء التدريسي الأسبوعي المعتمد
                       </h1>
-                      <div className="text-xs font-black text-black mt-0.5">
-                        العام الدراسي 2025 - 2026
+                      <div className="text-xs print:text-[9.5px] font-black text-black mt-0.5 print:mt-0">
+                        العام الدراسي {resolvedAcademicYear}
                       </div>
                     </div>
 
                     {/* بيانات الجدول - يسار */}
-                    <div className="text-left space-y-1 text-xs font-black text-black font-sans">
-                      <div><span>الأستاذ:</span> <strong className="text-black">{teacherName}</strong></div>
-                      <div><span>الفصل:</span> <strong className="text-black">الكورس {selectedSemester === 1 ? 'الأول' : 'الثاني'}</strong></div>
-                      <div><span>إجمالي النصاب:</span> <strong className="text-black">{totalWeeklyHours} ساعة معتمدة ({myLectures.length} محاضرات)</strong></div>
-                      <div><span>تاريخ الإصدار:</span> <strong className="text-black" dir="ltr">{new Date().toLocaleDateString('ar-IQ-u-nu-latn')}</strong></div>
+                    <div className="text-left space-y-1 print:space-y-0.5 text-xs print:text-[9px] font-black text-black font-sans leading-tight">
+                      <div><span>الأستاذ:</span> <strong className="text-black font-black">{teacherName}</strong></div>
+                      <div><span>الكورس:</span> <strong className="text-black font-black">الكورس {selectedSemester === 1 ? 'الأول' : 'الثاني'}</strong></div>
+                      <div><span>إجمالي النصاب:</span> <strong className="text-black font-black">{totalWeeklyHours} ساعة معتمدة ({myLectures.length} محاضرات)</strong></div>
+                      <div className="flex items-center gap-1.5 print:gap-1">
+                        <span>تاريخ الإصدار:</span>
+                        <span className="font-mono font-black text-black px-1.5 py-0.5 print:px-1 print:py-0 rounded bg-slate-100 border border-slate-300 inline-block shadow-2xs print:text-[8.5px]" dir="ltr">
+                          {formatOfficialIssueDate()}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
-                  {/* 📊 2. جدول المصفوفة الرسمية (صفوف للأيام وأعمدة للمحاضرات) */}
-                  <div className="overflow-x-auto print:overflow-visible">
-                    <table className="w-full text-right border-collapse border-2 border-black text-black table-fixed">
+                  {/* 📊 2. جدول المصفوفة الرسمية (صفوف للأيام وأعمدة للمحاضرات) ممتد لملء الصفحة بالكامل */}
+                  <div className="overflow-x-auto print:overflow-visible w-full print:m-0 print:p-0 schedule-table-wrapper flex-1 flex flex-col">
+                    <table className="w-full text-right border-collapse border-2 border-black text-black table-fixed print:m-0 h-full flex-1">
                       {/* ترويسة الأعمدة */}
                       <thead>
-                        <tr className="bg-slate-100 border-b-2 border-black text-black">
-                          <th className="p-2.5 text-center font-black border border-black text-xs sm:text-sm w-24">
+                        <tr className="bg-slate-100 border-b-2 border-black text-black print:bg-slate-100">
+                          <th className="p-2.5 print:py-1.5 print:px-1 text-center font-black border border-black text-xs sm:text-sm print:text-[11px] w-[11%] print:w-[11%] text-black">
                             اليوم
                           </th>
                           {Array.from({ length: printMaxSlots }).map((_, slotIdx) => {
                             const slotLabels = ['المحاضرة الأولى', 'المحاضرة الثانية', 'المحاضرة الثالثة', 'المحاضرة الرابعة', 'المحاضرة الخامسة', 'المحاضرة السادسة'];
                             return (
-                              <th key={slotIdx} className="p-2.5 text-center font-black border border-black text-xs sm:text-sm">
+                              <th key={slotIdx} className="p-2.5 print:py-1.5 print:px-1 text-center font-black border border-black text-xs sm:text-sm print:text-[11px] text-black" style={{ width: `${89 / printMaxSlots}%` }}>
                                 {slotLabels[slotIdx] || `المحاضرة ${slotIdx + 1}`}
                               </th>
                             );
@@ -933,17 +1143,19 @@ export default function TeacherScheduleTimeline({
                         {printScheduleDays.map((d) => {
                           const dayLecs = myLectures
                             .filter((l) => l.day === d.key)
-                            .sort((a, b) => timeStringToMinutes(a.start_time) - timeStringToMinutes(b.start_time));
+                            .sort((a, b) => getAcademicSlotOrder(a.start_time) - getAcademicSlotOrder(b.start_time));
 
                           if (dayLecs.length === 0) {
                             return (
                               <tr key={d.key} className="border-b border-black">
-                                <td className="p-2.5 text-center font-black border border-black bg-slate-50 text-black text-xs sm:text-sm">
-                                  {d.label_ar}
+                                <td className="p-2.5 print:py-1.5 print:px-1 text-center font-black border border-black bg-slate-50 text-black text-xs sm:text-sm print:text-[11px] w-[11%] print:w-[11%]">
+                                  <div className="day-column-cell flex flex-col items-center justify-center h-full">
+                                    <span className="font-black text-sm print:text-[12.5px] text-black leading-tight">{d.label_ar}</span>
+                                  </div>
                                 </td>
                                 <td
                                   colSpan={printMaxSlots}
-                                  className="p-3 text-center font-black border border-black bg-white text-black text-xs sm:text-sm"
+                                  className="p-3 print:py-1.5 print:px-1 text-center font-black border border-black bg-white text-black text-xs sm:text-sm print:text-[10px]"
                                 >
                                   —
                                 </td>
@@ -953,44 +1165,71 @@ export default function TeacherScheduleTimeline({
 
                           return (
                             <tr key={d.key} className="border-b border-black">
-                              <td className="p-2.5 text-center font-black border border-black bg-slate-50 text-black text-xs sm:text-sm align-middle">
-                                <div className="font-black text-sm text-black">{d.label_ar}</div>
-                                <div className="text-[10px] font-black text-black mt-0.5">{dayLecs.length} محاضرات</div>
+                              <td className="p-2.5 print:py-1.5 print:px-1 text-center font-black border border-black bg-slate-50 text-black text-xs sm:text-sm print:text-[11px] align-middle w-[11%] print:w-[11%]">
+                                <div className="day-column-cell flex flex-col items-center justify-center h-full gap-1 print:gap-1">
+                                  <span className="font-black text-sm print:text-[12.5px] text-black leading-tight">{d.label_ar}</span>
+                                  {dayLecs.length > 0 && (
+                                    <span className="text-[10px] print:text-[8px] font-bold text-slate-700 bg-slate-200/80 print:bg-slate-100 px-1.5 py-0.5 rounded border border-slate-300 print:border-black/30 leading-none inline-block shadow-2xs">
+                                      {formatArabicLectureCount(dayLecs.length)}
+                                    </span>
+                                  )}
+                                </div>
                               </td>
                               {Array.from({ length: printMaxSlots }).map((_, slotIdx) => {
                                 const lec = dayLecs[slotIdx];
                                 if (!lec) {
                                   return (
-                                    <td key={slotIdx} className="p-2 text-center text-black font-black border border-black bg-white align-middle text-sm">
+                                    <td key={slotIdx} className="p-2 print:py-1.5 print:px-1 text-center text-black font-black border border-black bg-white align-middle text-xs sm:text-sm print:text-[10px]" style={{ width: `${89 / printMaxSlots}%` }}>
                                       —
                                     </td>
                                   );
                                 }
                                 const typeLabel = lec.type === 'practical' ? 'عملي' : lec.type === 'tutorial' ? 'حلقة نقاشية' : 'نظري';
                                 return (
-                                  <td key={slotIdx} className="p-2 border border-black bg-white align-top text-right text-xs">
-                                    {/* توقيت المحاضرة ونوعها */}
-                                    <div className="flex items-center justify-between border-b border-black pb-1 mb-1 font-black">
-                                      <span className="text-[11px] font-mono text-black font-black" dir="ltr">
-                                        {lec.start_time} - {lec.end_time}
-                                      </span>
-                                      <span className="px-1.5 py-0.5 rounded bg-slate-100 border border-black text-[10px] font-black text-black">
-                                        {typeLabel}
-                                      </span>
-                                    </div>
-                                    {/* اسم المادة الدراسية */}
-                                    <div className="font-black text-xs sm:text-sm text-black leading-tight mb-1">
-                                      {lec.course_name}
-                                    </div>
-                                    {/* المرحلة والدراسة والقاعة */}
-                                    <div className="text-[10px] font-black text-black space-y-0.5 pt-1 border-t border-dashed border-black">
-                                      <div className="truncate">
-                                        <span className="text-black font-black">المرحلة: </span>
-                                        <span className="text-black font-black">المرحلة {getStageNameInArabic(lec.stage_number || 1)} ({lec.study_type === 'evening' ? 'مسائي' : 'صباحي'})</span>
+                                  <td key={slotIdx} className="p-2 sm:p-2.5 print:p-1 border border-black bg-white align-top text-right text-xs text-black" style={{ width: `${89 / printMaxSlots}%` }}>
+                                    <div className="lecture-slot-card flex flex-col justify-between h-full min-h-[125px] print:min-h-0 print:h-full gap-1 print:gap-1">
+                                      {/* 1️⃣ الشريط العلوي: التوقيت الأكاديمي المعتمد ص وم + نوع المحاضرة */}
+                                      <div className="flex items-center justify-between gap-1 print:gap-0.5 border-b border-black/20 pb-1 print:pb-0.5 font-black shrink-0">
+                                        <span className="px-2 py-0.5 print:px-1.5 print:py-0.5 rounded bg-slate-50 border border-black/40 text-[10px] sm:text-[11px] print:text-[9px] font-black text-black font-sans shrink-0 shadow-2xs" dir="rtl">
+                                          {formatArabicScheduleTime(`${lec.start_time} - ${lec.end_time}`)}
+                                        </span>
+                                        <span className={`px-2 py-0.5 print:px-1.5 print:py-0.5 rounded text-[10px] print:text-[8.5px] font-black shrink-0 border ${
+                                          lec.type === 'practical' 
+                                            ? 'bg-slate-900 text-white border-black shadow-2xs' 
+                                            : lec.type === 'tutorial'
+                                              ? 'bg-slate-200 text-black border-black'
+                                              : 'bg-white text-black border-black'
+                                        }`}>
+                                          {typeLabel}
+                                        </span>
                                       </div>
-                                      <div className="truncate">
-                                        <span className="text-black font-black">المكان: </span>
-                                        <span className="text-black font-black">{lec.room}</span>
+
+                                      {/* 2️⃣ جسم الخلية: اسم المادة وكودها */}
+                                      <div className="flex-1 flex flex-col justify-center space-y-1 print:space-y-0.5 py-1 print:py-1">
+                                        <div className="font-black text-xs sm:text-[13px] print:text-[10.5px] sm:print:text-[11px] text-black leading-snug print:leading-snug tracking-tight line-clamp-2">
+                                          {lec.course_name}
+                                        </div>
+                                        {lec.course_code && (
+                                          <div className="flex items-center">
+                                            <span className="font-mono font-black text-[10px] print:text-[8.5px] px-1.5 py-0.5 print:px-1.5 print:py-0.5 bg-slate-100 text-black rounded border border-slate-400 inline-block shadow-2xs" dir="ltr">
+                                              {lec.course_code}
+                                            </span>
+                                          </div>
+                                        )}
+                                      </div>
+
+                                      {/* 3️⃣ كارت المرحلة والقاعة بتنسيق أفقي متناسق */}
+                                      <div className="bg-slate-50 border-t border-black/25 pt-1 pb-0.5 px-1.5 print:py-1 print:px-1 rounded text-[10px] sm:text-[11px] print:text-[9px] font-black text-black print:flex print:items-center print:justify-between print:gap-1 shrink-0">
+                                        <div className="flex items-center gap-1 print:gap-0.5 text-black font-black leading-tight truncate">
+                                          <span className="text-black font-black shrink-0">المرحلة:</span>
+                                          <span className="text-black font-black truncate print:text-[9px]">المرحلة {getStageNameInArabic(lec.stage_number || 1)} ({lec.study_type === 'evening' ? 'مسائي' : 'صباحي'})</span>
+                                        </div>
+                                        <div className="flex items-center gap-1 print:gap-0.5 text-black font-black leading-tight shrink-0">
+                                          <span className="text-black font-black shrink-0">المكان:</span>
+                                          <span className="text-black font-black truncate px-1 py-0.5 print:px-1.5 print:py-0.5 bg-white rounded border border-black/40 inline-block shadow-2xs print:text-[9px]">
+                                            {lec.room}
+                                          </span>
+                                        </div>
                                       </div>
                                     </div>
                                   </td>
@@ -1003,32 +1242,53 @@ export default function TeacherScheduleTimeline({
                     </table>
                   </div>
 
-                  {/* ✍️ 3. التواقيع والأختام الرسمية المعتمدة */}
-                  <div className="grid grid-cols-4 gap-4 text-center pt-6 mt-4 border-t-2 border-black text-black">
-                    <div>
-                      <p className="font-black text-xs sm:text-sm text-black">عضو هيئة التدريس</p>
-                      <p className="font-black text-[11px] text-black mt-1">{teacherName}</p>
-                      <div className="mt-5 text-[10px] font-black text-black">التوقيع: ____________________</div>
+                  {/* ✍️ 3. التواقيع الرسمية المعتمدة بالأسماء وتاريخ الاعتماد التلقائي الصادر من النظام */}
+                  <div className="grid grid-cols-3 gap-6 print:gap-4 text-center pt-2 mt-2 print:pt-1 print:mt-0.5 border-t-2 border-black text-black shrink-0">
+                    {/* عضو هيئة التدريس */}
+                    <div className="space-y-1 print:space-y-0.5 flex flex-col items-center justify-between text-black">
+                      <div className="text-center">
+                        <p className="font-black text-xs sm:text-sm print:text-[10px] text-black">عضو هيئة التدريس</p>
+                        <p className="font-black text-xs sm:text-sm print:text-[10px] text-black mt-0.5 print:mt-0">{teacherName}</p>
+                      </div>
+                      <div className="space-y-0.5 print:space-y-0 w-full text-center text-black font-black">
+                        <p className="font-black text-center text-black text-xs print:text-[9px]">التوقيع: .....................</p>
+                        <p className="font-black text-center text-[11px] print:text-[8.5px] text-black">
+                          التاريخ: <span className="font-mono font-black" dir="ltr">{formatOfficialIssueDate()}</span>
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-black text-xs sm:text-sm text-black">مقرر القسم العلمي</p>
-                      <p className="font-black text-[11px] text-black mt-1">{resolvedRapporteurName}</p>
-                      <div className="mt-5 text-[10px] font-black text-black">التوقيع: ____________________</div>
+
+                    {/* مقرر القسم العلمي */}
+                    <div className="space-y-1 print:space-y-0.5 flex flex-col items-center justify-between text-black">
+                      <div className="text-center">
+                        <p className="font-black text-xs sm:text-sm print:text-[10px] text-black">مقرر القسم العلمي</p>
+                        <p className="font-black text-xs sm:text-sm print:text-[10px] text-black mt-0.5 print:mt-0">{resolvedRapporteurName}</p>
+                      </div>
+                      <div className="space-y-0.5 print:space-y-0 w-full text-center text-black font-black">
+                        <p className="font-black text-center text-black text-xs print:text-[9px]">التوقيع: .....................</p>
+                        <p className="font-black text-center text-[11px] print:text-[8.5px] text-black">
+                          التاريخ: <span className="font-mono font-black" dir="ltr">{formatOfficialIssueDate()}</span>
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-black text-xs sm:text-sm text-black">رئيس قسم {departmentName}</p>
-                      <p className="font-black text-[11px] text-black mt-1">{resolvedHeadName}</p>
-                      <div className="mt-5 text-[10px] font-black text-black">التوقيع: ____________________</div>
-                    </div>
-                    <div>
-                      <p className="font-black text-xs sm:text-sm text-black">الختم والتصديق / عمادة الكلية</p>
-                      <p className="font-black text-[11px] text-black mt-1">أ.د. حيدر جاسم كاظم</p>
-                      <div className="mt-5 text-[10px] font-black text-black">التوقيع: ____________________</div>
+
+                    {/* رئيس القسم العلمي */}
+                    <div className="space-y-1 print:space-y-0.5 flex flex-col items-center justify-between text-black">
+                      <div className="text-center">
+                        <p className="font-black text-xs sm:text-sm print:text-[10px] text-black">رئيس قسم {departmentName}</p>
+                        <p className="font-black text-xs sm:text-sm print:text-[10px] text-black mt-0.5 print:mt-0">{resolvedHeadName}</p>
+                      </div>
+                      <div className="space-y-0.5 print:space-y-0 w-full text-center text-black font-black">
+                        <p className="font-black text-center text-black text-xs print:text-[9px]">التوقيع: .....................</p>
+                        <p className="font-black text-center text-[11px] print:text-[8.5px] text-black">
+                          التاريخ: <span className="font-mono font-black" dir="ltr">{formatOfficialIssueDate()}</span>
+                        </p>
+                      </div>
                     </div>
                   </div>
 
                   {/* 📝 4. التذييل والتوثيق الإلكتروني */}
-                  <div className="flex items-center justify-between text-[10px] font-black text-black pt-2 border-t border-black">
+                  <div className="flex items-center justify-between text-[10px] sm:text-[11px] print:text-[8.5px] font-black text-black pt-1 print:pt-0.5 border-t-2 border-black shrink-0">
                     <span>المنصة الأكاديمية المركزية — مسار بولونيا التعليمي — جامعة الإمام جعفر الصادق (ع) - فرع ميسان</span>
                     <span>وثيقة نصاب تدريسي رسمية صادرة إلكترونياً وغير قابلة للشطب أو التعديل اليدوي</span>
                   </div>

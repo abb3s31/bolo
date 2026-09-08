@@ -475,6 +475,10 @@ CREATE TABLE public.schedule_lectures (
   color TEXT DEFAULT 'emerald',
   type TEXT DEFAULT 'theory',
   study_type TEXT DEFAULT 'morning' CHECK (study_type IN ('morning', 'evening')),
+  date TEXT, -- 📅 تاريخ المحاضرة التقويمي الفعلي (YYYY-MM-DD)
+  week_number INT DEFAULT 1, -- 🔢 رقم الأسبوع الدراسي المعتمد من 1 إلى 15
+  custom_weekly_dates JSONB, -- 📆 تواريخ كافة الأسابيع الـ 15 المحسوبة
+  weekly_overrides JSONB, -- ⚙️ تعديلات واستثناءات الأسابيع المحددة
   notes TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -860,6 +864,13 @@ CREATE POLICY "Allow public access to course_academic_tasks" ON public.course_ac
 
 DROP POLICY IF EXISTS "Allow public access to task_student_submissions" ON public.task_student_submissions;
 CREATE POLICY "Allow public access to task_student_submissions" ON public.task_student_submissions FOR ALL USING (true) WITH CHECK (true);
+
+-- 🛡️ تحديث وترقية جدول المحاضرات الأسبوعي لدعم التقويم والأسابيع الـ 15
+ALTER TABLE public.schedule_lectures ADD COLUMN IF NOT EXISTS date TEXT;
+ALTER TABLE public.schedule_lectures ADD COLUMN IF NOT EXISTS week_number INT DEFAULT 1;
+ALTER TABLE public.schedule_lectures ADD COLUMN IF NOT EXISTS custom_weekly_dates JSONB;
+ALTER TABLE public.schedule_lectures ADD COLUMN IF NOT EXISTS weekly_overrides JSONB;
+
 
 
 -- ==============================================================================

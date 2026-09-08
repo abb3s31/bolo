@@ -1627,6 +1627,8 @@ export async function generateDepartmentScheduleTemplate(
       stage: coursesList[0]?.stage_number || 1,
       semester: coursesList[0]?.semester || 1,
       study_type: 'صباحي',
+      week_number: 1,
+      date: '2026-09-13',
       day: 'الأحد',
       start_time: '08:30 ص',
       end_time: '10:30 ص',
@@ -1641,6 +1643,8 @@ export async function generateDepartmentScheduleTemplate(
       stage: coursesList[1]?.stage_number || 1,
       semester: coursesList[1]?.semester || 1,
       study_type: 'صباحي',
+      week_number: 1,
+      date: '2026-09-14',
       day: 'الإثنين',
       start_time: '10:30 ص',
       end_time: '12:30 م',
@@ -1655,6 +1659,8 @@ export async function generateDepartmentScheduleTemplate(
       stage: coursesList[2]?.stage_number || 2,
       semester: coursesList[2]?.semester || 1,
       study_type: 'مسائي',
+      week_number: 1,
+      date: '2026-09-15',
       day: 'الثلاثاء',
       start_time: '02:00 م',
       end_time: '04:00 م',
@@ -1673,6 +1679,8 @@ export async function generateDepartmentScheduleTemplate(
       stage: Math.min(4, Math.floor((i - 1) / 6) + 1),
       semester: 1,
       study_type: 'صباحي',
+      week_number: 1,
+      date: '',
       day: 'الأحد',
       start_time: '08:30 ص',
       end_time: '10:30 ص',
@@ -1733,6 +1741,14 @@ export async function generateDepartmentScheduleTemplate(
       details: 'حقل اختياري. اكتب اسم الأستاذ المطابق من ورقة (قائمة_أساتذة_القسم) ليتم تعيينه تلقائياً للمحاضرة.',
     },
     {
+      item: 'الأسبوع الدراسي (اختياري)',
+      details: 'اكتب رقم الأسبوع من (1) إلى (15) لمسار بولونيا. الافتراضي هو الأسبوع (1).',
+    },
+    {
+      item: 'تاريخ المحاضرة (اختياري)',
+      details: 'اكتب تاريخ المحاضرة بصيغة (YYYY-MM-DD) مثل 2026-09-13. عند كتابة تاريخ الأسبوع الأول، يتم توليد تواريخ الـ 15 أسبوعاً تلقائياً بموجب مسار بولونيا.',
+    },
+    {
       item: 'ملاحظات',
       details: 'حقل اختياري لأي ملاحظات أو توجيهات إضافية بخصوص المحاضرة.',
     },
@@ -1747,6 +1763,8 @@ export async function generateDepartmentScheduleTemplate(
         { header: 'المرحلة (1-4) *', key: 'stage', width: 16 },
         { header: 'الكورس (1 أو 2) *', key: 'semester', width: 16 }, // 📊 تعديل رأس العمود ليكون الكورس بدلاً من الفصل
         { header: 'الفترة (صباحي / مسائي) *', key: 'study_type', width: 24 },
+        { header: 'الأسبوع (1-15)', key: 'week_number', width: 16 },
+        { header: 'تاريخ المحاضرة', key: 'date', width: 16 },
         { header: 'اليوم الأسبوعي *', key: 'day', width: 18 },
         { header: 'وقت البدء *', key: 'start_time', width: 16 },
         { header: 'وقت الانتهاء *', key: 'end_time', width: 16 },
@@ -1827,6 +1845,8 @@ export async function exportCustomScheduleList(
     type?: string;
     teacher_name?: string;
     notes?: string;
+    week_number?: number;
+    date?: string;
   }[],
   deptName: string = 'القسم_الأكاديمي'
 ): Promise<void> {
@@ -1847,6 +1867,8 @@ export async function exportCustomScheduleList(
     stage: `المرحلة ${l.stage_number || 1}`,
     semester: `الكورس ${(l.semester || 1) === 2 ? 'الثاني' : 'الأول'}`,
     study_type: (l.study_type || 'morning') === 'evening' ? 'مسائي' : 'صباحي',
+    week_number: l.week_number ? `الأسبوع ${l.week_number}` : '—',
+    date: l.date || '—',
     day: dayNameMap[l.day] || l.day,
     start_time: l.start_time,
     end_time: l.end_time,
@@ -1868,6 +1890,8 @@ export async function exportCustomScheduleList(
           { header: 'المرحلة', key: 'stage', width: 14 },
           { header: 'الكورس', key: 'semester', width: 14 },
           { header: 'الفترة', key: 'study_type', width: 14 },
+          { header: 'الأسبوع الدراسي', key: 'week_number', width: 16 },
+          { header: 'تاريخ المحاضرة', key: 'date', width: 16 },
           { header: 'اليوم الأسبوعي', key: 'day', width: 16 },
           { header: 'وقت البدء', key: 'start_time', width: 14 },
           { header: 'وقت الانتهاء', key: 'end_time', width: 14 },
