@@ -621,6 +621,7 @@ export default function DepartmentPortalPage() {
   // 📌 حقول نموذج التكليفات الدراسية
   const [selectedTeacherId, setSelectedTeacherId] = useState('');
   const [selectedCourseId, setSelectedCourseId] = useState('');
+  const [selectedAssignRole, setSelectedAssignRole] = useState<'theory' | 'practical' | 'both'>('theory'); // 🏷️ طبيعة التكليف (نظري / عملي / كلاهما)
   const [isAssignmentModalOpen, setIsAssignmentModalOpen] = useState(false); // 📦 حالة كارت CRUD العائم للتكليفات
   const [assignmentSearch, setAssignmentSearch] = useState(''); // 🔍 بحث التكليفات
   const [filterAssignmentTeacher, setFilterAssignmentTeacher] = useState<string | 'all'>('all'); // 🏷️ تصفية الأستاذ المكلف
@@ -2957,6 +2958,7 @@ export default function DepartmentPortalPage() {
       course_id: course.id,
       course_name: course.name,
       department_id: currentDeptId,
+      role_in_course: selectedAssignRole, // 🏷️ صفة التكليف الأكاديمي (نظري / عملي / كلاهما)
       semester: course.semester || 1,
       created_at: new Date().toISOString(),
     };
@@ -2972,8 +2974,11 @@ export default function DepartmentPortalPage() {
       if (c.id === course.id) {
         const uCourse: Course = {
           ...c,
-          theory_teacher_id: teacher.id,
-          theory_teacher_name: teacher.full_name,
+          ...(selectedAssignRole === 'practical'
+            ? { practical_teacher_id: teacher.id, practical_teacher_name: teacher.full_name }
+            : selectedAssignRole === 'both'
+            ? { theory_teacher_id: teacher.id, theory_teacher_name: teacher.full_name, practical_teacher_id: teacher.id, practical_teacher_name: teacher.full_name }
+            : { theory_teacher_id: teacher.id, theory_teacher_name: teacher.full_name }),
         };
         assignedCourseObj = uCourse;
         return uCourse;
@@ -3121,6 +3126,7 @@ export default function DepartmentPortalPage() {
     setEditingAssignment(tc); // 📌 تعيين التكليف المستهدف
     setSelectedTeacherId(tc.teacher_id); // 👤 تعيين الأستاذ المختار بالقائمة التفاعلية الفاخرة
     setSelectedCourseId(tc.course_id); // 📘 تعيين المادة المختارة بالقائمة التفاعلية الفاخرة
+    setSelectedAssignRole(tc.role_in_course || 'theory'); // 🏷️ تحميل طبيعة التكليف الحالية (نظري أو عملي)
     setIsAssignmentModalOpen(true); // 🪟 فتح مودال الـ CRUD الموحد
   };
 
@@ -3153,6 +3159,7 @@ export default function DepartmentPortalPage() {
       teacher_name: teacher.full_name, // 👤 اسم الأستاذ
       course_id: course.id, // 🔗 المادة الجديدة
       course_name: course.name, // 📝 اسم المادة
+      role_in_course: selectedAssignRole, // 🏷️ صفة التكليف الأكاديمي المحدثة
       semester: course.semester || 1, // 🗓️ الكورس
     };
 
@@ -3165,7 +3172,14 @@ export default function DepartmentPortalPage() {
     let updatedCourseObj: Course | null = null; // 📦 المادة المحدثة
     const updatedCourses = courses.map((c) => { // 🔄 تحديث مصفوفة المواد
       if (c.id === course.id) { // 🎯 المادة الجديدة
-        const u = { ...c, theory_teacher_id: teacher.id, theory_teacher_name: teacher.full_name }; // 📝 تثبيت الأستاذ
+        const u = {
+          ...c,
+          ...(selectedAssignRole === 'practical'
+            ? { practical_teacher_id: teacher.id, practical_teacher_name: teacher.full_name }
+            : selectedAssignRole === 'both'
+            ? { theory_teacher_id: teacher.id, theory_teacher_name: teacher.full_name, practical_teacher_id: teacher.id, practical_teacher_name: teacher.full_name }
+            : { theory_teacher_id: teacher.id, theory_teacher_name: teacher.full_name }),
+        };
         updatedCourseObj = u; // 📦 حفظ
         return u; // 🔄 إرجاع
       }
@@ -8811,6 +8825,49 @@ export default function DepartmentPortalPage() {
                   </div>
                 </div>
 
+                {/* 🏷️ طبيعة التكليف الأكاديمي (نظري / عملي / كلاهما) */}
+                <div className="space-y-2">
+                  <label className="block text-slate-950 font-black text-base">طبيعة التكليف الأكاديمي *</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedAssignRole('theory')}
+                      className={`p-3 rounded-xl border-2 text-sm sm:text-base font-black flex items-center justify-center gap-2 transition cursor-pointer ${
+                        selectedAssignRole === 'theory'
+                          ? 'bg-blue-50 border-blue-600 text-blue-950 shadow-xs ring-2 ring-blue-500/20'
+                          : 'bg-white border-slate-300 text-slate-800 hover:bg-slate-50'
+                      }`}
+                    >
+                      <BookOpen className="w-4 h-4 text-blue-700 shrink-0" />
+                      <span>محاضرة نظرية</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedAssignRole('practical')}
+                      className={`p-3 rounded-xl border-2 text-sm sm:text-base font-black flex items-center justify-center gap-2 transition cursor-pointer ${
+                        selectedAssignRole === 'practical'
+                          ? 'bg-emerald-50 border-emerald-600 text-emerald-950 shadow-xs ring-2 ring-emerald-500/20'
+                          : 'bg-white border-slate-300 text-slate-800 hover:bg-slate-50'
+                      }`}
+                    >
+                      <FlaskConical className="w-4 h-4 text-emerald-700 shrink-0" />
+                      <span>مختبر وتطبيق عملي</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedAssignRole('both')}
+                      className={`p-3 rounded-xl border-2 text-sm sm:text-base font-black flex items-center justify-center gap-2 transition cursor-pointer ${
+                        selectedAssignRole === 'both'
+                          ? 'bg-[#0F2942] border-[#0F2942] text-white shadow-xs ring-2 ring-blue-500/20'
+                          : 'bg-white border-slate-300 text-slate-800 hover:bg-slate-50'
+                      }`}
+                    >
+                      <Layers className="w-4 h-4 text-cyan-300 shrink-0" />
+                      <span>تدريس شامل (نظري وعملي)</span>
+                    </button>
+                  </div>
+                </div>
+
               </div>
 
               <div className="p-4 bg-slate-100 border border-slate-300 rounded-2xl text-slate-950 text-sm font-black flex items-center gap-2">
@@ -9175,6 +9232,8 @@ export default function DepartmentPortalPage() {
                       <th className="p-4 text-center text-base w-16 whitespace-nowrap text-white font-black">ت</th>
                       <th className="p-4 text-right text-base sm:text-lg whitespace-nowrap text-white font-black">اسم الأستاذ المكلف</th>
                       <th className="p-4 text-right text-base sm:text-lg whitespace-nowrap text-white font-black">المادة المكلف بها</th>
+                      {/* 🏷️ عمود طبيعة التكليف الأكاديمي (نظري / عملي / كلاهما) */}
+                      <th className="p-4 text-center text-base whitespace-nowrap text-white font-black">طبيعة التكليف</th>
                       {/* 🎓 عمود المرحلة الدراسية المضاف لجدول التكليفات */}
                       <th className="p-4 text-center text-base whitespace-nowrap text-white font-black">المرحلة</th>
                       <th className="p-4 text-center text-base whitespace-nowrap text-white font-black">الكورس</th>
@@ -9239,6 +9298,34 @@ export default function DepartmentPortalPage() {
                                   <BookOpen className="w-4.5 h-4.5 text-indigo-700" />
                                 </div>
                                 <span className="text-slate-950 font-black text-base sm:text-lg">{tc.course_name}</span>
+                              </span>
+                            </td>
+
+                            {/* 🏷️ طبيعة التكليف الأكاديمي (نظري / عملي / كلاهما) */}
+                            <td className="p-4 text-center whitespace-nowrap">
+                              <span className={`px-3 py-1 rounded-xl text-xs sm:text-sm font-black border shadow-2xs whitespace-nowrap inline-flex items-center gap-1.5 ${
+                                tc.role_in_course === 'practical'
+                                  ? 'bg-emerald-100 text-emerald-950 border-emerald-300'
+                                  : tc.role_in_course === 'both'
+                                  ? 'bg-purple-100 text-purple-950 border-purple-300'
+                                  : 'bg-blue-100 text-blue-950 border-blue-300'
+                              }`}>
+                                {tc.role_in_course === 'practical' ? (
+                                  <>
+                                    <FlaskConical className="w-3.5 h-3.5 text-emerald-800 shrink-0" />
+                                    <span>مختبر وعملي</span>
+                                  </>
+                                ) : tc.role_in_course === 'both' ? (
+                                  <>
+                                    <Layers className="w-3.5 h-3.5 text-purple-800 shrink-0" />
+                                    <span>نظري وعملي</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <BookOpen className="w-3.5 h-3.5 text-blue-800 shrink-0" />
+                                    <span>محاضرة نظرية</span>
+                                  </>
+                                )}
                               </span>
                             </td>
 
@@ -10483,7 +10570,7 @@ onClose={() => {
                   )}
                 </div>
                 <div className="flex items-center gap-2.5 flex-wrap">
-                  {/* زر إلغاء التعديل والعودة لوضع الإدراج */}
+                  {/* زر إلغاء التعديل والعودة لوضع الإدراج بنمط كحلي ملكي راقٍ */}
                   {editingLectureId && (
                     <button
                       type="button"
@@ -10495,14 +10582,14 @@ onClose={() => {
                         setLecNotes(''); // 🧹 مسح الملاحظات
                         setLecModalSuccessMsg(''); // 🧹 مسح رسالة النجاح
                       }}
-                      className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 rounded-xl font-black text-sm transition cursor-pointer shadow-2xs flex items-center gap-1.5"
+                      className="px-4 py-2.5 bg-white hover:bg-[#0F2942] hover:text-white text-[#0F2942] border-2 border-[#0F2942] rounded-xl font-black text-sm transition cursor-pointer shadow-2xs flex items-center gap-1.5 active:scale-95"
                     >
-                      <X className="w-4 h-4 text-slate-600" />
+                      <X className="w-4 h-4 shrink-0" />
                       <span>إلغاء التعديل</span>
                     </button>
                   )}
 
-                  {/* زر إغلاق النافذة عند الانتهاء */}
+                  {/* زر إغلاق النافذة عند الانتهاء بنمط كحلي ملكي محدد */}
                   <button
                     type="button"
                     onClick={() => {
@@ -10512,16 +10599,16 @@ onClose={() => {
                       setLecNotes(''); // 🧹 مسح
                       setLecModalSuccessMsg(''); // 🧹 مسح رسالة النجاح
                     }}
-                    className="px-4 sm:px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-950 rounded-xl font-black text-sm sm:text-base transition cursor-pointer border border-slate-300 shadow-2xs"
+                    className="px-4 sm:px-5 py-2.5 bg-white hover:bg-[#0F2942] hover:text-white text-[#0F2942] rounded-xl font-black text-sm sm:text-base transition cursor-pointer border-2 border-[#0F2942] shadow-2xs active:scale-95"
                   >
                     إغلاق النافذة
                   </button>
 
-                  {/* زر إدراج/تحديث وإغلاق (لمن يريد الحفظ السريع والخروج من الكارد بضغطة واحدة) */}
+                  {/* زر إدراج/تحديث وإغلاق بالكحلي الداكن الفاخر */}
                   <button
                     type="submit"
                     onClick={() => setCloseModalAfterSave(true)}
-                    className="px-4 sm:px-5 py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-black text-sm sm:text-base shadow-xs transition flex items-center gap-2 cursor-pointer border border-slate-700 active:scale-95"
+                    className="px-4 sm:px-5 py-2.5 bg-[#0B1E32] hover:bg-[#0F2942] text-white rounded-xl font-black text-sm sm:text-base shadow-xs transition flex items-center gap-2 cursor-pointer border border-[#163a5f] active:scale-95"
                     title={editingLectureId ? 'تحديث المحاضرة وإغلاق النافذة فورياً' : 'إدراج المحاضرة وإغلاق النافذة فورياً'}
                   >
                     <Save className="w-4 h-4 text-emerald-300" />
@@ -10730,11 +10817,11 @@ onClose={() => {
 
                       {/* رقم الأسبوع الدراسي الذكي المتصل بالتقويم */}
                       <div className="space-y-1.5 relative">
-                        {/* 📏 عنوان وبادج الأسبوع بسطر واحد أفقي ثابت لمنع أي انكسار للأسطر */}
-                        <label className="h-7 text-xs sm:text-sm font-black text-slate-900 flex items-center justify-between gap-1 flex-nowrap whitespace-nowrap overflow-hidden">
+                        {/* 📏 عنوان وبادج الأسبوع بمرونة كاملة تمنع أي قص للنص أو البادج */}
+                        <label className="min-h-7 text-xs sm:text-sm font-black text-slate-900 flex items-center justify-between gap-1.5 flex-wrap">
                           <span className="flex items-center gap-1.5 shrink-0 whitespace-nowrap">
                             <Layers className="w-3.5 h-3.5 text-[#0F2942] shrink-0" />
-                            <span className="whitespace-nowrap">رقم الأسبوع الدراسي (مسار بولونيا)</span>
+                            <span>رقم الأسبوع الدراسي (مسار بولونيا)</span>
                           </span>
                           {/* ⚡ بادج الأسبوع الحالي بسطر واحد مدمج وأنيق */}
                           {(() => {
@@ -10752,27 +10839,27 @@ onClose={() => {
                             ref={lecWeekButtonRef}
                             type="button"
                             onClick={handleToggleLecWeekDropdown}
-                            className={`w-full min-h-[48px] px-3.5 py-2.5 bg-white border-2 rounded-xl text-sm font-black text-slate-950 flex items-center justify-between cursor-pointer shadow-2xs transition-all text-right ${
+                            className={`w-full min-h-[48px] px-2.5 sm:px-3.5 py-2 bg-white border-2 rounded-xl text-sm font-black text-slate-950 flex items-center justify-between cursor-pointer shadow-2xs transition-all text-right ${
                               isLecWeekDropdownOpen ? 'border-[#0F2942] ring-2 ring-[#0F2942]/20' : 'border-slate-300 hover:border-slate-400'
                             }`}
                           >
-                            <div className="flex items-center gap-2 truncate">
-                              <div className="p-1.5 bg-blue-50 text-[#0F2942] rounded-lg shrink-0 border border-blue-200">
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              <div className="p-1 sm:p-1.5 bg-blue-50 text-[#0F2942] rounded-lg shrink-0 border border-blue-200">
                                 <Layers className="w-4 h-4 text-[#0F2942]" />
                               </div>
-                              {/* 📏 نص الزر بسطر واحد أفقي واسع ومرتب يمنع اقتطاع التاريخ نهائياً */}
-                              <div className="flex items-center gap-2 flex-nowrap whitespace-nowrap overflow-hidden">
-                                <span className="font-mono text-sm font-black text-slate-950 shrink-0">
+                              {/* 📏 نص الزر مع التاريخ ظاهرين بدون أي اقتطاع نهائياً */}
+                              <div className="flex items-center gap-1.5 flex-wrap sm:flex-nowrap leading-tight">
+                                <span className="font-mono text-xs sm:text-sm font-black text-slate-950 whitespace-nowrap">
                                   الأسبوع {lecWeekNumber} {lecWeekNumber === 1 ? '(المرجعي)' : ''}
                                 </span>
                                 {lecDate && (
-                                  <span className="text-xs font-mono font-black px-2 py-0.5 rounded-md bg-blue-50 text-blue-950 border border-blue-200 shrink-0">
+                                  <span className="text-[11px] sm:text-xs font-mono font-black px-1.5 sm:px-2 py-0.5 rounded-md bg-blue-50 text-blue-950 border border-blue-200 whitespace-nowrap">
                                     {lecDate}
                                   </span>
                                 )}
                               </div>
                             </div>
-                            <ChevronDown className={`w-4 h-4 text-slate-600 transition-transform duration-200 shrink-0 ${isLecWeekDropdownOpen ? 'rotate-180 text-[#0F2942]' : ''}`} />
+                            <ChevronDown className={`w-4 h-4 text-slate-600 transition-transform duration-200 shrink-0 mr-1 ${isLecWeekDropdownOpen ? 'rotate-180 text-[#0F2942]' : ''}`} />
                           </button>
 
                           {isLecWeekDropdownOpen && lecWeekCoords && typeof document !== 'undefined' && createPortal(
@@ -11140,11 +11227,11 @@ onClose={() => {
                                       );
                                     }
 
-                                    // 🧮 فرز مواد النظري عن مواد العملي التابعة لهذه المرحلة والكورس
+                                    // 🧮 فرز مواد النظري والعملي لمسار بولونيا بدقة واحترافية
                                     const totalAvailableCount = availableScheduleCourses.length;
-                                    const allTheoryCourses = availableScheduleCourses.filter(
-                                      (c) => c.course_type !== 'theory_and_practical' && !c.has_practical
-                                    );
+                                    // 📘 المواد التي تتضمن محاضرات نظرية بالقاعة (كافة المقررات الأكاديمية لها محاضرات نظرية)
+                                    const allTheoryCourses = availableScheduleCourses;
+                                    // 🔬 المواد التي تتضمن مختبراً وتطبيقاً عملياً
                                     const allPracticalCourses = availableScheduleCourses.filter(
                                       (c) => c.course_type === 'theory_and_practical' || Boolean(c.has_practical)
                                     );
@@ -11172,8 +11259,25 @@ onClose={() => {
                                     const handleSelectCourse = (c: Course) => {
                                       setLecCourseId(c.id);
                                       const isPracticalCourse = c.course_type === 'theory_and_practical' || Boolean(c.has_practical);
-                                      if (!isPracticalCourse) {
-                                        // 📘 المادة نظري فقط ⬅️ تفعيل خيار محاضرة نظرية تلقائياً
+
+                                      // 🧠 تحديد نوع المحاضرة بدقة بناءً على التبويب المفتوح أو طبيعة المادة
+                                      if (lecCourseTabFilter === 'practical') {
+                                        // 🔬 التبويب عملي ⬅️ تثبيت مختبر وتطبيق عملي
+                                        setLecType('practical');
+                                        setLecColor('emerald');
+                                        if (lecStartTime) {
+                                          const autoEnd = calculateEndTimeFromStart(lecStartTime, 'practical');
+                                          if (autoEnd) setLecEndTime(autoEnd);
+                                        }
+                                        if (c.practical_teacher_id) {
+                                          setLecTeacherId(c.practical_teacher_id);
+                                        } else if (c.theory_teacher_id) {
+                                          setLecTeacherId(c.theory_teacher_id);
+                                        } else {
+                                          setLecTeacherId('');
+                                        }
+                                      } else if (lecCourseTabFilter === 'theory' || !isPracticalCourse) {
+                                        // 📘 التبويب نظري أو المادة نظري فقط ⬅️ تثبيت محاضرة نظرية بالقاعة
                                         setLecType('theory');
                                         setLecColor('blue');
                                         if (lecStartTime) {
@@ -11186,14 +11290,15 @@ onClose={() => {
                                           setLecTeacherId('');
                                         }
                                       } else {
-                                        // 🔬 المادة بها مختبر وعملي ⬅️ تفعيل خيار مختبر وتطبيق عملي تلقائياً
-                                        setLecType('practical');
-                                        setLecColor('emerald');
+                                        // 🌟 في تبويب "الكل" للمواد المشتركة: نحافظ على اختيار المستخدم أو نعتمد النظري افتراضياً
+                                        const chosenType = (lecType === 'practical' ? 'practical' : 'theory');
+                                        setLecType(chosenType);
+                                        setLecColor(chosenType === 'practical' ? 'emerald' : 'blue');
                                         if (lecStartTime) {
-                                          const autoEnd = calculateEndTimeFromStart(lecStartTime, 'practical');
+                                          const autoEnd = calculateEndTimeFromStart(lecStartTime, chosenType);
                                           if (autoEnd) setLecEndTime(autoEnd);
                                         }
-                                        if (c.practical_teacher_id) {
+                                        if (chosenType === 'practical' && c.practical_teacher_id) {
                                           setLecTeacherId(c.practical_teacher_id);
                                         } else if (c.theory_teacher_id) {
                                           setLecTeacherId(c.theory_teacher_id);
@@ -11450,12 +11555,22 @@ onClose={() => {
                         if (!selCourse) return null;
                         const isPractical = selCourse.course_type === 'theory_and_practical' || Boolean(selCourse.has_practical);
                         return (
-                          <span className={`text-[11px] font-black px-2 py-0.5 rounded-md border ${
+                          <span className={`text-xs sm:text-sm font-black px-2.5 py-1 rounded-xl border flex items-center gap-1.5 shadow-2xs ${
                             isPractical
                               ? 'bg-emerald-50 text-emerald-950 border-emerald-300'
                               : 'bg-blue-50 text-blue-950 border-blue-300'
                           }`}>
-                            {isPractical ? '🔬 مادة تتضمن مختبر وتطبيق عملي' : '📘 مادة نظرية فقط'}
+                            {isPractical ? (
+                              <>
+                                <FlaskConical className="w-4 h-4 text-emerald-700 shrink-0" />
+                                <span>مادة تتضمن مختبر وتطبيق عملي</span>
+                              </>
+                            ) : (
+                              <>
+                                <BookOpen className="w-4 h-4 text-blue-700 shrink-0" />
+                                <span>مادة نظرية فقط</span>
+                              </>
+                            )}
                           </span>
                         );
                       })()}
@@ -11949,8 +12064,18 @@ onClose={() => {
                         </div>
                         <div className="text-sm font-black text-slate-950 flex items-center gap-1.5 flex-wrap">
                           <span>محاضرات ({lecDay ? (DAYS_OF_WEEK_LIST.find((d) => d.key === lecDay)?.label_ar || lecDay) : 'غير محدد'})</span>
-                          <span className="text-xs px-2.5 py-0.5 rounded-lg bg-slate-100 text-slate-900 border border-slate-300 font-black">
-                            {lecStudyType === 'evening' ? 'مسائي 🌙' : 'صباحي ☀️'}
+                          <span className="text-xs px-2.5 py-0.5 rounded-lg bg-slate-100 text-slate-900 border border-slate-300 font-black flex items-center gap-1">
+                            {lecStudyType === 'evening' ? (
+                              <>
+                                <Moon className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                                <span>مسائي</span>
+                              </>
+                            ) : (
+                              <>
+                                <Sun className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                                <span>صباحي</span>
+                              </>
+                            )}
                           </span>
                           <span className="text-xs px-2.5 py-0.5 rounded-lg bg-blue-100 text-blue-950 border border-blue-300 font-black">
                             الأسبوع {lecWeekNumber}
@@ -12050,8 +12175,9 @@ onClose={() => {
                                   )}
 
                                   {isNewlyAdded && (
-                                    <span className="px-2.5 py-0.5 bg-emerald-600 text-white text-xs font-black rounded-lg shrink-0 animate-in fade-in zoom-in-95">
-                                      أُضيفت للتو ✨
+                                    <span className="px-2.5 py-0.5 bg-emerald-700 text-white text-xs font-black rounded-lg shrink-0 flex items-center gap-1 shadow-2xs animate-in fade-in zoom-in-95">
+                                      <Check className="w-3.5 h-3.5 text-white shrink-0" />
+                                      <span>أُضيفت للتو</span>
                                     </span>
                                   )}
                                 </div>
@@ -15761,6 +15887,8 @@ onClose={() => {
                             <th className="border border-black p-2 text-center w-10 text-black">ت</th>
                             <th className="border border-black p-2 text-black">اسم التدريسي المكلف</th>
                             <th className="border border-black p-2 text-black">المقرر الدراسي (المادة)</th>
+                            {/* 🏷️ عمود طبيعة التكليف الأكاديمي في وثيقة الطباعة الرسمية */}
+                            <th className="border border-black p-2 text-center text-black">طبيعة التكليف</th>
                             <th className="border border-black p-2 text-center text-black">رمز المقرر</th>
                             <th className="border border-black p-2 text-center text-black">المرحلة</th>
                             <th className="border border-black p-2 text-center text-black">الكورس</th>
@@ -15776,12 +15904,14 @@ onClose={() => {
                             const semArabic = tc.semester === 2 ? 'الكورس الثاني' : 'الكورس الأول';
                             const ects = courseInfo?.credit_hours || 3;
                             const courseCode = courseInfo?.code || '—';
+                            const roleText = tc.role_in_course === 'practical' ? 'مختبر وعملي' : tc.role_in_course === 'both' ? 'نظري وعملي' : 'محاضرة نظرية';
 
                             return (
                               <tr key={tc.id} className="border-b border-black text-black">
                                 <td className="border border-black p-2 text-center font-mono text-black">{idx + 1}</td>
                                 <td className="border border-black p-2 font-black text-black">{tc.teacher_name}</td>
                                 <td className="border border-black p-2 font-black text-black">{tc.course_name}</td>
+                                <td className="border border-black p-2 text-center font-black text-black">{roleText}</td>
                                 <td className="border border-black p-2 text-center font-mono font-bold text-black" dir="ltr">{courseCode}</td>
                                 <td className="border border-black p-2 text-center text-black">{stageArabic}</td>
                                 <td className="border border-black p-2 text-center text-black">{semArabic}</td>

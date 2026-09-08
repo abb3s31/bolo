@@ -212,27 +212,27 @@ export default function ConfirmDeleteModal({
             <div className="p-4 bg-slate-50 border border-slate-300 rounded-2xl text-right space-y-2 my-3 shadow-2xs"> {/* 📦 إطار البطاقة الأنيق */}
               {itemName && ( // 🏷️ إذا وجد اسم العنصر
                 <div className="flex items-center gap-2"> {/* 📐 سطر اسم العنصر */}
-                  <span className="text-xs font-black text-slate-950 flex items-center gap-1.5 shrink-0"> {/* 🖤 عنوان الحقل بالأسود الفاحم */}
-                    <FileText className="w-3.5 h-3.5 text-slate-950 shrink-0" /> {/* 🖤 أيقونة SVG بلون أسود كامل */}
+                  <span className="text-sm sm:text-base font-black text-slate-950 flex items-center gap-1.5 shrink-0"> {/* 🖤 عنوان الحقل بحجم متوسط واضح بالأسود الفاحم */}
+                    <FileText className="w-4 h-4 text-slate-950 shrink-0" /> {/* 🖤 أيقونة SVG بلون أسود كامل */}
                     <span>العنصر:</span> {/* 🏷️ التسمية */}
                   </span>
-                  <span className="text-sm font-black text-slate-950">{itemName}</span> {/* 🖤 اسم العنصر بالأسود الفاحم */}
+                  <span className="text-sm sm:text-base font-black text-slate-950">{itemName}</span> {/* 🖤 اسم العنصر بحجم متوسط واضح */}
                 </div>
               )}
               {itemDetails && ( // ℹ️ إذا وجدت تفاصيل إضافية
                 <div className="flex items-center gap-2"> {/* 📐 سطر التفاصيل الإضافية */}
-                  <span className="text-xs font-black text-slate-950 flex items-center gap-1.5 shrink-0"> {/* 🖤 عنوان الحقل بالأسود الفاحم */}
-                    <Info className="w-3.5 h-3.5 text-slate-950 shrink-0" /> {/* 🖤 أيقونة SVG بلون أسود كامل */}
+                  <span className="text-sm sm:text-base font-black text-slate-950 flex items-center gap-1.5 shrink-0"> {/* 🖤 عنوان الحقل بحجم متوسط واضح */}
+                    <Info className="w-4 h-4 text-slate-950 shrink-0" /> {/* 🖤 أيقونة SVG بلون أسود كامل */}
                     <span>التفاصيل:</span> {/* 🏷️ التسمية */}
                   </span>
-                  <span className="text-xs font-black text-slate-950 font-mono" dir="ltr">{itemDetails}</span> {/* 🖤 نص التفاصيل بالأسود الفاحم */}
+                  <span className="text-sm sm:text-base font-black text-slate-950 font-mono" dir="ltr">{itemDetails}</span> {/* 🖤 نص التفاصيل بحجم متوسط واضح */}
                 </div>
               )}
             </div>
           )}
 
           {/* ⚠️ شريط توضيح الأمان والملاحظة الذكية */}
-          <div className={`p-3 rounded-2xl border flex items-center gap-2.5 text-right ${ // 📐 حاوية شريط الملاحظة
+          <div className={`p-3.5 rounded-2xl border flex items-center gap-2.5 text-right ${ // 📐 حاوية شريط الملاحظة
             isSuccess
               ? 'bg-emerald-50 border-emerald-200 text-emerald-950'
               : isPrimary
@@ -250,7 +250,7 @@ export default function ConfirmDeleteModal({
             ) : ( // 🛑 بحالة الحذف والخطر والتحذير الأكاديمي
               <ShieldAlert className="w-5 h-5 text-rose-700 shrink-0" /> // 🛑 درع الأمان باللون الأحمر الياقوتي
             )}
-            <span className="text-xs font-black">
+            <span className="text-sm sm:text-base font-black">
               {warningNote || (
                 isSuccess
                   ? 'سيتم اعتماد الإجراء الأكاديمي وترقية وتحديث السجلات في قاعدة البيانات فوراً.'
@@ -261,13 +261,13 @@ export default function ConfirmDeleteModal({
 
         </div>
 
-        {/* 🔘 أزرار الفوتر الثابتة بالأسفل مع نصوص سوداء واضحة */}
+        {/* 🔘 أزرار الفوتر الثابتة بالأسفل مع زر تراجع كحلي ملكي فخم */}
         <div className="p-4 sm:p-5 bg-slate-50/95 border-t border-slate-200 flex items-center justify-end gap-3 shrink-0"> {/* 📐 فوتر النافذة */}
           <button
             type="button" // 🔘 نوع الزر
             onClick={onClose} // ⚡ دالة الإغلاق
             disabled={isLoading} // ⏳ حالة التعطيل
-            className="flex-1 py-3 px-4 bg-white border border-slate-300 hover:bg-slate-100 text-slate-950 font-black rounded-2xl text-sm transition cursor-pointer text-center shadow-2xs whitespace-nowrap" // 🖤 نص الزر بالأسود الفاحم text-slate-950 بدلاً من الرمادي
+            className="flex-1 py-3 px-4 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black rounded-2xl text-sm sm:text-base transition cursor-pointer text-center shadow-md active:scale-95 whitespace-nowrap" // 👑 زر تراجع كحلي ملكي فخم
           >
             {cancelText} {/* 🏷️ تراجع وإلغاء */}
           </button>
