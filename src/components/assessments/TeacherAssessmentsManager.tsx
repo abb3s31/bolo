@@ -243,21 +243,42 @@ export function TeacherAssessmentsManager({
     };
   }, [filteredTasks]);
 
-  // 📚 قائمة المواد الفعلية للأستاذ مع خطة احتياطية كاملة
+  // 📚 قائمة المواد الفعلية للأستاذ مع خطة احتياطية كاملة ومتوافقة مع المواد والتكليفات
   const effectiveCourses: TeacherCourse[] = useMemo(() => {
     if (assignedCourses && assignedCourses.length > 0) return assignedCourses;
     const allStoredCourses = getStoredData<Course[]>('courses', INITIAL_COURSES);
     const teacherTCs = getStoredData<TeacherCourse[]>('teacher_courses', INITIAL_TEACHER_COURSES);
-    const matchedTCs = teacherTCs.filter((tc) => tc.teacher_id === teacherId || tc.teacher_name === teacherName);
+    const matchedTCs = teacherTCs.filter((tc: TeacherCourse): boolean => tc.teacher_id === teacherId || (Boolean(teacherName) && tc.teacher_name === teacherName));
     if (matchedTCs.length > 0) return matchedTCs;
-    return allStoredCourses.map((c) => ({
+
+    // 🔍 البحث الاحتياطي في جدول المواد المباشرة
+    const directAssigned = allStoredCourses.filter(
+      (c: Course): boolean =>
+        c.theory_teacher_id === teacherId ||
+        c.practical_teacher_id === teacherId ||
+        (Boolean(teacherName) && (c.theory_teacher_name === teacherName || c.practical_teacher_name === teacherName))
+    );
+    if (directAssigned.length > 0) {
+      return directAssigned.map((c: Course): TeacherCourse => ({
+        id: `tc-${c.id}`,
+        teacher_id: teacherId,
+        teacher_name: teacherName,
+        course_id: c.id,
+        course_name: c.name,
+        department_id: c.department_id,
+        semester: (c.semester || 1) as 1 | 2,
+        role_in_course: (c.practical_teacher_id === teacherId && c.theory_teacher_id === teacherId) ? 'both' : (c.practical_teacher_id === teacherId ? 'practical' : 'theory'),
+      }));
+    }
+
+    return allStoredCourses.map((c: Course): TeacherCourse => ({
       id: `tc-${c.id}`,
       teacher_id: teacherId,
       teacher_name: teacherName,
       course_id: c.id,
       course_name: c.name,
       department_id: c.department_id,
-      semester: c.semester || 1,
+      semester: (c.semester || 1) as 1 | 2,
     }));
   }, [assignedCourses, teacherId, teacherName]);
 

@@ -4,8 +4,8 @@
 import { useState, useEffect, useMemo } from 'react'; // 🔗 خطافات رياكت لإدارة الحالة والوقت اللحظي
 import Image from 'next/image'; // 🖼️ استيراد مكون الصور من نكست لطباعة شعار الجامعة الرسمي
 import { createPortal } from 'react-dom'; // 🚪 بورتال لعرض نافذة الطباعة مباشرة على جذر الصفحة
-import { DayOfWeek, ScheduleLecture, DepartmentScheduleConfig, LectureColor, UserProfile, Department } from '@/types'; // 🔗 استيراد الأنواع
-import { getStoredData, INITIAL_PROFILES, INITIAL_DEPARTMENTS, getAcademicYear, formatAcademicYearDisplay } from '@/lib/mock-data'; // 💾 دوال وسجلات التخزين المحلي والعام الدراسي المعتمد
+import { DayOfWeek, ScheduleLecture, DepartmentScheduleConfig, LectureColor, UserProfile, Department, Course, TeacherCourse } from '@/types'; // 🔗 استيراد الأنواع
+import { getStoredData, INITIAL_PROFILES, INITIAL_DEPARTMENTS, INITIAL_COURSES, INITIAL_TEACHER_COURSES, getAcademicYear, formatAcademicYearDisplay } from '@/lib/mock-data'; // 💾 دوال وسجلات التخزين المحلي والعام الدراسي المعتمد
 import {
   DAYS_OF_WEEK_LIST,
   LECTURE_COLOR_THEMES,
@@ -163,11 +163,47 @@ export default function TeacherScheduleTimeline({
     return () => clearInterval(timer);
   }, []);
 
-  // 📚 كافة محاضرات الأستاذ المتاحة
+  // 📚 كافة محاضرات الأستاذ المتاحة (سواء بالمعرف المباشر أو الاسم أو من خلال تكليف المادة الفعلي)
   const myAllLectures = useMemo(() => {
-    return lectures.filter(
-      (l) => (l.teacher_id === teacherId || l.teacher_name === teacherName)
-    );
+    // 💾 جلب التكليفات والمواد المحلية لضمان التزامن 100%
+    const storedTCs = getStoredData<TeacherCourse[]>('teacher_courses', INITIAL_TEACHER_COURSES);
+    const storedCourses = getStoredData<Course[]>('courses', INITIAL_COURSES);
+    
+    // 📋 استخراج كافة معرفات المواد المكلف بها الأستاذ
+    const assignedCourseIds = new Set<string>();
+    storedTCs.forEach((tc: TeacherCourse) => {
+      if (tc.teacher_id === teacherId) {
+        assignedCourseIds.add(tc.course_id);
+      }
+    });
+    storedCourses.forEach((c: Course) => {
+      if (c.theory_teacher_id === teacherId || c.practical_teacher_id === teacherId) {
+        assignedCourseIds.add(c.id);
+      }
+    });
+
+    return lectures.filter((l: ScheduleLecture): boolean => {
+      // 1️⃣ فحص المعرف المباشر للأستاذ
+      if (l.teacher_id && l.teacher_id === teacherId) return true;
+      // 2️⃣ فحص الاسم المباشر للأستاذ
+      if (l.teacher_name && teacherName && l.teacher_name.trim() === teacherName.trim()) return true;
+      // 3️⃣ فحص التكليف الأكاديمي بالمادة
+      if (l.course_id && assignedCourseIds.has(l.course_id)) {
+        // إذا كان للأستاذ تكليف خاص بالنظري أو العملي نتأكد من نوع المحاضرة
+        const tc = storedTCs.find((item: TeacherCourse): boolean => item.course_id === l.course_id && item.teacher_id === teacherId);
+        if (tc) {
+          if (tc.role_in_course === 'both') return true;
+          if (tc.role_in_course === 'theory' && l.type !== 'practical') return true;
+          if (tc.role_in_course === 'practical' && l.type === 'practical') return true;
+        }
+        const c = storedCourses.find((item: Course): boolean => item.id === l.course_id);
+        if (c) {
+          if (l.type === 'practical' && c.practical_teacher_id === teacherId) return true;
+          if (l.type !== 'practical' && c.theory_teacher_id === teacherId) return true;
+        }
+      }
+      return false;
+    });
   }, [lectures, teacherId, teacherName]);
 
   // 🔢 عدد المحاضرات لكل كورس

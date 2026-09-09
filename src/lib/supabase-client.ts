@@ -1739,66 +1739,152 @@ export async function saveSuperAdminRecord(admin: SuperAdminRecord): Promise<boo
 }
 
 // ==============================================================================
-// 📚 دوال مزامنة وحفظ المواد الدراسية (courses) في Supabase مع الدمج الذكي
+// 📚 دوال مزامنة وحفظ المواد الدراسية (courses) في Supabase مع الدمج الذكي والإثراء التلقائي
 // ==============================================================================
 export async function syncCoursesFromSupabase(): Promise<Course[]> {
-  return smartCachedFetch(
-    'supabase_courses',
-    async () => {
-      try {
-        const { data, error } = await supabase.from('courses').select('*');
-        if (!error && data && data.length > 0) {
-          const localCourses = getStoredData<Course[]>('courses', INITIAL_COURSES);
-          const courseMap = new Map<string, Course>();
-          data.forEach((c: Course) => courseMap.set(c.id, c));
-          localCourses.forEach((c) => {
-            if (!courseMap.has(c.id)) {
-              courseMap.set(c.id, c);
-            } else {
-              const cloudC = courseMap.get(c.id)!;
-              courseMap.set(c.id, { ...c, ...cloudC });
+  return smartCachedFetch( // ⚡ استخدام الكاش الذكي لتقليل الضغط ع السيرفر
+    'supabase_courses', // 🔑 مفتاح الكاش المخصص للمواد
+    async () => { // 🔄 دالة الجلب والدمج الخلفية
+      try { // 🛡️ محاولة جلب المواد بأمان
+        const { data, error } = await supabase.from('courses').select('*'); // 📥 استعلام جدول المواد من سحابة Supabase
+        if (!error && data && data.length > 0) { // ✅ إذا نجح الجلب ورجعت مواد حقيقية
+          const localCourses: Course[] = getStoredData<Course[]>('courses', INITIAL_COURSES); // 📋 جلب المواد المخزنة محلياً
+          const localProfiles: UserProfile[] = getStoredData<UserProfile[]>('profiles', INITIAL_PROFILES); // 👤 جلب بروفايلات الأساتذة
+          const localTCs: TeacherCourse[] = getStoredData<TeacherCourse[]>('teacher_courses', INITIAL_TEACHER_COURSES); // 📝 جلب سجل تكليفات الأساتذة
+          const courseMap: Map<string, Course> = new Map<string, Course>(); // 🗺️ خريطة لتجميع المواد بدون أي تكرار
+          
+          data.forEach((c: Course) => courseMap.set(c.id, c)); // ➕ وضع المواد السحابية بالخريطة
+          
+          localCourses.forEach((c: Course) => { // 🔄 المرور على كل مادة محلية لدمجها بدقة
+            if (!courseMap.has(c.id)) { // 🆕 إذا المادة مو موجودة بالسحابة بعد
+              courseMap.set(c.id, c); // 💾 نبقي عليها بالخريطة
+            } else { // ⚖️ إذا موجودة بالسحابة ندمجها مع الحفاظ الفولاذي على أسماء ومعرفات الأساتذة
+              const cloudC: Course = courseMap.get(c.id)!; // ☁️ المادة القادمة من السحابة
+              courseMap.set(c.id, { // 📦 دمج الخصائص
+                ...c, // 📋 البيانات المحلية السابقة
+                ...cloudC, // ☁️ تحديثات السحابة
+                theory_teacher_id: cloudC.theory_teacher_id || c.theory_teacher_id, // 👨‍🏫 الحفاظ على معرف أستاذ النظري
+                theory_teacher_name: c.theory_teacher_name || cloudC.theory_teacher_name, // 👤 الحفاظ على اسم أستاذ النظري من المسح
+                practical_teacher_id: cloudC.practical_teacher_id || c.practical_teacher_id, // 🔬 الحفاظ على معرف أستاذ العملي
+                practical_teacher_name: c.practical_teacher_name || cloudC.practical_teacher_name, // 🧪 الحفاظ على اسم أستاذ العملي من المسح
+              });
             }
           });
-          const merged = Array.from(courseMap.values());
-          saveStoredData('courses', merged);
-          return merged;
+
+          // 🧠 الإثراء التلقائي الذكي لربط الأساتذة المفقودين بالملفات والتكليفات المسجلة
+          const enrichedCourses: Course[] = Array.from(courseMap.values()).map((course: Course): Course => { // 🔄 فحص كل مادة
+            let thId: string | undefined = course.theory_teacher_id; // 🔑 معرف أستاذ النظري
+            let thName: string | undefined = course.theory_teacher_name; // 👤 اسم أستاذ النظري
+            let prId: string | undefined = course.practical_teacher_id; // 🔑 معرف أستاذ العملي
+            let prName: string | undefined = course.practical_teacher_name; // 👤 اسم أستاذ العملي
+
+            // 1️⃣ مطابقة الأسماء من البروفايلات إذا كان المعرف متوفراً والاسم مفقوداً
+            if (thId && !thName) { // 🔍 إذا المعرف موجود بس الاسم فارغ
+              const matchedProf: UserProfile | undefined = localProfiles.find((p: UserProfile): boolean => p.id === thId); // 👤 البحث عن البروفايل
+              if (matchedProf) thName = matchedProf.full_name; // 📝 استخراج الاسم الكامل
+            }
+            if (prId && !prName) { // 🔍 إذا معرف العملي موجود بس الاسم فارغ
+              const matchedPrProf: UserProfile | undefined = localProfiles.find((p: UserProfile): boolean => p.id === prId); // 👤 البحث عن البروفايل
+              if (matchedPrProf) prName = matchedPrProf.full_name; // 📝 استخراج الاسم الكامل
+            }
+
+            // 2️⃣ مطابقة وتزامن تلقائي 100% مع جدول التكليفات (teacher_courses)
+            const matchedAssignments: TeacherCourse[] = localTCs.filter((tc: TeacherCourse): boolean => tc.course_id === course.id); // 📋 جلب تكليفات هذه المادة
+            if (matchedAssignments.length > 0) { // 🎯 إذا المادة مكلف بيها أساتذة
+              // فحص تكليف النظري أو المشترك
+              const thTC: TeacherCourse | undefined = matchedAssignments.find((tc: TeacherCourse): boolean => tc.role_in_course === 'theory' || tc.role_in_course === 'both'); // 🔍 تكليف النظري
+              if (thTC) { // ✅ إذا اكو تكليف نظري
+                if (!thId) thId = thTC.teacher_id; // 🔗 تثبيت معرف الأستاذ
+                if (!thName) thName = thTC.teacher_name || localProfiles.find((p: UserProfile): boolean => p.id === thTC.teacher_id)?.full_name; // 👤 تثبيت اسمه
+              }
+              // فحص تكليف العملي
+              const prTC: TeacherCourse | undefined = matchedAssignments.find((tc: TeacherCourse): boolean => tc.role_in_course === 'practical' || (tc.role_in_course === 'both' && Boolean(course.has_practical))); // 🔍 تكليف العملي
+              if (prTC) { // ✅ إذا اكو تكليف عملي
+                if (!prId) prId = prTC.teacher_id; // 🔗 تثبيت معرف أستاذ العملي
+                if (!prName) prName = prTC.teacher_name || localProfiles.find((p: UserProfile): boolean => p.id === prTC.teacher_id)?.full_name; // 🧪 تثبيت اسمه
+              }
+            }
+
+            return { // 📦 إرجاع المادة مكتملة ومعززة بالأساتذة 100%
+              ...course, // 📋 بيانات المادة
+              theory_teacher_id: thId, // 👨‍🏫 معرف أستاذ النظري
+              theory_teacher_name: thName, // 👤 اسم أستاذ النظري
+              practical_teacher_id: prId, // 🔬 معرف أستاذ العملي
+              practical_teacher_name: prName, // 🧪 اسم أستاذ العملي
+            };
+          });
+
+          saveStoredData('courses', enrichedCourses); // 💾 حفظ المواد المدمجة والمعززة محلياً
+          return enrichedCourses; // 🚀 إرجاع القائمة الكاملة
         }
-      } catch (err) {
-        console.warn('تنبيه: تعذر جلب المواد من السحابة:', err);
+      } catch (err) { // ⚠️ في حال حدوث أي خطأ
+        console.warn('تنبيه: تعذر جلب المواد من السحابة:', err); // 🛑 تسجيل التنبيه
       }
-      return getStoredData<Course[]>('courses', INITIAL_COURSES);
+      return getStoredData<Course[]>('courses', INITIAL_COURSES); // 🛡️ إرجاع الكاش المحلي الموثوق
     },
-    { ttlSeconds: 60, swrSeconds: 300 }
+    { ttlSeconds: 60, swrSeconds: 300 } // ⏱️ خيارات الكاش المؤقت
   );
 }
 
 export async function saveCourseToSupabase(course: Course): Promise<boolean> {
-  try {
-    // 🛡️ تجهيز وتعقيم كائن المادة لمطابقة أعمدة قاعدة البيانات بدقة
+  try { // 🛡️ محاولة حفظ المادة بأمان
+    // 🛡️ تجهيز وتعقيم كائن المادة لمطابقة أعمدة قاعدة البيانات بدقة مع تضمين أسماء الأساتذة
     const payload = {
-      id: course.id,
-      name: course.name,
-      code: course.code,
-      department_id: course.department_id,
-      stage_number: course.stage_number || 1,
-      stage_id: course.stage_id || `stage-${course.department_id}-${course.stage_number || 1}`,
-      academic_year_id: course.academic_year_id || 'year-2026',
-      semester: course.semester || 1,
-      credit_hours: course.credit_hours || 3,
-      has_practical: Boolean(course.has_practical),
-      theory_teacher_id: course.theory_teacher_id || null,
-      practical_teacher_id: course.practical_teacher_id || null,
-      created_at: course.created_at || new Date().toISOString(),
+      id: course.id, // 🆔 معرف المادة
+      name: course.name, // 📖 اسم المادة
+      code: course.code, // 🔢 رمز المادة
+      department_id: course.department_id, // 🏢 معرف القسم
+      stage_number: course.stage_number || 1, // 🎓 رقم المرحلة
+      stage_id: course.stage_id || `stage-${course.department_id}-${course.stage_number || 1}`, // 🏷️ معرف المرحلة
+      academic_year_id: course.academic_year_id || 'year-2026', // 📅 العام الدراسي
+      semester: course.semester || 1, // 🗓️ الكورس الدراسي
+      credit_hours: course.credit_hours || 3, // ⏱️ الساعات والوحدات
+      has_practical: Boolean(course.has_practical), // 🧪 هل تحتوي عملي
+      course_type: course.course_type || (course.has_practical ? 'theory_and_practical' : 'theory_only'), // 🏷️ نوع المادة
+      theory_teacher_id: course.theory_teacher_id || null, // 👨‍🏫 معرف أستاذ النظري
+      theory_teacher_name: course.theory_teacher_name || null, // 👤 اسم أستاذ النظري
+      practical_teacher_id: course.practical_teacher_id || null, // 🔬 معرف أستاذ العملي
+      practical_teacher_name: course.practical_teacher_name || null, // 🧪 اسم أستاذ العملي
+      teacher_id: course.theory_teacher_id || course.teacher_id || null, // 🔗 معرف الأستاذ الأساسي
+      teacher_name: course.theory_teacher_name || course.teacher_name || null, // 👤 اسم الأستاذ الأساسي
+      created_at: course.created_at || new Date().toISOString(), // ⏰ تاريخ الإنشاء
     };
 
-    const { error } = await supabase.from('courses').upsert(payload);
-    if (!error) {
-      invalidateCacheKey('supabase_courses');
-      invalidateCacheKey('supabase_academic_entities');
+    const { error } = await supabase.from('courses').upsert(payload); // ☁️ رفع وتحديث المادة في Supabase
+    if (!error) { // ✅ إذا نجح الحفظ المكتمل
+      invalidateCacheKey('supabase_courses'); // 🔄 تنظيف كاش المواد
+      invalidateCacheKey('supabase_academic_entities'); // 🔄 تنظيف كاش الكيانات
+      return true; // 🎉 تم بنجاح
     }
-    return !error;
-  } catch {
-    return false;
+
+    // 🛡️ خطة بديلة (Fallback) في حال عدم وجود أعمدة الأسماء في جدول courses بالسحابة
+    if (error && (error.code === 'PGRST204' || error.message?.includes('column'))) { // 🔍 فحص ما إذا كان الخطأ بسبب عمود غير موجود
+      const fallbackPayload = { // 📦 تجهيز حمولة بديلة بدون أسماء الأساتذة
+        id: course.id,
+        name: course.name,
+        code: course.code,
+        department_id: course.department_id,
+        stage_number: course.stage_number || 1,
+        stage_id: course.stage_id || `stage-${course.department_id}-${course.stage_number || 1}`,
+        academic_year_id: course.academic_year_id || 'year-2026',
+        semester: course.semester || 1,
+        credit_hours: course.credit_hours || 3,
+        has_practical: Boolean(course.has_practical),
+        theory_teacher_id: course.theory_teacher_id || null,
+        practical_teacher_id: course.practical_teacher_id || null,
+        created_at: course.created_at || new Date().toISOString(),
+      };
+      const { error: fallbackErr } = await supabase.from('courses').upsert(fallbackPayload); // ☁️ رفع الحمولة البديلة
+      if (!fallbackErr) { // ✅ إذا نجح الحفظ البديل
+        invalidateCacheKey('supabase_courses'); // 🔄 تنظيف الكاش
+        invalidateCacheKey('supabase_academic_entities'); // 🔄 تنظيف كاش الكيانات
+        return true; // 🎉 نجاح الحفظ البديل
+      }
+    }
+
+    return !error; // 📊 إرجاع نتيجة الحفظ
+  } catch { // ⚠️ اعتراض أي استثناء غير متوقع
+    return false; // 🛑 فشل الحفظ
   }
 }
 
@@ -1904,18 +1990,40 @@ export async function saveTeacherCourseToSupabase(tc: TeacherCourse): Promise<bo
   // ⚡ رفع وتحديث سجل التكليف في قاعدة بيانات Supabase
   try {
     const payload = {
-      id: tc.id,
-      teacher_id: tc.teacher_id,
-      course_id: tc.course_id,
-      department_id: tc.department_id || null,
-      semester: tc.semester || 1,
-      role_in_course: tc.role_in_course || 'both',
-      created_at: tc.created_at || new Date().toISOString(),
+      id: tc.id, // 🆔 معرف التكليف
+      teacher_id: tc.teacher_id, // 🔗 معرف الأستاذ
+      teacher_name: tc.teacher_name || null, // 👤 اسم الأستاذ
+      course_id: tc.course_id, // 🔗 معرف المادة
+      course_name: tc.course_name || null, // 📖 اسم المادة
+      department_id: tc.department_id || null, // 🏢 معرف القسم
+      semester: tc.semester || 1, // 🗓️ الكورس
+      role_in_course: tc.role_in_course || 'both', // 🏷️ صفة التكليف
+      created_at: tc.created_at || new Date().toISOString(), // ⏰ تاريخ التكليف
     };
-    const { error } = await supabase.from('teacher_courses').upsert(payload);
-    if (!error) {
-      invalidateCacheKey('supabase_teacher_courses');
-      invalidateCacheKey('supabase_academic_entities');
+    const { error } = await supabase.from('teacher_courses').upsert(payload); // ☁️ رفع السجل لسحابة Supabase
+    if (!error) { // ✅ إذا نجح الحفظ
+      invalidateCacheKey('supabase_teacher_courses'); // 🔄 تنظيف كاش التكليفات
+      invalidateCacheKey('supabase_academic_entities'); // 🔄 تنظيف كاش الكيانات
+      return true; // 🎉 تم بنجاح
+    }
+
+    // 🛡️ خطة بديلة (Fallback) في حال عدم توفر أعمدة الأسماء
+    if (error && (error.code === 'PGRST204' || error.message?.includes('column'))) {
+      const fallbackPayload = {
+        id: tc.id,
+        teacher_id: tc.teacher_id,
+        course_id: tc.course_id,
+        department_id: tc.department_id || null,
+        semester: tc.semester || 1,
+        role_in_course: tc.role_in_course || 'both',
+        created_at: tc.created_at || new Date().toISOString(),
+      };
+      const { error: fallbackErr } = await supabase.from('teacher_courses').upsert(fallbackPayload);
+      if (!fallbackErr) {
+        invalidateCacheKey('supabase_teacher_courses');
+        invalidateCacheKey('supabase_academic_entities');
+        return true;
+      }
     }
     return !error;
   } catch {

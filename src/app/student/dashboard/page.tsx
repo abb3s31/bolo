@@ -17,9 +17,10 @@ import {
   syncAcademicTasksFromSupabase,
   syncTaskSubmissionsFromSupabase,
   syncCampusAnnouncementsFromSupabase,
+  syncTeacherCoursesFromSupabase, // ☁️ مزامنة تكليفات الأساتذة مع السحابة
 } from '@/lib/supabase-client'; // 🔌 الجلسة والمزامنة السحابية الشاملة لكافة الجداول
-import { getStoredData, INITIAL_GRADES, INITIAL_COURSES, INITIAL_SCHEDULE_LECTURES, INITIAL_SCHEDULE_CONFIGS, INITIAL_ATTENDANCE_RECORDS, INITIAL_FINAL_EXAM_SCHEDULES, INITIAL_FINAL_EXAM_SLOTS, INITIAL_TUITION_RECORDS, INITIAL_ACADEMIC_TASKS, INITIAL_STUDENT_SUBMISSIONS, INITIAL_PROFILES, getAcademicYear, formatAcademicYearDisplay } from '@/lib/mock-data'; // 💾 البيانات والملفات الشخصية
-import { UserProfile, Grade, Course, ScheduleLecture, DepartmentScheduleConfig, StudentAttendanceRecord, FinalExamSchedule, FinalExamSlot, StudentTuitionRecord, CourseAcademicTask, StudentTaskSubmission, CampusAnnouncement } from '@/types'; // 🔗 الأنواع الرسمية
+import { getStoredData, INITIAL_GRADES, INITIAL_COURSES, INITIAL_SCHEDULE_LECTURES, INITIAL_SCHEDULE_CONFIGS, INITIAL_ATTENDANCE_RECORDS, INITIAL_FINAL_EXAM_SCHEDULES, INITIAL_FINAL_EXAM_SLOTS, INITIAL_TUITION_RECORDS, INITIAL_ACADEMIC_TASKS, INITIAL_STUDENT_SUBMISSIONS, INITIAL_PROFILES, INITIAL_TEACHER_COURSES, getAcademicYear, formatAcademicYearDisplay } from '@/lib/mock-data'; // 💾 البيانات والملفات الشخصية
+import { UserProfile, Grade, Course, TeacherCourse, ScheduleLecture, DepartmentScheduleConfig, StudentAttendanceRecord, FinalExamSchedule, FinalExamSlot, StudentTuitionRecord, CourseAcademicTask, StudentTaskSubmission, CampusAnnouncement } from '@/types'; // 🔗 الأنواع الرسمية
 import { calculateCourseworkTotal, calculateFinalTotal, getLetterGrade, getStageNameInArabic, getCourseAssessmentScheme, isStudentPassedFirstRound } from '@/lib/grade-utils'; // 🧮 الحسابات وأسماء المراحل والمخطط وفحص الدور الأول
 import { detectArabicGender } from '@/lib/demographics-utils'; // 🧮 التعرف الذكي على جنس الطالب
 import { exportStudentTranscriptPDF } from '@/lib/pdf-export'; // 📄 مولد وثيقة السعي PDF
@@ -63,6 +64,7 @@ export default function StudentDashboard() {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [studentGrades, setStudentGrades] = useState<Grade[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
+  const [teacherCourses, setTeacherCourses] = useState<TeacherCourse[]>([]); // 📋 سجل تكليفات الأساتذة المعتمد
   const [scheduleLectures, setScheduleLectures] = useState<ScheduleLecture[]>([]);
   const [scheduleConfigs, setScheduleConfigs] = useState<DepartmentScheduleConfig[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<StudentAttendanceRecord[]>([]);
@@ -97,6 +99,7 @@ export default function StudentDashboard() {
 
     const allGrades = getStoredData<Grade[]>('grades', INITIAL_GRADES);
     const allCourses = getStoredData<Course[]>('courses', INITIAL_COURSES);
+    const allTCs = getStoredData<TeacherCourse[]>('teacher_courses', INITIAL_TEACHER_COURSES); // 📋 جلب كافة التكليفات المعتمدة
     const allLectures = getStoredData<ScheduleLecture[]>('schedule_lectures', INITIAL_SCHEDULE_LECTURES);
     const allConfigs = getStoredData<DepartmentScheduleConfig[]>('department_schedule_configs', INITIAL_SCHEDULE_CONFIGS);
     const allAttendance = getStoredData<StudentAttendanceRecord[]>('student_attendance_records', INITIAL_ATTENDANCE_RECORDS);
@@ -111,6 +114,7 @@ export default function StudentDashboard() {
 
     setStudentGrades(myGrades);
     setCourses(allCourses);
+    setTeacherCourses(allTCs); // 📋 تثبيت سجل التكليفات بحالة المكون
     setScheduleLectures(allLectures);
     setScheduleConfigs(allConfigs);
     setAttendanceRecords(allAttendance);
@@ -142,9 +146,12 @@ export default function StudentDashboard() {
       }
     }).catch(() => {});
 
-    // ☁️ 2. مزامنة المواد الدراسية من Supabase
+    // ☁️ 2. مزامنة المواد الدراسية وتكليفات الأساتذة من Supabase
     syncCoursesFromSupabase().then((cloudCourses) => {
       if (cloudCourses && cloudCourses.length > 0) setCourses(cloudCourses);
+    }).catch(() => {});
+    syncTeacherCoursesFromSupabase().then((cloudTCs) => {
+      if (cloudTCs && cloudTCs.length > 0) setTeacherCourses(cloudTCs);
     }).catch(() => {});
 
     // ☁️ 3. مزامنة سجلات الحضور والغيابات من Supabase
@@ -208,10 +215,12 @@ export default function StudentDashboard() {
       setAttendanceRecords(latestAttendance);
     };
 
-    // 📡 الاستماع للتحديثات اللحظية المباشرة للمواد وتفعيل الامتحانات فور تعديل رئيس القسم
+    // 📡 الاستماع للتحديثات اللحظية المباشرة للمواد وتكليفات الأساتذة فور تعديل رئيس القسم
     const handleCoursesSync = () => {
       const latestCourses = getStoredData<Course[]>('courses', INITIAL_COURSES);
+      const latestTCs = getStoredData<TeacherCourse[]>('teacher_courses', INITIAL_TEACHER_COURSES);
       setCourses(latestCourses);
+      setTeacherCourses(latestTCs);
     };
 
     // 📡 الاستماع للتحديثات اللحظية المباشرة لجدول المحاضرات وتاريخ انطلاق الفصل فور اعتمادها
@@ -225,6 +234,7 @@ export default function StudentDashboard() {
     window.addEventListener('tuition_records_updated', handleTuitionSync);
     window.addEventListener('attendance_updated', handleAttendanceSync);
     window.addEventListener('courses_updated', handleCoursesSync);
+    window.addEventListener('teacher_courses_updated', handleCoursesSync); // 📋 استماع لتحديثات تكليفات الأساتذة
     window.addEventListener('semester-start-date-updated', handleScheduleSync); // 📅 استماع لتحديث تاريخ الفصل
     window.addEventListener('storage', handleTuitionSync);
     window.addEventListener('storage', handleAttendanceSync);
@@ -235,6 +245,7 @@ export default function StudentDashboard() {
       window.removeEventListener('tuition_records_updated', handleTuitionSync);
       window.removeEventListener('attendance_updated', handleAttendanceSync);
       window.removeEventListener('courses_updated', handleCoursesSync);
+      window.removeEventListener('teacher_courses_updated', handleCoursesSync);
       window.removeEventListener('semester-start-date-updated', handleScheduleSync);
       window.removeEventListener('storage', handleTuitionSync);
       window.removeEventListener('storage', handleAttendanceSync);
@@ -818,9 +829,21 @@ export default function StudentDashboard() {
               const letterGrad = isFinalActive ? getLetterGrade(finalTot) : 'بانتظار الفاينل'; // 🅰️ التقدير الأكاديمي
               const isPassedFirstRound = isFinalActive && isStudentPassedFirstRound(g); // 🛡️ التحقق من النجاح بالدور الأول
 
-              //  أساتذة المادة
-              const theoryTeacherName = courseObj?.theory_teacher_name || 'أستاذ النظري';
-              const practicalTeacherName = isPractical ? (courseObj?.practical_teacher_name || 'أستاذ العملي (المختبر)') : null;
+              // 👨‍🏫 أساتذة المادة مع إسناد بديل فوري من جدول التكليفات المباشر
+              const assignedTCs = teacherCourses.filter(
+                (tc: TeacherCourse): boolean =>
+                  Boolean(
+                    (courseObj?.id && String(tc.course_id).trim() === String(courseObj.id).trim()) ||
+                    (g.course_id && String(tc.course_id).trim() === String(g.course_id).trim()) ||
+                    (courseObj?.name && tc.course_name && tc.course_name.trim() === courseObj.name.trim()) ||
+                    (g.course_name && tc.course_name && tc.course_name.trim() === g.course_name.trim())
+                  )
+              );
+              const thTC = assignedTCs.find((tc: TeacherCourse): boolean => tc.role_in_course === 'theory' || tc.role_in_course === 'both');
+              const prTC = assignedTCs.find((tc: TeacherCourse): boolean => tc.role_in_course === 'practical' || tc.role_in_course === 'both');
+
+              const theoryTeacherName = courseObj?.theory_teacher_name || thTC?.teacher_name || 'أستاذ النظري';
+              const practicalTeacherName = isPractical ? (courseObj?.practical_teacher_name || prTC?.teacher_name || 'أستاذ العملي (المختبر)') : null;
 
               return (
                 <div

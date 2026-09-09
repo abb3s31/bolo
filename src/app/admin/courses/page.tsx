@@ -10,11 +10,15 @@ import {
   syncCoursesFromSupabase,
   syncDepartmentsFromSupabase,
   syncProfilesFromSupabase,
-  syncStagesFromSupabase
+  syncStagesFromSupabase,
+  syncTeacherCoursesFromSupabase, // ☁️ مزامنة تكليفات الأساتذة مع السحابة
+  saveTeacherCourseToSupabase, // ☁️ حفظ تكليفات الأساتذة سحابياً
+  deleteTeacherCourseFromSupabase // ☁️ حذف تكليفات الأساتذة سحابياً عند حذف المادة
 } from '@/lib/supabase-client'; // 🔌 فحص الجلسة ودوال المزامنة السحابية الحية
-import { getStoredData, saveStoredData, INITIAL_COURSES, INITIAL_DEPARTMENTS, INITIAL_STAGES, INITIAL_PROFILES } from '@/lib/mock-data'; // 💾 التخزين
-import { Course, Department, Stage, UserProfile, CourseType, AssessmentScheme } from '@/types'; // 🔗 الأنواع الرسمية
+import { getStoredData, saveStoredData, INITIAL_COURSES, INITIAL_DEPARTMENTS, INITIAL_STAGES, INITIAL_PROFILES, INITIAL_TEACHER_COURSES } from '@/lib/mock-data'; // 💾 التخزين
+import { Course, Department, Stage, UserProfile, CourseType, AssessmentScheme, TeacherCourse } from '@/types'; // 🔗 الأنواع الرسمية
 import { getDefaultAssessmentScheme, getCourseAssessmentScheme, getStageNameInArabic } from '@/lib/grade-utils'; // 🧮 دوال حسابات الدرجات
+import { reconcileCoursesWithTeacherCourses } from '@/app/admin/department-portal/page'; // 🔄 دالة التوفيق والتزامن المركزي
 import { 
   BookOpen, 
   Plus, 
@@ -69,6 +73,7 @@ export default function AdminCoursesPage() {
   const router = useRouter();
   // 📌 الحالات
   const [courses, setCourses] = useState<Course[]>([]);
+  const [teacherCourses, setTeacherCourses] = useState<TeacherCourse[]>([]); // 📋 سجل تكليفات الأساتذة
   const [deletingCourse, setDeletingCourse] = useState<Course | null>(null); // 🗑️ حالة المادة المراد حذفها
   const [selectedCourseIds, setSelectedCourseIds] = useState<string[]>([]); // 🔘 معرفات المواد المحددة
   const [isBulkDeleting, setIsBulkDeleting] = useState<boolean>(false); // 🗑️ كارد الحذف الجماعي
@@ -150,7 +155,61 @@ export default function AdminCoursesPage() {
   const [selectedCourseForAssessment, setSelectedCourseForAssessment] = useState<Course | null>(null);
   const [tempAssessmentScheme, setTempAssessmentScheme] = useState<AssessmentScheme>(getDefaultAssessmentScheme('theory_and_practical'));
 
-  // 🔄 فحص الجلسة وتحميل البيانات
+  // 👨‍🏫 دالة استخراج أساتذة النظري المكلفين بالمادة
+  const getCourseTheoryTeachers = (course: Course): { id: string; name: string }[] => {
+    const list: { id: string; name: string }[] = [];
+    const directAssignments = teacherCourses.filter(
+      (tc: TeacherCourse): boolean =>
+        Boolean(
+          (tc.course_id && String(tc.course_id).trim() === String(course.id).trim()) ||
+          (tc.course_name && course.name && tc.course_name.trim() === course.name.trim())
+        )
+    );
+
+    directAssignments.forEach((tc: TeacherCourse) => {
+      if (tc.role_in_course === 'theory' || tc.role_in_course === 'both' || !tc.role_in_course) {
+        const prof = profiles.find((p: UserProfile): boolean => p.id === tc.teacher_id);
+        const name = tc.teacher_name || prof?.full_name || 'أستاذ المادة';
+        if (!list.some((item) => item.id === tc.teacher_id || item.name === name)) {
+          list.push({ id: tc.teacher_id, name });
+        }
+      }
+    });
+
+    if (list.length === 0 && course.theory_teacher_name && course.theory_teacher_name.trim() !== '') {
+      list.push({ id: course.theory_teacher_id || `temp-th-${course.id}`, name: course.theory_teacher_name.trim() });
+    }
+    return list;
+  };
+
+  // 🧪 دالة استخراج أساتذة العملي المكلفين بالمادة
+  const getCoursePracticalTeachers = (course: Course): { id: string; name: string }[] => {
+    const list: { id: string; name: string }[] = [];
+    const directAssignments = teacherCourses.filter(
+      (tc: TeacherCourse): boolean =>
+        Boolean(
+          (tc.course_id && String(tc.course_id).trim() === String(course.id).trim()) ||
+          (tc.course_name && course.name && tc.course_name.trim() === course.name.trim())
+        )
+    );
+
+    directAssignments.forEach((tc: TeacherCourse) => {
+      if (tc.role_in_course === 'practical' || tc.role_in_course === 'both') {
+        const prof = profiles.find((p: UserProfile): boolean => p.id === tc.teacher_id);
+        const name = tc.teacher_name || prof?.full_name || 'أستاذ العملي';
+        if (!list.some((item) => item.id === tc.teacher_id || item.name === name)) {
+          list.push({ id: tc.teacher_id, name });
+        }
+      }
+    });
+
+    if (list.length === 0 && course.practical_teacher_name && course.practical_teacher_name.trim() !== '') {
+      list.push({ id: course.practical_teacher_id || `temp-pr-${course.id}`, name: course.practical_teacher_name.trim() });
+    }
+    return list;
+  };
+
+  // 🔄 فحص الجلسة وتحميل البيانات والتوفيق المركزي
   useEffect(() => {
     const user = getCurrentSessionUser();
     if (!user || (user.role !== 'super_admin' && user.role !== 'admin')) {
@@ -158,25 +217,66 @@ export default function AdminCoursesPage() {
       return;
     }
     const loadedDepts = getStoredData<Department[]>('departments', INITIAL_DEPARTMENTS);
-    setCourses(getStoredData<Course[]>('courses', INITIAL_COURSES));
+    const loadedCourses = getStoredData<Course[]>('courses', INITIAL_COURSES);
+    const loadedTCs = getStoredData<TeacherCourse[]>('teacher_courses', INITIAL_TEACHER_COURSES);
+    const loadedProfiles = getStoredData<UserProfile[]>('profiles', INITIAL_PROFILES);
+
+    // 🔄 توفيق فوري لكافة المواد مع سجلات التكليفات لضمان خلوها من أي "غير معيّن" خاطئ
+    const rec = reconcileCoursesWithTeacherCourses(loadedCourses, loadedTCs, loadedProfiles);
+    setCourses(rec.reconciledCourses);
+    setTeacherCourses(loadedTCs);
     setDepartments(loadedDepts);
     setStages(getStoredData<Stage[]>('stages', INITIAL_STAGES));
-    setProfiles(getStoredData<UserProfile[]>('profiles', INITIAL_PROFILES));
+    setProfiles(loadedProfiles);
     if (loadedDepts.length > 0) setSelectedDeptId(loadedDepts[0].id);
 
     // ☁️ المزامنة اللحظية الحية من سحابة Supabase
-    syncCoursesFromSupabase().then((liveCourses) => {
-      if (liveCourses && liveCourses.length > 0) setCourses(liveCourses);
-    }).catch(() => {});
-    syncDepartmentsFromSupabase().then((liveDepts) => {
-      if (liveDepts && liveDepts.length > 0) setDepartments(liveDepts);
-    }).catch(() => {});
-    syncStagesFromSupabase().then((liveStages) => {
-      if (liveStages && liveStages.length > 0) setStages(liveStages);
-    }).catch(() => {});
-    syncProfilesFromSupabase().then((liveProfiles) => {
-      if (liveProfiles && liveProfiles.length > 0) setProfiles(liveProfiles);
-    }).catch(() => {});
+    const syncAll = async () => {
+      try {
+        const [liveCourses, liveDepts, liveStages, liveProfiles, liveTCs] = await Promise.all([
+          syncCoursesFromSupabase(),
+          syncDepartmentsFromSupabase(),
+          syncStagesFromSupabase(),
+          syncProfilesFromSupabase(),
+          syncTeacherCoursesFromSupabase(),
+        ]);
+
+        const c = liveCourses && liveCourses.length > 0 ? liveCourses : loadedCourses;
+        const tc = liveTCs && liveTCs.length > 0 ? liveTCs : loadedTCs;
+        const p = liveProfiles && liveProfiles.length > 0 ? liveProfiles : loadedProfiles;
+
+        const reconciled = reconcileCoursesWithTeacherCourses(c, tc, p);
+        setCourses(reconciled.reconciledCourses);
+        if (liveTCs) setTeacherCourses(liveTCs);
+        if (liveDepts && liveDepts.length > 0) setDepartments(liveDepts);
+        if (liveStages && liveStages.length > 0) setStages(liveStages);
+        if (liveProfiles && liveProfiles.length > 0) setProfiles(liveProfiles);
+      } catch (err) {
+        console.warn('تنبيه: تعذر إكمال المزامنة السحابية الشاملة للمواد:', err);
+      }
+    };
+    syncAll();
+
+    // 📡 الاستماع للتحديثات اللحظية المباشرة بين النوافذ والتبويبات
+    const handleSyncEvent = () => {
+      const currentC = getStoredData<Course[]>('courses', INITIAL_COURSES);
+      const currentTC = getStoredData<TeacherCourse[]>('teacher_courses', INITIAL_TEACHER_COURSES);
+      const currentP = getStoredData<UserProfile[]>('profiles', INITIAL_PROFILES);
+      const r = reconcileCoursesWithTeacherCourses(currentC, currentTC, currentP);
+      setCourses(r.reconciledCourses);
+      setTeacherCourses(currentTC);
+      setProfiles(currentP);
+    };
+
+    window.addEventListener('courses_updated', handleSyncEvent);
+    window.addEventListener('teacher_courses_updated', handleSyncEvent);
+    window.addEventListener('storage', handleSyncEvent);
+
+    return () => {
+      window.removeEventListener('courses_updated', handleSyncEvent);
+      window.removeEventListener('teacher_courses_updated', handleSyncEvent);
+      window.removeEventListener('storage', handleSyncEvent);
+    };
   }, [router]);
 
   // تصفية أساتذة القسم المختار
@@ -249,6 +349,19 @@ export default function AdminCoursesPage() {
       if (updatedCourseToSync) {
         saveCourseToSupabase(updatedCourseToSync); // ☁️ مزامنة التعديل سحابياً
       }
+
+      // 🔄 مزامنة التكليفات ثنائياً عبر دالة التوفيق المركزي
+      const rec = reconcileCoursesWithTeacherCourses(updated, teacherCourses, profiles);
+      setTeacherCourses(rec.reconciledTCs);
+      saveStoredData('teacher_courses', rec.reconciledTCs);
+      const targetId = editingCourse.id;
+      const courseTCs = rec.reconciledTCs.filter((tc: TeacherCourse): boolean => tc.course_id === targetId);
+      courseTCs.forEach((tc: TeacherCourse) => {
+        saveTeacherCourseToSupabase(tc); // ☁️ رفع التكليف سحابياً
+      });
+      window.dispatchEvent(new CustomEvent('teacher_courses_updated', { detail: rec.reconciledTCs }));
+      window.dispatchEvent(new CustomEvent('courses_updated', { detail: updated }));
+
       setIsCourseModalOpen(false);
       setEditingCourse(null);
       setSuccessMsg(`تم تحديث بيانات مادة (${courseName.trim()}) بنجاح!`);
@@ -281,6 +394,18 @@ export default function AdminCoursesPage() {
       setCourses(updated);
       saveStoredData('courses', updated);
       saveCourseToSupabase(newCourse); // ☁️ حفظ المادة سحابياً
+
+      // 🔄 مزامنة التكليفات ثنائياً للمادة الجديدة عبر دالة التوفيق المركزي
+      const rec = reconcileCoursesWithTeacherCourses(updated, teacherCourses, profiles);
+      setTeacherCourses(rec.reconciledTCs);
+      saveStoredData('teacher_courses', rec.reconciledTCs);
+      const newCourseTCs = rec.reconciledTCs.filter((tc: TeacherCourse): boolean => tc.course_id === newCourse.id);
+      newCourseTCs.forEach((tc: TeacherCourse) => {
+        saveTeacherCourseToSupabase(tc); // ☁️ رفع التكليف الجديد سحابياً
+      });
+      window.dispatchEvent(new CustomEvent('teacher_courses_updated', { detail: rec.reconciledTCs }));
+      window.dispatchEvent(new CustomEvent('courses_updated', { detail: updated }));
+
       setSortMode('custom');
       setIsCourseModalOpen(false);
       setSuccessMsg(`تمت إضافة مادة (${newCourse.name}) بنجاح ووضعها في بداية القائمة!`);
@@ -466,8 +591,24 @@ export default function AdminCoursesPage() {
     setCourses(updated);
     saveStoredData('courses', updated);
     deleteCourseFromSupabase(deletedId); // ☁️ حذف المادة سحابياً
+
+    // 🔗 حذف تكليفات الأساتذة المقترنة بهذه المادة محلياً وسحابياً
+    const tcsToDelete = teacherCourses.filter((tc: TeacherCourse): boolean => tc.course_id === deletedId);
+    tcsToDelete.forEach((tc: TeacherCourse) => {
+      deleteTeacherCourseFromSupabase(tc.id); // ☁️ حذف التكليف سحابياً لمنع ظهوره كأثر قديم
+    });
+    const updatedTCs = teacherCourses.filter((tc: TeacherCourse): boolean => tc.course_id !== deletedId);
+    setTeacherCourses(updatedTCs);
+    saveStoredData('teacher_courses', updatedTCs);
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('courses_updated'));
+      window.dispatchEvent(new Event('teacher_courses_updated'));
+      window.dispatchEvent(new Event('storage'));
+    }
+
     setDeletingCourse(null);
-    setSuccessMsg(`تم حذف مادة (${deletingCourse.name}) بنجاح.`);
+    setSuccessMsg(`تم حذف مادة (${deletingCourse.name}) وتكليفاتها بنجاح.`);
     setTimeout(() => setSuccessMsg(''), 3000);
   };
 
@@ -494,12 +635,28 @@ export default function AdminCoursesPage() {
       deleteCourseFromSupabase(id); // ☁️ حذف المواد سحابياً
     });
 
+    // 🔗 حذف كافة تكليفات المواد المحددة محلياً وسحابياً
+    const tcsToDelete = teacherCourses.filter((tc: TeacherCourse): boolean => selectedCourseIds.includes(tc.course_id));
+    tcsToDelete.forEach((tc: TeacherCourse) => {
+      deleteTeacherCourseFromSupabase(tc.id); // ☁️ حذف التكليفات سحابياً
+    });
+    const updatedTCs = teacherCourses.filter((tc: TeacherCourse): boolean => !selectedCourseIds.includes(tc.course_id));
+    setTeacherCourses(updatedTCs);
+    saveStoredData('teacher_courses', updatedTCs);
+
     const updatedCourses = courses.filter((c) => !selectedCourseIds.includes(c.id));
     setCourses(updatedCourses);
     saveStoredData('courses', updatedCourses);
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('courses_updated'));
+      window.dispatchEvent(new Event('teacher_courses_updated'));
+      window.dispatchEvent(new Event('storage'));
+    }
+
     setSelectedCourseIds([]);
     setIsBulkDeleting(false);
-    setSuccessMsg(`تم حذف (${count}) من المواد والمقررات الدراسية بنجاح.`);
+    setSuccessMsg(`تم حذف (${count}) من المواد والمقررات وتكليفاتها بنجاح.`);
     setTimeout(() => setSuccessMsg(''), 3500);
   };
 
@@ -1617,25 +1774,47 @@ export default function AdminCoursesPage() {
                     </td>
 
                     <td className="p-4 whitespace-nowrap">
-                      {course.theory_teacher_name ? (
-                        <span className="font-black text-slate-900 inline-flex items-center gap-1.5 text-sm whitespace-nowrap">
-                          <Users className="w-4 h-4 text-[#0F2942]" />
-                          <span>{course.theory_teacher_name}</span>
-                        </span>
-                      ) : (
-                        <span className="text-slate-400 font-bold text-xs whitespace-nowrap">غير معين</span>
-                      )}
+                      {(() => {
+                        const thTeachers = getCourseTheoryTeachers(course); // 📋 جلب كافة أساتذة النظري المكلفين
+                        if (thTeachers.length > 0) { // ✅ إذا وُجد أساتذة مكلفين
+                          return (
+                            <div className="flex items-center gap-1.5 flex-wrap max-w-xs">
+                              {thTeachers.map((t) => (
+                                <span
+                                  key={t.id}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-blue-50 border border-blue-200 text-blue-950 font-black text-xs shadow-2xs"
+                                >
+                                  <Users className="w-3.5 h-3.5 text-[#0F2942]" />
+                                  <span>{t.name}</span>
+                                </span>
+                              ))}
+                            </div>
+                          );
+                        }
+                        return <span className="text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200 font-bold text-xs whitespace-nowrap">غير معين</span>;
+                      })()}
                     </td>
                     <td className="p-4 whitespace-nowrap">
                       {isPractical ? (
-                        course.practical_teacher_name ? (
-                          <span className="font-black text-slate-900 inline-flex items-center gap-1.5 text-sm whitespace-nowrap">
-                            <FlaskConical className="w-4 h-4 text-emerald-700" />
-                            <span>{course.practical_teacher_name}</span>
-                          </span>
-                        ) : (
-                          <span className="text-rose-600 font-bold text-xs whitespace-nowrap">غير معين</span>
-                        )
+                        (() => {
+                          const prTeachers = getCoursePracticalTeachers(course); // 📋 جلب كافة أساتذة العملي المكلفين
+                          if (prTeachers.length > 0) { // ✅ إذا وُجد أساتذة عملي مكلفين
+                            return (
+                              <div className="flex items-center gap-1.5 flex-wrap max-w-xs">
+                                {prTeachers.map((t) => (
+                                  <span
+                                    key={t.id}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-950 font-black text-xs shadow-2xs"
+                                  >
+                                    <FlaskConical className="w-3.5 h-3.5 text-emerald-700" />
+                                    <span>{t.name}</span>
+                                  </span>
+                                ))}
+                              </div>
+                            );
+                          }
+                          return <span className="text-rose-600 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200 font-bold text-xs whitespace-nowrap">غير معين</span>;
+                        })()
                       ) : (
                         <span className="text-slate-400 font-medium text-xs whitespace-nowrap">— نظري فقط</span>
                       )}

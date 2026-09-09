@@ -4,8 +4,8 @@
 import { useState, useEffect, useMemo } from 'react'; // 🔗 خطافات رياكت لإدارة الحالة والوقت اللحظي
 import Image from 'next/image'; // 🖼️ استيراد مكون الصور من نكست لطباعة شعار الجامعة الرسمي
 import { createPortal } from 'react-dom'; // 🚪 بورتال لعرض نافذة الطباعة مباشرة على جذر الصفحة
-import { DayOfWeek, ScheduleLecture, DepartmentScheduleConfig, LectureColor, UserProfile, Department } from '@/types'; // 🔗 استيراد الأنواع الرسمية
-import { getStoredData, INITIAL_PROFILES, INITIAL_DEPARTMENTS, getAcademicYear, formatAcademicYearDisplay } from '@/lib/mock-data'; // 💾 قراءة بيانات المستخدمين والأقسام والعام الدراسي المعتمد
+import { DayOfWeek, ScheduleLecture, DepartmentScheduleConfig, LectureColor, UserProfile, Department, Course, TeacherCourse } from '@/types'; // 🔗 استيراد الأنواع الرسمية
+import { getStoredData, INITIAL_PROFILES, INITIAL_DEPARTMENTS, INITIAL_COURSES, INITIAL_TEACHER_COURSES, getAcademicYear, formatAcademicYearDisplay } from '@/lib/mock-data'; // 💾 قراءة بيانات المستخدمين والأقسام والعام الدراسي المعتمد
 import {
   DAYS_OF_WEEK_LIST,
   LECTURE_COLOR_THEMES,
@@ -415,16 +415,47 @@ export default function StudentScheduleTimeline({
         const effectiveDay = override?.day || l.day;
         return effectiveDay === selectedDay;
       })
-      .map((l) => {
+      .map((l: ScheduleLecture): ScheduleLecture => {
         const override = l.weekly_overrides?.[selectedAcademicWeek];
-        if (!override) return l;
+        const rawTeacherName = override?.teacher_name || l.teacher_name;
+
+        // 👨‍🏫 استنتاج اسم الأستاذ المكلف تلقائياً إذا كان حقل اسم الأستاذ فارغاً
+        let resolvedTeacherName = rawTeacherName;
+        if (!resolvedTeacherName && (l.teacher_id || l.course_id)) {
+          const storedProfiles = getStoredData<UserProfile[]>('profiles', INITIAL_PROFILES);
+          if (l.teacher_id) {
+            const p = storedProfiles.find((prof: UserProfile): boolean => prof.id === l.teacher_id);
+            if (p) resolvedTeacherName = p.full_name;
+          }
+          if (!resolvedTeacherName && l.course_id) {
+            const storedCourses = getStoredData<Course[]>('courses', INITIAL_COURSES);
+            const c = storedCourses.find((crs: Course): boolean => crs.id === l.course_id);
+            if (c) {
+              resolvedTeacherName = l.type === 'practical' ? (c.practical_teacher_name || c.theory_teacher_name) : (c.theory_teacher_name || c.practical_teacher_name);
+            }
+          }
+          if (!resolvedTeacherName && l.course_id) {
+            const storedTCs = getStoredData<TeacherCourse[]>('teacher_courses', INITIAL_TEACHER_COURSES);
+            const tc = storedTCs.find((item: TeacherCourse): boolean => item.course_id === l.course_id && (l.type === 'practical' ? item.role_in_course !== 'theory' : item.role_in_course !== 'practical'));
+            if (tc) {
+              const storedProfiles = getStoredData<UserProfile[]>('profiles', INITIAL_PROFILES);
+              const p = storedProfiles.find((prof: UserProfile): boolean => prof.id === tc.teacher_id);
+              resolvedTeacherName = p?.full_name || tc.teacher_name;
+            }
+          }
+        }
+
+        if (!override) {
+          return resolvedTeacherName !== l.teacher_name ? { ...l, teacher_name: resolvedTeacherName } : l;
+        }
+
         return {
           ...l,
           day: override.day || l.day,
           start_time: override.start_time || l.start_time,
           end_time: override.end_time || l.end_time,
           room: override.room || l.room,
-          teacher_name: override.teacher_name || l.teacher_name,
+          teacher_name: resolvedTeacherName,
           date: override.date || l.date,
         };
       })

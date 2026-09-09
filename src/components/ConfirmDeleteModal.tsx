@@ -65,6 +65,20 @@ export default function ConfirmDeleteModal({
     }
   }, [isOpen]);
 
+  // ⌨️ الاستماع لزر الهروب Escape لإلغاء وإغلاق النافذة فورياً
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !isLoading) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, onClose, isLoading]);
+
   if (!isOpen) return null;
 
   // 🎨 تحديد نوع الأيقونة تلقائياً إن لم يتم تمريرها صراحة

@@ -11,6 +11,8 @@ import {
   AttendanceExcuseRequest,
   DepartmentScheduleConfig, // ⚙️ إعدادات الجدول وتاريخ الانطلاق
   DayOfWeek, // 🗓️ نوع أيام الأسبوع
+  TeacherCourse, // 🔗 تكليفات الأساتذة
+  UserProfile, // 👤 ملفات المستخدمين والأساتذة
 } from '@/types'; // 🔗 استيراد الأنواع الرسمية
 import { saveExcuseRequestToSupabase, syncExcuseRequestsFromSupabase } from '@/lib/supabase-client'; // ☁️ المزامنة السحابية للأعذار الطبية
 import {
@@ -31,7 +33,7 @@ import {
   DAYS_OF_WEEK_LIST,
 } from '@/lib/schedule-utils'; // 🗓️ دوال حسابات الأسابيع وتواريخ التقويم الذكية
 import { syncDepartmentDurationConfigFromSupabase } from '@/lib/supabase-client'; // 🔌 مزامنة قاعدة بيانات Supabase
-import { getStoredData, saveStoredData, INITIAL_EXCUSE_REQUESTS } from '@/lib/mock-data'; // 💾 التخزين المحلي
+import { getStoredData, saveStoredData, INITIAL_EXCUSE_REQUESTS, INITIAL_TEACHER_COURSES, INITIAL_PROFILES } from '@/lib/mock-data'; // 💾 التخزين المحلي
 import {
   Calendar,
   Clock,
@@ -98,6 +100,35 @@ export default function StudentAttendanceView({
 
   // 📱 2. الحالة: نمط العرض النشط (ملخص المواد summary / جدول تفصيلي table / الإجازات excuses)
   const [activeViewMode, setActiveViewMode] = useState<'summary' | 'table' | 'excuses'>('summary');
+
+  // 👨‍🏫 دوال استخراج واستنتاج اسم أستاذ النظري والعملي من المادة أو التكليفات تلقائياً
+  const getCourseTheoryTeacherName = (c?: Course): string => {
+    if (c?.theory_teacher_name) return c.theory_teacher_name;
+    if (c?.id) {
+      const storedTCs = getStoredData<TeacherCourse[]>('teacher_courses', INITIAL_TEACHER_COURSES);
+      const tc = storedTCs.find((item: TeacherCourse): boolean => item.course_id === c.id && (item.role_in_course === 'theory' || item.role_in_course === 'both'));
+      if (tc) {
+        const storedProfiles = getStoredData<UserProfile[]>('profiles', INITIAL_PROFILES);
+        const p = storedProfiles.find((prof: UserProfile): boolean => prof.id === tc.teacher_id);
+        return p?.full_name || tc.teacher_name || 'أستاذ النظري';
+      }
+    }
+    return 'أستاذ النظري';
+  };
+
+  const getCoursePracticalTeacherName = (c?: Course): string => {
+    if (c?.practical_teacher_name) return c.practical_teacher_name;
+    if (c?.id) {
+      const storedTCs = getStoredData<TeacherCourse[]>('teacher_courses', INITIAL_TEACHER_COURSES);
+      const tc = storedTCs.find((item: TeacherCourse): boolean => item.course_id === c.id && (item.role_in_course === 'practical' || item.role_in_course === 'both'));
+      if (tc) {
+        const storedProfiles = getStoredData<UserProfile[]>('profiles', INITIAL_PROFILES);
+        const p = storedProfiles.find((prof: UserProfile): boolean => prof.id === tc.teacher_id);
+        return p?.full_name || tc.teacher_name || 'أستاذ العملي';
+      }
+    }
+    return 'أستاذ العملي';
+  };
 
   // 🔍 3. حالات تصفية الجدول التفصيلي
   const [selectedCourseId, setSelectedCourseId] = useState<string>('all'); // 📘 المادة المحددة
@@ -512,8 +543,8 @@ export default function StudentAttendanceView({
                           <BookOpen className="w-4 h-4 text-blue-700 shrink-0" />
                           <span>ساعات النظري (Theory)</span>
                         </div>
-                        <span className="text-[11px] font-black text-blue-900 bg-blue-100/70 px-2 py-0.5 rounded-md truncate max-w-[130px]" title={course?.theory_teacher_name || 'أستاذ النظري'}>
-                          👨‍🏫 {course?.theory_teacher_name || 'أستاذ النظري'}
+                        <span className="text-[11px] font-black text-blue-900 bg-blue-100/70 px-2 py-0.5 rounded-md truncate max-w-[130px]" title={getCourseTheoryTeacherName(course)}>
+                          👨‍🏫 {getCourseTheoryTeacherName(course)}
                         </span>
                       </div>
                       <div className="text-xs font-bold text-slate-700">
@@ -531,8 +562,8 @@ export default function StudentAttendanceView({
                           <span>ساعات العملي (Lab)</span>
                         </div>
                         {course?.has_practical && (
-                          <span className="text-[11px] font-black text-emerald-900 bg-emerald-100/70 px-2 py-0.5 rounded-md truncate max-w-[130px]" title={course?.practical_teacher_name || 'أستاذ العملي'}>
-                            🔬 {course?.practical_teacher_name || 'أستاذ العملي'}
+                          <span className="text-[11px] font-black text-emerald-900 bg-emerald-100/70 px-2 py-0.5 rounded-md truncate max-w-[130px]" title={getCoursePracticalTeacherName(course)}>
+                            🔬 {getCoursePracticalTeacherName(course)}
                           </span>
                         )}
                       </div>

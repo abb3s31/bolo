@@ -79,11 +79,13 @@ export interface Course {
   course_type?: CourseType;   // 🏷️ نوع المادة: 'theory_only' (نظري فقط) أو 'theory_and_practical' (نظري وعملي)
   has_practical?: boolean;    // 🔬 هل المادة تحتوي على مختبر وجانب عملي؟
   
-  //  أساتذة المادة المكلفون
+  // 👨‍🏫 أساتذة المادة المكلفون
   theory_teacher_id?: string;     // 👤 معرف أستاذ النظري المكلف
   theory_teacher_name?: string;   // 👤 اسم أستاذ النظري
   practical_teacher_id?: string;  // 🔬 معرف أستاذ العملي المكلف
   practical_teacher_name?: string;// 🔬 اسم أستاذ العملي
+  teacher_id?: string;            // 🔗 معرف الأستاذ الأساسي للمادة (للتوافق السحابي)
+  teacher_name?: string;          // 👤 اسم الأستاذ الأساسي للمادة (للتوافق السحابي)
   
   // 🎛️ توزيع الدرجات والعناوين المخصصة للمادة
   assessment_scheme?: AssessmentScheme;
@@ -203,6 +205,7 @@ export interface UserProfile {
   must_change_password?: boolean; // 🔒 إجبار تغيير كلمة المرور
   is_graduated?: boolean;     // 🎓 هل تخرج الطالب بنجاح؟
   graduation_status?: string; // 📜 نص حالة التخرج (مثال: خريج مؤهل بنجاح)
+  scientific_title?: string;  // 🎖️ اللقب العلمي للتدريسي (أستاذ، أستاذ مساعد، مدرس، مدرس مساعد)
   created_at?: string;        // ⏰ تاريخ إنشاء الحساب
   order_index?: number;       // 🔢 ترتيب الحساب المخصص في القائمة
 }

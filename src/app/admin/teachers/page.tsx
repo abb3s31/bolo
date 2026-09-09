@@ -14,13 +14,15 @@ import {
   deleteTeacherCourseFromSupabase,
   syncDepartmentsFromSupabase,
   syncCoursesFromSupabase,
-  syncTeacherCoursesFromSupabase
+  syncTeacherCoursesFromSupabase,
+  saveCourseToSupabase // ☁️ حفظ ومزامنة المادة سحابياً بعد فك الارتباط بالأستاذ
 } from '@/lib/supabase-client'; // 🔌 فحص الجلسة ودوال المزامنة السحابية المباشرة
 import FloatingCrudModal from '@/components/FloatingCrudModal'; // 📦 المكون العائم الفاخر للـ CRUD
 import ConfirmDeleteModal from '@/components/ConfirmDeleteModal'; // 🗑️ كارد الحذف الاحترافي الفاخر
 import { AcademicPasswordStrengthBox } from '@/components/AcademicPasswordStrengthBox'; // 🛡️ صندوق معايير كلمة المرور الموحد
 import { getStoredData, saveStoredData, INITIAL_PROFILES, INITIAL_DEPARTMENTS, INITIAL_COURSES, INITIAL_TEACHER_COURSES, generateStrongUniqueEmail, generateStrongPassword } from '@/lib/mock-data'; // 💾 التخزين والدوال القوية
 import { UserProfile, Department, Course, TeacherCourse } from '@/types'; // 🔗 الأنواع
+import { reconcileCoursesWithTeacherCourses } from '@/app/admin/department-portal/page'; // 🔄 محرك التوافق والتزامن المركزي بين المواد والتكليفات
 import { parseExcelFile, downloadAdminTeachersTemplate, exportCustomTeachersList } from '@/lib/excel-utils'; // 📊 ميزة الجداول المجدولة
 import { detectArabicGender } from '@/lib/demographics-utils'; // 🧮 التعرف الذكي على جنس الأستاذ
 import { 
@@ -208,10 +210,15 @@ export default function AdminTeachersPage() {
     }
     const loadedProfiles = getStoredData<UserProfile[]>('profiles', INITIAL_PROFILES);
     const loadedDepts = getStoredData<Department[]>('departments', INITIAL_DEPARTMENTS);
+    const loadedCourses = getStoredData<Course[]>('courses', INITIAL_COURSES);
+    const loadedTCs = getStoredData<TeacherCourse[]>('teacher_courses', INITIAL_TEACHER_COURSES);
+
+    // 🔄 توفيق مركزي فوري عند التحميل الأولي
+    const initialRec = reconcileCoursesWithTeacherCourses(loadedCourses, loadedTCs, loadedProfiles);
     setProfiles(loadedProfiles);
     setDepartments(loadedDepts);
-    setCourses(getStoredData<Course[]>('courses', INITIAL_COURSES));
-    setTeacherCourses(getStoredData<TeacherCourse[]>('teacher_courses', INITIAL_TEACHER_COURSES));
+    setCourses(initialRec.reconciledCourses);
+    setTeacherCourses(loadedTCs);
     
     if (user.department_id) {
       setSelectedDeptId(user.department_id);
@@ -220,19 +227,49 @@ export default function AdminTeachersPage() {
       setSelectedDeptId(loadedDepts[0].id);
     }
 
-    // ☁️ المزامنة اللحظية الحية مع Supabase
-    syncProfilesFromSupabase().then((liveProfiles) => {
-      if (liveProfiles && liveProfiles.length > 0) setProfiles(liveProfiles);
-    }).catch(() => {});
-    syncDepartmentsFromSupabase().then((liveDepts) => {
-      if (liveDepts && liveDepts.length > 0) setDepartments(liveDepts);
-    }).catch(() => {});
-    syncCoursesFromSupabase().then((liveCourses) => {
-      if (liveCourses && liveCourses.length > 0) setCourses(liveCourses);
-    }).catch(() => {});
-    syncTeacherCoursesFromSupabase().then((liveTCs) => {
-      if (liveTCs && liveTCs.length > 0) setTeacherCourses(liveTCs);
-    }).catch(() => {});
+    // ☁️ المزامنة اللحظية الحية مع Supabase بالتوازي
+    const syncAll = async () => {
+      try {
+        const [liveProfiles, liveDepts, liveCourses, liveTCs] = await Promise.all([
+          syncProfilesFromSupabase(),
+          syncDepartmentsFromSupabase(),
+          syncCoursesFromSupabase(),
+          syncTeacherCoursesFromSupabase()
+        ]);
+        const p = liveProfiles && liveProfiles.length > 0 ? liveProfiles : loadedProfiles;
+        const c = liveCourses && liveCourses.length > 0 ? liveCourses : loadedCourses;
+        const tc = liveTCs && liveTCs.length > 0 ? liveTCs : loadedTCs;
+        if (liveProfiles && liveProfiles.length > 0) setProfiles(liveProfiles);
+        if (liveDepts && liveDepts.length > 0) setDepartments(liveDepts);
+        if (liveTCs) setTeacherCourses(liveTCs);
+        const r = reconcileCoursesWithTeacherCourses(c, tc, p);
+        setCourses(r.reconciledCourses);
+      } catch (err) {
+        console.warn('تنبيه: تعذر مزامنة بيانات الأساتذة مع السحابة:', err);
+      }
+    };
+    syncAll();
+
+    // 📡 الاستماع للتحديثات اللحظية المباشرة بين التبويبات والنوافذ
+    const handleSyncEvent = () => {
+      const currentC = getStoredData<Course[]>('courses', INITIAL_COURSES);
+      const currentTC = getStoredData<TeacherCourse[]>('teacher_courses', INITIAL_TEACHER_COURSES);
+      const currentP = getStoredData<UserProfile[]>('profiles', INITIAL_PROFILES);
+      const r = reconcileCoursesWithTeacherCourses(currentC, currentTC, currentP);
+      setCourses(r.reconciledCourses);
+      setTeacherCourses(currentTC);
+      setProfiles(currentP);
+    };
+
+    window.addEventListener('courses_updated', handleSyncEvent);
+    window.addEventListener('teacher_courses_updated', handleSyncEvent);
+    window.addEventListener('storage', handleSyncEvent);
+
+    return () => {
+      window.removeEventListener('courses_updated', handleSyncEvent);
+      window.removeEventListener('teacher_courses_updated', handleSyncEvent);
+      window.removeEventListener('storage', handleSyncEvent);
+    };
   }, [router]);
 
   // ➕ دالة إضافة أستاذ جديد وحفظه فوراً بقاعدة البيانات الرسمية
@@ -417,14 +454,52 @@ export default function AdminTeachersPage() {
   // 🗑️ تأكيد حذف أستاذ
   const confirmDeleteTeacher = () => {
     if (!deletingTeacher) return;
+    const targetId = deletingTeacher.id;
 
-    const updatedProfiles = profiles.filter((p) => p.id !== deletingTeacher.id);
+    const updatedProfiles = profiles.filter((p: UserProfile): boolean => p.id !== targetId);
     setProfiles(updatedProfiles);
     saveStoredData('profiles', updatedProfiles);
-    deleteProfileFromSupabase(deletingTeacher.id, 'teacher'); // ☁️ حذف الأستاذ من سحابة Supabase
+    deleteProfileFromSupabase(targetId, 'teacher'); // ☁️ حذف الأستاذ من سحابة Supabase
+
+    // 🔗 حذف كافة تكليفات الأستاذ سحابياً ومحلياً
+    const tcsToDelete = teacherCourses.filter((tc: TeacherCourse): boolean => tc.teacher_id === targetId);
+    tcsToDelete.forEach((tc: TeacherCourse) => {
+      deleteTeacherCourseFromSupabase(tc.id); // ☁️ حذف التكليف سحابياً
+    });
+    const updatedTCs = teacherCourses.filter((tc: TeacherCourse): boolean => tc.teacher_id !== targetId);
+    setTeacherCourses(updatedTCs);
+    saveStoredData('teacher_courses', updatedTCs);
+
+    // 🔄 تفريغ الأستاذ من كافة المواد المكلف بها
+    const updatedCourses = courses.map((c: Course): Course => {
+      let isChanged = false;
+      const newC = { ...c };
+      if (newC.theory_teacher_id === targetId) {
+        newC.theory_teacher_id = undefined;
+        newC.theory_teacher_name = undefined;
+        isChanged = true;
+      }
+      if (newC.practical_teacher_id === targetId) {
+        newC.practical_teacher_id = undefined;
+        newC.practical_teacher_name = undefined;
+        isChanged = true;
+      }
+      if (isChanged) {
+        saveCourseToSupabase(newC); // ☁️ مزامنة سحابية للمادة
+      }
+      return newC;
+    });
+    setCourses(updatedCourses);
+    saveStoredData('courses', updatedCourses);
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('courses_updated'));
+      window.dispatchEvent(new Event('teacher_courses_updated'));
+      window.dispatchEvent(new Event('storage'));
+    }
 
     setDeletingTeacher(null);
-    setSuccessMsg('تم حذف حساب الأستاذ من قاعدة البيانات بنجاح.');
+    setSuccessMsg('تم حذف حساب الأستاذ وإلغاء تكليفاته بنجاح.');
     setTimeout(() => setSuccessMsg(''), 3000);
   };
 
@@ -447,16 +522,54 @@ export default function AdminTeachersPage() {
     const count = selectedTeacherIds.length;
     if (count === 0) return;
 
-    const updatedProfiles = profiles.filter((p) => !selectedTeacherIds.includes(p.id));
-    const updatedTCs = teacherCourses.filter((tc) => !selectedTeacherIds.includes(tc.teacher_id));
-    setProfiles(updatedProfiles);
+    selectedTeacherIds.forEach((id: string) => {
+      deleteProfileFromSupabase(id, 'teacher'); // ☁️ حذف الأساتذة المحددين من Supabase
+    });
+
+    // 🔗 حذف تكليفات كافة الأساتذة المحددين سحابياً ومحلياً
+    const tcsToDelete = teacherCourses.filter((tc: TeacherCourse): boolean => selectedTeacherIds.includes(tc.teacher_id));
+    tcsToDelete.forEach((tc: TeacherCourse) => {
+      deleteTeacherCourseFromSupabase(tc.id); // ☁️ حذف التكليفات سحابياً
+    });
+    const updatedTCs = teacherCourses.filter((tc: TeacherCourse): boolean => !selectedTeacherIds.includes(tc.teacher_id));
     setTeacherCourses(updatedTCs);
-    saveStoredData('profiles', updatedProfiles);
     saveStoredData('teacher_courses', updatedTCs);
-    selectedTeacherIds.forEach((id) => deleteProfileFromSupabase(id, 'teacher')); // ☁️ حذف الأساتذة المحددين من Supabase
+
+    const updatedProfiles = profiles.filter((p: UserProfile): boolean => !selectedTeacherIds.includes(p.id));
+    setProfiles(updatedProfiles);
+    saveStoredData('profiles', updatedProfiles);
+
+    // 🔄 تفريغ الأساتذة المحددين من المواد المرتبطة بهم
+    const updatedCourses = courses.map((c: Course): Course => {
+      let isChanged = false;
+      const newC = { ...c };
+      if (newC.theory_teacher_id && selectedTeacherIds.includes(newC.theory_teacher_id)) {
+        newC.theory_teacher_id = undefined;
+        newC.theory_teacher_name = undefined;
+        isChanged = true;
+      }
+      if (newC.practical_teacher_id && selectedTeacherIds.includes(newC.practical_teacher_id)) {
+        newC.practical_teacher_id = undefined;
+        newC.practical_teacher_name = undefined;
+        isChanged = true;
+      }
+      if (isChanged) {
+        saveCourseToSupabase(newC); // ☁️ مزامنة سحابية للمادة
+      }
+      return newC;
+    });
+    setCourses(updatedCourses);
+    saveStoredData('courses', updatedCourses);
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('courses_updated'));
+      window.dispatchEvent(new Event('teacher_courses_updated'));
+      window.dispatchEvent(new Event('storage'));
+    }
+
     setSelectedTeacherIds([]);
     setIsBulkDeleting(false);
-    setSuccessMsg(`تم حذف (${count}) من أساتذة الكلية بنجاح.`);
+    setSuccessMsg(`تم حذف (${count}) من أساتذة الكلية وتفريغ تكليفاتهم بنجاح.`);
     setTimeout(() => setSuccessMsg(''), 3500);
   };
 

@@ -11,9 +11,12 @@ import {
   saveMultipleAttendanceRecordsToSupabase,
   syncGradesFromSupabase,
   syncProfilesFromSupabase, // 👥 مزامنة حسابات الطلاب والأساتذة من السحابة
+  syncCoursesFromSupabase, // 📚 مزامنة المواد من سحابة Supabase
+  syncTeacherCoursesFromSupabase, // 📋 مزامنة تكليفات الأساتذة من سحابة Supabase
   saveMultipleGradesToSupabase,
   saveAuditLogToSupabase,
 } from '@/lib/supabase-client'; // 🔌 الجلسة والمزامنة السحابية المباشرة
+import { reconcileCoursesWithTeacherCourses } from '@/app/admin/department-portal/page'; // 🔄 دالة التوفيق والتزامن المركزي بين المواد والتكليفات
 import { getStoredData, saveStoredData, INITIAL_GRADES, INITIAL_COURSES, INITIAL_DEPARTMENTS, INITIAL_TEACHER_COURSES, INITIAL_AUDIT_LOGS, INITIAL_SCHEDULE_LECTURES, INITIAL_ATTENDANCE_RECORDS, INITIAL_PROFILES, getAcademicYear, formatAcademicYearDisplay } from '@/lib/mock-data'; // 💾 البيانات
 import { Grade, Course, Department, TeacherCourse, UserProfile, AuditLog, ScheduleLecture, StudentAttendanceRecord, AttendanceStatus } from '@/types'; // 🔗 الأنواع الرسمية
 import { calculateCourseworkTotal, calculateFinalTotal, getLetterGrade, getCourseAssessmentScheme, getCourseGradeLimits, getStageNameInArabic, isStudentPassedFirstRound, isStudentEligibleForSupplementary } from '@/lib/grade-utils'; // 🧮 الحسابات والحدود وأسماء المراحل وفحص استحقاق الدور الثاني
@@ -108,6 +111,11 @@ export default function TeacherCourseGradesPage({ params }: { params: Promise<{ 
       const allTCs = getStoredData<TeacherCourse[]>('teacher_courses', INITIAL_TEACHER_COURSES); // 📋 التكليفات
       const allProfiles = getStoredData<UserProfile[]>('profiles', INITIAL_PROFILES); // 👥 حسابات المستخدمين
 
+      // 🔄 التوفيق المركزي الفوري لضمان عدم ضياع التكليف أو المادة
+      const rec = reconcileCoursesWithTeacherCourses(allCourses, allTCs, allProfiles);
+      const effectiveCourses = rec.reconciledCourses;
+      const effectiveTCs = rec.reconciledTCs;
+
       // 🔤 دالة تطبيع النصوص لمطابقة المادة بدقة بدون مشاكل الهمزات
       const normText = (s?: string) => {
         if (!s) return '';
@@ -117,16 +125,16 @@ export default function TeacherCourseGradesPage({ params }: { params: Promise<{ 
       const targetDecoded = decodeURIComponent(courseId).trim();
       const targetNorm = normText(targetDecoded);
 
-      // 🔍 البحث عن التكليف المطابق لمادة الأستاذ
-      const matchedTC = allTCs.find(
-        (tc) =>
+      // 🔍 البحث عن التكليف المطابق لمادة الأستاذ من التكليفات الموفقة
+      const matchedTC = effectiveTCs.find(
+        (tc: TeacherCourse): boolean =>
           tc.course_id === courseId ||
           tc.id === courseId ||
-          (tc.course_name && normText(tc.course_name) === targetNorm)
+          Boolean(tc.course_name && normText(tc.course_name) === targetNorm)
       );
 
-      // 🔍 البحث عن المادة في جدول المواد
-      let foundCourse = allCourses.find(
+      // 🔍 البحث عن المادة في جدول المواد الموفقة
+      let foundCourse = effectiveCourses.find(
         (c) =>
           c.id === courseId ||
           c.code?.toLowerCase().trim() === targetDecoded.toLowerCase() ||
@@ -377,6 +385,13 @@ export default function TeacherCourseGradesPage({ params }: { params: Promise<{ 
         }
       }).catch(() => {});
     }
+
+    // 📚📋 مزامنة حية للمواد وتكليفات الأساتذة من سحابة Supabase
+    Promise.all([syncCoursesFromSupabase(), syncTeacherCoursesFromSupabase()]).then(([liveCourses, liveTCs]) => {
+      if ((liveCourses && liveCourses.length > 0) || (liveTCs && liveTCs.length > 0)) {
+        loadCourseData();
+      }
+    }).catch(() => {});
 
     // 📡 الاشتراك بالبث اللحظي للعام الدراسي
     let unsubscribeYear: (() => void) | undefined;

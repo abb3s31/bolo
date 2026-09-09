@@ -46,6 +46,20 @@ export default function FloatingCrudModal({
     }
   }, [isOpen]);
 
+  // ⌨️ الاستماع لزر الهروب Escape لإغلاق النافذة العائمة بسلاسة وسرعة
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, onClose]);
+
   if (!isOpen || !mounted) return null; // 🛑 إذا لم تكن مفتوحة لا ترسم شيء
 
   // 📋 محتوى البطاقة العائمة وهيكلها الكامل

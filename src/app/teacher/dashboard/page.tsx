@@ -18,9 +18,10 @@ import {
 } from '@/lib/supabase-client'; // 🔌 الجلسة والمزامنة السحابية للعام الدراسي والتكليفات والجداول والامتحانات
 import { getStoredData, INITIAL_COURSES, INITIAL_TEACHER_COURSES, INITIAL_SCHEDULE_LECTURES, INITIAL_SCHEDULE_CONFIGS, INITIAL_FINAL_EXAM_SCHEDULES, INITIAL_FINAL_EXAM_SLOTS, INITIAL_PROFILES, getAcademicYear, formatAcademicYearDisplay } from '@/lib/mock-data'; // 💾 البيانات
 import { UserProfile, Course, TeacherCourse, ScheduleLecture, DepartmentScheduleConfig, FinalExamSchedule, FinalExamSlot } from '@/types'; // 🔗 الأنواع
+import { reconcileCoursesWithTeacherCourses } from '@/app/admin/department-portal/page'; // 🔄 محرك التوفيق والتزامن المركزي بين المواد والتكليفات
 import { detectArabicGender } from '@/lib/demographics-utils'; // 🧮 التعرف الذكي على جنس الطلاب
 import { getStageNameInArabic } from '@/lib/grade-utils'; // 🎓 دالة أسماء المراحل بالعربية
-import { BookOpen, ChevronLeft, Layers, Clock, Calendar, Sparkles, FileText, ShieldCheck, Users, Sun, Moon, Building2, GraduationCap, ArrowLeft, ClipboardCheck, Award, Lock, Unlock, RotateCcw } from 'lucide-react'; // 🎨 الأيقونات SVG
+import { BookOpen, ChevronLeft, Layers, Clock, Calendar, Sparkles, FileText, ShieldCheck, Users, Sun, Moon, Building2, GraduationCap, ArrowLeft, ClipboardCheck, Award, Lock, Unlock, RotateCcw, FlaskConical } from 'lucide-react'; // 🎨 الأيقونات SVG
 import ZeroTrustGuard from '@/components/security/ZeroTrustGuard'; // 🛡️ حارس أمان Zero Trust
 import TeacherScheduleTimeline from '@/components/schedule/TeacherScheduleTimeline'; // 🕒 مكون جدول ومواقيت الأستاذ
 import TeacherExamDutiesView from '@/components/exams/TeacherExamDutiesView'; // 📝 مكون جدول المراقبات الامتحانية للأستاذ
@@ -72,8 +73,9 @@ export default function TeacherDashboard() {
     if (user) {
       // 💾 قراءة الجداول من التخزين المحلي
       const allProfiles = getStoredData<UserProfile[]>('profiles', INITIAL_PROFILES); // 👥 كافة الحسابات
-      const allCourses = getStoredData<Course[]>('courses', INITIAL_COURSES); // 📚 كافة المواد
+      const rawCourses = getStoredData<Course[]>('courses', INITIAL_COURSES); // 📚 كافة المواد الخام
       const teacherCourses = getStoredData<TeacherCourse[]>('teacher_courses', INITIAL_TEACHER_COURSES); // 📋 سجل التكليفات
+      const { reconciledCourses: allCourses, reconciledTCs: allTCs } = reconcileCoursesWithTeacherCourses(rawCourses, teacherCourses, allProfiles); // 🔄 توفيق مركزي فوري لكافة المواد والتكليفات
       const allLecs = getStoredData<ScheduleLecture[]>('schedule_lectures', INITIAL_SCHEDULE_LECTURES); // 🕒 المحاضرات
       const allConfigs = getStoredData<DepartmentScheduleConfig[]>('department_schedule_configs', INITIAL_SCHEDULE_CONFIGS); // ⚙️ الإعدادات
       const allSchedules = getStoredData<FinalExamSchedule[]>('final_exam_schedules', INITIAL_FINAL_EXAM_SCHEDULES); // 📝 الامتحانات
@@ -96,8 +98,8 @@ export default function TeacherDashboard() {
       const userNormName = normalizeArabic(user.full_name); // 🔤 اسم الأستاذ المعياري
       const userCleanEmail = (user.generated_email || '').trim().toLowerCase(); // ✉️ البريد المنظف
 
-      // 🔍 1. فلترة تكليفات المواد لهذا الأستاذ بالمعرف أو الاسم أو البريد الأكاديمي أو الرقم الجامعي
-      const myCourseItems = teacherCourses.filter((tc) => {
+      // 🔍 1. فلترة تكليفات المواد لهذا الأستاذ بالمعرف أو الاسم أو البريد الأكاديمي أو الرقم الجامعي من التكليفات الموفقة
+      const myCourseItems = allTCs.filter((tc: TeacherCourse): boolean => {
         if (!user) return false;
         const tcNormName = normalizeArabic(tc.teacher_name); // 🔤 اسم الأستاذ بالسجل
 
@@ -194,28 +196,20 @@ export default function TeacherDashboard() {
   useEffect(() => {
     loadData();
 
-    // ☁️ المزامنة السحابية الحية للتكليفات والمواد والحسابات
-    if (typeof syncTeacherCoursesFromSupabase === 'function') {
-      syncTeacherCoursesFromSupabase().then(() => loadData()).catch(() => {});
-    }
-    if (typeof syncCoursesFromSupabase === 'function') {
-      syncCoursesFromSupabase().then(() => loadData()).catch(() => {});
-    }
-    if (typeof syncProfilesFromSupabase === 'function') {
-      syncProfilesFromSupabase().then(() => loadData()).catch(() => {});
-    }
-    if (typeof syncScheduleLecturesFromSupabase === 'function') {
-      syncScheduleLecturesFromSupabase().then(() => loadData()).catch(() => {});
-    }
-    if (typeof syncScheduleConfigsFromSupabase === 'function') {
-      syncScheduleConfigsFromSupabase().then(() => loadData()).catch(() => {});
-    }
-    if (typeof syncFinalExamSchedulesFromSupabase === 'function') {
-      syncFinalExamSchedulesFromSupabase().then(() => loadData()).catch(() => {});
-    }
-    if (typeof syncFinalExamSlotsFromSupabase === 'function') {
-      syncFinalExamSlotsFromSupabase().then(() => loadData()).catch(() => {});
-    }
+    // ☁️ المزامنة السحابية الحية المتوازية للتكليفات والمواد والحسابات
+    Promise.all([
+      syncTeacherCoursesFromSupabase(),
+      syncCoursesFromSupabase(),
+      syncProfilesFromSupabase(),
+      syncScheduleLecturesFromSupabase(),
+      syncScheduleConfigsFromSupabase(),
+      syncFinalExamSchedulesFromSupabase(),
+      syncFinalExamSlotsFromSupabase()
+    ]).then(() => {
+      loadData(); // 🔄 إعادة تحميل وتوفيق البيانات لحظياً بعد اكتمال وصول بيانات السحابة
+    }).catch((err) => {
+      console.warn('تنبيه: تعذر إكمال المزامنة السحابية الشاملة للأستاذ:', err);
+    });
 
     // 📡 الاستماع للأحداث اللحظية المباشرة بين النوافذ والتبويبات
     window.addEventListener('storage', loadData); // 💾 استماع للتخزين بين النوافذ
@@ -599,6 +593,34 @@ export default function TeacherDashboard() {
                             <Award className="w-4 h-4 text-[#0F2942]" />
                             <span>{course.credit_hours || 5} وحدات معتمدة (ECTS)</span>
                           </span>
+
+                          {/* 🏷️ شارة صفة التكليف الأكاديمي للأستاذ (نظري فقط / عملي فقط / نظري وعملي) */}
+                          {(() => {
+                            const myTC = teacherCourseItems.find((tc: TeacherCourse): boolean => tc.course_id === course.id || tc.course_name === course.name);
+                            const role = myTC?.role_in_course || (course.has_practical ? 'both' : 'theory');
+                            if (role === 'both') {
+                              return (
+                                <span className="px-3.5 py-1.5 bg-purple-50 text-purple-950 border-2 border-purple-300 rounded-xl text-sm sm:text-base font-black flex items-center gap-1.5 shadow-2xs">
+                                  <Layers className="w-4 h-4 text-purple-700" />
+                                  <span>مكلف نظري وعملي</span>
+                                </span>
+                              );
+                            }
+                            if (role === 'practical') {
+                              return (
+                                <span className="px-3.5 py-1.5 bg-emerald-50 text-emerald-950 border-2 border-emerald-300 rounded-xl text-sm sm:text-base font-black flex items-center gap-1.5 shadow-2xs">
+                                  <FlaskConical className="w-4 h-4 text-emerald-700" />
+                                  <span>مكلف عملي فقط</span>
+                                </span>
+                              );
+                            }
+                            return (
+                              <span className="px-3.5 py-1.5 bg-blue-50 text-blue-950 border-2 border-blue-300 rounded-xl text-sm sm:text-base font-black flex items-center gap-1.5 shadow-2xs">
+                                <BookOpen className="w-4 h-4 text-blue-700" />
+                                <span>مكلف نظري فقط</span>
+                              </span>
+                            );
+                          })()}
 
                           {/* 🔓 شارة حالة الامتحان النهائي (الدور الأول) تظهر حصراً إذا كان متاحاً للرصد */}
                           {course.is_final_exam_enabled && (

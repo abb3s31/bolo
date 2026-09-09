@@ -241,6 +241,211 @@ const ADMIN_TAB_TITLES: Record<DepartmentAdminTab, string> = {
   analytics: 'التحليلات والإحصائيات'
 };
 
+// 🔤 دالة مساعدة لتطبيع وتنظيف النصوص العربية لإزالة الفروقات الإملائية
+function normalizeArabicText(s?: string): string {
+  if (!s) return '';
+  return s
+    .trim()
+    .toLowerCase()
+    .replace(/[أإآ]/g, 'ا')
+    .replace(/ة/g, 'ه')
+    .replace(/ى/g, 'ي')
+    .replace(/ئ/g, 'ي')
+    .replace(/ؤ/g, 'و')
+    .replace(/[^\p{L}\p{N}]/gu, '');
+}
+
+// 🔄 محرك التوفيق والتزامن المركزي الشامل بين المواد الدراسية وتكليفات الأساتذة (100% Two-Way Sync)
+export function reconcileCoursesWithTeacherCourses(
+  currentCourses: Course[], // 📋 قائمة المواد الحالية
+  currentTCs: TeacherCourse[], // 📝 قائمة التكليفات الحالية
+  allProfiles: UserProfile[] // 👤 قائمة ملفات الأساتذة
+): { reconciledCourses: Course[]; reconciledTCs: TeacherCourse[]; hasChanges: boolean } {
+  let hasChanges: boolean = false; // 🚩 مؤشر حدوث أي تغييرات تستوجب الحفظ
+  const tcMap: Map<string, TeacherCourse> = new Map<string, TeacherCourse>(); // 🗺️ خريطة لتجميع التكليفات دون تكرار
+  currentTCs.forEach((tc: TeacherCourse) => tcMap.set(tc.id, tc)); // ➕ إدراج التكليفات الحالية
+
+  // 1️⃣ تحديث وإثراء المواد وتوفيق صفة التكليف (نظري فقط / عملي فقط / نظري وعملي)
+  const updatedCourses: Course[] = currentCourses.map((c: Course): Course => {
+    let thId: string | undefined = c.theory_teacher_id; // 🔑 معرف أستاذ النظري
+    let thName: string | undefined = c.theory_teacher_name; // 👤 اسم أستاذ النظري
+    let prId: string | undefined = c.practical_teacher_id; // 🔑 معرف أستاذ العملي
+    let prName: string | undefined = c.practical_teacher_name; // 🧪 اسم أستاذ العملي
+    const isPracticalCourse = c.course_type === 'theory_and_practical' || Boolean(c.has_practical); // 🔬 هل المادة بها جانب عملي ومختبر؟
+
+    // مطابقة الأسماء من البروفايلات أولاً إذا كانت المعرفات متوفرة والأسماء فارغة
+    if (thId && !thName) { // 🔍 إذا المعرف موجود والاسم فارغ
+      const p: UserProfile | undefined = allProfiles.find((prof: UserProfile): boolean => prof.id === thId); // 👤 البحث عن البروفايل
+      if (p) { // ✅ وجدنا البروفايل
+        thName = p.full_name; // 📝 تثبيت الاسم
+        hasChanges = true; // 🚩 تم التعديل
+      }
+    }
+    if (prId && !prName) { // 🔍 إذا معرف العملي موجود والاسم فارغ
+      const p: UserProfile | undefined = allProfiles.find((prof: UserProfile): boolean => prof.id === prId); // 👤 البحث عن البروفايل
+      if (p) { // ✅ وجدنا البروفايل
+        prName = p.full_name; // 📝 تثبيت الاسم
+        hasChanges = true; // 🚩 تم التعديل
+      }
+    }
+
+    // البحث في سجل التكليفات الخاص بهذه المادة لمطابقة وتحديث أي نقص
+    const courseAssignments: TeacherCourse[] = currentTCs.filter((tc: TeacherCourse): boolean => tc.course_id === c.id); // 📋 جلب تكليفات المادة
+    if (courseAssignments.length > 0) { // 🎯 إذا اكو تكليفات مسجلة
+      // فحص تكليف النظري الصريح
+      const thTC: TeacherCourse | undefined = courseAssignments.find(
+        (tc: TeacherCourse): boolean => tc.role_in_course === 'theory' || tc.role_in_course === 'both'
+      );
+      if (thTC) { // ✅ وجدنا تكليف نظري
+        if (!thId || thId !== thTC.teacher_id) { // 🔍 إذا المعرف مو نفسه
+          thId = thTC.teacher_id; // 🔗 تثبيت المعرف
+          hasChanges = true; // 🚩 تم التعديل
+        }
+        const expectedName: string = thTC.teacher_name || allProfiles.find((p: UserProfile): boolean => p.id === thTC.teacher_id)?.full_name || 'أستاذ المادة'; // 👤 الاسم المتوقع
+        if (!thName || thName !== expectedName) { // 🔍 إذا الاسم فارغ أو مختلف
+          thName = expectedName; // 📝 تثبيت الاسم
+          hasChanges = true; // 🚩 تم التعديل
+        }
+      }
+
+      // فحص تكليف العملي الصريح
+      const prTC: TeacherCourse | undefined = courseAssignments.find(
+        (tc: TeacherCourse): boolean => tc.role_in_course === 'practical' || (tc.role_in_course === 'both' && isPracticalCourse)
+      );
+      if (prTC && isPracticalCourse) { // ✅ وجدنا تكليف عملي لمادة بها عملي
+        if (!prId || prId !== prTC.teacher_id) { // 🔍 إذا المعرف مو نفسه
+          prId = prTC.teacher_id; // 🔗 تثبيت المعرف
+          hasChanges = true; // 🚩 تم التعديل
+        }
+        const expectedPrName: string = prTC.teacher_name || allProfiles.find((p: UserProfile): boolean => p.id === prTC.teacher_id)?.full_name || 'أستاذ العملي'; // 🧪 الاسم المتوقع
+        if (!prName || prName !== expectedPrName) { // 🔍 إذا الاسم فارغ أو مختلف
+          prName = expectedPrName; // 📝 تثبيت الاسم
+          hasChanges = true; // 🚩 تم التعديل
+        }
+      }
+
+      // 🎯 ذكاء التوفيق الأكاديمي: إذا كانت المادة تحوي عملي ومسجل لها تكليفان، والتكليف الثاني لم يُسجل كعملي
+      if (isPracticalCourse && courseAssignments.length >= 2 && (!prId || prId === thId)) {
+        const secondTC = courseAssignments.find((tc: TeacherCourse): boolean => tc.teacher_id !== thId);
+        if (secondTC) {
+          prId = secondTC.teacher_id;
+          prName = secondTC.teacher_name || allProfiles.find((p: UserProfile): boolean => p.id === secondTC.teacher_id)?.full_name || prName;
+          hasChanges = true;
+        }
+      }
+
+      // 🎯 تصحيح وتحديث صفة التكليف (role_in_course) في الخريطة tcMap لكل تكليف في هذه المادة
+      courseAssignments.forEach((tc: TeacherCourse) => {
+        let correctRole: 'theory' | 'practical' | 'both' = tc.role_in_course || 'theory';
+
+        const isTh = Boolean(
+          (thId && tc.teacher_id === thId) ||
+          (thName && tc.teacher_name && normalizeArabicText(thName) === normalizeArabicText(tc.teacher_name))
+        );
+        const isPr = Boolean(
+          isPracticalCourse && (
+            (prId && tc.teacher_id === prId) ||
+            (prName && tc.teacher_name && normalizeArabicText(prName) === normalizeArabicText(tc.teacher_name))
+          )
+        );
+
+        if (!isPracticalCourse) {
+          // 📘 مادة نظري فقط ⬅️ مكلف نظري فقط حتماً
+          correctRole = 'theory';
+        } else if (isTh && isPr) {
+          // 🌟 أستاذ المادة مكلف بالنظري والعملي معاً
+          correctRole = 'both';
+        } else if (isPr && !isTh) {
+          // 🔬 مكلف بالعملي فقط
+          correctRole = 'practical';
+        } else if (isTh && !isPr) {
+          // 📘 مكلف بالنظري فقط
+          correctRole = 'theory';
+        } else if (courseAssignments.length === 2 && isPracticalCourse) {
+          // 👥 إذا كان هناك تكليفان في مادة عملية ولم يتطابق أحدهما مع الحقول
+          if (tc.id === courseAssignments[0].id) {
+            correctRole = 'theory';
+          } else {
+            correctRole = 'practical';
+          }
+        }
+
+        // 🔄 إذا كانت صفة التكليف الحالية مختلفة عن الصفة الصحيحة
+        if (tc.role_in_course !== correctRole) {
+          const updatedRecord: TeacherCourse = {
+            ...tc,
+            role_in_course: correctRole,
+            course_name: c.name,
+            department_id: c.department_id,
+            semester: c.semester || 1,
+          };
+          tcMap.set(tc.id, updatedRecord);
+          hasChanges = true;
+        }
+      });
+    }
+
+    // 2️⃣ الاتجاه العكسي: إذا كانت المادة محدد بها أستاذ في c.theory_teacher_id وليس له سجل تكليف
+    if (thId) { // 🔍 إذا المادة تملك أستاذ نظري
+      const existsInTC: boolean = currentTCs.some((tc: TeacherCourse): boolean => tc.course_id === c.id && tc.teacher_id === thId); // 📋 فحص وجود التكليف
+      if (!existsInTC) { // ❌ إذا التكليف غير مسجل بسجل التكليفات
+        const teacherProf: UserProfile | undefined = allProfiles.find((p: UserProfile): boolean => p.id === thId); // 👤 جلب البروفايل
+        const newTC: TeacherCourse = { // 📝 بناء سجل التكليف الجديد تلقائياً
+          id: `tc-th-${c.id}-${thId}`, // 🆔 توليد معرف فريد
+          teacher_id: thId, // 🔗 معرف الأستاذ
+          teacher_name: thName || teacherProf?.full_name || 'أستاذ المادة', // 👤 اسم الأستاذ
+          course_id: c.id, // 🔗 معرف المادة
+          course_name: c.name, // 📖 اسم المادة
+          department_id: c.department_id, // 🏢 معرف القسم
+          semester: c.semester || 1, // 🗓️ الكورس
+          role_in_course: (prId === thId && isPracticalCourse) ? 'both' : 'theory', // 🏷️ صفة التكليف
+          created_at: new Date().toISOString(), // ⏰ تاريخ التكليف
+        };
+        tcMap.set(newTC.id, newTC); // 💾 حفظ التكليف بالخريطة
+        hasChanges = true; // 🚩 تم التعديل
+      }
+    }
+
+    if (prId && isPracticalCourse && prId !== thId) { // 🔍 فحص أستاذ العملي
+      const existsInPrTC: boolean = currentTCs.some((tc: TeacherCourse): boolean => tc.course_id === c.id && tc.teacher_id === prId); // 📋 فحص التكليف
+      if (!existsInPrTC) { // ❌ إذا غير موجود
+        const teacherPrProf: UserProfile | undefined = allProfiles.find((p: UserProfile): boolean => p.id === prId); // 👤 جلب البروفايل
+        const newPrTC: TeacherCourse = { // 📝 بناء سجل تكليف العملي
+          id: `tc-pr-${c.id}-${prId}`, // 🆔 معرف فريد
+          teacher_id: prId, // 🔗 معرف الأستاذ
+          teacher_name: prName || teacherPrProf?.full_name || 'أستاذ العملي والمختبر', // 🧪 اسم الأستاذ
+          course_id: c.id, // 🔗 معرف المادة
+          course_name: c.name, // 📖 اسم المادة
+          department_id: c.department_id, // 🏢 معرف القسم
+          semester: c.semester || 1, // 🗓️ الكورس
+          role_in_course: 'practical', // 🏷️ صفة التكليف
+          created_at: new Date().toISOString(), // ⏰ تاريخ التكليف
+        };
+        tcMap.set(newPrTC.id, newPrTC); // 💾 حفظ بالخريطة
+        hasChanges = true; // 🚩 تم التعديل
+      }
+    }
+
+    if (thId !== c.theory_teacher_id || thName !== c.theory_teacher_name || prId !== c.practical_teacher_id || prName !== c.practical_teacher_name) { // 🔍 فحص حدوث تغيير بالمادة
+      return { // 📦 إرجاع المادة المحدثة بالكامل
+        ...c,
+        theory_teacher_id: thId,
+        theory_teacher_name: thName,
+        practical_teacher_id: prId,
+        practical_teacher_name: prName,
+      };
+    }
+    return c; // 📋 إبقاء المادة كما هي إذا لم تتغير
+  });
+
+  const reconciledTCs: TeacherCourse[] = Array.from(tcMap.values()); // 📋 تحويل التكليفات لمصفوفة
+  return { // 🚀 إرجاع النتائج المتوافقة 100%
+    reconciledCourses: updatedCourses,
+    reconciledTCs,
+    hasChanges,
+  };
+}
+
 export default function DepartmentPortalPage() {
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
@@ -345,6 +550,24 @@ export default function DepartmentPortalPage() {
 
   // 📝 حالات تعديل التكليف الأكاديمي (Update Assignment)
   const [editingAssignment, setEditingAssignment] = useState<TeacherCourse | null>(null); // 🔄 التكليف الجاري تعديله عبر الكارد الموحد
+
+  // ⚡ واجهة كائن حالة مودال التعيين والتكليف السريع للأستاذ من داخل جدول المقررات مباشرة
+  interface QuickAssignState {
+    isOpen: boolean; // 🪟 حالة فتح نافذة المودال السريع
+    course: Course | null; // 📖 كائن المادة الدراسية المستهدفة بالتعيين
+    role: 'theory' | 'practical'; // 🏷️ صفة التدريس المطلوبة (نظري أو عملي)
+    selectedTeacherId: string; // 👨‍🏫 معرف الأستاذ المختار للتعيين
+    searchQuery: string; // 🔍 نص البحث لتصفية الأساتذة بسرعة
+  }
+
+  // ⚡ حالة مودال التعيين السريع المركزية
+  const [quickAssignConfig, setQuickAssignConfig] = useState<QuickAssignState>({
+    isOpen: false, // 🔒 مغلق افتراضياً عند الإقلاع
+    course: null, // 📖 لا توجد مادة محددة بالبداية
+    role: 'theory', // 🏷️ الافتراضي هو الجانب النظري
+    selectedTeacherId: '', // 👨‍🏫 لم يتم اختيار أستاذ بعد
+    searchQuery: '', // 🔍 مربع البحث فارغ
+  });
 
   const [isMounted, setIsMounted] = useState<boolean>(false); // 🌐 حالة التثبيت بالعميل لتفعيل البورتال بأمان
 
@@ -639,6 +862,7 @@ export default function DepartmentPortalPage() {
   const [filterAssignmentTeacher, setFilterAssignmentTeacher] = useState<string | 'all'>('all'); // 🏷️ تصفية الأستاذ المكلف
   const [filterAssignmentStage, setFilterAssignmentStage] = useState<number | 'all'>('all'); // 🏷️ تصفية مرحلة التكليف
   const [filterAssignmentSemester, setFilterAssignmentSemester] = useState<number | 'all'>('all'); // 🏷️ تصفية كورس التكليف
+  const [filterAssignmentRole, setFilterAssignmentRole] = useState<'all' | 'theory' | 'practical' | 'both'>('all'); // 🏷️ تصفية طبيعة التكليف (نظري فقط / عملي فقط / كلاهما)
   const [selectedAssignmentIds, setSelectedAssignmentIds] = useState<string[]>([]); // 🔘 معرفات التكليفات المحددة
 
   // 🔽 حالات القوائم المنسدلة التفاعلية الفاخرة لكارت تكليف التدريسي
@@ -824,6 +1048,7 @@ export default function DepartmentPortalPage() {
   const lecWeekButtonRef = useRef<HTMLButtonElement | null>(null); // 🎯 مرجع زر قائمة الأسبوع
   const [lecWeekCoords, setLecWeekCoords] = useState<{ top?: number; bottom?: number; left: number; width: number; maxHeight?: number; openUpwards?: boolean } | null>(null); // 📍 إحداثيات قائمة الأسبوع الدراسي
   const [isPreviewScheduleModalOpen, setIsPreviewScheduleModalOpen] = useState<boolean>(false);
+  const lastScheduleScrollYRef = useRef<number>(0); // 📍 مرجع حفظ إحداثيات سكرول الصفحة بالمليمتر لمنع أي قفزات عند فتح وغلق كارت المحاضرات
   const [isSchedulePrintModalOpen, setIsSchedulePrintModalOpen] = useState<boolean>(false); // 🖨️ حالة فتح مودال طباعة جدول المحاضرات الأسبوعي المعتمد PDF مباشرة
   const [isMasterMatrixModalOpen, setIsMasterMatrixModalOpen] = useState<boolean>(false);
   const [showScheduleExcelInstructions, setShowScheduleExcelInstructions] = useState<boolean>(false); // ℹ️ نافذة تعليمات استيراد الجدول الأسبوعي
@@ -903,10 +1128,21 @@ export default function DepartmentPortalPage() {
     const loadedConfigs = getStoredData<DepartmentScheduleConfig[]>('department_schedule_configs', INITIAL_SCHEDULE_CONFIGS);
     const loadedAttendance = getStoredData<StudentAttendanceRecord[]>('student_attendance_records', INITIAL_ATTENDANCE_RECORDS);
 
+    // 🔄 التوفيق والتزامن التلقائي اللحظي بين المواد وتكليفات الأساتذة (100% Two-Way Sync)
+    const initialReconciled = reconcileCoursesWithTeacherCourses(
+      loadedCourses,
+      loadedTCs,
+      loadedProfiles
+    );
+    if (initialReconciled.hasChanges) {
+      saveStoredData('courses', initialReconciled.reconciledCourses);
+      saveStoredData('teacher_courses', initialReconciled.reconciledTCs);
+    }
+
     setProfiles(loadedProfiles);
     setDepartments(loadedDepts);
-    setCourses(loadedCourses);
-    setTeacherCourses(loadedTCs);
+    setCourses(initialReconciled.reconciledCourses);
+    setTeacherCourses(initialReconciled.reconciledTCs);
     setGrades(loadedGrades);
     setScheduleConfigs(loadedConfigs);
     setAttendanceRecords(loadedAttendance);
@@ -989,9 +1225,25 @@ export default function DepartmentPortalPage() {
     // ⚡ مزامنة حية خلفية مع قاعدة بيانات Supabase الرسمية بدون تجميد الواجهة
     syncFullDepartmentPortalData()
       .then((cloudData) => {
+        const liveProfiles: UserProfile[] = (cloudData.profiles && cloudData.profiles.length > 0) ? cloudData.profiles : loadedProfiles;
         if (cloudData.profiles && cloudData.profiles.length > 0) setProfiles(cloudData.profiles);
-        if (cloudData.courses && cloudData.courses.length > 0) setCourses(cloudData.courses);
-        if (cloudData.teacherCourses && cloudData.teacherCourses.length > 0) setTeacherCourses(cloudData.teacherCourses);
+
+        const rawCloudCourses: Course[] = (cloudData.courses && cloudData.courses.length > 0) ? cloudData.courses : loadedCourses;
+        const rawCloudTCs: TeacherCourse[] = (cloudData.teacherCourses && cloudData.teacherCourses.length > 0) ? cloudData.teacherCourses : loadedTCs;
+
+        // 🔄 التوفيق والتزامن بين المواد والتكليفات القادمة من السحابة لضمان ثبات كافة الأساتذة
+        const cloudReconciled = reconcileCoursesWithTeacherCourses(
+          rawCloudCourses,
+          rawCloudTCs,
+          liveProfiles
+        );
+        setCourses(cloudReconciled.reconciledCourses);
+        setTeacherCourses(cloudReconciled.reconciledTCs);
+        if (cloudReconciled.hasChanges) {
+          saveStoredData('courses', cloudReconciled.reconciledCourses);
+          saveStoredData('teacher_courses', cloudReconciled.reconciledTCs);
+        }
+
         if (cloudData.grades && cloudData.grades.length > 0) setGrades(cloudData.grades);
         if (cloudData.scheduleLectures && cloudData.scheduleLectures.length > 0) setScheduleLectures(cloudData.scheduleLectures);
         if (cloudData.scheduleConfigs && cloudData.scheduleConfigs.length > 0) setScheduleConfigs(cloudData.scheduleConfigs);
@@ -1010,17 +1262,37 @@ export default function DepartmentPortalPage() {
       setTuitionRecords(latest);
     };
 
+    // 📡 الاستماع للتحديثات اللحظية للمواد وتكليفات الأساتذة لإعادة التوفيق اللحظي
+    const handleCoursesOrAssignmentsSync = () => {
+      const curCourses = getStoredData<Course[]>('courses', INITIAL_COURSES);
+      const curTCs = getStoredData<TeacherCourse[]>('teacher_courses', INITIAL_TEACHER_COURSES);
+      const curProfiles = getStoredData<UserProfile[]>('profiles', INITIAL_PROFILES);
+      const rec = reconcileCoursesWithTeacherCourses(curCourses, curTCs, curProfiles);
+      setCourses(rec.reconciledCourses);
+      setTeacherCourses(rec.reconciledTCs);
+      if (rec.hasChanges) {
+        saveStoredData('courses', rec.reconciledCourses);
+        saveStoredData('teacher_courses', rec.reconciledTCs);
+      }
+    };
+
     // 🗓️ الاستماع المباشر السحابي والمحلي لتغيير العام الدراسي من المسؤول العام
     const unsubscribeYear = subscribeToAcademicYearChanges((liveYear) => {
       setAcademicYear(liveYear);
     });
 
     window.addEventListener('tuition_records_updated', handleTuitionSync);
+    window.addEventListener('courses_updated', handleCoursesOrAssignmentsSync);
+    window.addEventListener('teacher_courses_updated', handleCoursesOrAssignmentsSync);
     window.addEventListener('storage', handleTuitionSync);
+    window.addEventListener('storage', handleCoursesOrAssignmentsSync);
 
     return () => {
       window.removeEventListener('tuition_records_updated', handleTuitionSync);
+      window.removeEventListener('courses_updated', handleCoursesOrAssignmentsSync);
+      window.removeEventListener('teacher_courses_updated', handleCoursesOrAssignmentsSync);
       window.removeEventListener('storage', handleTuitionSync);
+      window.removeEventListener('storage', handleCoursesOrAssignmentsSync);
       unsubscribeYear();
     };
   }, [router]);
@@ -1065,6 +1337,19 @@ export default function DepartmentPortalPage() {
       const url = new URL(window.location.href);
       url.searchParams.set('tab', newTab);
       window.history.pushState({ tab: newTab }, '', url.toString());
+    }
+    // 🔄 مزامنة وتوفيق فوري 100% عند التبديل لتبويب المواد أو التكليفات لضمان انعكاس التغييرات فورياً
+    if (newTab === 'courses' || newTab === 'assignments') {
+      const curCourses = getStoredData<Course[]>('courses', INITIAL_COURSES);
+      const curTCs = getStoredData<TeacherCourse[]>('teacher_courses', INITIAL_TEACHER_COURSES);
+      const curProfiles = getStoredData<UserProfile[]>('profiles', INITIAL_PROFILES);
+      const rec = reconcileCoursesWithTeacherCourses(curCourses, curTCs, curProfiles);
+      setCourses(rec.reconciledCourses);
+      setTeacherCourses(rec.reconciledTCs);
+      if (rec.hasChanges) {
+        saveStoredData('courses', rec.reconciledCourses);
+        saveStoredData('teacher_courses', rec.reconciledTCs);
+      }
     }
   };
 
@@ -1205,7 +1490,8 @@ export default function DepartmentPortalPage() {
     const course = courses.find((c) => c.id === tc.course_id);
     const matchesStage = filterAssignmentStage === 'all' || (course?.stage_number || 1) === filterAssignmentStage;
     const matchesSemester = filterAssignmentSemester === 'all' || (tc.semester || course?.semester || 1) === filterAssignmentSemester;
-    return matchesSearch && matchesTeacher && matchesStage && matchesSemester;
+    const matchesRole = filterAssignmentRole === 'all' || (tc.role_in_course || 'theory') === filterAssignmentRole;
+    return matchesSearch && matchesTeacher && matchesStage && matchesSemester && matchesRole;
   });
 
   // 🔍 تصفية درجات القسم بحسب البحث والمرحلة
@@ -1552,14 +1838,47 @@ export default function DepartmentPortalPage() {
       warningMessage: 'هل أنت متأكد من حذف هذا الأستاذ؟ سيتم إلغاء كافة تكليفاته بالمواد الدراسية فوراً ولا يمكن التراجع عن هذا الإجراء.',
       confirmText: 'تأكيد الحذف',
       onConfirm: () => {
-        const updatedProfiles = profiles.filter((p) => p.id !== id);
+        const updatedProfiles = profiles.filter((p: UserProfile): boolean => p.id !== id);
         setProfiles(updatedProfiles);
         saveStoredData('profiles', updatedProfiles);
         deleteProfileFromSupabase(id, 'teacher'); // ☁️ حذف فوري من جدول teachers في Supabase
 
-        const updatedTCs = teacherCourses.filter((tc) => tc.teacher_id !== id);
+        // 🔗 حذف تكليفات الأستاذ سحابياً ومحلياً
+        const tcsToDelete = teacherCourses.filter((tc: TeacherCourse): boolean => tc.teacher_id === id);
+        tcsToDelete.forEach((tc: TeacherCourse) => {
+          deleteTeacherCourseFromSupabase(tc.id); // ☁️ حذف التكليف سحابياً
+        });
+        const updatedTCs = teacherCourses.filter((tc: TeacherCourse): boolean => tc.teacher_id !== id);
         setTeacherCourses(updatedTCs);
         saveStoredData('teacher_courses', updatedTCs);
+
+        // 🔄 تصفير الأستاذ من المواد التي كان مكلفاً بها
+        const updatedCourses = courses.map((c: Course): Course => {
+          let isChanged = false;
+          const newC = { ...c };
+          if (newC.theory_teacher_id === id) {
+            newC.theory_teacher_id = undefined;
+            newC.theory_teacher_name = undefined;
+            isChanged = true;
+          }
+          if (newC.practical_teacher_id === id) {
+            newC.practical_teacher_id = undefined;
+            newC.practical_teacher_name = undefined;
+            isChanged = true;
+          }
+          if (isChanged) {
+            saveCourseToSupabase(newC); // ☁️ مزامنة سحابية للمادة بعد تفريغ التكليف
+          }
+          return newC;
+        });
+        setCourses(updatedCourses);
+        saveStoredData('courses', updatedCourses);
+
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('courses_updated'));
+          window.dispatchEvent(new Event('teacher_courses_updated'));
+          window.dispatchEvent(new Event('storage'));
+        }
 
         setSuccessMessage('تم حذف الأستاذ وإلغاء تكليفاته بنجاح.');
         setTimeout(() => setSuccessMessage(''), 3000);
@@ -1611,18 +1930,53 @@ export default function DepartmentPortalPage() {
       warningMessage: `⚠️ تنبيه أمني: هل أنت متأكد من حذف (${count}) من كادر التدريسيين دفعة واحدة؟ لا يمكن التراجع عن هذه الخطوة.`,
       confirmText: `حذف (${count}) أساتذة نهائياً`,
       onConfirm: () => {
-        selectedTeacherIds.forEach((id) => {
+        selectedTeacherIds.forEach((id: string) => {
           deleteProfileFromSupabase(id, 'teacher'); // ☁️ حذف الأساتذة سحابياً
         });
 
-        const updatedProfiles = profiles.filter((p) => !selectedTeacherIds.includes(p.id));
-        const updatedTCs = teacherCourses.filter((tc) => !selectedTeacherIds.includes(tc.teacher_id));
-        setProfiles(updatedProfiles);
+        // 🔗 حذف تكليفات كافة الأساتذة المحددين سحابياً ومحلياً
+        const tcsToDelete = teacherCourses.filter((tc: TeacherCourse): boolean => selectedTeacherIds.includes(tc.teacher_id));
+        tcsToDelete.forEach((tc: TeacherCourse) => {
+          deleteTeacherCourseFromSupabase(tc.id); // ☁️ حذف التكليفات سحابياً
+        });
+        const updatedTCs = teacherCourses.filter((tc: TeacherCourse): boolean => !selectedTeacherIds.includes(tc.teacher_id));
         setTeacherCourses(updatedTCs);
-        saveStoredData('profiles', updatedProfiles);
         saveStoredData('teacher_courses', updatedTCs);
+
+        const updatedProfiles = profiles.filter((p: UserProfile): boolean => !selectedTeacherIds.includes(p.id));
+        setProfiles(updatedProfiles);
+        saveStoredData('profiles', updatedProfiles);
+
+        // 🔄 تفريغ الأساتذة المحددين من المواد المرتبطة بهم
+        const updatedCourses = courses.map((c: Course): Course => {
+          let isChanged = false;
+          const newC = { ...c };
+          if (newC.theory_teacher_id && selectedTeacherIds.includes(newC.theory_teacher_id)) {
+            newC.theory_teacher_id = undefined;
+            newC.theory_teacher_name = undefined;
+            isChanged = true;
+          }
+          if (newC.practical_teacher_id && selectedTeacherIds.includes(newC.practical_teacher_id)) {
+            newC.practical_teacher_id = undefined;
+            newC.practical_teacher_name = undefined;
+            isChanged = true;
+          }
+          if (isChanged) {
+            saveCourseToSupabase(newC); // ☁️ مزامنة سحابية للمادة بعد تفريغ التكليف
+          }
+          return newC;
+        });
+        setCourses(updatedCourses);
+        saveStoredData('courses', updatedCourses);
+
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('courses_updated'));
+          window.dispatchEvent(new Event('teacher_courses_updated'));
+          window.dispatchEvent(new Event('storage'));
+        }
+
         setSelectedTeacherIds([]);
-        setSuccessMessage(`تم حذف (${count}) من أساتذة القسم بنجاح.`);
+        setSuccessMessage(`تم حذف (${count}) من أساتذة القسم بنجاح وتفريغ تكليفاتهم.`);
         setTimeout(() => setSuccessMessage(''), 3500);
         setDeleteModalConfig((prev) => ({ ...prev, isOpen: false }));
       },
@@ -2586,35 +2940,63 @@ export default function DepartmentPortalPage() {
       setSuccessMessage('تمت إضافة المادة الدراسية في بداية قائمة القسم وتوثيقها سحابياً بنجاح!');
     }
 
-    // 🔄 مزامنة تكليفات الأساتذة (TeacherCourses) تلقائياً
+    // 🔄 مزامنة تكليفات الأساتذة (TeacherCourses) الذكية دون مسح التكليفات الأخرى للمادة
     if (targetCourseId) {
-      let filteredTCs = teacherCourses.filter((tc) => tc.course_id !== targetCourseId);
+      // 🗺️ خريطة تكليفات المادة الحالية للحفاظ على أي أساتذة مكلفين آخرين للمادة
+      const otherCourseTCs = teacherCourses.filter((tc: TeacherCourse): boolean => tc.course_id !== targetCourseId); // 📋 تكليفات المواد الأخرى
+      const thisCourseTCs = teacherCourses.filter((tc: TeacherCourse): boolean => tc.course_id === targetCourseId); // 📋 تكليفات هذه المادة الحالية
+      const updatedThisCourseMap = new Map<string, TeacherCourse>(); // 🗺️ خريطة مؤقتة لتنظيم تكليفات المادة
+
+      // إدراج التكليفات القائمة أولاً
+      thisCourseTCs.forEach((tc: TeacherCourse) => {
+        updatedThisCourseMap.set(tc.teacher_id, tc);
+      });
+
+      // 👨‍🏫 تحديث أو إضافة تكليف أستاذ النظري
       if (theoryTeacher) {
-        filteredTCs.push({
-          id: `tc-th-${targetCourseId}-${theoryTeacher.id}`,
+        const existingTh = updatedThisCourseMap.get(theoryTeacher.id);
+        const role: 'theory' | 'both' = (practicalTeacher && practicalTeacher.id === theoryTeacher.id) ? 'both' : (existingTh?.role_in_course === 'practical' ? 'both' : 'theory');
+        const thRecord: TeacherCourse = {
+          id: existingTh ? existingTh.id : `tc-th-${targetCourseId}-${theoryTeacher.id}`,
           teacher_id: theoryTeacher.id,
           teacher_name: theoryTeacher.full_name,
           course_id: targetCourseId,
           course_name: courseName.trim(),
           department_id: currentDeptId,
-          semester: courseSemester,
-          created_at: new Date().toISOString(),
-        });
+          semester: courseSemester || 1,
+          role_in_course: role,
+          created_at: existingTh ? existingTh.created_at : new Date().toISOString(),
+        };
+        updatedThisCourseMap.set(theoryTeacher.id, thRecord);
+        saveTeacherCourseToSupabase(thRecord); // ☁️ مزامنة سحابية فورية
       }
+
+      // 🧪 تحديث أو إضافة تكليف أستاذ العملي (إذا كان مختلفاً عن أستاذ النظري)
       if (practicalTeacher && practicalTeacher.id !== theoryTeacher?.id) {
-        filteredTCs.push({
-          id: `tc-pr-${targetCourseId}-${practicalTeacher.id}`,
+        const existingPr = updatedThisCourseMap.get(practicalTeacher.id);
+        const prRecord: TeacherCourse = {
+          id: existingPr ? existingPr.id : `tc-pr-${targetCourseId}-${practicalTeacher.id}`,
           teacher_id: practicalTeacher.id,
           teacher_name: practicalTeacher.full_name,
           course_id: targetCourseId,
           course_name: courseName.trim(),
           department_id: currentDeptId,
-          semester: courseSemester,
-          created_at: new Date().toISOString(),
-        });
+          semester: courseSemester || 1,
+          role_in_course: 'practical',
+          created_at: existingPr ? existingPr.created_at : new Date().toISOString(),
+        };
+        updatedThisCourseMap.set(practicalTeacher.id, prRecord);
+        saveTeacherCourseToSupabase(prRecord); // ☁️ مزامنة سحابية فورية
       }
-      setTeacherCourses(filteredTCs);
-      saveStoredData('teacher_courses', filteredTCs);
+
+      const allCombinedTCs: TeacherCourse[] = [...otherCourseTCs, ...Array.from(updatedThisCourseMap.values())];
+      setTeacherCourses(allCombinedTCs);
+      saveStoredData('teacher_courses', allCombinedTCs);
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('teacher_courses_updated'));
+        window.dispatchEvent(new Event('storage'));
+      }
     }
 
     setCourseName('');
@@ -2644,15 +3026,259 @@ export default function DepartmentPortalPage() {
         saveStoredData('courses', updatedCourses);
         deleteCourseFromSupabase(id); // ☁️ حذف المادة من Supabase
 
-        const updatedTCs = teacherCourses.filter((tc) => tc.course_id !== id);
+        // 🔗 حذف كافة تكليفات الأستاذ المرتبطة بهذه المادة سحابياً ومحلياً
+        const tcsToDelete = teacherCourses.filter((tc: TeacherCourse): boolean => tc.course_id === id);
+        tcsToDelete.forEach((tc: TeacherCourse) => {
+          deleteTeacherCourseFromSupabase(tc.id); // ☁️ حذف التكليف سحابياً
+        });
+        const updatedTCs = teacherCourses.filter((tc: TeacherCourse): boolean => tc.course_id !== id);
         setTeacherCourses(updatedTCs);
         saveStoredData('teacher_courses', updatedTCs);
+
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('courses_updated'));
+          window.dispatchEvent(new Event('teacher_courses_updated'));
+          window.dispatchEvent(new Event('storage'));
+        }
 
         setSuccessMessage('تم حذف المادة وتكليفاتها بنجاح.');
         setTimeout(() => setSuccessMessage(''), 3000);
         setDeleteModalConfig((prev) => ({ ...prev, isOpen: false }));
       },
     });
+  };
+
+  // 🔍 استخراج كافة أساتذة النظري المكلفين بالمادة (سواء من جدول التكليفات الفعلي أو حقل المادة)
+  const getCourseTheoryTeachers = useCallback((course: Course): Array<{ id: string; name: string }> => {
+    const list: Array<{ id: string; name: string }> = []; // 📋 قائمة الأساتذة المكلفين
+    const addedIds = new Set<string>(); // 🛡️ منع تكرار المعرفات
+
+    // 1️⃣ البحث أولاً في جدول تكليفات الأساتذة teacherCourses
+    const matchedTCs = teacherCourses.filter(
+      (tc: TeacherCourse): boolean => tc.course_id === course.id && (tc.role_in_course === 'theory' || tc.role_in_course === 'both')
+    );
+
+    matchedTCs.forEach((tc: TeacherCourse) => {
+      if (tc.teacher_id && !addedIds.has(tc.teacher_id)) {
+        const prof = profiles.find((p: UserProfile): boolean => p.id === tc.teacher_id);
+        const name = tc.teacher_name || prof?.full_name || 'أستاذ المادة';
+        list.push({ id: tc.teacher_id, name });
+        addedIds.add(tc.teacher_id);
+      }
+    });
+
+    // 2️⃣ فحص حقل theory_teacher_id المثبت بالمادة
+    if (course.theory_teacher_id && !addedIds.has(course.theory_teacher_id)) {
+      const prof = profiles.find((p: UserProfile): boolean => p.id === course.theory_teacher_id);
+      const name = course.theory_teacher_name || prof?.full_name || 'أستاذ المادة';
+      list.push({ id: course.theory_teacher_id, name });
+      addedIds.add(course.theory_teacher_id);
+    }
+
+    // 3️⃣ إذا القائمة فارغة لكن يوجد اسم مكتوب بحقل theory_teacher_name
+    if (list.length === 0 && course.theory_teacher_name && course.theory_teacher_name.trim() !== '') {
+      list.push({ id: course.theory_teacher_id || `temp-th-${course.id}`, name: course.theory_teacher_name.trim() });
+    }
+
+    return list;
+  }, [teacherCourses, profiles]);
+
+  // 🧪 استخراج كافة أساتذة العملي المكلفين بالمادة (سواء من جدول التكليفات الفعلي أو حقل المادة)
+  const getCoursePracticalTeachers = useCallback((course: Course): Array<{ id: string; name: string }> => {
+    const isPractical = course.course_type === 'theory_and_practical' || Boolean(course.has_practical);
+    if (!isPractical) return []; // 🛑 إذا كانت المادة نظري فقط نرجع مصفوفة فارغة فوراً
+
+    const list: Array<{ id: string; name: string }> = []; // 📋 قائمة أساتذة العملي
+    const addedIds = new Set<string>(); // 🛡️ منع التكرار
+
+    // 1️⃣ البحث أولاً في جدول تكليفات الأساتذة teacherCourses
+    const matchedTCs = teacherCourses.filter(
+      (tc: TeacherCourse): boolean => tc.course_id === course.id && (tc.role_in_course === 'practical' || tc.role_in_course === 'both')
+    );
+
+    matchedTCs.forEach((tc: TeacherCourse) => {
+      if (tc.teacher_id && !addedIds.has(tc.teacher_id)) {
+        const prof = profiles.find((p: UserProfile): boolean => p.id === tc.teacher_id);
+        const name = tc.teacher_name || prof?.full_name || 'أستاذ العملي';
+        list.push({ id: tc.teacher_id, name });
+        addedIds.add(tc.teacher_id);
+      }
+    });
+
+    // 2️⃣ فحص حقل practical_teacher_id المثبت بالمادة
+    if (course.practical_teacher_id && !addedIds.has(course.practical_teacher_id)) {
+      const prof = profiles.find((p: UserProfile): boolean => p.id === course.practical_teacher_id);
+      const name = course.practical_teacher_name || prof?.full_name || 'أستاذ العملي';
+      list.push({ id: course.practical_teacher_id, name });
+      addedIds.add(course.practical_teacher_id);
+    }
+
+    // 3️⃣ إذا القائمة فارغة لكن يوجد اسم مكتوب بحقل practical_teacher_name
+    if (list.length === 0 && course.practical_teacher_name && course.practical_teacher_name.trim() !== '') {
+      list.push({ id: course.practical_teacher_id || `temp-pr-${course.id}`, name: course.practical_teacher_name.trim() });
+    }
+
+    return list;
+  }, [teacherCourses, profiles]);
+
+  // ⚡ فتح مودال التعيين والتكليف السريع للأستاذ
+  const handleOpenQuickAssign = (course: Course, role: 'theory' | 'practical') => {
+    const currentId = role === 'theory' ? (course.theory_teacher_id || '') : (course.practical_teacher_id || '');
+    setQuickAssignConfig({
+      isOpen: true,
+      course,
+      role,
+      selectedTeacherId: currentId,
+      searchQuery: '',
+    });
+  };
+
+  // 💾 حفظ التعيين والتكليف السريع (تعيين أستاذ أو إلغاء تعيينه ومزامنته 100%)
+  const handleSaveQuickAssign = (teacherIdToAssign: string | null) => {
+    if (!quickAssignConfig.course) return; // 🛡️ حماية في حال عدم تحديد المادة
+    const targetCourse = quickAssignConfig.course;
+    const role = quickAssignConfig.role;
+
+    if (!teacherIdToAssign) {
+      // 🚫 1. إلغاء التعيين والتكليف لهذه الصفة (Unassign)
+      const updatedCourses = courses.map((c: Course): Course => {
+        if (c.id === targetCourse.id) {
+          return {
+            ...c,
+            ...(role === 'theory'
+              ? { theory_teacher_id: undefined, theory_teacher_name: undefined }
+              : { practical_teacher_id: undefined, practical_teacher_name: undefined }),
+          };
+        }
+        return c;
+      });
+
+      // إزالة التكليف المرتبط من جدول teacherCourses
+      const updatedTCs = teacherCourses.filter((tc: TeacherCourse): boolean => {
+        if (tc.course_id === targetCourse.id) {
+          if (role === 'theory' && (tc.role_in_course === 'theory' || tc.role_in_course === 'both')) {
+            deleteTeacherCourseFromSupabase(tc.id);
+            return false;
+          }
+          if (role === 'practical' && (tc.role_in_course === 'practical' || tc.role_in_course === 'both')) {
+            deleteTeacherCourseFromSupabase(tc.id);
+            return false;
+          }
+        }
+        return true;
+      });
+
+      setCourses(updatedCourses);
+      setTeacherCourses(updatedTCs);
+      saveStoredData('courses', updatedCourses);
+      saveStoredData('teacher_courses', updatedTCs);
+
+      const modifiedCourse = updatedCourses.find((c: Course): boolean => c.id === targetCourse.id);
+      if (modifiedCourse) {
+        saveCourseToSupabase(modifiedCourse);
+      }
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('courses_updated'));
+        window.dispatchEvent(new Event('teacher_courses_updated'));
+        window.dispatchEvent(new Event('storage'));
+      }
+
+      setSuccessMessage(`تم بنجاح إلغاء تعيين أستاذ ${role === 'theory' ? 'النظري' : 'العملي'} لمادة (${targetCourse.name}).`);
+      setTimeout(() => setSuccessMessage(''), 3500);
+      setQuickAssignConfig((prev) => ({ ...prev, isOpen: false }));
+      return;
+    }
+
+    // 👨‍🏫 2. تعيين أستاذ محدد وتكليفه فورياً
+    const teacherProfile = profiles.find((p: UserProfile): boolean => p.id === teacherIdToAssign);
+    if (!teacherProfile) return;
+
+    const teacherName = teacherProfile.full_name;
+
+    // أ. تحديث المادة في courses
+    let updatedCourseObj: Course | null = null;
+    const updatedCourses = courses.map((c: Course): Course => {
+      if (c.id === targetCourse.id) {
+        const u: Course = {
+          ...c,
+          ...(role === 'theory'
+            ? { theory_teacher_id: teacherProfile.id, theory_teacher_name: teacherName }
+            : { practical_teacher_id: teacherProfile.id, practical_teacher_name: teacherName }),
+        };
+        updatedCourseObj = u;
+        return u;
+      }
+      return c;
+    });
+
+    // ب. إضافة أو تحديث التكليف في teacher_courses
+    let newOrUpdatedTC: TeacherCourse | null = null;
+    const existingTCIndex = teacherCourses.findIndex(
+      (tc: TeacherCourse): boolean => tc.course_id === targetCourse.id && tc.teacher_id === teacherProfile.id
+    );
+
+    let updatedTCs: TeacherCourse[];
+    if (existingTCIndex >= 0) {
+      // إذا كان الأستاذ مكلفاً بالفعل بهذه المادة، نحدث صفة التكليف
+      const cur = teacherCourses[existingTCIndex];
+      const mergedRole: 'theory' | 'practical' | 'both' = (cur.role_in_course && cur.role_in_course !== role) ? 'both' : role;
+      const updatedRecord: TeacherCourse = {
+        ...cur,
+        role_in_course: mergedRole,
+        teacher_name: teacherName,
+        course_name: targetCourse.name,
+      };
+      newOrUpdatedTC = updatedRecord;
+      updatedTCs = teacherCourses.map((tc: TeacherCourse, idx: number): TeacherCourse => (idx === existingTCIndex ? updatedRecord : tc));
+    } else {
+      // إنشاء تكليف جديد
+      const newTC: TeacherCourse = {
+        id: `tc-${role}-${targetCourse.id}-${teacherProfile.id}`,
+        teacher_id: teacherProfile.id,
+        teacher_name: teacherName,
+        course_id: targetCourse.id,
+        course_name: targetCourse.name,
+        department_id: currentDeptId,
+        semester: targetCourse.semester || 1,
+        role_in_course: role,
+        created_at: new Date().toISOString(),
+      };
+      newOrUpdatedTC = newTC;
+      updatedTCs = [...teacherCourses, newTC];
+    }
+
+    setCourses(updatedCourses);
+    setTeacherCourses(updatedTCs);
+    saveStoredData('courses', updatedCourses);
+    saveStoredData('teacher_courses', updatedTCs);
+
+    if (updatedCourseObj) {
+      saveCourseToSupabase(updatedCourseObj);
+    }
+    if (newOrUpdatedTC) {
+      saveTeacherCourseToSupabase(newOrUpdatedTC);
+    }
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('courses_updated'));
+      window.dispatchEvent(new Event('teacher_courses_updated'));
+      window.dispatchEvent(new Event('storage'));
+    }
+
+    // 🔔 إشعار الأستاذ المكلف
+    sendAppNotification({
+      recipient_id: teacherProfile.id,
+      recipient_role: 'teacher',
+      title: 'تكليف أكاديمي رسمي بمادة دراسية',
+      message: `تم تعيينك وتكليفك بتدريس مادة (${targetCourse.name}) [${role === 'theory' ? 'الجانب النظري' : 'الجانب العملي'}] في قسم (${deptName}).`,
+      type: 'course_assigned',
+      link: '/teacher/dashboard',
+    });
+
+    setSuccessMessage(`تم بنجاح تعيين وتكليف الأستاذ (${teacherName}) بمادة (${targetCourse.name}) [${role === 'theory' ? 'نظري' : 'عملي'}] ومزامنتها سحابياً!`);
+    setTimeout(() => setSuccessMessage(''), 4000);
+    setQuickAssignConfig((prev) => ({ ...prev, isOpen: false }));
   };
 
   // 🎛️ فتح نافذة تخصيص توزيع الدرجات والعناوين لمادة معينة
@@ -3082,6 +3708,39 @@ export default function DepartmentPortalPage() {
         setTeacherCourses(updated);
         saveStoredData('teacher_courses', updated);
         deleteTeacherCourseFromSupabase(id); // ☁️ حذف التكليف سحابياً
+
+        // 🔄 تحديث وتوفيق المادة في جدول courses إذا تأثرت بإلغاء التكليف
+        if (targetTC) {
+          const courseId = targetTC.course_id;
+          const remainingForCourse = updated.filter((tc: TeacherCourse): boolean => tc.course_id === courseId);
+          const remTheory = remainingForCourse.find((tc: TeacherCourse): boolean => tc.role_in_course === 'theory' || tc.role_in_course === 'both');
+          const remPractical = remainingForCourse.find((tc: TeacherCourse): boolean => tc.role_in_course === 'practical' || tc.role_in_course === 'both');
+
+          const updatedCourses = courses.map((c: Course): Course => {
+            if (c.id === courseId) {
+              const newC: Course = {
+                ...c,
+                theory_teacher_id: remTheory ? remTheory.teacher_id : (c.theory_teacher_id === targetTC.teacher_id ? undefined : c.theory_teacher_id),
+                theory_teacher_name: remTheory ? remTheory.teacher_name : (c.theory_teacher_id === targetTC.teacher_id ? undefined : c.theory_teacher_name),
+                practical_teacher_id: remPractical ? remPractical.teacher_id : (c.practical_teacher_id === targetTC.teacher_id ? undefined : c.practical_teacher_id),
+                practical_teacher_name: remPractical ? remPractical.teacher_name : (c.practical_teacher_id === targetTC.teacher_id ? undefined : c.practical_teacher_name),
+              };
+              saveCourseToSupabase(newC); // ☁️ مزامنة المادة المحدثة سحابياً
+              return newC;
+            }
+            return c;
+          });
+
+          setCourses(updatedCourses);
+          saveStoredData('courses', updatedCourses);
+        }
+
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('teacher_courses_updated'));
+          window.dispatchEvent(new Event('courses_updated'));
+          window.dispatchEvent(new Event('storage'));
+        }
+
         setSuccessMessage('تم إلغاء التكليف الدراسي بنجاح.');
         setTimeout(() => setSuccessMessage(''), 3000);
         setDeleteModalConfig((prev) => ({ ...prev, isOpen: false }));
@@ -3275,14 +3934,27 @@ export default function DepartmentPortalPage() {
           deleteCourseFromSupabase(id); // ☁️ حذف المواد سحابياً
         });
 
-        const remainingCourses = courses.filter((c) => !selectedCourseIds.includes(c.id));
-        setCourses(remainingCourses);
-        saveStoredData('courses', remainingCourses);
-        const remainingAssignments = teacherCourses.filter((tc) => !selectedCourseIds.includes(tc.course_id));
+        // 🔗 حذف كافة تكليفات المواد المحددة سحابياً ومحلياً
+        const tcsToDelete = teacherCourses.filter((tc: TeacherCourse): boolean => selectedCourseIds.includes(tc.course_id));
+        tcsToDelete.forEach((tc: TeacherCourse) => {
+          deleteTeacherCourseFromSupabase(tc.id); // ☁️ حذف التكليفات سحابياً
+        });
+        const remainingAssignments = teacherCourses.filter((tc: TeacherCourse): boolean => !selectedCourseIds.includes(tc.course_id));
         setTeacherCourses(remainingAssignments);
         saveStoredData('teacher_courses', remainingAssignments);
+
+        const remainingCourses = courses.filter((c: Course): boolean => !selectedCourseIds.includes(c.id));
+        setCourses(remainingCourses);
+        saveStoredData('courses', remainingCourses);
+
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('courses_updated'));
+          window.dispatchEvent(new Event('teacher_courses_updated'));
+          window.dispatchEvent(new Event('storage'));
+        }
+
         setSelectedCourseIds([]);
-        setSuccessMessage(`تم بنجاح حذف (${selectedCourseIds.length}) مادة من القسم`);
+        setSuccessMessage(`تم بنجاح حذف (${selectedCourseIds.length}) مادة من القسم وتكليفاتها`);
         setTimeout(() => setSuccessMessage(''), 4000);
         setDeleteModalConfig((prev) => ({ ...prev, isOpen: false }));
       }
@@ -3306,11 +3978,26 @@ export default function DepartmentPortalPage() {
           deleteTeacherCourseFromSupabase(id); // ☁️ حذف التكليفات سحابياً
         });
 
-        const remaining = teacherCourses.filter((tc) => !selectedAssignmentIds.includes(tc.id));
+        const remaining = teacherCourses.filter((tc: TeacherCourse): boolean => !selectedAssignmentIds.includes(tc.id));
         setTeacherCourses(remaining);
         saveStoredData('teacher_courses', remaining);
+
+        // 🔄 توفيق كافة المواد بعد الحذف الجماعي للتكليفات
+        const rec = reconcileCoursesWithTeacherCourses(courses, remaining, profiles);
+        setCourses(rec.reconciledCourses);
+        saveStoredData('courses', rec.reconciledCourses);
+        rec.reconciledCourses.forEach((c: Course) => {
+          saveCourseToSupabase(c); // ☁️ مزامنة المواد المحدثة سحابياً
+        });
+
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('teacher_courses_updated'));
+          window.dispatchEvent(new Event('courses_updated'));
+          window.dispatchEvent(new Event('storage'));
+        }
+
         setSelectedAssignmentIds([]);
-        setSuccessMessage(`تم بنجاح إلغاء (${selectedAssignmentIds.length}) تكليف`);
+        setSuccessMessage(`تم بنجاح إلغاء (${selectedAssignmentIds.length}) تكليف وتحديث بيانات المواد.`);
         setTimeout(() => setSuccessMessage(''), 4000);
         setDeleteModalConfig((prev) => ({ ...prev, isOpen: false }));
       }
@@ -4106,10 +4793,17 @@ export default function DepartmentPortalPage() {
       });
 
       if (closeModalAfterSave) {
+        const savedY: number = lastScheduleScrollYRef.current; // 📍 نأخذ نسخة من موضع السكرول المحفوظ بالمليمتر
         setIsLectureModalOpen(false); // 🚀 غلق المودال فقط إذا اختار المستخدم حفظ وإغلاق
         setSuccessMessage(`تم تحديث محاضرة (${course.name}) في جدول يوم ${dayLabel} وتوثيقها سحابياً بنجاح!`);
         setTimeout(() => setSuccessMessage(''), 4000);
         resetLectureModalState(); // 🧹 تصفير كامل الحقول
+        // 🚀 استعادة موضع السكرول بدقة لنفس المكان في الجدول الأسبوعي
+        if (typeof window !== 'undefined' && savedY > 0) {
+          setTimeout(() => {
+            window.scrollTo({ top: savedY, behavior: 'instant' });
+          }, 20);
+        }
       } else {
         // ✨ الإبقاء على الكارد مفتوحاً لمواصلة التعديل أو إضافة محاضرات أخرى باحترافية مع إظهار التنبيه العائم
         setRecentlyAddedLectureId(currentEditingId);
@@ -4162,10 +4856,17 @@ export default function DepartmentPortalPage() {
       });
 
       if (closeModalAfterSave) {
+        const savedY: number = lastScheduleScrollYRef.current; // 📍 نأخذ نسخة من موضع السكرول المحفوظ بالمليمتر
         setIsLectureModalOpen(false); // 🚀 غلق المودال إذا اختار المستخدم إدراج وإنهاء
         setSuccessMessage(`تمت إضافة محاضرة (${course.name}) إلى جدول المرحلة ${selectedScheduleStage} وتوثيقها سحابياً بنجاح!`);
         setTimeout(() => setSuccessMessage(''), 4000);
         resetLectureModalState(); // 🧹 تصفير كافة الحقول
+        // 🚀 استعادة موضع السكرول بدقة لنفس المكان في الجدول الأسبوعي
+        if (typeof window !== 'undefined' && savedY > 0) {
+          setTimeout(() => {
+            window.scrollTo({ top: savedY, behavior: 'instant' });
+          }, 20);
+        }
       } else {
         // 🌟 الإبقاء على الكارد مفتوحاً للإدراج المتتالي مع التنبيه العائم الفاخر
         setRecentlyAddedLectureId(newLecId);
@@ -4600,6 +5301,10 @@ export default function DepartmentPortalPage() {
   };
 
   const handleEditLecture = (lec: ScheduleLecture) => {
+    // 📍 نسجل موقع السكرول الحالي للصفحة فوراً قبل فتح المودال حتى نرجعله بعد الإغلاق
+    if (typeof window !== 'undefined') {
+      lastScheduleScrollYRef.current = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0;
+    }
     setEditingLectureId(lec.id); // ✏️ تثبيت آيدي المحاضرة المراد تعديلها
     setOriginalLecDay(lec.day); // 🗓️ تتبع اليوم الأصلي للمحاضرة لكشف أي تحويل بين الأيام
     setSelectedScheduleStage(lec.stage_number); // 🎓 ضبط المرحلة
@@ -4711,18 +5416,25 @@ export default function DepartmentPortalPage() {
               <Image src="/logo.webp" alt="جامعة الإمام جعفر الصادق" width={64} height={64} className="object-contain" priority />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <span className="px-3 py-1 bg-slate-950 text-white font-black text-sm rounded-xl shadow-xs">
-                  {currentDepartment?.code || 'القسم'}
+              {/* 🏷️ الوسوم الرسمية الثلاثة موحدة بنمط ولون كحلي ملكي راقٍ ومتناسق 100% */}
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* 1. وسم رمز وكود القسم الموحد */}
+                <span className="px-3 py-1 bg-blue-50 text-blue-950 border border-blue-200 font-black text-sm rounded-xl flex items-center gap-1.5 shadow-2xs">
+                  <Building2 className="w-4 h-4 text-[#0F2942]" />
+                  <span>{currentDepartment?.code || 'القسم'}</span>
                 </span>
-                <span className="px-3 py-1 bg-blue-50 text-blue-950 border border-blue-200 font-black text-sm rounded-xl flex items-center gap-1.5 shadow-xs">
-                  <ShieldCheck className="w-4 h-4 text-blue-700" />
+
+                {/* 2. وسم بوابة الدور الإداري الموحد */}
+                <span className="px-3 py-1 bg-blue-50 text-blue-950 border border-blue-200 font-black text-sm rounded-xl flex items-center gap-1.5 shadow-2xs">
+                  <ShieldCheck className="w-4 h-4 text-[#0F2942]" />
                   <span>
                     {currentUser?.role === 'department_head' ? 'بوابة رئيس القسم' : currentUser?.role === 'rapporteur' ? 'بوابة مقرر القسم' : 'صلاحية المسؤول العام'}
                   </span>
                 </span>
-                <span className="px-3 py-1 bg-indigo-50 text-indigo-950 border border-indigo-200 font-black text-sm rounded-xl flex items-center gap-1.5 shadow-xs">
-                  <Calendar className="w-4 h-4 text-indigo-700" />
+
+                {/* 3. وسم العام الدراسي الموحد بنفس النمط اللوني */}
+                <span className="px-3 py-1 bg-blue-50 text-blue-950 border border-blue-200 font-black text-sm rounded-xl flex items-center gap-1.5 shadow-2xs">
+                  <Calendar className="w-4 h-4 text-[#0F2942]" />
                   <span>العام الدراسي <bdi dir="ltr">{formatAcademicYearDisplay(academicYear)}</bdi></span>
                 </span>
               </div>
@@ -7655,6 +8367,188 @@ export default function DepartmentPortalPage() {
             </div>
           </FloatingCrudModal>
 
+          {/* ⚡ مودال التعيين والتكليف السريع للأستاذ مباشرة من جدول المواد والمقررات */}
+          <FloatingCrudModal
+            isOpen={quickAssignConfig.isOpen && !!quickAssignConfig.course}
+            onClose={() => {
+              setQuickAssignConfig((prev) => ({ ...prev, isOpen: false }));
+            }}
+            title={
+              quickAssignConfig.role === 'theory'
+                ? 'تعيين وتكليف أستاذ النظري'
+                : 'تعيين وتكليف أستاذ العملي والمختبر'
+            }
+            subtitle={
+              quickAssignConfig.course
+                ? `تعيين وتكليف سريع لأستاذ مادة (${quickAssignConfig.course.name}) [${quickAssignConfig.course.code}] في قسم ${deptName}`
+                : ''
+            }
+            icon={quickAssignConfig.role === 'theory' ? <Users className="w-6 h-6" /> : <FlaskConical className="w-6 h-6" />}
+            maxWidth="max-w-xl"
+            onSubmit={(e: React.FormEvent) => {
+              e.preventDefault();
+              if (quickAssignConfig.selectedTeacherId) {
+                handleSaveQuickAssign(quickAssignConfig.selectedTeacherId);
+              }
+            }}
+            footer={
+              <div className="flex items-center justify-between w-full gap-3 flex-wrap">
+                {/* زر إلغاء التعيين وتفريغ الخانة إذا كانت المادة محدد لها أستاذ */}
+                {((quickAssignConfig.role === 'theory' && quickAssignConfig.course?.theory_teacher_id) ||
+                  (quickAssignConfig.role === 'practical' && quickAssignConfig.course?.practical_teacher_id)) ? (
+                  <button
+                    type="button"
+                    onClick={() => handleSaveQuickAssign(null)}
+                    className="px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 hover:text-rose-800 font-black rounded-2xl text-xs sm:text-sm transition cursor-pointer border border-rose-300 shadow-2xs active:scale-95 flex items-center gap-1.5"
+                    title="إلغاء التعيين وسحب التكليف وجعل الخانة غير معيّن"
+                  >
+                    <UserMinus className="w-4 h-4 text-rose-600" />
+                    <span>إلغاء التعيين (غير معيّن)</span>
+                  </button>
+                ) : <div />}
+
+                <div className="flex items-center gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuickAssignConfig((prev) => ({ ...prev, isOpen: false }));
+                    }}
+                    className="px-5 py-2.5 bg-white hover:bg-slate-100 text-slate-700 font-black rounded-2xl text-xs sm:text-sm transition cursor-pointer border-2 border-slate-300 shadow-2xs active:scale-95"
+                  >
+                    إلغاء
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={!quickAssignConfig.selectedTeacherId}
+                    className="px-5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-black rounded-2xl text-xs sm:text-sm shadow-md transition flex items-center gap-2 cursor-pointer border border-[#0F2942] active:scale-95 whitespace-nowrap"
+                  >
+                    <CheckCircle2 className="w-4 h-4 text-emerald-300" />
+                    <span>تأكيد التعيين والتكليف</span>
+                  </button>
+                </div>
+              </div>
+            }
+          >
+            {quickAssignConfig.course && (
+              <div className="space-y-4 text-right">
+                {/* 📋 كارت بيانات المادة المستهدفة */}
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between gap-3 flex-wrap">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs font-black bg-[#0F2942] text-white px-2 py-0.5 rounded-lg">
+                        {quickAssignConfig.course.code}
+                      </span>
+                      <span className="font-black text-slate-950 text-base">
+                        {quickAssignConfig.course.name}
+                      </span>
+                    </div>
+                    <div className="text-xs font-bold text-slate-600 mt-1 flex items-center gap-2">
+                      <span>المرحلة {getStageNameInArabic(quickAssignConfig.course.stage_number || 1)}</span>
+                      <span>•</span>
+                      <span>الكورس {quickAssignConfig.course.semester === 2 ? 'الثاني' : 'الأول'}</span>
+                    </div>
+                  </div>
+
+                  <span className={`px-3 py-1 rounded-xl text-xs font-black border ${
+                    quickAssignConfig.role === 'theory'
+                      ? 'bg-blue-50 text-blue-950 border-blue-200'
+                      : 'bg-emerald-50 text-emerald-950 border-emerald-300'
+                  }`}>
+                    {quickAssignConfig.role === 'theory' ? 'تدريس الجانب النظري' : 'تدريس الجانب العملي والمختبر'}
+                  </span>
+                </div>
+
+                {/* 🔍 حقل البحث السريع عن الأستاذ */}
+                <div className="relative">
+                  <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={quickAssignConfig.searchQuery}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                      const query = e.target.value;
+                      setQuickAssignConfig((prev) => ({ ...prev, searchQuery: query }));
+                    }}
+                    placeholder="ابحث باسم التدريسي أو البريد الإلكتروني..."
+                    className="w-full pl-4 pr-10 py-2.5 bg-white border-2 border-slate-200 rounded-2xl text-slate-900 font-bold text-sm focus:border-[#0F2942] focus:ring-2 focus:ring-[#0F2942]/10 outline-hidden transition"
+                  />
+                </div>
+
+                {/* 👥 قائمة الأساتذة للاختيار المباشر */}
+                <div className="space-y-1.5 max-h-64 overflow-y-auto custom-scrollbar p-1">
+                  {(() => {
+                    const query = quickAssignConfig.searchQuery.trim().toLowerCase();
+                    const availableTeachers = deptTeachers.filter((p: UserProfile): boolean => {
+                      if (!query) return true;
+                      return (
+                        p.full_name.toLowerCase().includes(query) ||
+                        (p.generated_email && p.generated_email.toLowerCase().includes(query)) ||
+                        (Boolean(p.scientific_title) && (p.scientific_title || '').toLowerCase().includes(query))
+                      );
+                    });
+
+                    if (availableTeachers.length === 0) {
+                      return (
+                        <div className="text-center py-8 text-slate-500 font-bold text-sm bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                          لا يوجد أساتذة مطابقون لمعايير البحث في كادر القسم
+                        </div>
+                      );
+                    }
+
+                    return availableTeachers.map((teacher: UserProfile) => {
+                      const isSelected = quickAssignConfig.selectedTeacherId === teacher.id;
+                      const isCurrentlyAssigned = 
+                        (quickAssignConfig.role === 'theory' && quickAssignConfig.course?.theory_teacher_id === teacher.id) ||
+                        (quickAssignConfig.role === 'practical' && quickAssignConfig.course?.practical_teacher_id === teacher.id);
+
+                      return (
+                        <div
+                          key={teacher.id}
+                          onClick={() => {
+                            setQuickAssignConfig((prev) => ({ ...prev, selectedTeacherId: teacher.id }));
+                          }}
+                          className={`p-3 rounded-2xl border transition cursor-pointer flex items-center justify-between gap-3 ${
+                            isSelected
+                              ? 'bg-blue-50/90 border-[#0F2942] shadow-xs ring-1 ring-[#0F2942]'
+                              : 'bg-white hover:bg-slate-50 border-slate-200'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs ${
+                              isSelected ? 'bg-[#0F2942] text-white' : 'bg-slate-100 text-slate-700'
+                            }`}>
+                              {teacher.full_name.charAt(0)}
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-black text-slate-950 text-sm">{teacher.full_name}</span>
+                                {isCurrentlyAssigned && (
+                                  <span className="px-2 py-0.5 rounded-lg text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                    معيّن حالياً
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-xs text-slate-500 font-bold">{teacher.scientific_title || teacher.generated_email || 'كادر تدريسي'}</span>
+                            </div>
+                          </div>
+
+                          <div className="shrink-0">
+                            {isSelected ? (
+                              <div className="w-6 h-6 rounded-full bg-[#0F2942] text-white flex items-center justify-center shadow-xs">
+                                <Check className="w-3.5 h-3.5 stroke-[3]" />
+                              </div>
+                            ) : (
+                              <div className="w-6 h-6 rounded-full border-2 border-slate-300" />
+                            )}
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              </div>
+            )}
+          </FloatingCrudModal>
+
           {/* 🔐 نافذة تأكيد تغيير حالة الامتحان (فتح أو إغلاق الدور الأول أو الدور الثاني) */}
           {/* 🔐 نافذة تأكيد تغيير حالة الامتحان الموحدة بنسبة 100% في منتصف الشاشة بدون أي سكرول */}
           {examToggleConfirmation && examToggleConfirmation.isOpen && typeof document !== 'undefined' && createPortal(
@@ -8365,26 +9259,77 @@ export default function DepartmentPortalPage() {
                               </span>
                             )}
                           </td>
+                          {/* 👨‍🏫 عمود أستاذ النظري التفاعلي: يقرأ كافة الأساتذة المكلفين ويدعم التعيين السريع المباشر */}
                           <td className="p-3 whitespace-nowrap">
-                            {c.theory_teacher_name ? (
-                              <span className="font-black text-slate-950 inline-flex items-center gap-1.5 text-sm whitespace-nowrap">
-                                <Users className="w-4 h-4 text-[#0F2942]" />
-                                <span>{c.theory_teacher_name}</span>
-                              </span>
-                            ) : (
-                              <span className="text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200 font-bold text-xs whitespace-nowrap">غير معيّن</span>
-                            )}
+                            {(() => {
+                              const theoryTeachers = getCourseTheoryTeachers(c); // 📋 جلب كافة الأساتذة المكلفين نظري
+                              if (theoryTeachers.length > 0) { // ✅ إذا كان هناك أستاذ أو أكثر مكلفين
+                                return (
+                                  <div className="flex items-center gap-1.5 flex-wrap max-w-xs">
+                                    {theoryTeachers.map((t) => (
+                                      <button
+                                        key={t.id}
+                                        type="button"
+                                        onClick={() => handleOpenQuickAssign(c, 'theory')}
+                                        className="group inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-blue-50/90 hover:bg-blue-100 border border-blue-200 text-blue-950 font-black text-xs transition cursor-pointer active:scale-95 shadow-2xs"
+                                        title={`انقر لتعديل أو إلغاء تعيين أستاذ النظري لمادة (${c.name})`}
+                                      >
+                                        <Users className="w-3.5 h-3.5 text-[#0F2942] group-hover:scale-110 transition" />
+                                        <span>{t.name}</span>
+                                      </button>
+                                    ))}
+                                  </div>
+                                );
+                              }
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenQuickAssign(c, 'theory')}
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 font-black text-xs transition cursor-pointer active:scale-95 shadow-2xs hover:border-amber-400"
+                                  title={`انقر لتعيين وتكليف أستاذ النظري لمادة (${c.name}) فورياً`}
+                                >
+                                  <UserPlus className="w-3.5 h-3.5 text-amber-700" />
+                                  <span>غير معيّن (تعيين أستاذ)</span>
+                                </button>
+                              );
+                            })()}
                           </td>
+
+                          {/* 🧪 عمود أستاذ العملي التفاعلي: يدعم تعدد الأساتذة والتعيين السريع المباشر */}
                           <td className="p-3 whitespace-nowrap">
                             {isPractical ? (
-                              c.practical_teacher_name ? (
-                                <span className="font-black text-slate-950 inline-flex items-center gap-1.5 text-sm whitespace-nowrap">
-                                  <FlaskConical className="w-3.5 h-3.5 text-emerald-700" />
-                                  <span>{c.practical_teacher_name}</span>
-                                </span>
-                              ) : (
-                                <span className="text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200 font-bold text-xs whitespace-nowrap">غير معيّن</span>
-                              )
+                              (() => {
+                                const practicalTeachers = getCoursePracticalTeachers(c); // 📋 جلب كافة أساتذة العملي المكلفين
+                                if (practicalTeachers.length > 0) { // ✅ إذا كان هناك أساتذة عملي مكلفين
+                                  return (
+                                    <div className="flex items-center gap-1.5 flex-wrap max-w-xs">
+                                      {practicalTeachers.map((t) => (
+                                        <button
+                                          key={t.id}
+                                          type="button"
+                                          onClick={() => handleOpenQuickAssign(c, 'practical')}
+                                          className="group inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-emerald-50/90 hover:bg-emerald-100 border border-emerald-300 text-emerald-950 font-black text-xs transition cursor-pointer active:scale-95 shadow-2xs"
+                                          title={`انقر لتعديل أو إلغاء تعيين أستاذ العملي لمادة (${c.name})`}
+                                        >
+                                          <FlaskConical className="w-3.5 h-3.5 text-emerald-700 group-hover:scale-110 transition" />
+                                          <span>{t.name}</span>
+                                        </button>
+                                      ))}
+                                    </div>
+                                  );
+                                }
+                                return (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenQuickAssign(c, 'practical')}
+                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-300 text-rose-900 font-black text-xs transition cursor-pointer active:scale-95 shadow-2xs hover:border-rose-400"
+                                    title={`انقر لتعيين وتكليف أستاذ العملي لمادة (${c.name}) فورياً`}
+                                  >
+                                    <UserPlus className="w-3.5 h-3.5 text-rose-700" />
+                                    <span>غير معيّن (تعيين أستاذ)</span>
+                                  </button>
+                                );
+                              })()
                             ) : (
                               <span className="text-slate-400 font-bold text-xs whitespace-nowrap">— نظري فقط</span>
                             )}
@@ -8991,34 +9936,39 @@ export default function DepartmentPortalPage() {
                   </div>
                 </div>
 
-                {/* 🏷️ طبيعة التكليف الأكاديمي (نظري / عملي / كلاهما) */}
+                {/* 🏷️ طبيعة التكليف الأكاديمي (نظري / عملي / كلاهما) - التحديد كحلي ملكي موحد لجميع الخيارات */}
                 <div className="space-y-2">
                   <label className="block text-slate-950 font-black text-base">طبيعة التكليف الأكاديمي *</label>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    {/* 📘 زر اختيار: مكلف نظري فقط (يتحول للكحلي الملكي الصلب عند التحديد) */}
                     <button
                       type="button"
                       onClick={() => setSelectedAssignRole('theory')}
                       className={`p-3 rounded-xl border-2 text-sm sm:text-base font-black flex items-center justify-center gap-2 transition cursor-pointer ${
                         selectedAssignRole === 'theory'
-                          ? 'bg-blue-50 border-blue-600 text-blue-950 shadow-xs ring-2 ring-blue-500/20'
+                          ? 'bg-[#0F2942] border-[#0F2942] text-white shadow-xs ring-2 ring-blue-500/20'
                           : 'bg-white border-slate-300 text-slate-800 hover:bg-slate-50'
                       }`}
                     >
-                      <BookOpen className="w-4 h-4 text-blue-700 shrink-0" />
-                      <span>محاضرة نظرية</span>
+                      <BookOpen className={`w-4 h-4 shrink-0 ${selectedAssignRole === 'theory' ? 'text-cyan-300' : 'text-blue-700'}`} />
+                      <span>مكلف نظري فقط</span>
                     </button>
+
+                    {/* 🧪 زر اختيار: مكلف عملي فقط (يتحول للكحلي الملكي الصلب عند التحديد) */}
                     <button
                       type="button"
                       onClick={() => setSelectedAssignRole('practical')}
                       className={`p-3 rounded-xl border-2 text-sm sm:text-base font-black flex items-center justify-center gap-2 transition cursor-pointer ${
                         selectedAssignRole === 'practical'
-                          ? 'bg-emerald-50 border-emerald-600 text-emerald-950 shadow-xs ring-2 ring-emerald-500/20'
+                          ? 'bg-[#0F2942] border-[#0F2942] text-white shadow-xs ring-2 ring-blue-500/20'
                           : 'bg-white border-slate-300 text-slate-800 hover:bg-slate-50'
                       }`}
                     >
-                      <FlaskConical className="w-4 h-4 text-emerald-700 shrink-0" />
-                      <span>مختبر وتطبيق عملي</span>
+                      <FlaskConical className={`w-4 h-4 shrink-0 ${selectedAssignRole === 'practical' ? 'text-cyan-300' : 'text-emerald-700'}`} />
+                      <span>مكلف عملي فقط</span>
                     </button>
+
+                    {/* 📚 زر اختيار: مكلف نظري وعملي (كحلي ملكي صلب عند التحديد) */}
                     <button
                       type="button"
                       onClick={() => setSelectedAssignRole('both')}
@@ -9028,8 +9978,8 @@ export default function DepartmentPortalPage() {
                           : 'bg-white border-slate-300 text-slate-800 hover:bg-slate-50'
                       }`}
                     >
-                      <Layers className="w-4 h-4 text-cyan-300 shrink-0" />
-                      <span>تدريس شامل (نظري وعملي)</span>
+                      <Layers className={`w-4 h-4 shrink-0 ${selectedAssignRole === 'both' ? 'text-cyan-300' : 'text-cyan-600'}`} />
+                      <span>مكلف نظري وعملي</span>
                     </button>
                   </div>
                 </div>
@@ -9331,6 +10281,81 @@ export default function DepartmentPortalPage() {
                   </button>
                 </div>
 
+                {/* 4. 🏷️ تصفية طبيعة التكليف الأكاديمي (نظري فقط / عملي فقط / نظري وعملي) بنفس نمط وألوان الكورسات */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-sm sm:text-base font-black text-slate-950 ml-1">طبيعة التكليف:</span>
+                  <button
+                    type="button"
+                    onClick={() => setFilterAssignmentRole('all')}
+                    className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                      filterAssignmentRole === 'all'
+                        ? 'bg-[#0F2942] text-white shadow-xs'
+                        : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300'
+                    }`}
+                  >
+                    <span>كافة التكليفات</span>
+                    <span className={`px-1.5 py-0.5 rounded-full text-xs font-mono font-black ${
+                      filterAssignmentRole === 'all' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800'
+                    }`}>
+                      {deptTeacherCourses.length}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setFilterAssignmentRole('theory')}
+                    className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                      filterAssignmentRole === 'theory'
+                        ? 'bg-[#0F2942] text-white shadow-xs'
+                        : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300'
+                    }`}
+                  >
+                    <BookOpen className="w-3.5 h-3.5" />
+                    <span>مكلف نظري فقط</span>
+                    <span className={`px-1.5 py-0.5 rounded-full text-xs font-mono font-black ${
+                      filterAssignmentRole === 'theory' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800'
+                    }`}>
+                      {deptTeacherCourses.filter((tc) => tc.role_in_course === 'theory' || !tc.role_in_course).length}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setFilterAssignmentRole('practical')}
+                    className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                      filterAssignmentRole === 'practical'
+                        ? 'bg-[#0F2942] text-white shadow-xs'
+                        : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300'
+                    }`}
+                  >
+                    <FlaskConical className="w-3.5 h-3.5" />
+                    <span>مكلف عملي فقط</span>
+                    <span className={`px-1.5 py-0.5 rounded-full text-xs font-mono font-black ${
+                      filterAssignmentRole === 'practical' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800'
+                    }`}>
+                      {deptTeacherCourses.filter((tc) => tc.role_in_course === 'practical').length}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setFilterAssignmentRole('both')}
+                    className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                      filterAssignmentRole === 'both'
+                        ? 'bg-[#0F2942] text-white shadow-xs'
+                        : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300'
+                    }`}
+                  >
+                    <Layers className="w-3.5 h-3.5" />
+                    <span>مكلف نظري وعملي</span>
+                    <span className={`px-1.5 py-0.5 rounded-full text-xs font-mono font-black ${
+                      filterAssignmentRole === 'both' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800'
+                    }`}>
+                      {deptTeacherCourses.filter((tc) => tc.role_in_course === 'both').length}
+                    </span>
+                  </button>
+                </div>
+
               </div>
             </div>
 
@@ -9377,12 +10402,15 @@ export default function DepartmentPortalPage() {
                 <table className="w-full text-right border-collapse text-base font-black whitespace-nowrap">
                   <thead>
                     <tr className="bg-[#0F2942] text-white font-black text-base whitespace-nowrap border-b border-[#0F2942]">
+                      {/* 🔘 زر ومربع تحديد كافة التكليفات المعروضة باللون الأبيض الناصع والواضح 100% */}
                       <th className="p-4 text-center text-base w-12 whitespace-nowrap text-white">
-                        <input
-                          type="checkbox"
-                          checked={filteredTeacherCourses.length > 0 && filteredTeacherCourses.every((tc) => selectedAssignmentIds.includes(tc.id))}
-                          onChange={(e) => {
-                            if (e.target.checked) {
+                        <button
+                          type="button"
+                          role="checkbox"
+                          aria-checked={filteredTeacherCourses.length > 0 && filteredTeacherCourses.every((tc) => selectedAssignmentIds.includes(tc.id))}
+                          onClick={() => {
+                            const isAllSelected = filteredTeacherCourses.length > 0 && filteredTeacherCourses.every((tc) => selectedAssignmentIds.includes(tc.id));
+                            if (!isAllSelected) {
                               const visibleIds = filteredTeacherCourses.map((tc) => tc.id);
                               setSelectedAssignmentIds(Array.from(new Set([...selectedAssignmentIds, ...visibleIds])));
                             } else {
@@ -9390,10 +10418,20 @@ export default function DepartmentPortalPage() {
                               setSelectedAssignmentIds(selectedAssignmentIds.filter((id) => !visibleIds.has(id)));
                             }
                           }}
-                          className="w-5 h-5 rounded-md text-white focus:ring-white cursor-pointer accent-[#0F2942]"
+                          className={`w-6 h-6 rounded-lg transition-all flex items-center justify-center cursor-pointer mx-auto shadow-md border-2 ${
+                            filteredTeacherCourses.length > 0 && filteredTeacherCourses.every((tc) => selectedAssignmentIds.includes(tc.id))
+                              ? 'bg-white text-[#0F2942] border-white ring-2 ring-white/70'
+                              : 'bg-white text-[#0F2942] border-white hover:bg-slate-100 ring-2 ring-white/40'
+                          }`}
                           title="تحديد كافة التكليفات المعروضة"
                           aria-label="تحديد كافة التكليفات المعروضة"
-                        />
+                        >
+                          {filteredTeacherCourses.length > 0 && filteredTeacherCourses.every((tc) => selectedAssignmentIds.includes(tc.id)) ? (
+                            <Check className="w-4 h-4 stroke-[3.5] text-[#0F2942]" />
+                          ) : (
+                            <span className="w-2.5 h-2.5 rounded-xs bg-transparent" />
+                          )}
+                        </button>
                       </th>
                       <th className="p-4 text-center text-base w-16 whitespace-nowrap text-white font-black">ت</th>
                       <th className="p-4 text-right text-base sm:text-lg whitespace-nowrap text-white font-black">اسم الأستاذ المكلف</th>
@@ -9467,9 +10505,9 @@ export default function DepartmentPortalPage() {
                               </span>
                             </td>
 
-                            {/* 🏷️ طبيعة التكليف الأكاديمي (نظري / عملي / كلاهما) */}
+                            {/* 🏷️ طبيعة التكليف الأكاديمي (نظري فقط / عملي فقط / نظري وعملي) */}
                             <td className="p-4 text-center whitespace-nowrap">
-                              <span className={`px-3 py-1 rounded-xl text-xs sm:text-sm font-black border shadow-2xs whitespace-nowrap inline-flex items-center gap-1.5 ${
+                              <span className={`px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-black border shadow-2xs whitespace-nowrap inline-flex items-center gap-1.5 ${
                                 tc.role_in_course === 'practical'
                                   ? 'bg-emerald-100 text-emerald-950 border-emerald-300'
                                   : tc.role_in_course === 'both'
@@ -9479,17 +10517,17 @@ export default function DepartmentPortalPage() {
                                 {tc.role_in_course === 'practical' ? (
                                   <>
                                     <FlaskConical className="w-3.5 h-3.5 text-emerald-800 shrink-0" />
-                                    <span>مختبر وعملي</span>
+                                    <span>مكلف عملي فقط</span>
                                   </>
                                 ) : tc.role_in_course === 'both' ? (
                                   <>
                                     <Layers className="w-3.5 h-3.5 text-purple-800 shrink-0" />
-                                    <span>نظري وعملي</span>
+                                    <span>مكلف نظري وعملي</span>
                                   </>
                                 ) : (
                                   <>
                                     <BookOpen className="w-3.5 h-3.5 text-blue-800 shrink-0" />
-                                    <span>محاضرة نظرية</span>
+                                    <span>مكلف نظري فقط</span>
                                   </>
                                 )}
                               </span>
@@ -10198,6 +11236,10 @@ export default function DepartmentPortalPage() {
               <button
                 type="button" // 🔘 نوع الزر لمنع الإرسال العفوي
                 onClick={() => {
+                  // 📍 تسجيل موضع السكرول الحالي للصفحة فوراً قبل فتح المودال حتى نرجعله بدقة
+                  if (typeof window !== 'undefined') {
+                    lastScheduleScrollYRef.current = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0;
+                  }
                   resetLectureModalState(); // 🧹 تصفير كافة الحقول والتواريخ والأوقات لتبدأ غير محددة
                   setIsLectureModalOpen(true); // 🚀 فتح نافذة المودال فورياً
                 }}
@@ -10696,12 +11738,19 @@ export default function DepartmentPortalPage() {
           {/* ========================================================================= */}
           <FloatingCrudModal
             isOpen={isLectureModalOpen}
-onClose={() => {
+            onClose={() => {
+              const savedY: number = lastScheduleScrollYRef.current; // 📍 أخذ نسخة من موضع السكرول المحفوظ بالمليمتر
               setIsLectureModalOpen(false); // 🔴 إغلاق المودال
               setEditingLectureId(null); // 🔄 تصفير التعديل
               setLecRoom(''); // 🧹 تنظيف القاعة
               setLecNotes(''); // 🧹 تنظيف الملاحظات
               setLecModalSuccessMsg(''); // 🧹 مسح رسالة النجاح التفاعلية
+              // 🚀 إعادة سكرول الصفحة فوراً لنفس الموضع دون قفز
+              if (typeof window !== 'undefined' && savedY > 0) {
+                setTimeout(() => {
+                  window.scrollTo({ top: savedY, behavior: 'instant' });
+                }, 20);
+              }
             }}
             title={editingLectureId ? 'تعديل بيانات المحاضرة المجدولة' : 'إضافة محاضرة دراسية جديدة إلى الجدول الأسبوعي'}
             subtitle={
@@ -10804,11 +11853,18 @@ onClose={() => {
                   <button
                     type="button"
                     onClick={() => {
+                      const savedY: number = lastScheduleScrollYRef.current; // 📍 أخذ نسخة من موضع السكرول المحفوظ بالمليمتر
                       setIsLectureModalOpen(false); // 🔴 إغلاق
                       setEditingLectureId(null); // 🔄 تصفير
                       setLecRoom(''); // 🧹 مسح
                       setLecNotes(''); // 🧹 مسح
                       setLecModalSuccessMsg(''); // 🧹 مسح رسالة النجاح
+                      // 🚀 إعادة سكرول الصفحة فوراً لنفس الموضع دون قفز
+                      if (typeof window !== 'undefined' && savedY > 0) {
+                        setTimeout(() => {
+                          window.scrollTo({ top: savedY, behavior: 'instant' });
+                        }, 20);
+                      }
                     }}
                     className="px-4 sm:px-5 py-2.5 bg-white hover:bg-slate-100 text-slate-800 rounded-xl font-black text-sm sm:text-base transition cursor-pointer border-2 border-slate-300 shadow-2xs active:scale-95 flex items-center justify-center gap-2"
                     title="إغلاق هذه النافذة بالكامل"
@@ -12080,8 +13136,8 @@ onClose={() => {
 
                                         return filteredTeachers.map((t) => {
                                           const isSel = lecTeacherId === t.id;
-                                          const isAssignedTheory = currentCourseObj?.theory_teacher_id === t.id;
-                                          const isAssignedPractical = currentCourseObj?.practical_teacher_id === t.id;
+                                          const isAssignedTheory = currentCourseObj?.theory_teacher_id === t.id || teacherCourses.some((tc: TeacherCourse): boolean => tc.course_id === lecCourseId && tc.teacher_id === t.id && (tc.role_in_course === 'theory' || tc.role_in_course === 'both'));
+                                          const isAssignedPractical = currentCourseObj?.practical_teacher_id === t.id || teacherCourses.some((tc: TeacherCourse): boolean => tc.course_id === lecCourseId && tc.teacher_id === t.id && (tc.role_in_course === 'practical' || tc.role_in_course === 'both'));
                                           return (
                                             <button
                                               key={t.id}
@@ -12696,6 +13752,10 @@ onClose={() => {
                         <button
                           type="button" // 🔘 نوع الزر
                           onClick={() => {
+                            // 📍 تسجيل موضع السكرول الحالي للصفحة فوراً قبل فتح المودال حتى نرجعله بدقة
+                            if (typeof window !== 'undefined') {
+                              lastScheduleScrollYRef.current = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0;
+                            }
                             // 🧹 تصفير المودال مع تعيين اليوم الأسبوعي وتاريخه التقويمي المطابق فورياً
                             resetLectureModalState(d.key, selectedScheduleWeek);
                             setLecStudyType(selectedScheduleStudyType); // ☀️🌙 مزامنة الفترة الصباحية/المسائية الحالية
@@ -16302,7 +17362,7 @@ onClose={() => {
                             const semArabic = tc.semester === 2 ? 'الكورس الثاني' : 'الكورس الأول';
                             const ects = courseInfo?.credit_hours || 3;
                             const courseCode = courseInfo?.code || '—';
-                            const roleText = tc.role_in_course === 'practical' ? 'مختبر وعملي' : tc.role_in_course === 'both' ? 'نظري وعملي' : 'محاضرة نظرية';
+                            const roleText = tc.role_in_course === 'practical' ? 'مكلف عملي فقط' : tc.role_in_course === 'both' ? 'مكلف نظري وعملي' : 'مكلف نظري فقط';
 
                             return (
                               <tr key={tc.id} className="border-b border-black text-black">
