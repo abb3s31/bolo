@@ -6853,7 +6853,7 @@ export default function DepartmentPortalPage() {
                     setCourseIsSupplementaryEnabled(false); // 🔄 تصفير الدور الثاني
                     setCourseIsFinalExamEnabled(false); // 🎯 تصفير الفاينل الدور الأول
                   }}
-                  className="px-6 py-3 bg-slate-100 hover:bg-slate-200 text-slate-950 font-black rounded-2xl text-base transition cursor-pointer border border-slate-300 shadow-2xs"
+                  className="px-6 py-3 bg-white hover:bg-[#0F2942] hover:text-white text-[#0F2942] font-black rounded-2xl text-base transition cursor-pointer border-2 border-[#0F2942] shadow-2xs active:scale-95"
                 >
                   إلغاء
                 </button>
@@ -8492,7 +8492,7 @@ export default function DepartmentPortalPage() {
                     setSelectedTeacherId('');
                     setSelectedCourseId('');
                   }}
-                  className="px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-950 font-black rounded-2xl text-sm transition cursor-pointer border border-slate-300"
+                  className="px-6 py-2.5 bg-white hover:bg-[#0F2942] hover:text-white text-[#0F2942] font-black rounded-2xl text-sm transition cursor-pointer border-2 border-[#0F2942] shadow-2xs active:scale-95"
                 >
                   إلغاء
                 </button>
@@ -13783,7 +13783,7 @@ onClose={() => {
               <button
                 type="button"
                 onClick={() => setIsAssessmentModalOpen(false)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl text-sm font-black transition cursor-pointer"
+                className="px-5 py-2.5 bg-white hover:bg-[#0F2942] hover:text-white text-[#0F2942] rounded-xl text-sm font-black transition cursor-pointer border-2 border-[#0F2942] shadow-2xs active:scale-95"
               >
                 إلغاء
               </button>
