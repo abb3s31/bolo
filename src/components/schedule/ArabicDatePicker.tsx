@@ -262,8 +262,8 @@ export default function ArabicDatePicker({
         type="button"
         disabled={disabled}
         onClick={toggleCalendar} /* 🗓️ حدث النقر لفتح وإغلاق نافذة التقويم المنبثقة فوراً */
-        /* 🔘 زر فتح وإغلاق التقويم مع تثبيت أدنى ارتفاع min-h-[48px] ليتطابق بالمليمتر مع القوائم المجاورة */
-        className={`w-full min-h-[48px] px-3.5 py-2.5 bg-white border-2 rounded-xl text-sm font-black flex items-center justify-between cursor-pointer shadow-2xs transition-all text-right ${
+        /* 🔘 زر فتح وإغلاق التقويم مع تثبيت الارتفاع الدقيق h-[48px] و min-h-[48px] ليتطابق بالمليمتر مع القوائم المجاورة */
+        className={`w-full h-[48px] min-h-[48px] px-3.5 py-2.5 bg-white border-2 rounded-xl text-sm font-black flex items-center justify-between cursor-pointer shadow-2xs transition-all text-right ${
           isOpen ? 'border-[#0F2942] ring-2 ring-[#0F2942]/20' : 'border-slate-300 hover:border-slate-400'
         } ${disabled ? 'opacity-60 cursor-not-allowed bg-slate-100' : ''} ${className}`}
         title={displayFormattedDate()}

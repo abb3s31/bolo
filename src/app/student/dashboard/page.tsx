@@ -214,20 +214,32 @@ export default function StudentDashboard() {
       setCourses(latestCourses);
     };
 
+    // 📡 الاستماع للتحديثات اللحظية المباشرة لجدول المحاضرات وتاريخ انطلاق الفصل فور اعتمادها
+    const handleScheduleSync = () => {
+      const latestConfigs = getStoredData<DepartmentScheduleConfig[]>('department_schedule_configs', INITIAL_SCHEDULE_CONFIGS); // 📥 جلب أحدث إعدادات الجدول
+      const latestLectures = getStoredData<ScheduleLecture[]>('schedule_lectures', INITIAL_SCHEDULE_LECTURES); // 📥 جلب أحدث المحاضرات
+      if (latestConfigs && latestConfigs.length > 0) setScheduleConfigs(latestConfigs); // 🔄 تحديث الإعدادات
+      if (latestLectures && latestLectures.length > 0) setScheduleLectures(latestLectures); // 🔄 تحديث المحاضرات
+    };
+
     window.addEventListener('tuition_records_updated', handleTuitionSync);
     window.addEventListener('attendance_updated', handleAttendanceSync);
     window.addEventListener('courses_updated', handleCoursesSync);
+    window.addEventListener('semester-start-date-updated', handleScheduleSync); // 📅 استماع لتحديث تاريخ الفصل
     window.addEventListener('storage', handleTuitionSync);
     window.addEventListener('storage', handleAttendanceSync);
     window.addEventListener('storage', handleCoursesSync);
+    window.addEventListener('storage', handleScheduleSync); // 💾 استماع لتحديثات التخزين بين النوافذ
 
     return () => {
       window.removeEventListener('tuition_records_updated', handleTuitionSync);
       window.removeEventListener('attendance_updated', handleAttendanceSync);
       window.removeEventListener('courses_updated', handleCoursesSync);
+      window.removeEventListener('semester-start-date-updated', handleScheduleSync);
       window.removeEventListener('storage', handleTuitionSync);
       window.removeEventListener('storage', handleAttendanceSync);
       window.removeEventListener('storage', handleCoursesSync);
+      window.removeEventListener('storage', handleScheduleSync);
       if (unsubscribeYear) unsubscribeYear();
     };
   }, []);

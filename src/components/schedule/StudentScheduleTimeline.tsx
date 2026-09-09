@@ -17,6 +17,7 @@ import {
   getLectureProgressPercentage,
   getScheduleConfigOrDefault,
   calculateDateForAnyDayInWeek,
+  getDayOfWeekFromDateString, // 🗓️ استنتاج اليوم الأكاديمي المعتمد من التاريخ
   getCurrentAcademicWeek,
   formatDateArabicWithDay,
   IRAQI_ARABIC_MONTHS,
@@ -274,6 +275,11 @@ export default function StudentScheduleTimeline({
     return getCurrentAcademicWeek(effectiveStartDate); // 🎯 البدء من الأسبوع الحالي الذكي
   });
 
+  // 🔄 مزامنة الأسبوع المختار مع الأسبوع الحالي تلقائياً فور تعديل تاريخ انطلاق الفصل
+  useEffect(() => {
+    setSelectedAcademicWeek(getCurrentAcademicWeek(effectiveStartDate)); // 🎯 إعادة ضبط الأسبوع النشط
+  }, [effectiveStartDate]); // ⚡ تفعيل المزامنة كلما تغير تاريخ بداية الفصل المعتمد
+
   // 📚 تصفية المحاضرات الخاصة بالقسم والمرحلة والكورس والفترة المختارين بعزل صارم
   const stageLectures = useMemo(() => {
     return lectures.filter(
@@ -400,12 +406,30 @@ export default function StudentScheduleTimeline({
     ).length;
   }, [lectures, departmentId, stageNumber, selectedSemester]);
 
-  // 📅 محاضرات اليوم المختار مرتبة تصاعدياً بحسب وقت البدء بدقة متناهية لنظام الـ 24 ساعة والأوقات الجامعية
+  // 📅 محاضرات اليوم المختار مرتبة تصاعدياً بحسب وقت البدء بدقة متناهية مع دعم النقل الأسبوعي الذكي
   const dayLectures = useMemo(() => {
     return stageLectures
-      .filter((l) => l.day === selectedDay)
-      .sort((a, b) => getAcademicSlotOrder(a.start_time) - getAcademicSlotOrder(b.start_time)); // 🕒 فرز زمني صحيح يضمن تسلسل 08:30 ثم 10:00 ثم 11:00 ثم 12:00 ثم 01:00
-  }, [stageLectures, selectedDay]);
+      .filter((l) => {
+        // فحص هل تم نقل المحاضرة ليوم آخر في هذا الأسبوع المحدد
+        const override = l.weekly_overrides?.[selectedAcademicWeek];
+        const effectiveDay = override?.day || l.day;
+        return effectiveDay === selectedDay;
+      })
+      .map((l) => {
+        const override = l.weekly_overrides?.[selectedAcademicWeek];
+        if (!override) return l;
+        return {
+          ...l,
+          day: override.day || l.day,
+          start_time: override.start_time || l.start_time,
+          end_time: override.end_time || l.end_time,
+          room: override.room || l.room,
+          teacher_name: override.teacher_name || l.teacher_name,
+          date: override.date || l.date,
+        };
+      })
+      .sort((a, b) => getAcademicSlotOrder(a.start_time) - getAcademicSlotOrder(b.start_time));
+  }, [stageLectures, selectedDay, selectedAcademicWeek]);
 
   // 🏖️ هل اليوم المختار عطلة رسمية؟
   const isSelectedDayOff = activeConfig.off_days.includes(selectedDay);
@@ -671,10 +695,11 @@ export default function StudentScheduleTimeline({
             {Array.from({ length: 15 }, (_, i) => i + 1).map((wNum) => {
               const isSel = selectedAcademicWeek === wNum;
               const isCurr = currentAcademicWeek === wNum;
-              const weekSaturdayDate = calculateDateForAnyDayInWeek(effectiveStartDate, 1, wNum, 'saturday');
-              const dParts = weekSaturdayDate.split('-');
-              const dayNum = dParts.length === 3 ? parseInt(dParts[2], 10) : '';
-              const monthName = dParts.length === 3 ? (IRAQI_ARABIC_MONTHS[parseInt(dParts[1], 10) - 1] || '') : '';
+              const baseDayKey = getDayOfWeekFromDateString(effectiveStartDate); // 🗓️ اليوم الأكاديمي المعتمد لتاريخ الانطلاق (مثلاً الأحد)
+              const weekStartDate = calculateDateForAnyDayInWeek(effectiveStartDate, 1, wNum, baseDayKey); // 📅 احتساب تاريخ الأسبوع المتطابق تماماً مع يوم وتاريخ الانطلاق (+7 أيام لكل أسبوع)
+              const dParts = weekStartDate.split('-'); // ✂️ تفكيك التاريخ لاستخراج اليوم والشهر
+              const dayNum = dParts.length === 3 ? parseInt(dParts[2], 10) : ''; // 🔢 رقم اليوم
+              const monthName = dParts.length === 3 ? (IRAQI_ARABIC_MONTHS[parseInt(dParts[1], 10) - 1] || '') : ''; // 🏷️ اسم الشهر العراقي المعتمد
 
               return (
                 <button
@@ -1040,15 +1065,25 @@ export default function StudentScheduleTimeline({
                             </span>
                           )}
 
-                          {/* 📅 التاريخ التقويمي ورقم الأسبوع إذا وجدا */}
-                          {(lecture.week_number || lecture.date) && (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-indigo-50 text-indigo-950 border border-indigo-200 rounded-xl text-xs font-black shrink-0">
-                              <Calendar className="w-3.5 h-3.5 text-indigo-700 shrink-0" />
-                              {lecture.week_number && <span>الأسبوع {lecture.week_number}</span>}
-                              {lecture.week_number && lecture.date && <span className="text-indigo-400">•</span>}
-                              {lecture.date && <span className="font-mono">{lecture.date}</span>}
-                            </span>
-                          )}
+                          {/* 📅 التاريخ التقويمي ورقم الأسبوع المحسوب ديناميكياً لليوم والأسبوع المختار */}
+                          {(() => {
+                            const dynamicLecDate = lecture.weekly_overrides?.[selectedAcademicWeek]?.date
+                              || lecture.custom_weekly_dates?.[selectedAcademicWeek]
+                              || calculateDateForAnyDayInWeek(
+                                effectiveStartDate,
+                                1,
+                                selectedAcademicWeek,
+                                lecture.day
+                              );
+                            return (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-indigo-50 text-indigo-950 border border-indigo-200 rounded-xl text-xs font-black shrink-0">
+                                <Calendar className="w-3.5 h-3.5 text-indigo-700 shrink-0" />
+                                <span>الأسبوع {selectedAcademicWeek}</span>
+                                <span className="text-indigo-400">•</span>
+                                <span className="font-mono">{dynamicLecDate}</span>
+                              </span>
+                            );
+                          })()}
 
                           {/* 🏷️ شارة المحاضرة البارزة (نظري / عملي) */}
                           <span className={`px-3 py-1 font-black text-xs sm:text-sm rounded-xl flex items-center gap-1.5 shadow-2xs border shrink-0 ${

@@ -10,6 +10,7 @@ import {
   AttendanceWarningStatus,
   AttendanceExcuseRequest,
   DepartmentScheduleConfig, // ⚙️ إعدادات الجدول وتاريخ الانطلاق
+  DayOfWeek, // 🗓️ نوع أيام الأسبوع
 } from '@/types'; // 🔗 استيراد الأنواع الرسمية
 import { saveExcuseRequestToSupabase, syncExcuseRequestsFromSupabase } from '@/lib/supabase-client'; // ☁️ المزامنة السحابية للأعذار الطبية
 import {
@@ -27,6 +28,7 @@ import {
   getCurrentAcademicWeek,
   formatDateArabicWithDay,
   IRAQI_ARABIC_MONTHS,
+  DAYS_OF_WEEK_LIST,
 } from '@/lib/schedule-utils'; // 🗓️ دوال حسابات الأسابيع وتواريخ التقويم الذكية
 import { syncDepartmentDurationConfigFromSupabase } from '@/lib/supabase-client'; // 🔌 مزامنة قاعدة بيانات Supabase
 import { getStoredData, saveStoredData, INITIAL_EXCUSE_REQUESTS } from '@/lib/mock-data'; // 💾 التخزين المحلي
@@ -899,8 +901,18 @@ export default function StudentAttendanceView({
 
                       {/* اليوم والتاريخ */}
                       <div className="col-span-3 sm:col-span-2 text-center">
-                        <div className="font-black text-slate-950 font-mono text-sm sm:text-base">{rec.date}</div>
-                        <div className="text-xs font-bold text-slate-600 mt-0.5">{rec.day}</div>
+                        {(() => {
+                          const dayLabel = DAYS_OF_WEEK_LIST.find((d) => d.key === rec.day)?.label_ar || rec.day;
+                          const effectiveRecDate = (rec.date && rec.date !== '2026-09-20')
+                            ? rec.date
+                            : (calculateDateForAnyDayInWeek(effectiveStartDate, 1, rec.week_number || 1, (rec.day as DayOfWeek) || 'sunday') || rec.date);
+                          return (
+                            <>
+                              <div className="font-black text-slate-950 font-mono text-sm sm:text-base">{effectiveRecDate}</div>
+                              <div className="text-xs font-black text-slate-600 mt-0.5">{dayLabel}</div>
+                            </>
+                          );
+                        })()}
                       </div>
 
                       {/* التوقيت والنوع والمحاضرة */}

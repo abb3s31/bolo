@@ -218,7 +218,8 @@ export default function TeacherDashboard() {
     }
 
     // 📡 الاستماع للأحداث اللحظية المباشرة بين النوافذ والتبويبات
-    window.addEventListener('storage', loadData);
+    window.addEventListener('storage', loadData); // 💾 استماع للتخزين بين النوافذ
+    window.addEventListener('semester-start-date-updated', loadData); // 📅 استماع لتحديث تاريخ انطلاق الفصل
     window.addEventListener('teacher_courses_updated', loadData);
     window.addEventListener('courses_updated', loadData);
     window.addEventListener('profiles_updated', loadData);
@@ -242,6 +243,7 @@ export default function TeacherDashboard() {
 
     return () => {
       window.removeEventListener('storage', loadData);
+      window.removeEventListener('semester-start-date-updated', loadData); // 🧹 تنظيف مستمع تاريخ الفصل
       window.removeEventListener('teacher_courses_updated', loadData);
       window.removeEventListener('courses_updated', loadData);
       window.removeEventListener('profiles_updated', loadData);

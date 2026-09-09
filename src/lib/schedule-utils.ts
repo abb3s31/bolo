@@ -154,14 +154,44 @@ export const LECTURE_TYPE_LABELS: Record<LectureType, { ar: string; en: string; 
   tutorial: { ar: 'مناقشة وتطبيقات', en: 'Tutorial', icon: '📝' },
 };
 
-// ⏰ تحويل نص الوقت 'HH:mm' إلى عدد الدقائق من بداية اليوم
+// ⏰ تحويل نص الوقت 'HH:mm' أو 'HH:mm:ss' أو المرفق بـ (ص/م) إلى عدد الدقائق من بداية اليوم بدقة أكاديمية
 export function timeStringToMinutes(timeStr: string): number {
-  if (!timeStr) return 0;
-  const parts = timeStr.split(':');
-  if (parts.length !== 2) return 0;
-  const hours = parseInt(parts[0], 10) || 0;
-  const minutes = parseInt(parts[1], 10) || 0;
-  return hours * 60 + minutes;
+  if (!timeStr) return 0; // 🛡️ حماية إذا كان النص فارغاً
+  const trimmed = timeStr.trim(); // 🧹 تنظيف المسافات الزائدة
+  
+  // 🔍 التحقق إذا كان الوقت يحتوي على لاحقة صباحاً أو مساءً بالعربية أو الإنكليزية
+  const isPM = /م|مساء|pm/i.test(trimmed); // 🌙 فحص علامة المساء
+  const isAM = /ص|صباح|am/i.test(trimmed); // 🌅 فحص علامة الصباح
+  
+  // ⏱️ استخراج الأرقام (الساعة والدقيقة) بريجكس مرن يتجاهل الثواني واللواحق
+  const match = trimmed.match(/(\d{1,2}):(\d{2})/); // 🔍 استخراج الساعة والدقيقة
+  if (!match) return 0; // ⚠️ إذا ماكو تطابق نرجع صفر
+  
+  let hours = parseInt(match[1], 10) || 0; // 🔢 ساعة البدء كرقم
+  const minutes = parseInt(match[2], 10) || 0; // 🔢 دقيقة البدء كرقم
+  
+  // 🎓 التمييز الذكي للدوام الجامعي العراقي:
+  // 🕛 لا توجد محاضرات بمنتصف الليل (00:00)، فأي ساعة 00:xx هي في الواقع 12:xx ظهراً
+  if (hours === 0) {
+    hours = 12; // 🕛 تحويل ساعة الصفر إلى 12 ظهراً
+  }
+
+  if (isPM) {
+    if (hours < 12) hours += 12; // 🕒 تحويل ساعات بعد الظهر لنظام 24 (مثلاً 1 م تصبح 13)
+  } else if (isAM) {
+    // 🌅 في الجدول الجامعي: الساعة 12 حتى لو رُفقت بـ AM بالخطأ هي 12 ظهراً
+    if (hours === 12) hours = 12;
+  } else {
+    // 💡 في حال عدم وجود لاحقة صريحة:
+    // الساعات من 1 إلى 7 في الجدول الجامعي العراقي هي دوام بعد الظهر والمسائي (13:00 إلى 19:00)
+    // الساعات من 8 إلى 11 هي ساعات الصباح الباكر (8:00 إلى 11:00)
+    // الساعة 12 هي ظهراً (12:00 = 720 دقيقة)
+    if (hours >= 1 && hours <= 7) {
+      hours += 12; // ➕ إضافة 12 ساعة لتوضع في مكانها الزمني الصحيح بعد الظهر
+    }
+  }
+  
+  return hours * 60 + minutes; // 🧮 إرجاع إجمالي الدقائق من بداية اليوم
 }
 
 // ⏰ تحويل عدد الدقائق إلى نص وقت 'HH:mm'
@@ -169,6 +199,46 @@ export function minutesToTimeString(minutes: number): string {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+}
+
+// ⏰ دالة مساعدة لحساب الساعة بنظام 12 ساعة وإضافة ص أو م بدقة أكاديمية جامعية
+export function formatSingleTime(t: string): string {
+  if (!t) return ''; // 🛡️ حماية من القيم الفارغة
+  const match = t.match(/(\d{1,2}):(\d{2})/); // 🔍 استخراج الساعة والدقيقة بالريجكس
+  if (!match) return t; // ⚠️ إذا ما طابقت نرجع النص كما هو
+  let h = parseInt(match[1], 10); // 🔢 تحويل الساعة لرقم صحيح
+  const m = match[2]; // ⏱️ الدقائق كـ string
+
+  // 🎓 التمييز الذكي للدوام الجامعي العراقي:
+  // الساعات 12 و 00 هي ظهراً (م)
+  // الساعات من 1 إلى 7 في سياق الدوام النهاري/المسائي هي ظهراً ومساءً (م)
+  // الساعات من 8 إلى 11 هي صباحاً (ص)
+  let period = 'ص'; // 🌅 الافتراضي صباحاً
+  if (h === 12 || h === 0) {
+    period = 'م'; // 🕛 12 ظهراً دائماً مساءً
+    h = 12; // 🔟 تثبيت الرقم 12
+  } else if (h >= 13 && h <= 23) {
+    period = 'م'; // 🌙 الساعات المسائية بنظام 24
+    h -= 12; // 🔄 تحويل لنظام 12
+  } else if (h >= 1 && h <= 7) {
+    period = 'م'; // ☀️ ساعات الدوام بعد الظهر (01:00 م إلى 07:00 م)
+  } else {
+    period = 'ص'; // 🌅 ساعات الصباح الباكر (08:00 ص إلى 11:00 ص)
+  }
+
+  const hStr = h < 10 ? `0${h}` : `${h}`; // 🔟 إضافة صفر البادئة للترتيب والتناسق
+  return `${hStr}:${m} ${period}`; // ✨ إرجاع الوقت المنسق مثلاً 12:00 م أو 08:30 ص
+}
+
+// ⏱️ دالة تحويل وتنسيق توقيت المحاضرات بإضافة (ص / م) بشكل أكاديمي ذكي ودقيق 100%
+export function formatArabicScheduleTime(timeStr: string): string {
+  if (!timeStr) return ''; // 🛡️ إذا كانت القيمة فارغة نرجع نص فارغ
+  const clean = timeStr.trim(); // 🧹 تنظيف المسافات الزائدة
+  if (clean.includes('-')) {
+    const parts = clean.split('-').map((p) => p.trim()); // ✂️ تقسيم نطاق الوقت لبداية ونهاية
+    return `\u200F${formatSingleTime(parts[0])} — ${formatSingleTime(parts[1])}\u200F`; // 🔄 دمج الجزأين بصيغة ص وم محصنة بعلامة RTL لمنع انقلاب الأرقام
+  }
+  return formatSingleTime(clean); // 🕐 تنسيق التوقيت الفردي
 }
 
 // 🗓️ الحصول على مفتاح اليوم الحالي من نظام التاريخ المحلي
@@ -233,27 +303,62 @@ export function calculateTimelinePositionPercentage(
   return Math.max(0, Math.min(100, pct));
 }
 
-// ⚙️ استخراج إعدادات الدوام والعطل للقسم والمرحلة والكورس، مع توفير القيمة الافتراضية
+// ⚙️ استخراج إعدادات الدوام والعطل للقسم والمرحلة والكورس، مع استرداد ذكي لتاريخ بداية الفصل المعتمد للقسم
 export function getScheduleConfigOrDefault(
   configs: DepartmentScheduleConfig[],
   departmentId: string,
   stageNumber: number,
   semester: 1 | 2
 ): DepartmentScheduleConfig {
+  // 🔍 البحث عن تاريخ بداية الفصل المعتمد للقسم من أي إعداد مسجل لهذا القسم
+  const deptStartDate =
+    configs.find((c) => c.department_id === departmentId && c.start_date && c.start_date.trim() !== '')?.start_date ||
+    configs.find((c) => c.start_date && c.start_date.trim() !== '')?.start_date;
+
   const found = configs.find(
     (c) => c.department_id === departmentId && c.stage_number === stageNumber && c.semester === semester
   );
-  if (found) return found;
+  if (found) {
+    // 🧠 إذا وجد الإعداد ولكن بدون تاريخ بداية، نرث تاريخ القسم المعتمد تلقائياً
+    if (!found.start_date && deptStartDate) {
+      return {
+        ...found,
+        start_date: deptStartDate,
+      };
+    }
+    return found;
+  }
 
   return {
     id: `cfg-${departmentId}-${stageNumber}-${semester}`,
     department_id: departmentId,
     stage_number: stageNumber,
     semester: semester,
+    start_date: deptStartDate, // 📅 توريث تاريخ بداية الفصل المعتمد للقسم تلقائياً
     working_days: [...DEFAULT_WORKING_DAYS],
     off_days: [...DEFAULT_OFF_DAYS],
   };
 }
+
+// 📅 دالة مساعدة مركزية لاستخراج تاريخ انطلاق الفصل الدراسي الفعلي للقسم ومسار بولونيا
+export function getDepartmentEffectiveStartDate(
+  configs: DepartmentScheduleConfig[],
+  departmentId?: string
+): string {
+  if (departmentId) {
+    // 🔍 البحث عن تاريخ مخصص للقسم أولاً
+    const deptMatch = configs.find(
+      (c) => c.department_id === departmentId && c.start_date && c.start_date.trim() !== ''
+    );
+    if (deptMatch?.start_date) return deptMatch.start_date;
+  }
+  // 🔍 إذا لم يتوفر، البحث في أي إعداد آخر مسجل
+  const anyMatch = configs.find((c) => c.start_date && c.start_date.trim() !== '');
+  if (anyMatch?.start_date) return anyMatch.start_date;
+
+  return '2026-09-20'; // 📅 تاريخ الانطلاق الافتراضي 2026-09-20
+}
+
 
 // 🏢 قائمة القاعات والمختبرات الرسمية المعتمدة بفرع ميسان
 export const UNIVERSITY_ROOMS_CATALOG: { id: string; name: string; type: 'hall' | 'lab' | 'court' | 'seminar'; capacity: number }[] = [
@@ -503,24 +608,26 @@ export function calculateDateForAnyDayInWeek(
   const dayOffset = dayOrder.indexOf(targetDay) - dayOrder.indexOf(baseDay); // 📏 فارق الأيام داخل نفس الأسبوع
 
   const parts = baseDateStr.split('-'); // ✂️ تحليل التاريخ
+  if (parts.length !== 3) return '';
   const baseDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10)); // 📆 إنشاء كائن التاريخ
   const weekDiff = targetWeek - baseWeek; // 🔢 فارق الأسابيع
   const totalDayShift = weekDiff * 7 + dayOffset; // ➕ إجمالي الأيام المطلوبة للإزاحة
 
-  const targetDate = new Date(baseDate.getTime() + totalDayShift * 24 * 60 * 60 * 1000); // 🕒 احتساب التاريخ الجديد
-  return formatDateToIsoString(targetDate); // 🏁 إرجاع التاريخ بصيغة YYYY-MM-DD
+  baseDate.setDate(baseDate.getDate() + totalDayShift); // 🕒 احتساب التاريخ الجديد بدقة تامة ومحمية من التوقيت الصيفي والشتوي
+  return formatDateToIsoString(baseDate); // 🏁 إرجاع التاريخ بصيغة YYYY-MM-DD
 }
 
 // 🌟 دالة التوليد التلقائي لتواريخ كافة الأسابيع الـ 15 لمحاضرة معينة بنقرة واحدة
 export function generateAll15WeeksDates(
-  week1DateStr: string, // 📅 تاريخ محاضرة الأسبوع الأول
-  lectureDay: DayOfWeek // 🗓️ اليوم الأسبوعي للمحاضرة
+  baseDateStr: string, // 📅 تاريخ المحاضرة الأساس
+  lectureDay: DayOfWeek, // 🗓️ اليوم الأسبوعي للمحاضرة
+  baseWeek = 1 // 🔢 رقم أسبوع تاريخ الأساس
 ): Array<{ weekNumber: number; date: string; day: DayOfWeek; dayLabelAr: string }> {
   const result: Array<{ weekNumber: number; date: string; day: DayOfWeek; dayLabelAr: string }> = [];
-  if (!week1DateStr) return result; // 🛡️ حماية إذا كان التاريخ غير محدد
+  if (!baseDateStr) return result; // 🛡️ حماية إذا كان التاريخ غير محدد
 
   for (let w = 1; w <= 15; w++) {
-    const computedDate = calculateDateForAnyDayInWeek(week1DateStr, 1, w, lectureDay); // 🧮 حساب تاريخ الأسبوع w
+    const computedDate = calculateDateForAnyDayInWeek(baseDateStr, baseWeek, w, lectureDay); // 🧮 حساب تاريخ الأسبوع w
     const dayMeta = DAYS_OF_WEEK_LIST.find((d) => d.key === lectureDay); // 🏷️ بيانات اليوم العربي
     result.push({
       weekNumber: w, // 🔢 رقم الأسبوع
@@ -538,13 +645,14 @@ export function shiftLectureToAnyDay(
   newDay: DayOfWeek,     // 🗓️ اليوم الجديد المراد النقل إليه (أي يوم في الأسبوع)
   fromWeek: number,      // 🔢 بدءاً من أي أسبوع (مثلاً من الأسبوع 3 فصاعداً)
   baseDateStr: string,   // 📆 تاريخ الأساس الحالي
-  totalWeeks: number = 15 // 🔢 إجمالي أسابيع الفصل (15 أسبوعاً)
+  totalWeeks: number = 15, // 🔢 إجمالي أسابيع الفصل (15 أسبوعاً)
+  baseWeek = 1           // 🔢 رقم أسبوع تاريخ الأساس
 ): Record<number, { day: DayOfWeek; date: string }> {
   const overrides: Record<number, { day: DayOfWeek; date: string }> = {};
   if (!baseDateStr) return overrides; // 🛡️ حماية من التاريخ الفارغ
 
   for (let w = fromWeek; w <= totalWeeks; w++) {
-    const newComputedDate = calculateDateForAnyDayInWeek(baseDateStr, 1, w, newDay); // 🧮 احتساب تاريخ اليوم الجديد لكل أسبوع لاحق
+    const newComputedDate = calculateDateForAnyDayInWeek(baseDateStr, baseWeek, w, newDay); // 🧮 احتساب تاريخ اليوم الجديد لكل أسبوع لاحق
     overrides[w] = {
       day: newDay, // 🗓️ اليوم الجديد المنقول إليه
       date: newComputedDate, // 📅 التاريخ التقويمي الدقيق لليوم الجديد

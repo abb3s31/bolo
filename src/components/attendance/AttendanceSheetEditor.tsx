@@ -34,6 +34,7 @@ import { detectArabicGender } from '@/lib/demographics-utils'; // 🧮 التع�
 import {
   DAYS_OF_WEEK_LIST,
   calculateDateForAnyDayInWeek,
+  getDayOfWeekFromDateString,
   getCurrentAcademicWeek,
   formatDateArabicWithDay,
   IRAQI_ARABIC_MONTHS,
@@ -119,16 +120,7 @@ function getDayOfWeekFromDate(dateStr: string): DayOfWeek {
 
 // 📅 دالة احتساب التاريخ التقويمي المتسلسل لكل أسبوع (+7 أيام لكل أسبوع)
 function calculateCalendarWeekDate(baseDateStr: string, weekNumber: number, targetDay: DayOfWeek): string {
-  const base = new Date(baseDateStr);
-  const weekOffsetMs = (weekNumber - 1) * 7 * 24 * 60 * 60 * 1000;
-  const currentWeekDate = new Date(base.getTime() + weekOffsetMs);
-
-  const currentDayOfWeek = getDayOfWeekFromDate(currentWeekDate.toISOString().split('T')[0]);
-  const dayOrder: DayOfWeek[] = ['saturday', 'sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
-  const diffDays = dayOrder.indexOf(targetDay) - dayOrder.indexOf(currentDayOfWeek);
-
-  const finalDate = new Date(currentWeekDate.getTime() + diffDays * 24 * 60 * 60 * 1000);
-  return finalDate.toISOString().split('T')[0];
+  return calculateDateForAnyDayInWeek(baseDateStr, 1, weekNumber, targetDay);
 }
 
 // 🎯 قائمة خيارات أنواع المحاضرات مع الأيقونات والأسماء العربية النقية
@@ -569,7 +561,11 @@ export default function AttendanceSheetEditor({
           late_minutes: existing.late_minutes || 0,
           notes: existing.notes || '',
         };
-        setSelectedDate(existing.date);
+        let effectiveExistingDate = existing.date;
+        if (existing.date === '2026-09-20' && (existing.day !== 'sunday' || targetWeek > 1)) {
+          effectiveExistingDate = calculateDateForAnyDayInWeek(effectiveStartDate || '2026-09-20', 1, targetWeek, existing.day);
+        }
+        setSelectedDate(effectiveExistingDate);
         setSelectedDay(existing.day);
         setSelectedStartTime(existing.start_time);
         setSelectedEndTime(existing.end_time);
@@ -619,17 +615,10 @@ export default function AttendanceSheetEditor({
         } else if (matchedLec?.weekly_overrides && matchedLec.weekly_overrides[targetWeek]?.date) {
           const overrideVal = matchedLec.weekly_overrides[targetWeek]?.date;
           computedWeekDate = overrideVal || ''; // 📌 أخذ استثناء تاريخ هذا الأسبوع المخصص
-        } else if (matchedLec?.date) {
-          // 🧮 احتساب التاريخ انطلاقاً من تاريخ الأسبوع المرجعي المحدد في جدول المحاضرات
-          const baseDate = new Date(matchedLec.date);
-          const weekOffset = (targetWeek - (matchedLec.week_number || 1)) * 7;
-          baseDate.setDate(baseDate.getDate() + weekOffset);
-          const y = baseDate.getFullYear();
-          const m = String(baseDate.getMonth() + 1).padStart(2, '0');
-          const d = String(baseDate.getDate()).padStart(2, '0');
-          computedWeekDate = `${y}-${m}-${d}`;
+        } else if (matchedLec?.date && getDayOfWeekFromDateString(matchedLec.date) === scheduledDay) {
+          computedWeekDate = calculateDateForAnyDayInWeek(matchedLec.date, matchedLec.week_number || 1, targetWeek, scheduledDay);
         } else {
-          computedWeekDate = calculateDateForAnyDayInWeek(effectiveStartDate, 1, targetWeek, scheduledDay);
+          computedWeekDate = calculateDateForAnyDayInWeek(effectiveStartDate || '2026-09-20', 1, targetWeek, scheduledDay);
         }
 
         const overrideDay = (matchedLec?.weekly_overrides && matchedLec.weekly_overrides[targetWeek]?.day) || scheduledDay;
@@ -695,9 +684,7 @@ export default function AttendanceSheetEditor({
     const newItems: CourseWeeklySessionSchedule[] = [];
 
     for (let w = selectedWeek + 1; w <= 15; w++) {
-      const weekDiff = w - selectedWeek;
-      const targetDate = new Date(currentBaseDate.getTime() + weekDiff * 7 * 24 * 60 * 60 * 1000);
-      const dateStr = targetDate.toISOString().split('T')[0];
+      const dateStr = calculateDateForAnyDayInWeek(selectedDate, selectedWeek, w, selectedDay);
 
       newItems.push({
         course_id: course.id,

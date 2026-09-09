@@ -9,8 +9,8 @@ import { lockBodyScroll, unlockBodyScroll } from '@/lib/scroll-lock'; // 🔒 ن
 interface FloatingCrudModalProps {
   isOpen: boolean; // 🟢 فتح النافذة
   onClose: () => void; // 🔴 إغلاق النافذة
-  title: string; // 🏷️ العنوان
-  subtitle?: string; // 📜 الوصف الفرعي
+  title: ReactNode; // 🏷️ العنوان
+  subtitle?: ReactNode; // 📜 الوصف الفرعي (يقبل نصاً أو باجات مخصصة)
   icon?: ReactNode; // 🎨 الأيقونة
   children: ReactNode; // 📦 محتوى النموذج أو البيانات
   footer?: ReactNode; // 🔘 الفوتر الثابت في أسفل الكارد
@@ -65,7 +65,7 @@ export default function FloatingCrudModal({
           )}
           <div>
             <h3 className="text-lg sm:text-xl font-black text-slate-950 tracking-tight">{title}</h3>
-            {subtitle && <p className="text-xs sm:text-sm font-black text-slate-950 mt-0.5">{subtitle}</p>}
+            {subtitle && <div className="text-xs sm:text-sm font-black text-slate-950 mt-1 flex items-center gap-2 flex-wrap">{subtitle}</div>}
           </div>
         </div>
 
@@ -79,8 +79,8 @@ export default function FloatingCrudModal({
         </button>
       </div>
 
-      {/* 📦 محتوى الكارد في المنتصف مع تمرير داخلي سلس عند الحاجة فقط */}
-      <div className="p-5 sm:p-7 overflow-y-auto flex-1 min-h-0 overscroll-contain">
+      {/* 📦 محتوى الكارد في المنتصف مع تمرير داخلي سلس وأنيق */}
+      <div className="p-5 sm:p-7 pb-6 sm:pb-8 overflow-y-auto flex-1 min-h-0 overscroll-contain scroll-smooth">
         {children}
       </div>
 

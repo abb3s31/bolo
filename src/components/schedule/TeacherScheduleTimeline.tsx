@@ -16,6 +16,7 @@ import {
   getLectureLiveStatus,
   getLectureProgressPercentage,
   calculateDateForAnyDayInWeek,
+  getDayOfWeekFromDateString, // 🗓️ استنتاج اليوم الأكاديمي المعتمد من التاريخ
   getCurrentAcademicWeek,
   formatDateArabicWithDay,
   IRAQI_ARABIC_MONTHS,
@@ -98,6 +99,11 @@ export default function TeacherScheduleTimeline({
   const [selectedAcademicWeek, setSelectedAcademicWeek] = useState<number>(() => {
     return getCurrentAcademicWeek(effectiveStartDate); // 🎯 البدء من الأسبوع الحالي الذكي
   });
+
+  // 🔄 مزامنة الأسبوع المختار مع الأسبوع الحالي تلقائياً فور تعديل تاريخ انطلاق الفصل
+  useEffect(() => {
+    setSelectedAcademicWeek(getCurrentAcademicWeek(effectiveStartDate)); // 🎯 إعادة ضبط الأسبوع النشط للأستاذ
+  }, [effectiveStartDate]); // ⚡ تفعيل المزامنة كلما تغير تاريخ بداية الفصل المعتمد
 
   // ⚡ تفعيل حالة الجاهزية للعميل
   useEffect(() => {
@@ -249,12 +255,29 @@ export default function TeacherScheduleTimeline({
     return 'مقررية القسم العلمي'; // 🛡️ بديل رسمي موحد
   }, [rapporteurName, departmentId, departmentName]);
 
-  // 📅 محاضرات اليوم المختار
+  // 📅 محاضرات اليوم المختار مع دعم النقل الأسبوعي الذكي
   const dayLectures = useMemo(() => {
     return myLectures
-      .filter((l) => l.day === selectedDay)
+      .filter((l) => {
+        const override = l.weekly_overrides?.[selectedAcademicWeek];
+        const effectiveDay = override?.day || l.day;
+        return effectiveDay === selectedDay;
+      })
+      .map((l) => {
+        const override = l.weekly_overrides?.[selectedAcademicWeek];
+        if (!override) return l;
+        return {
+          ...l,
+          day: override.day || l.day,
+          start_time: override.start_time || l.start_time,
+          end_time: override.end_time || l.end_time,
+          room: override.room || l.room,
+          teacher_name: override.teacher_name || l.teacher_name,
+          date: override.date || l.date,
+        };
+      })
       .sort((a, b) => timeStringToMinutes(a.start_time) - timeStringToMinutes(b.start_time));
-  }, [myLectures, selectedDay]);
+  }, [myLectures, selectedDay, selectedAcademicWeek]);
 
   // 🔴 المحاضرة الجارية حالياً للأستاذ
   const liveLecture = useMemo(() => {
@@ -484,10 +507,11 @@ export default function TeacherScheduleTimeline({
           {Array.from({ length: 15 }, (_, i) => i + 1).map((wNum) => {
             const isSel = selectedAcademicWeek === wNum;
             const isCurr = currentAcademicWeek === wNum;
-            const weekSaturdayDate = calculateDateForAnyDayInWeek(effectiveStartDate, 1, wNum, 'saturday');
-            const dParts = weekSaturdayDate.split('-');
-            const dayNum = dParts.length === 3 ? parseInt(dParts[2], 10) : '';
-            const monthName = dParts.length === 3 ? (IRAQI_ARABIC_MONTHS[parseInt(dParts[1], 10) - 1] || '') : '';
+            const baseDayKey = getDayOfWeekFromDateString(effectiveStartDate); // 🗓️ اليوم الأكاديمي المعتمد لتاريخ الانطلاق (مثلاً الأحد)
+            const weekStartDate = calculateDateForAnyDayInWeek(effectiveStartDate, 1, wNum, baseDayKey); // 📅 احتساب تاريخ الأسبوع المتطابق تماماً مع يوم وتاريخ الانطلاق (+7 أيام لكل أسبوع)
+            const dParts = weekStartDate.split('-'); // ✂️ تفكيك التاريخ لاستخراج اليوم والشهر
+            const dayNum = dParts.length === 3 ? parseInt(dParts[2], 10) : ''; // 🔢 رقم اليوم
+            const monthName = dParts.length === 3 ? (IRAQI_ARABIC_MONTHS[parseInt(dParts[1], 10) - 1] || '') : ''; // 🏷️ اسم الشهر العراقي المعتمد
 
             return (
               <button
@@ -724,14 +748,25 @@ export default function TeacherScheduleTimeline({
                         <span className="px-3 py-1 bg-blue-100 text-blue-950 border border-blue-200 font-black text-xs sm:text-sm rounded-xl shrink-0">
                           المرحلة {getStageNameInArabic(lecture.stage_number)}
                         </span>
-                        {(lecture.week_number || lecture.date) && (
-                          <span className="px-3 py-1 bg-indigo-50 text-indigo-950 border border-indigo-200 font-black text-xs sm:text-sm rounded-xl flex items-center gap-1.5 shrink-0">
-                            <Calendar className="w-3.5 h-3.5 text-indigo-700 shrink-0" />
-                            {lecture.week_number && <span>الأسبوع {lecture.week_number}</span>}
-                            {lecture.week_number && lecture.date && <span className="text-indigo-400">•</span>}
-                            {lecture.date && <span className="font-mono">{lecture.date}</span>}
-                          </span>
-                        )}
+                        {/* 📅 التاريخ التقويمي ورقم الأسبوع المحسوب ديناميكياً لليوم والأسبوع المختار */}
+                        {(() => {
+                          const dynamicLecDate = lecture.weekly_overrides?.[selectedAcademicWeek]?.date
+                            || lecture.custom_weekly_dates?.[selectedAcademicWeek]
+                            || calculateDateForAnyDayInWeek(
+                              effectiveStartDate,
+                              1,
+                              selectedAcademicWeek,
+                              lecture.day
+                            );
+                          return (
+                            <span className="px-3 py-1 bg-indigo-50 text-indigo-950 border border-indigo-200 font-black text-xs sm:text-sm rounded-xl flex items-center gap-1.5 shrink-0">
+                              <Calendar className="w-3.5 h-3.5 text-indigo-700 shrink-0" />
+                              <span>الأسبوع {selectedAcademicWeek}</span>
+                              <span className="text-indigo-400">•</span>
+                              <span className="font-mono">{dynamicLecDate}</span>
+                            </span>
+                          );
+                        })()}
                         <span className={`px-3 py-1 ${theme.badgeBg} ${theme.badgeText} font-black text-xs sm:text-sm rounded-xl flex items-center gap-1.5 shrink-0`}>
                           {lecture.type === 'practical' ? (
                             <FlaskConical className="w-3.5 h-3.5" />
