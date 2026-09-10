@@ -38,6 +38,7 @@ import {
 import { CourseAcademicTask, AcademicTaskType, StudentTaskSubmission, UserProfile } from '@/types'; // 🔗 الأنواع الصريحة
 import { INITIAL_ACADEMIC_TASKS, INITIAL_STUDENT_SUBMISSIONS, INITIAL_PROFILES, getStoredData, getAcademicYear } from '@/lib/mock-data'; // 💾 البيانات
 import { exportCourseTaskBriefPDF, exportTaskSubmissionsReportPDF } from '@/lib/pdf-export'; // 📄 مصدّر الـ PDF المعتمد
+import { exportDepartmentTasksCatalogExcel, exportTaskSubmissionsExcel } from '@/lib/excel-utils'; // 📊 دوال تصدير كتالوج التكليفات وتسليمات الطلاب إلى Excel الفاخر
 import { getStageNameInArabic } from '@/lib/grade-utils'; // 🎓 أسماء المراحل بالعربية الفصحى
 import {
   syncAcademicYearFromSupabase,
@@ -70,6 +71,8 @@ export function DepartmentAssessmentsOverview({
   const [isStudyDropdownOpen, setIsStudyDropdownOpen] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isExportingPdf, setIsExportingPdf] = useState<string | null>(null);
+  const [isExportingCatalogExcel, setIsExportingCatalogExcel] = useState<boolean>(false); // 📊 حالة تصدير دليل التكليفات إكسل
+  const [isExportingSubmissionsExcel, setIsExportingSubmissionsExcel] = useState<boolean>(false); // 📊 حالة تصدير تسليمات التكليف إكسل
   const [toastMsg, setToastMsg] = useState<string>('');
 
   // 📑 حالات الترقيم والتنقل بين صفحات التكليفات والمهام
@@ -409,6 +412,53 @@ export function DepartmentAssessmentsOverview({
               <span>قيد التدقيق: <strong>{stats.pendingSubs}</strong></span>
             </span>
           </div>
+
+          {/* 📊 زر تصدير دليل وكتالوج التكليفات والواجبات إلى Excel الفاخر */}
+          <button
+            type="button"
+            onClick={async () => {
+              if (tasks.length === 0) return;
+              setIsExportingCatalogExcel(true);
+              try {
+                const formattedTasks = tasks.map((t) => {
+                  const taskSubs = submissions.filter((s) => s.task_id === t.id);
+                  const acceptedSubs = taskSubs.filter((s) => s.review_decision === 'accepted').length;
+                  return {
+                    title: t.title,
+                    course_name: t.course_name,
+                    task_type: t.task_type,
+                    stage_number: t.stage_number || 1,
+                    study_type: t.study_type || 'morning',
+                    max_score: t.max_score,
+                    due_date: t.due_date,
+                    submissions_count: taskSubs.length,
+                    accepted_count: acceptedSubs,
+                    is_submission_open: t.is_submission_open !== false,
+                    created_at: t.created_at,
+                  };
+                });
+
+                await exportDepartmentTasksCatalogExcel(formattedTasks, departmentName);
+                setToastMsg(`✅ تم بنجاح تصدير دليل تكليفات قسم (${departmentName}) إلى Excel!`);
+                setTimeout(() => setToastMsg(''), 4000);
+              } catch {
+                setToastMsg('⚠️ حدث خطأ أثناء تصدير ملف الإكسل!');
+                setTimeout(() => setToastMsg(''), 4000);
+              } finally {
+                setIsExportingCatalogExcel(false);
+              }
+            }}
+            disabled={isExportingCatalogExcel || tasks.length === 0}
+            className="px-4 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] disabled:opacity-50 text-white rounded-2xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center gap-2 shadow-xs border border-[#1e4570] shrink-0"
+            title="تصدير جدول كافة تكليفات وواجبات القسم إلى Excel الفاخر"
+          >
+            {isExportingCatalogExcel ? (
+              <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+            ) : (
+              <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+            )}
+            <span>{isExportingCatalogExcel ? 'جاري التوليد...' : 'تصدير دليل التكليفات (Excel)'}</span>
+          </button>
         </div>
       </div>
 
@@ -865,26 +915,78 @@ export function DepartmentAssessmentsOverview({
                   <span>قائمة تسليمات الطلاب والقرارات الأكاديمية المسجلة:</span>
                 </h4>
 
-                <button
-                  type="button"
-                  onClick={async () => {
-                    const allProfiles = getStoredData<UserProfile[]>('profiles', INITIAL_PROFILES);
-                    const stds = allProfiles.filter((p) => p.role === 'student' && p.department_id === inspectingTask.department_id);
-                    const taskSubs = submissions.filter((s) => s.task_id === inspectingTask.id);
-                    await exportTaskSubmissionsReportPDF({
-                      task: inspectingTask,
-                      submissions: taskSubs,
-                      allStudents: stds,
-                      teacherName: inspectingTask.teacher_name,
-                    });
-                    setToastMsg(`تم تصدير كشف تسليمات (${inspectingTask.title}) بنجاح! 📊`);
-                    setTimeout(() => setToastMsg(''), 4000);
-                  }}
-                  className="px-4 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white text-xs sm:text-sm font-black rounded-xl transition flex items-center gap-2 cursor-pointer shadow-xs border border-[#0F2942] active:scale-95"
-                >
-                  <Printer className="w-4 h-4 text-cyan-300" />
-                  <span>تصدير كشف رسمي معتمد PDF</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const allProfiles = getStoredData<UserProfile[]>('profiles', INITIAL_PROFILES);
+                      const stds = allProfiles.filter((p) => p.role === 'student' && p.department_id === inspectingTask.department_id);
+                      const taskSubs = submissions.filter((s) => s.task_id === inspectingTask.id);
+                      await exportTaskSubmissionsReportPDF({
+                        task: inspectingTask,
+                        submissions: taskSubs,
+                        allStudents: stds,
+                        teacherName: inspectingTask.teacher_name,
+                      });
+                      setToastMsg(`تم تصدير كشف تسليمات (${inspectingTask.title}) بنجاح! 📊`);
+                      setTimeout(() => setToastMsg(''), 4000);
+                    }}
+                    className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-300 text-xs sm:text-sm font-black rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-xs border border-slate-700 active:scale-95"
+                  >
+                    <Printer className="w-4 h-4 text-cyan-400" />
+                    <span>تصدير PDF</span>
+                  </button>
+
+                  {/* 📊 تصدير تسليمات التكليف Excel */}
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const allProfiles = getStoredData<UserProfile[]>('profiles', INITIAL_PROFILES);
+                      const stds = allProfiles.filter((p) => p.role === 'student' && p.department_id === inspectingTask.department_id);
+                      const taskSubs = submissions.filter((s) => s.task_id === inspectingTask.id);
+                      setIsExportingSubmissionsExcel(true);
+                      try {
+                        const formattedSubs = stds.map((st) => {
+                          const sub = taskSubs.find((s) => s.student_id === st.id);
+                          const memberNames = sub?.group_members?.map((m) => m.full_name).filter(Boolean);
+                          return {
+                            student_name: st.full_name,
+                            university_number: st.university_number || '—',
+                            submission_type: (sub?.submission_type || 'individual') as 'individual' | 'group',
+                            group_members_names: memberNames,
+                            review_decision: sub?.review_decision,
+                            decision_reason: sub?.decision_reason,
+                            score: sub?.score,
+                            max_score: inspectingTask.max_score,
+                            plagiarism_percentage: sub?.plagiarism_percentage,
+                            teacher_feedback: sub?.teacher_feedback,
+                            submitted_at: sub?.submitted_at,
+                            graded_by: sub?.graded_by || inspectingTask.teacher_name,
+                          };
+                        });
+
+                        await exportTaskSubmissionsExcel(
+                          inspectingTask.title,
+                          inspectingTask.course_name,
+                          formattedSubs,
+                          departmentName
+                        );
+                        setToastMsg(`✅ تم بنجاح تصدير تسليمات (${inspectingTask.title}) إلى Excel!`);
+                        setTimeout(() => setToastMsg(''), 4000);
+                      } catch {
+                        setToastMsg('⚠️ حدث خطأ أثناء تصدير ملف الإكسل!');
+                        setTimeout(() => setToastMsg(''), 4000);
+                      } finally {
+                        setIsExportingSubmissionsExcel(false);
+                      }
+                    }}
+                    disabled={isExportingSubmissionsExcel}
+                    className="px-3.5 py-2 bg-[#0F2942] hover:bg-[#163a5f] disabled:opacity-50 text-white text-xs sm:text-sm font-black rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-xs border border-[#1e4570] active:scale-95"
+                  >
+                    <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+                    <span>{isExportingSubmissionsExcel ? 'جاري التوليد...' : 'تصدير Excel'}</span>
+                  </button>
+                </div>
               </div>
 
               {(() => {

@@ -5,6 +5,7 @@ import { useState, useMemo, useRef, useEffect } from 'react'; // 🔗 رياكت
 import { CampusAnnouncement, AnnouncementCategory, AnnouncementTargetScope, UserProfile } from '@/types'; // 🔗 الأنواع
 import { sendAppNotification } from '@/lib/notification-utils'; // 🔔 الإشعارات
 import { exportAbsenceWarningNoticePDF } from '@/lib/pdf-export'; // 📄 مولد كتاب الإنذار PDF
+import { exportCampusAnnouncementsExcel } from '@/lib/excel-utils'; // 📊 مولد كشف التبليغات والتعميمات Excel الفاخر
 import { saveCampusAnnouncementToSupabase, deleteCampusAnnouncementFromSupabase } from '@/lib/supabase-client'; // ☁️ حفظ وحذف التعميمات في Supabase
 import { getAcademicYear, formatAcademicYearDisplay } from '@/lib/mock-data'; // 🗓️ مساعد تنسيق العام الدراسي
 import ConfirmDeleteModal from '@/components/ConfirmDeleteModal'; // 🗑️ كارد الحذف الاحترافي الفاخر
@@ -32,7 +33,8 @@ import {
   ChevronDown,
   Check,
   User,
-  type LucideIcon
+  type LucideIcon,
+  FileSpreadsheet
 } from 'lucide-react'; // 🎨 الأيقونات
 import AdminPagination from '@/components/AdminPagination'; // 📑 مكوّن الترقيم والتنقل بين الصفحات الموحد
 
@@ -64,6 +66,7 @@ export default function CampusAnnouncementsTab({
   const [filterCategory, setFilterCategory] = useState<'all' | AnnouncementCategory>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [toastMsg, setToastMsg] = useState<string>('');
+  const [isExportingExcel, setIsExportingExcel] = useState<boolean>(false); // 📊 حالة تصدير سجل التعميمات إكسل
 
   // 📑 حالات الترقيم والتنقل بين صفحات التعميمات والتبليغات الرسمية
   const [announcementPage, setAnnouncementPage] = useState<number>(1); // 🔢 رقم الصفحة الحالية
@@ -294,6 +297,34 @@ export default function CampusAnnouncementsTab({
     });
   };
 
+  // 📊 تصدير سجل التعميمات والتبليغات إلى Excel الفاخر
+  const handleExportExcel = async () => {
+    if (filteredAnnouncements.length === 0) return;
+    setIsExportingExcel(true);
+    try {
+      const formatted = filteredAnnouncements.map((a) => ({
+        title: a.title, // 📌 العنوان
+        category: a.category, // 🏷️ التصنيف
+        priority: a.is_urgent ? 'urgent' : 'normal', // ⚡ تحديد الأهمية وفق شارة الاستعجال
+        target_scope: a.target_scope, // 🎯 الجمهور المستهدف
+        stage_number: a.target_stage !== null ? a.target_stage : undefined, // 🎓 رقم المرحلة
+        study_type: 'all', // ☀️ نوع الدراسة
+        author_name: a.author_name, // 👤 اسم الناشر
+        created_at: a.created_at, // 📅 تاريخ النشر
+        content: a.content, // 📝 نص التبليغ
+      }));
+
+      await exportCampusAnnouncementsExcel(formatted, departmentName);
+      setToastMsg('✅ تم بنجاح تصدير سجل التبليغات والتعميمات إلى Excel!');
+      setTimeout(() => setToastMsg(''), 4000);
+    } catch {
+      setToastMsg('⚠️ حدث خطأ أثناء تصدير ملف الإكسل!');
+      setTimeout(() => setToastMsg(''), 4000);
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       
@@ -430,16 +461,30 @@ export default function CampusAnnouncementsTab({
           </button>
         </div>
 
-        {/* البحث */}
-        <div className="relative min-w-[260px]">
-          <Search className="w-5 h-5 text-slate-400 absolute right-3.5 top-3.5" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="ابحث في عنوان أو نص التعميم..."
-            className="w-full pr-11 pl-4 py-3 bg-slate-50 border border-slate-300 rounded-2xl text-base font-black text-slate-950 focus:outline-hidden"
-          />
+        {/* البحث والتصدير */}
+        <div className="flex items-center gap-2">
+          <div className="relative min-w-[240px]">
+            <Search className="w-5 h-5 text-slate-400 absolute right-3.5 top-3.5" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="ابحث في عنوان أو نص التعميم..."
+              className="w-full pr-11 pl-4 py-3 bg-slate-50 border border-slate-300 rounded-2xl text-base font-black text-slate-950 focus:outline-hidden"
+            />
+          </div>
+
+          {/* 📊 زر تصدير سجل التعميمات Excel */}
+          <button
+            type="button"
+            onClick={handleExportExcel}
+            disabled={isExportingExcel || filteredAnnouncements.length === 0}
+            className="px-4 py-3 bg-[#0F2942] hover:bg-[#163a5f] disabled:opacity-50 text-white rounded-2xl text-base font-black transition cursor-pointer flex items-center gap-2 shadow-xs border border-[#1e4570] shrink-0"
+            title="تصدير كافة التعميمات المفلترة إلى Excel"
+          >
+            <FileSpreadsheet className="w-5 h-5 text-emerald-400" />
+            <span className="hidden sm:inline">{isExportingExcel ? 'جاري التوليد...' : 'تصدير Excel'}</span>
+          </button>
         </div>
       </div>
 

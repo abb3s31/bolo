@@ -46,7 +46,9 @@ import {
   CalendarDays,
   X, // ❌ أيقونة إغلاق نافذة المعاينة والطباعة
   ChevronDown, // 🔽 أيقونة سهم منسدل SVG لزر عرض التفاصيل
+  FileSpreadsheet, // 📊 أيقونة الإكسل
 } from 'lucide-react'; // 🎨 أيقونات واجهة المستخدم SVG
+import { exportPersonalWeeklyScheduleExcel } from '@/lib/excel-utils'; // 📊 دالة تصدير الجدول الدراسي الأسبوعي الفاخر لإكسل
 
 // ⏱️ دالة تحويل وتنسيق توقيت المحاضرات بإضافة (ص / م) بشكل أكاديمي ذكي ودقيق 100%
 export function formatArabicScheduleTime(timeStr: string): string {
@@ -180,7 +182,65 @@ export default function StudentScheduleTimeline({
   const [currentClockString, setCurrentClockString] = useState<string>('');
   const [isMounted, setIsMounted] = useState<boolean>(false); // ⚡ حالة التأكد من تحميل المكون على متصفح العميل
   const [isPrintModalOpen, setIsPrintModalOpen] = useState<boolean>(initialOpenPrintModal); // 🖨️ حالة فتح وإغلاق نافذة المعاينة والطباعة الرسمية
+  const [isExportingExcel, setIsExportingExcel] = useState<boolean>(false); // ⏳ حالة تصدير الجدول الأسبوعي لإكسل الفاخر
   const [activeTimelineTooltipId, setActiveTimelineTooltipId] = useState<string | null>(null); // 🕒 تتبع معرف المحاضرة التي تم النقر على خط التايم لاين الخاص بها لعرض تفاصيل الوقت بدقة
+
+  // 📊 دالة تصدير الجدول الأسبوعي للمرحلة إلى Excel الفاخر
+  const handleExportExcel = async () => {
+    setIsExportingExcel(true); // ⏳ بدء مؤشر التحميل
+    try {
+      // 📝 ترتيب وتنسيق محاضرات المرحلة بالكامل زمنياً وبحسب أيام الأسبوع
+      const dayOrder: Record<DayOfWeek, number> = {
+        saturday: 1,
+        sunday: 2,
+        monday: 3,
+        tuesday: 4,
+        wednesday: 5,
+        thursday: 6,
+        friday: 7,
+      };
+
+      const sortedLectures = [...stageLectures].sort((a, b) => {
+        const dDiff = (dayOrder[a.day] || 99) - (dayOrder[b.day] || 99);
+        if (dDiff !== 0) return dDiff;
+        return timeStringToMinutes(a.start_time) - timeStringToMinutes(b.start_time);
+      });
+
+      // 📋 تحويل المحاضرات إلى الشكل الدقيق المطلوب
+      const formattedLectures = sortedLectures.map((l, idx) => {
+        const dayObj = DAYS_OF_WEEK_LIST.find((d) => d.key === l.day);
+        const dayArabic = dayObj?.label_ar || l.day;
+        const timeSlot = formatArabicScheduleTime(`${l.start_time} - ${l.end_time}`);
+        const room = formatAcademicRoomName(l.room || '', l.type || 'theory');
+        const partner = l.teacher_name || 'أستاذ المادة';
+        const studyLabel = selectedStudyType === 'evening' ? 'مسائي' : 'صباحي';
+        const orderLabel = formatArabicOrdinalLectureName((idx % 6) + 1);
+
+        return {
+          day_arabic: dayArabic, // 🗓️ اليوم بالعربية
+          lecture_order_label: orderLabel, // 🥇 تسلسل المحاضرة
+          time_slot: timeSlot, // ⏰ التوقيت
+          course_name: l.course_name, // 📘 اسم المادة
+          course_code: l.course_code || '—', // 🔢 كود المادة
+          room_name: room, // 🏛️ القاعة أو المختبر
+          partner_name: partner, // 👤 أستاذ المادة
+          study_type_label: studyLabel, // ☀️ نوع الدراسة
+        };
+      });
+
+      const titleName = `المرحلة ${getStageNameInArabic(stageNumber)}`;
+      await exportPersonalWeeklyScheduleExcel(
+        titleName, // 👤 اسم المرحلة
+        'طالب', // 🏷️ صفة المستخدم
+        departmentName, // 🏢 القسم الأكاديمي
+        formattedLectures // 📋 قائمة المحاضرات
+      );
+    } catch (err: unknown) {
+      console.error('خطأ في تصدير الجدول الأسبوعي إلى إكسل:', err); // ❌ تسجيل الخطأ
+    } finally {
+      setIsExportingExcel(false); // ⏹️ إنهاء مؤشر التحميل
+    }
+  };
 
   // 🚪 دالة إغلاق نافذة الطباعة ومزامنة المكون الأب
   const handleClosePrintModal = () => {
@@ -583,6 +643,39 @@ export default function StudentScheduleTimeline({
               >
                 <Layers className="w-4 h-4" />
                 <span>الجدول الأسبوعي</span>
+              </button>
+            </div>
+
+            {/* 📄 📊 أزرار المعاينة والطباعة والتصدير لإكسل */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsPrintModalOpen(true)}
+                className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 rounded-2xl font-black text-sm transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                title="معاينة وطباعة الجدول الأسبوعي بصيغة رسمية"
+              >
+                <Printer className="w-4 h-4 text-slate-700" />
+                <span className="hidden sm:inline">طباعة الجدول</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleExportExcel}
+                disabled={isExportingExcel || stageLectures.length === 0}
+                className="px-3.5 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-2xl font-black text-sm transition flex items-center gap-1.5 cursor-pointer shadow-2xs border border-emerald-600 disabled:opacity-50"
+                title="تصدير الجدول الأسبوعي المعتمد للمرحلة بصيغة Excel الفاخرة"
+              >
+                {isExportingExcel ? (
+                  <>
+                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                    <span>جاري التصدير...</span>
+                  </>
+                ) : (
+                  <>
+                    <FileSpreadsheet className="w-4 h-4 text-emerald-200" />
+                    <span>تصدير Excel</span>
+                  </>
+                )}
               </button>
             </div>
           </div>

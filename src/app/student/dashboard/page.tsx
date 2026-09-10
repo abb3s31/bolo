@@ -24,6 +24,7 @@ import { UserProfile, Grade, Course, TeacherCourse, ScheduleLecture, DepartmentS
 import { calculateCourseworkTotal, calculateFinalTotal, getLetterGrade, getStageNameInArabic, getCourseAssessmentScheme, isStudentPassedFirstRound } from '@/lib/grade-utils'; // 🧮 الحسابات وأسماء المراحل والمخطط وفحص الدور الأول
 import { detectArabicGender } from '@/lib/demographics-utils'; // 🧮 التعرف الذكي على جنس الطالب
 import { exportStudentTranscriptPDF } from '@/lib/pdf-export'; // 📄 مولد وثيقة السعي PDF
+import { exportStudentTranscriptExcel } from '@/lib/excel-utils'; // 📊 مولد وثيقة السعي والدرجات الفاخرة Excel
 import { getTodayDayOfWeek, timeStringToMinutes } from '@/lib/schedule-utils'; // 🕒 أدوات الجدول واليوم
 import { BookOpen, Layers, FileText, Target, Activity, FileSpreadsheet, ChevronDown, ChevronUp, Calendar, Download, FlaskConical, Clock, UserCheck, ShieldCheck, Award, Radio, ArrowLeft, CheckSquare, ClipboardList, CreditCard, AlertTriangle, GraduationCap, Sun, Moon, Megaphone, Lock } from 'lucide-react'; // 🎨 الأيقونات
 import ZeroTrustGuard from '@/components/security/ZeroTrustGuard'; // 🛡️ حارس أمان Zero Trust
@@ -78,6 +79,7 @@ export default function StudentDashboard() {
   );
   const [activeDashboardView, setActiveDashboardView] = useState<StudentDashboardTab>('grades');
   const [isExportingPDF, setIsExportingPDF] = useState(false); // ⏳ حالة تصدير PDF
+  const [isExportingExcel, setIsExportingExcel] = useState(false); // ⏳ حالة تصدير الإكسل الفاخر
 
   // 🗓️ حالة العام الدراسي المعتمد والمتزامن مع السحابة
   const [academicYear, setAcademicYear] = useState<string>(() => getAcademicYear());
@@ -319,6 +321,56 @@ export default function StudentDashboard() {
     }
   };
 
+  // 📊 دالة تصدير كشف الدرجات والسعي الأكاديمي الرسمي للطالب بصيغة Excel الفاخرة
+  const handleExportExcel = async () => {
+    if (!currentUser) return; // ⚠️ نتأكد أول شي حساب الطالب موجود وماكو نقص
+    setIsExportingExcel(true); // ⏳ نشغل لودنك التصدير حتى الطالب يعرف جاي نجهز الملف
+    try {
+      // 📝 نحول كل مادة وسعيها ودرجاتها إلى التنسيق الدقيق المطلوب للإكسل
+      const mappedCourses = filteredGrades.map((g) => {
+        const cObj = courses.find((c) => c.id === g.course_id || c.name === g.course_name); // 🔍 ندور على بيانات المادة وساعاتها
+        const coursework = calculateCourseworkTotal(g); // 💯 نحسب سعي الكورس من 50 درجة
+        const finalEx = g.final_exam !== undefined && g.final_exam !== null ? g.final_exam : null; // 📝 درجة امتحان الفاينل إذا مضافة
+        const finalTot = calculateFinalTotal(g); // 🎯 نجمع النهائي والسعي ليطلع المجموع من 100
+        const letter = getLetterGrade(finalTot); // 🅰️ نطلع التقدير الحرفي الأكاديمي (A, B, C...)
+        const passed = isStudentPassedFirstRound(g); // ✅ نشيك الطالب ناجح بالدور الأول لو لا
+        return {
+          course_code: cObj?.code || g.course_id || '—', // 🏷️ رمز وكود المادة
+          course_name: g.course_name, // 📘 اسم المادة الرسمي
+          credit_hours: cObj?.credit_hours || 3, // ⚖️ عدد الساعات ووحدات بولونيا ECTS
+          semester: g.semester || cObj?.semester || activeSemester, // 📚 رقم الكورس
+          coursework_total: coursework, // 💯 مجموع السعي الفصلي
+          final_exam: finalEx, // 📝 درجة الامتحان النهائي
+          final_total: finalTot, // 🎯 المجموع الكلي النهائي
+          letter_grade: letter, // 🅰️ التقدير الحرفي
+          status_label: passed ? 'ناجح' : (finalEx === null ? 'بانتظار الامتحان' : 'مكمل'), // 🏷️ حالة وموقف الطالب الأكاديمي
+        };
+      });
+
+      // 🧮 نحسب المعدل التراكمي الموزون بوحدات ECTS لكل المواد المعروضة
+      const totalCredits = mappedCourses.reduce((sum, c) => sum + c.credit_hours, 0); // ⚖️ نجمع كل الساعات
+      const weightedSum = mappedCourses.reduce((sum, c) => sum + (c.final_total * c.credit_hours), 0); // 📊 نضرب كل درجة بوحداتها
+      const calculatedGpa = totalCredits > 0 ? weightedSum / totalCredits : 0; // 🎯 نقسم المجموع الموزون على مجموع الساعات
+
+      // 🚀 نستدعي محرك التصدير الفاخر للإكسل المعتمد بنظام الجامعة
+      await exportStudentTranscriptExcel(
+        {
+          full_name: currentUser.full_name, // 👤 اسم الطالب الثلاثي
+          university_number: currentUser.university_number || '—', // 🆔 الرقم الجامعي
+          department_name: currentUser.department_name || 'القسم الأكاديمي', // 🏢 القسم التابع له
+          stage_number: currentUser.stage_number || 1, // 🎓 المرحلة الدراسية
+          study_type: currentUser.study_type, // ☀️ نوع الدراسة صباحي أو مسائي
+        },
+        mappedCourses, // 📋 قائمة المواد والدرجات المحسوبة
+        calculatedGpa // 📊 المعدل التراكمي النهائي
+      );
+    } catch (err: unknown) {
+      console.error('خطأ في تصدير درجات الطالب إلى إكسل:', err); // ❌ نسجل الخطأ بالكونسول لو صار خلل
+    } finally {
+      setIsExportingExcel(false); // ⏹️ نطفي لودنك التصدير بعد ما نزل الملف
+    }
+  };
+
   // 🔀 دالة النقر على المادة للطي والتوسيع
   const toggleCourseExpand = (id: string) => {
     if (expandedCourseIds.includes(id)) {
@@ -466,26 +518,50 @@ export default function StudentDashboard() {
             </div>
           </div>
 
-          {/* 📄 زر تصدير وثيقة السعي المعتمدة PDF */}
-          <button
-            type="button"
-            onClick={handleExportPDF}
-            disabled={isExportingPDF || filteredGrades.length === 0}
-            className="w-full md:w-auto px-6 py-3 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black text-sm font-black sm:text-sm rounded-xl transition flex items-center justify-center gap-2 cursor-pointer shadow-xs disabled:opacity-50 border border-[#1e4570]"
-            title="تصدير وثيقة السعي الأكاديمية الرسمية بصيغة PDF A4"
-          >
-            {isExportingPDF ? (
-              <>
-                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                <span>جاري التصدير...</span>
-              </>
-            ) : (
-              <>
-                <Download className="w-4 h-4 text-cyan-300" />
-                <span>تصدير وثيقة السعي (PDF)</span>
-              </>
-            )}
-          </button>
+          {/* 📄 📊 أزرار التصدير الأكاديمية الفاخرة (PDF و Excel) */}
+          <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+            {/* 📄 زر تصدير وثيقة السعي المعتمدة PDF */}
+            <button
+              type="button"
+              onClick={handleExportPDF}
+              disabled={isExportingPDF || filteredGrades.length === 0}
+              className="w-full sm:w-auto px-5 py-3 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black text-sm rounded-xl transition flex items-center justify-center gap-2 cursor-pointer shadow-xs disabled:opacity-50 border border-[#1e4570]"
+              title="تصدير وثيقة السعي الأكاديمية الرسمية بصيغة PDF A4"
+            >
+              {isExportingPDF ? (
+                <>
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                  <span>جاري التصدير...</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4 text-cyan-300" />
+                  <span>تصدير السعي (PDF)</span>
+                </>
+              )}
+            </button>
+
+            {/* 📊 زر تصدير كشف الدرجات والسعي الفاخر Excel */}
+            <button
+              type="button"
+              onClick={handleExportExcel}
+              disabled={isExportingExcel || filteredGrades.length === 0}
+              className="w-full sm:w-auto px-5 py-3 bg-emerald-700 hover:bg-emerald-800 text-white font-black text-sm rounded-xl transition flex items-center justify-center gap-2 cursor-pointer shadow-xs disabled:opacity-50 border border-emerald-600"
+              title="تصدير وثيقة السعي والدرجات بصيغة Excel الفاخرة المعتمدة"
+            >
+              {isExportingExcel ? (
+                <>
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                  <span>جاري التحضير...</span>
+                </>
+              ) : (
+                <>
+                  <FileSpreadsheet className="w-4 h-4 text-emerald-200" />
+                  <span>تصدير السعي (Excel)</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
 
         {/* 📊 بطاقات الإحصائيات الأكاديمية المتطورة للطالب */}

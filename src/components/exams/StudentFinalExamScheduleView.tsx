@@ -16,8 +16,10 @@ import {
   Download, 
   CheckCircle2, 
   FileText,
-  Timer
+  Timer,
+  FileSpreadsheet, // 📊 أيقونة شيت الإكسل
 } from 'lucide-react'; // 🎨 الأيقونات
+import { exportFinalExamScheduleExcel } from '@/lib/excel-utils'; // 📊 دالة تصدير جدول الامتحانات الفاخر Excel
 
 interface StudentFinalExamScheduleViewProps {
   currentUser: UserProfile;           // 🎓 بيانات الطالب
@@ -33,6 +35,7 @@ export default function StudentFinalExamScheduleView({
   const [selectedSemester, setSelectedSemester] = useState<1 | 2>(1);
   const [selectedAttempt, setSelectedAttempt] = useState<ExamAttemptType>('first_attempt');
   const [isExportingPDF, setIsExportingPDF] = useState<boolean>(false);
+  const [isExportingExcel, setIsExportingExcel] = useState<boolean>(false); // ⏳ حالة تصدير إكسل الفاخر
   const [nowTime, setNowTime] = useState<Date>(new Date());
 
   // ⏱️ تحديث الوقت كل دقيقة للعد التنازلي
@@ -109,6 +112,26 @@ export default function StudentFinalExamScheduleView({
     setIsExportingPDF(false);
   };
 
+  // 📊 تصدير جدول الامتحانات بصيغة Excel الفاخرة
+  const handleExportExcel = async () => {
+    if (!studentSchedule || examSlots.length === 0) return; // ⚠️ نتأكد الجدول موجود وبي امتحانات
+    setIsExportingExcel(true); // ⏳ نبدي مؤشر التحميل
+    try {
+      await exportFinalExamScheduleExcel(
+        currentUser.department_name || 'القسم الأكاديمي', // 🏢 اسم القسم
+        currentUser.stage_number || 1, // 🎓 رقم المرحلة
+        selectedSemester, // 📚 الكورس
+        selectedAttempt, // 🎯 الدور الأول أو الثاني
+        studentSchedule.academic_year_label || getAcademicYear(), // 🗓️ السنة الدراسية
+        examSlots // 📋 قائمة مواعيد الامتحانات والقاعات
+      );
+    } catch (err: unknown) {
+      console.error('خطأ في تصدير جدول الامتحانات إلى إكسل:', err); // ❌ نسجل الخطأ بالكونسول
+    } finally {
+      setIsExportingExcel(false); // ⏹️ نطفي مؤشر التحميل
+    }
+  };
+
   const dayArabicNames: Record<string, string> = {
     saturday: 'السبت',
     sunday: 'الأحد',
@@ -179,17 +202,39 @@ export default function StudentFinalExamScheduleView({
             </button>
           </div>
 
-          {/* زر تحميل PDF */}
+          {/* أزرار التصدير (PDF و Excel) */}
           {studentSchedule && examSlots.length > 0 && (
-            <button
-              type="button"
-              onClick={handleExportPDF}
-              disabled={isExportingPDF}
-              className="px-5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] active:scale-95 text-white rounded-2xl text-base font-black transition cursor-pointer flex items-center gap-2 shadow-xs border border-[#1e4570]"
-            >
-              <Download className="w-5 h-5 text-emerald-400" />
-              <span>تحميل الجدول PDF</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleExportPDF}
+                disabled={isExportingPDF}
+                className="px-5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] active:scale-95 text-white rounded-2xl text-base font-black transition cursor-pointer flex items-center gap-2 shadow-xs border border-[#1e4570]"
+              >
+                <Download className="w-5 h-5 text-cyan-300" />
+                <span>تحميل PDF</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleExportExcel}
+                disabled={isExportingExcel}
+                className="px-5 py-2.5 bg-emerald-700 hover:bg-emerald-800 active:scale-95 text-white rounded-2xl text-base font-black transition cursor-pointer flex items-center gap-2 shadow-xs border border-emerald-600 disabled:opacity-50"
+                title="تصدير جدول الامتحانات الرسمية بصيغة Excel الفاخرة"
+              >
+                {isExportingExcel ? (
+                  <>
+                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                    <span>جاري التحميل...</span>
+                  </>
+                ) : (
+                  <>
+                    <FileSpreadsheet className="w-5 h-5 text-emerald-200" />
+                    <span>تصدير Excel</span>
+                  </>
+                )}
+              </button>
+            </div>
           )}
         </div>
       </div>

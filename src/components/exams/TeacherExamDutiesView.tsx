@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react'; // 🔗 رياكت
 import { FinalExamSchedule, FinalExamSlot, UserProfile } from '@/types'; // 🔗 الأنواع
 import { exportTeacherProctoringSchedulePDF } from '@/lib/pdf-export'; // 📄 مصدّر PDF
+import { exportTeacherExamDutiesExcel } from '@/lib/excel-utils'; // 📊 مصدّر جدول مراقبات الأستاذ الفاخر Excel
 import { getAcademicYear } from '@/lib/mock-data'; // 🗓️ العام الدراسي المعتمد
 import { getStageNameInArabic } from '@/lib/grade-utils'; // 🎓 أسماء المراحل بالعربية
 import { 
@@ -14,9 +15,10 @@ import {
   ShieldCheck, 
   CheckCircle2, 
   UserCheck, 
-  Download,
-  AlertCircle,
-  X
+  Download, 
+  AlertCircle, 
+  X,
+  FileSpreadsheet
 } from 'lucide-react'; // 🎨 الأيقونات SVG
 
 interface TeacherExamDutiesViewProps {
@@ -32,6 +34,7 @@ export default function TeacherExamDutiesView({
 }: TeacherExamDutiesViewProps) {
   const [selectedSemester, setSelectedSemester] = useState<1 | 2>(1);
   const [isExportingPDF, setIsExportingPDF] = useState<boolean>(false);
+  const [isExportingExcel, setIsExportingExcel] = useState<boolean>(false); // 📊 حالة تصدير جدول المراقبات إكسل
   const [toastMessage, setToastMessage] = useState<string>('');
 
   // 🔍 الجداول المعتمدة والمصادق عليها للكورس المختار
@@ -110,6 +113,47 @@ export default function TeacherExamDutiesView({
     setIsExportingPDF(false);
   };
 
+  // 📊 تصدير جدول المراقبات الرسمي للأستاذ إلى Excel بتنسيق فاخر بهوية الكحلي الملكي
+  const handleExportExcel = async () => {
+    if (teacherDuties.length === 0) {
+      setToastMessage('لا توجد مراقبات مسندة لتصديرها.');
+      setTimeout(() => setToastMessage(''), 4000);
+      return;
+    }
+
+    setIsExportingExcel(true);
+    try {
+      const formattedDuties = teacherDuties.map((duty) => {
+        const schedule = schedules.find((s) => s.id === duty.schedule_id);
+        return {
+          course_code: duty.course_code,
+          course_name: duty.course_name,
+          department_name: schedule?.department_name || currentUser.department_name || 'القسم الأكاديمي',
+          stage_number: duty.stage_number,
+          study_type: duty.study_type || 'morning',
+          exam_date: duty.exam_date,
+          exam_day: dayArabicNames[duty.exam_day] || duty.exam_day,
+          exam_period: duty.start_time && duty.end_time ? `${duty.start_time} - ${duty.end_time}` : '09:00 - 12:00', // ⏰ فترة الامتحان الرسمية
+          hall_name: duty.hall_name ? `${duty.building_name} - ${duty.hall_name}` : 'القاعة الامتحانية', // 🏛️ البناية والقاعة
+          duty_role: duty.supervisor_name && currentUser.full_name && duty.supervisor_name.includes(currentUser.full_name) ? 'رئيس قاعة / مشرف معتمد' : 'مراقب امتحاني رسمي', // 🛡️ صفة التكليف
+        };
+      });
+
+      await exportTeacherExamDutiesExcel(
+        currentUser.full_name || 'الأستاذ التدريسي',
+        formattedDuties,
+        selectedSemester === 1 ? 'الكورس الأول' : 'الكورس الثاني'
+      );
+      setToastMessage('✅ تم تحميل جدول المراقبات بصيغة Excel بنجاح!');
+      setTimeout(() => setToastMessage(''), 4000);
+    } catch {
+      setToastMessage('⚠️ حدث خطأ أثناء تصدير ملف الإكسل!');
+      setTimeout(() => setToastMessage(''), 4000);
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       
@@ -179,10 +223,21 @@ export default function TeacherExamDutiesView({
             type="button"
             onClick={handleExportPDF}
             disabled={isExportingPDF || teacherDuties.length === 0}
-            className="px-5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] disabled:opacity-50 text-white rounded-2xl text-base font-black transition cursor-pointer flex items-center gap-2 shadow-xs border border-[#1e4570]"
+            className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-cyan-300 rounded-2xl text-sm font-black transition cursor-pointer flex items-center gap-1.5 shadow-xs border border-slate-700"
           >
-            <Download className="w-5 h-5 text-emerald-400" />
-            <span>{isExportingPDF ? 'جاري التصدير...' : 'تحميل أمر التكليف PDF'}</span>
+            <Download className="w-4 h-4 text-cyan-400" />
+            <span>{isExportingPDF ? 'جاري التصدير...' : 'أمر التكليف PDF'}</span>
+          </button>
+
+          {/* 📊 زر تحميل جدول المراقبات الرسمي Excel */}
+          <button
+            type="button"
+            onClick={handleExportExcel}
+            disabled={isExportingExcel || teacherDuties.length === 0}
+            className="px-4 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] disabled:opacity-50 text-white rounded-2xl text-sm font-black transition cursor-pointer flex items-center gap-1.5 shadow-xs border border-[#1e4570]"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+            <span>{isExportingExcel ? 'جاري التوليد...' : 'جدول المراقبات Excel'}</span>
           </button>
         </div>
       </div>

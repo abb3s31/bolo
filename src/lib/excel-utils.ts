@@ -6,7 +6,7 @@ import * as XLSX from 'xlsx'; // 📦 مكتبة قراءة وتحليل ملف�
 import { sanitizeExcelField } from './grade-utils'; // 🛡️ دالة تطهير الصيغ والرموز
 import { generateStrongUniqueEmail, generateStrongPassword, INITIAL_PROFILES } from './mock-data'; // 🎲 توليد الحسابات الموحدة
 import { formatEnglishDateTime, translateAcademicField, getTranslatedAuditAction, translateAuditDetails } from './date-utils'; // 📅 دوال تنسيق التاريخ وترجمة البنود والتفاصيل الأكاديمية والأمنية
-import { AssessmentScheme, CourseType, FinalExamSchedule, FinalExamSlot, StudentTuitionRecord, UserProfile } from '@/types'; // 🔗 استيراد واجهات المخطط ونوع المادة وجداول الامتحانات والأقساط والملفات الشخصية
+import { AssessmentScheme, AttendanceWarningStatus, CourseType, FinalExamSchedule, FinalExamSlot, StudentTuitionRecord, UserProfile } from '@/types'; // 🔗 استيراد واجهات المخطط وحالة الإنذارات ونوع المادة وجداول الامتحانات والأقساط والملفات الشخصية
 
 // 🎨 📊 دالة مركزية فائقة الجودة لتوليد ملفات Excel ملونة مع تلوين الصف الأول (Header) بالأزرق الكحلي الداكن والخط الأبيض العريض
 export async function generateAndDownloadExcel(
@@ -2651,16 +2651,20 @@ export async function exportCustomAttendanceList(
     unexcused_hours: number; // ❌ ساعات الغياب بدون عذر
     excused_hours: number; // 📑 ساعات الغياب بعذر
     absence_percentage: number; // 📊 نسبة الغياب الكلية
-    warning_status: 'none' | 'first_warning' | 'final_warning' | 'dismissed'; // ⚠️ حالة الإنذار الأكاديمي
+    warning_status: AttendanceWarningStatus | 'none' | 'first_warning' | 'final_warning' | 'dismissed'; // ⚠️ حالة الإنذار الأكاديمي
     notes?: string; // 📝 ملاحظات
   }[],
   deptName: string // 🏢 اسم القسم الأكاديمي
 ): Promise<void> {
   // 🏷️ قاموس مسميات وتوصيفات الإنذارات الأكاديمية الرسمية لبولونيا
   const warningLabels: Record<string, string> = {
+    safe: 'طبيعي (مستمر بالدوام)',
     none: 'طبيعي (مستمر بالدوام)',
+    warning_1: 'إنذار أولي (5%)',
     first_warning: 'إنذار أولي (5%)',
+    warning_2: 'إنذار نهائي (7%)',
     final_warning: 'إنذار نهائي (7%)',
+    banned: 'حرمان رسمي وتجاوز الحد (10%)',
     dismissed: 'حرمان رسمي وتجاوز الحد (10%)',
   };
 
@@ -2708,6 +2712,719 @@ export async function exportCustomAttendanceList(
     `سجل_الغيابات_والإنذارات_${deptName}_${dateFormatted}.xlsx`
   );
 }
+
+// 📤 1️⃣ دالة تصدير كشف تسليمات التكليف الأكاديمي والدرجات والاستلال إلى Excel بتنسيق فاخر
+export async function exportTaskSubmissionsExcel(
+  taskTitle: string, // 📌 عنوان التكليف
+  courseName: string, // 📘 اسم المادة
+  submissions: {
+    student_name: string; // 👤 اسم الطالب
+    university_number?: string; // 🆔 الرقم الجامعي
+    submission_type: 'individual' | 'group'; // 👥 نوع التقديم
+    group_members_names?: string[]; // 🤝 أسماء أعضاء الفريق إن وُجد
+    review_decision?: 'pending' | 'accepted' | 'rejected' | 'needs_revision'; // ⚖️ قرار التدريسي
+    decision_reason?: string; // 💬 سبب القرار
+    score?: number; // 💯 الدرجة
+    max_score: number; // 🎯 الدرجة العظمى
+    plagiarism_percentage?: number; // 📊 نسبة الاستلال
+    teacher_feedback?: string; // 📝 ملاحظات التدريسي
+    submitted_at?: string; // ⏰ تاريخ ووقت التسليم
+    graded_by?: string; // 👨‍🏫 اسم المدقق
+  }[],
+  deptName: string = 'القسم الأكاديمي' // 🏢 اسم القسم
+): Promise<void> {
+  const decisionLabels: Record<string, string> = {
+    pending: 'قيد التدقيق',
+    accepted: 'مقبول ومعتمد',
+    rejected: 'مرفوض',
+    needs_revision: 'يحتاج تعديل',
+  };
+
+  const data = submissions.map((s, idx) => ({
+    seq: idx + 1,
+    student: s.student_name,
+    uniNum: s.university_number || '—',
+    type: s.submission_type === 'group' ? 'جماعي (فريق)' : 'فردي',
+    groupMembers: s.group_members_names && s.group_members_names.length > 0 ? s.group_members_names.join('، ') : '—',
+    decision: decisionLabels[s.review_decision || 'pending'] || 'قيد التدقيق',
+    scoreText: s.score !== undefined ? `${s.score} / ${s.max_score}` : `— / ${s.max_score}`,
+    plagiarism: s.plagiarism_percentage !== undefined ? `${s.plagiarism_percentage}%` : '—',
+    reason: s.decision_reason || '—',
+    feedback: s.teacher_feedback || '—',
+    submittedAt: s.submitted_at ? new Date(s.submitted_at).toLocaleString('ar-IQ') : '—',
+    gradedBy: s.graded_by || '—',
+  }));
+
+  const dateFormatted = new Date().toISOString().slice(0, 10);
+  await generateAndDownloadExcel(
+    [
+      {
+        sheetName: 'تسليمات_التكليف',
+        columns: [
+          { header: 'ت', key: 'seq', width: 8 },
+          { header: 'اسم الطالب', key: 'student', width: 30 },
+          { header: 'الرقم الجامعي', key: 'uniNum', width: 18 },
+          { header: 'نوع التقديم', key: 'type', width: 14 },
+          { header: 'أعضاء الفريق', key: 'groupMembers', width: 34 },
+          { header: 'قرار التدقيق', key: 'decision', width: 18 },
+          { header: 'الدرجة المرصودة', key: 'scoreText', width: 16 },
+          { header: 'نسبة الاستلال', key: 'plagiarism', width: 14 },
+          { header: 'سبب القرار', key: 'reason', width: 28 },
+          { header: 'ملاحظات الأستاذ', key: 'feedback', width: 30 },
+          { header: 'تاريخ التسليم', key: 'submittedAt', width: 22 },
+          { header: 'المدقق', key: 'gradedBy', width: 20 },
+        ],
+        data,
+        headerColor: 'FF0F2942',
+      },
+    ],
+    `تسليمات_${taskTitle.replace(/\s+/g, '_')}_${courseName.replace(/\s+/g, '_')}_${dateFormatted}.xlsx`
+  );
+}
+
+// 📤 2️⃣ دالة تصدير كتالوج كافة تكليفات وواجبات القسم إلى Excel
+export async function exportDepartmentTasksCatalogExcel(
+  tasks: {
+    title: string; // 📌 عنوان التكليف
+    course_name: string; // 📘 المادة
+    task_type: string; // 🏷️ نوع التكليف
+    stage_number: number; // 🎓 المرحلة
+    study_type: 'morning' | 'evening' | 'both'; // ☀️ نوع الدراسة
+    max_score: number; // 🎯 الدرجة العظمى
+    due_date?: string; // ⏳ الموعد النهائي
+    submissions_count: number; // 📥 عدد التسليمات
+    accepted_count: number; // ✅ المقبولة
+    is_submission_open: boolean; // 🔒 حالة الاستقبال
+    created_at?: string; // 📅 تاريخ الإنشاء
+  }[],
+  deptName: string // 🏢 اسم القسم
+): Promise<void> {
+  const typeMap: Record<string, string> = {
+    quiz: 'كويز',
+    assignment: 'واجب منزلي',
+    report: 'تقرير بحثي',
+    midterm: 'امتحان مدتيرم',
+    practical: 'امتحان عملي',
+  };
+
+  const studyMap: Record<string, string> = {
+    morning: 'صباحي',
+    evening: 'مسائي',
+    both: 'صباحي ومسائي',
+  };
+
+  const data = tasks.map((t, idx) => ({
+    seq: idx + 1,
+    title: t.title,
+    course: t.course_name,
+    type: typeMap[t.task_type] || t.task_type,
+    stage: `المرحلة ${t.stage_number}`,
+    study: studyMap[t.study_type] || 'صباحي',
+    maxScore: t.max_score,
+    submissions: `${t.submissions_count} (مقبول: ${t.accepted_count})`,
+    dueDate: t.due_date ? new Date(t.due_date).toLocaleDateString('ar-IQ') : 'غير محدد',
+    status: t.is_submission_open ? 'مفتوح للاستقبال' : 'مقفل',
+    dept: deptName,
+  }));
+
+  const dateFormatted = new Date().toISOString().slice(0, 10);
+  await generateAndDownloadExcel(
+    [
+      {
+        sheetName: 'دليل_تكليفات_القسم',
+        columns: [
+          { header: 'ت', key: 'seq', width: 8 },
+          { header: 'عنوان التكليف / الواجب', key: 'title', width: 32 },
+          { header: 'المادة الدراسية', key: 'course', width: 28 },
+          { header: 'النوع', key: 'type', width: 16 },
+          { header: 'المرحلة', key: 'stage', width: 14 },
+          { header: 'نوع الدراسة', key: 'study', width: 16 },
+          { header: 'الدرجة العظمى', key: 'maxScore', width: 14 },
+          { header: 'موقف التسليمات', key: 'submissions', width: 22 },
+          { header: 'الموعد النهائي', key: 'dueDate', width: 18 },
+          { header: 'حالة الاستقبال', key: 'status', width: 18 },
+          { header: 'القسم الأكاديمي', key: 'dept', width: 24 },
+        ],
+        data,
+        headerColor: 'FF0F2942',
+      },
+    ],
+    `دليل_تكليفات_${deptName}_${dateFormatted}.xlsx`
+  );
+}
+
+// 📤 3️⃣ دالة تصدير جدول مراقبات الامتحانات الرسمية للأستاذ إلى Excel
+export async function exportTeacherExamDutiesExcel(
+  teacherName: string, // 👤 اسم الأستاذ
+  duties: {
+    course_code: string; // 🔢 كود المادة
+    course_name: string; // 📘 اسم المادة
+    department_name: string; // 🏢 القسم
+    stage_number: number; // 🎓 المرحلة
+    study_type: string; // ☀️ نوع الدراسة
+    exam_date: string; // 📅 تاريخ الامتحان
+    exam_day: string; // 🗓️ اليوم
+    exam_period: string; // ⏰ الفترة الامتحانية
+    hall_name: string; // 🏛️ القاعة أو المدرج
+    duty_role: string; // 🛡️ صفة التكليف
+  }[],
+  semesterName: string = 'الكورس الأول' // 📚 الفصل الدراسي
+): Promise<void> {
+  const data = duties.map((d, idx) => ({
+    seq: idx + 1,
+    courseCode: d.course_code,
+    course: d.course_name,
+    dept: d.department_name,
+    stage: `المرحلة ${d.stage_number}`,
+    study: d.study_type === 'evening' ? 'مسائي' : 'صباحي',
+    day: d.exam_day,
+    date: d.exam_date,
+    period: d.exam_period,
+    hall: d.hall_name,
+    role: d.duty_role,
+    teacher: teacherName,
+  }));
+
+  const dateFormatted = new Date().toISOString().slice(0, 10);
+  await generateAndDownloadExcel(
+    [
+      {
+        sheetName: 'جدول_مراقبات_الأستاذ',
+        columns: [
+          { header: 'ت', key: 'seq', width: 8 },
+          { header: 'رمز المادة', key: 'courseCode', width: 14 },
+          { header: 'المادة الدراسية', key: 'course', width: 28 },
+          { header: 'القسم الأكاديمي', key: 'dept', width: 24 },
+          { header: 'المرحلة', key: 'stage', width: 14 },
+          { header: 'الدراسة', key: 'study', width: 12 },
+          { header: 'اليوم', key: 'day', width: 14 },
+          { header: 'التاريخ', key: 'date', width: 16 },
+          { header: 'الفترة الامتحانية', key: 'period', width: 22 },
+          { header: 'القاعة / المدرج', key: 'hall', width: 20 },
+          { header: 'صفة المراقبة', key: 'role', width: 18 },
+          { header: 'اسم الأستاذ', key: 'teacher', width: 26 },
+        ],
+        data,
+        headerColor: 'FF0F2942',
+      },
+    ],
+    `جدول_مراقبات_${teacherName.replace(/\s+/g, '_')}_${semesterName.replace(/\s+/g, '_')}_${dateFormatted}.xlsx`
+  );
+}
+
+// 📤 4️⃣ دالة تصدير مصفوفة إشغال القاعات والمختبرات الشاملة للكلية إلى Excel
+export async function exportCampusHallOccupancyExcel(
+  dayName: string, // 🗓️ اليوم المختار
+  occupancyData: {
+    room_name: string; // 🏛️ اسم القاعة / المختبر
+    room_type: string; // 🏷️ نوع القاعة
+    capacity: number; // 👥 السعة
+    building: string; // 🏢 المبنى / الجناح
+    slot1_content: string; // ⏰ الفترة 1 (08:30 - 10:30)
+    slot2_content: string; // ⏰ الفترة 2 (10:45 - 12:45)
+    slot3_content: string; // ⏰ الفترة 3 (01:00 - 03:00)
+  }[],
+  collegeName: string = 'كلية_ميسان' // 🏛️ اسم الكلية
+): Promise<void> {
+  const data = occupancyData.map((o, idx) => ({
+    seq: idx + 1,
+    room: o.room_name,
+    type: o.room_type,
+    capacity: o.capacity,
+    building: o.building,
+    slot1: o.slot1_content || 'متاحة (شاغرة)',
+    slot2: o.slot2_content || 'متاحة (شاغرة)',
+    slot3: o.slot3_content || 'متاحة (شاغرة)',
+  }));
+
+  const dateFormatted = new Date().toISOString().slice(0, 10);
+  await generateAndDownloadExcel(
+    [
+      {
+        sheetName: `إشغال_القاعات_${dayName}`,
+        columns: [
+          { header: 'ت', key: 'seq', width: 8 },
+          { header: 'القاعة / المختبر', key: 'room', width: 22 },
+          { header: 'النوع', key: 'type', width: 16 },
+          { header: 'السعة', key: 'capacity', width: 12 },
+          { header: 'الموقع / المبنى', key: 'building', width: 18 },
+          { header: 'الفترة 1 (08:30 - 10:30)', key: 'slot1', width: 34 },
+          { header: 'الفترة 2 (10:45 - 12:45)', key: 'slot2', width: 34 },
+          { header: 'الفترة 3 (01:00 - 03:00)', key: 'slot3', width: 34 },
+        ],
+        data,
+        headerColor: 'FF0F2942',
+      },
+    ],
+    `مصفوفة_إشغال_القاعات_${dayName}_${collegeName}_${dateFormatted}.xlsx`
+  );
+}
+
+// 📤 5️⃣ دالة تصدير سجل طلبات الأعذار والإجازات الرسمية إلى Excel
+export async function exportExcuseRequestsExcel(
+  requests: {
+    student_name: string; // 👤 اسم الطالب
+    university_number?: string; // 🆔 الرقم الجامعي
+    course_name: string; // 📘 المادة
+    week_number: number; // 📅 رقم الأسبوع
+    reason_type: string; // 🏷️ نوع العذر (مرضي / رسمي / طارئ)
+    reason_details: string; // 📝 تفاصيل العذر
+    document_reference?: string; // 📑 رقم ومرفق الكتاب
+    status: 'pending' | 'approved' | 'rejected'; // ⚖️ حالة الطلب
+    reviewed_by_name?: string; // 👤 اسم المراجع
+    review_notes?: string; // 💬 ملاحظات التدقيق
+    created_at: string; // ⏰ تاريخ التقديم
+  }[],
+  deptName: string // 🏢 اسم القسم
+): Promise<void> {
+  const statusLabels: Record<string, string> = {
+    pending: 'قيد المراجعة',
+    approved: 'مقبول ومعتمد',
+    rejected: 'مرفوض',
+  };
+
+  const data = requests.map((r, idx) => ({
+    seq: idx + 1,
+    student: r.student_name,
+    uniNum: r.university_number || '—',
+    course: r.course_name,
+    week: `الأسبوع ${r.week_number}`,
+    type: r.reason_type,
+    details: r.reason_details,
+    docRef: r.document_reference || '—',
+    status: statusLabels[r.status] || 'قيد المراجعة',
+    reviewer: r.reviewed_by_name || '—',
+    notes: r.review_notes || '—',
+    createdAt: r.created_at ? new Date(r.created_at).toLocaleDateString('ar-IQ') : '—',
+    dept: deptName,
+  }));
+
+  const dateFormatted = new Date().toISOString().slice(0, 10);
+  await generateAndDownloadExcel(
+    [
+      {
+        sheetName: 'طلبات_الأعذار_والإجازات',
+        columns: [
+          { header: 'ت', key: 'seq', width: 8 },
+          { header: 'اسم الطالب', key: 'student', width: 30 },
+          { header: 'الرقم الجامعي', key: 'uniNum', width: 18 },
+          { header: 'المادة الدراسية', key: 'course', width: 28 },
+          { header: 'الأسبوع', key: 'week', width: 14 },
+          { header: 'نوع العذر', key: 'type', width: 16 },
+          { header: 'تفاصيل العذر', key: 'details', width: 32 },
+          { header: 'رقم / مرجع الكتاب', key: 'docRef', width: 20 },
+          { header: 'حالة القرار', key: 'status', width: 18 },
+          { header: 'اسم المدقق', key: 'reviewer', width: 22 },
+          { header: 'ملاحظات القرار', key: 'notes', width: 28 },
+          { header: 'تاريخ التقديم', key: 'createdAt', width: 18 },
+          { header: 'القسم الأكاديمي', key: 'dept', width: 24 },
+        ],
+        data,
+        headerColor: 'FF0F2942',
+      },
+    ],
+    `سجل_الأعذار_والإجازات_${deptName}_${dateFormatted}.xlsx`
+  );
+}
+
+// 📤 6️⃣ دالة تصدير كشف الدرجات والسعي الأكاديمي الرسمي للطالب إلى Excel
+export async function exportStudentTranscriptExcel(
+  student: {
+    full_name: string; // 👤 اسم الطالب
+    university_number: string; // 🆔 الرقم الجامعي
+    department_name: string; // 🏢 القسم الأكاديمي
+    stage_number: number; // 🎓 المرحلة
+    study_type?: string; // ☀️ نوع الدراسة
+  },
+  coursesGrades: {
+    course_code: string; // 🔢 كود المادة
+    course_name: string; // 📘 اسم المادة
+    credit_hours: number; // ⚖️ عدد الساعات / وحدات ECTS
+    semester: number; // 📚 الفصل
+    coursework_total: number; // 💯 السعي الفصلي (من 50)
+    final_exam?: number | null; // 📝 الامتحان النهائي (من 50)
+    final_total: number; // 💯 المجموع الكلي النهائي (من 100)
+    letter_grade: string; // 🅰️ التقدير الحرفي
+    status_label: string; // ✅ الحالة (ناجح / مكمل)
+  }[],
+  gpa: number // 📊 المعدل التراكمي
+): Promise<void> {
+  const data = coursesGrades.map((cg, idx) => ({
+    seq: idx + 1,
+    code: cg.course_code,
+    name: cg.course_name,
+    credits: cg.credit_hours,
+    semester: cg.semester === 1 ? 'الكورس 1' : 'الكورس 2',
+    coursework: cg.coursework_total,
+    finalExam: cg.final_exam !== undefined && cg.final_exam !== null ? cg.final_exam : '—',
+    total: cg.final_total,
+    grade: cg.letter_grade,
+    status: cg.status_label,
+  }));
+
+  // سطر المعدل التراكمي في نهاية الجدول
+  data.push({
+    seq: data.length + 1,
+    code: 'المعدل التراكمي العام',
+    name: `GPA: ${gpa.toFixed(2)}%`,
+    credits: coursesGrades.reduce((sum, c) => sum + c.credit_hours, 0),
+    semester: '—',
+    coursework: 0,
+    finalExam: 0,
+    total: gpa,
+    grade: '—',
+    status: 'معتمد رسمياً',
+  });
+
+  const dateFormatted = new Date().toISOString().slice(0, 10);
+  await generateAndDownloadExcel(
+    [
+      {
+        sheetName: 'وثيقة_السعي_والدرجات',
+        columns: [
+          { header: 'ت', key: 'seq', width: 8 },
+          { header: 'كود المادة', key: 'code', width: 22 },
+          { header: 'اسم المادة الدراسية', key: 'name', width: 30 },
+          { header: 'الوحدات (ECTS)', key: 'credits', width: 14 },
+          { header: 'الفصل', key: 'semester', width: 14 },
+          { header: 'السعي الفصلي (50)', key: 'coursework', width: 18 },
+          { header: 'الامتحان النهائي (50)', key: 'finalExam', width: 20 },
+          { header: 'المجموع الكلي (100)', key: 'total', width: 20 },
+          { header: 'التقدير', key: 'grade', width: 12 },
+          { header: 'النتيجة والموقف', key: 'status', width: 18 },
+        ],
+        data,
+        headerColor: 'FF0F2942',
+      },
+    ],
+    `وثيقة_درجات_${student.full_name.replace(/\s+/g, '_')}_${student.university_number}_${dateFormatted}.xlsx`
+  );
+}
+
+// 📤 7️⃣ دالة تصدير كشف الحضور الشخصي للطالب لكافة المواد إلى Excel
+export async function exportStudentPersonalAttendanceExcel(
+  studentName: string, // 👤 اسم الطالب
+  universityNumber: string, // 🆔 الرقم الجامعي
+  departmentName: string, // 🏢 القسم
+  records: {
+    course_name: string; // 📘 المادة
+    total_hours: number; // ⏳ الساعات المقررة
+    unexcused_hours: number; // ❌ غياب بدون عذر
+    excused_hours: number; // 📑 غياب بعذر
+    absence_percentage: number; // 📊 نسبة الغياب
+    warning_label: string; // ⚠️ الموقف الأكاديمي
+  }[]
+): Promise<void> {
+  const data = records.map((r, idx) => ({
+    seq: idx + 1,
+    course: r.course_name,
+    total: r.total_hours,
+    unexcused: r.unexcused_hours,
+    excused: r.excused_hours,
+    pct: `${r.absence_percentage.toFixed(1)}%`,
+    status: r.warning_label,
+    student: studentName,
+    uniNum: universityNumber,
+    dept: departmentName,
+  }));
+
+  const dateFormatted = new Date().toISOString().slice(0, 10);
+  await generateAndDownloadExcel(
+    [
+      {
+        sheetName: 'تقرير_الحضور_والغياب',
+        columns: [
+          { header: 'ت', key: 'seq', width: 8 },
+          { header: 'المادة الدراسية', key: 'course', width: 30 },
+          { header: 'الساعات المقررة', key: 'total', width: 16 },
+          { header: 'غياب بدون عذر (ساعات)', key: 'unexcused', width: 22 },
+          { header: 'غياب بعذر (ساعات)', key: 'excused', width: 20 },
+          { header: 'نسبة الغياب', key: 'pct', width: 14 },
+          { header: 'الموقف والإنذار الأكاديمي', key: 'status', width: 26 },
+          { header: 'اسم الطالب', key: 'student', width: 28 },
+          { header: 'الرقم الجامعي', key: 'uniNum', width: 18 },
+          { header: 'القسم الأكاديمي', key: 'dept', width: 24 },
+        ],
+        data,
+        headerColor: 'FF0F2942',
+      },
+    ],
+    `تقرير_حضور_${studentName.replace(/\s+/g, '_')}_${universityNumber}_${dateFormatted}.xlsx`
+  );
+}
+
+// 📤 8️⃣ دالة تصدير الجدول الدراسي الأسبوعي المنظم إلى Excel (للطالب أو الأستاذ)
+export async function exportPersonalWeeklyScheduleExcel(
+  userName: string, // 👤 اسم صاحب الجدول (الطالب أو التدريسي)
+  userRoleLabel: string, // 🏷️ صفة المستخدم (طالب / أستاذ)
+  departmentName: string, // 🏢 القسم الأكاديمي
+  lectures: {
+    day_arabic: string; // 🗓️ اليوم بالعربية
+    lecture_order_label: string; // 🥇 تسلسل المحاضرة (الأولى، الثانية...)
+    time_slot: string; // ⏰ التوقيت (من - إلى)
+    course_name: string; // 📘 اسم المادة
+    course_code: string; // 🔢 كود المادة
+    room_name: string; // 🏛️ القاعة أو المختبر
+    partner_name: string; // 👤 اسم الأستاذ (إذا كان طالباً) أو المرحلة (إذا كان تدريسياً)
+    study_type_label: string; // ☀️ الدراسة (صباحي / مسائي)
+  }[]
+): Promise<void> {
+  const data = lectures.map((l, idx) => ({
+    seq: idx + 1,
+    day: l.day_arabic,
+    order: l.lecture_order_label,
+    time: l.time_slot,
+    course: l.course_name,
+    code: l.course_code,
+    room: l.room_name,
+    partner: l.partner_name,
+    study: l.study_type_label,
+    owner: userName,
+  }));
+
+  const dateFormatted = new Date().toISOString().slice(0, 10);
+  await generateAndDownloadExcel(
+    [
+      {
+        sheetName: 'الجدول_الأسبوعي',
+        columns: [
+          { header: 'ت', key: 'seq', width: 8 },
+          { header: 'اليوم', key: 'day', width: 14 },
+          { header: 'تسلسل المحاضرة', key: 'order', width: 18 },
+          { header: 'التوقيت الأكاديمي', key: 'time', width: 22 },
+          { header: 'المادة الدراسية', key: 'course', width: 28 },
+          { header: 'كود المادة', key: 'code', width: 14 },
+          { header: 'القاعة / المختبر', key: 'room', width: 20 },
+          { header: userRoleLabel === 'طالب' ? 'أستاذ المادة' : 'المرحلة الدراسية', key: 'partner', width: 26 },
+          { header: 'نوع الدراسة', key: 'study', width: 14 },
+          { header: 'الاسم', key: 'owner', width: 26 },
+        ],
+        data,
+        headerColor: 'FF0F2942',
+      },
+    ],
+    `الجدول_الأسبوعي_${userName.replace(/\s+/g, '_')}_${dateFormatted}.xlsx`
+  );
+}
+
+// 📤 9️⃣ دالة تصدير سجل الحضور التفصيلي لمادة دراسية لجميع الأسابيع (1-15) إلى Excel
+export async function exportCourseAttendanceMatrixExcel(
+  courseName: string, // 📘 اسم المادة
+  departmentName: string, // 🏢 اسم القسم
+  stageName: string, // 🎓 المرحلة
+  studyTypeName: string, // ☀️ الدراسة
+  weeksCount: number, // 🔢 عدد الأسابيع (مثلاً 15)
+  studentsMatrix: {
+    seq: number; // 🔢 التسلسل
+    student_name: string; // 👤 اسم الطالب
+    university_number: string; // 🆔 الرقم الجامعي
+    weekly_status: Record<number, string>; // 📅 حالة كل أسبوع (حاضر / غائب / مجاز)
+    unexcused_hours: number; // ❌ ساعات بدون عذر
+    excused_hours: number; // 📑 ساعات بعذر
+    absence_percentage: number; // 📊 نسبة الغياب
+    warning_status_label: string; // ⚠️ الإنذار
+  }[]
+): Promise<void> {
+  // بناء أعمدة الأسابيع ديناميكياً
+  const weekCols = Array.from({ length: weeksCount }, (_, i) => ({
+    header: `أسبوع ${i + 1}`,
+    key: `w${i + 1}`,
+    width: 12,
+  }));
+
+  const columns = [
+    { header: 'ت', key: 'seq', width: 8 },
+    { header: 'اسم الطالب الثلاثي', key: 'student', width: 32 },
+    { header: 'الرقم الجامعي', key: 'uniNum', width: 18 },
+    ...weekCols,
+    { header: 'غياب بدون عذر (ساعات)', key: 'unexcused', width: 22 },
+    { header: 'غياب بعذر (ساعات)', key: 'excused', width: 20 },
+    { header: 'نسبة الغياب', key: 'pct', width: 14 },
+    { header: 'الموقف والإنذار', key: 'warning', width: 26 },
+  ];
+
+  const data = studentsMatrix.map((s) => {
+    const rowObj: Record<string, string | number> = {
+      seq: s.seq,
+      student: s.student_name,
+      uniNum: s.university_number,
+      unexcused: s.unexcused_hours,
+      excused: s.excused_hours,
+      pct: `${s.absence_percentage.toFixed(1)}%`,
+      warning: s.warning_status_label,
+    };
+    for (let w = 1; w <= weeksCount; w++) {
+      rowObj[`w${w}`] = s.weekly_status[w] || 'حاضر';
+    }
+    return rowObj;
+  });
+
+  const dateFormatted = new Date().toISOString().slice(0, 10);
+  await generateAndDownloadExcel(
+    [
+      {
+        sheetName: 'شيت_الأسابيع_والحضور',
+        columns,
+        data,
+        headerColor: 'FF0F2942',
+      },
+    ],
+    `شيت_حضور_${courseName.replace(/\s+/g, '_')}_${stageName.replace(/\s+/g, '_')}_${dateFormatted}.xlsx`
+  );
+}
+
+// 📤 🔟 دالة تصدير سجل التعميمات والتبليغات الرسمية إلى Excel
+export async function exportCampusAnnouncementsExcel(
+  announcements: {
+    title: string; // 📌 العنوان
+    category: string; // 🏷️ التصنيف
+    priority: string; // ⚡ الأهمية
+    target_scope: string; // 🎯 النطاق المستهدف
+    stage_number?: number; // 🎓 المرحلة
+    study_type?: string; // ☀️ الدراسة
+    author_name?: string; // 👤 الناشر
+    created_at: string; // 📅 تاريخ النشر
+    content: string; // 📝 نص التبليغ
+  }[],
+  deptName: string // 🏢 القسم الأكاديمي
+): Promise<void> {
+  const categoryLabels: Record<string, string> = {
+    general: 'إعلان عام',
+    exam_schedule: 'جدول امتحانات',
+    tuition: 'أقساط دراسية',
+    holiday: 'عطلة رسمية',
+    disciplinary: 'إنذار / حرمان',
+    uniform: 'الزي الجامعي الموحد',
+  };
+
+  const priorityLabels: Record<string, string> = {
+    urgent: 'عاجل ومهم جداً',
+    high: 'مرتفع الأهمية',
+    normal: 'اعتيادي',
+  };
+
+  const scopeLabels: Record<string, string> = {
+    all: 'الجميع (أساتذة وطلاب)',
+    students_only: 'الطلاب فقط',
+    teachers_only: 'الأساتذة فقط',
+  };
+
+  const data = announcements.map((a, idx) => ({
+    seq: idx + 1,
+    title: a.title,
+    category: categoryLabels[a.category] || a.category,
+    priority: priorityLabels[a.priority] || a.priority,
+    scope: scopeLabels[a.target_scope] || 'الجميع',
+    stage: a.stage_number ? `المرحلة ${a.stage_number}` : 'كافة المراحل',
+    study: a.study_type === 'evening' ? 'مسائي' : a.study_type === 'morning' ? 'صباحي' : 'الكل',
+    author: a.author_name || 'رئاسة القسم',
+    date: a.created_at ? new Date(a.created_at).toLocaleDateString('ar-IQ') : '—',
+    content: a.content,
+    dept: deptName,
+  }));
+
+  const dateFormatted = new Date().toISOString().slice(0, 10);
+  await generateAndDownloadExcel(
+    [
+      {
+        sheetName: 'سجل_التعميمات_والتبليغات',
+        columns: [
+          { header: 'ت', key: 'seq', width: 8 },
+          { header: 'عنوان التبليغ', key: 'title', width: 32 },
+          { header: 'التصنيف', key: 'category', width: 18 },
+          { header: 'الأهمية', key: 'priority', width: 16 },
+          { header: 'الجمهور المستهدف', key: 'scope', width: 22 },
+          { header: 'المرحلة', key: 'stage', width: 14 },
+          { header: 'نوع الدراسة', key: 'study', width: 14 },
+          { header: 'الجهة الناشرة', key: 'author', width: 22 },
+          { header: 'تاريخ النشر', key: 'date', width: 18 },
+          { header: 'نص التبليغ الرسمي', key: 'content', width: 45 },
+          { header: 'القسم الأكاديمي', key: 'dept', width: 24 },
+        ],
+        data,
+        headerColor: 'FF0F2942',
+      },
+    ],
+    `سجل_التبليغات_${deptName}_${dateFormatted}.xlsx`
+  );
+}
+
+// 📤 1️⃣1️⃣ دالة تصدير جدول الامتحانات النهائية الرسمية إلى Excel الفاخر
+export async function exportFinalExamScheduleExcel(
+  departmentName: string, // 🏢 اسم القسم الأكاديمي
+  stageNumber: number, // 🎓 رقم المرحلة الدراسية
+  semester: 1 | 2, // 📚 رقم الكورس الدراسي
+  attemptType: 'first_attempt' | 'second_attempt', // 🎯 الدور الأول أو الثاني
+  academicYear: string, // 🗓️ العام الدراسي المعتمد
+  slots: {
+    course_code: string; // 🔢 كود ورمز المادة
+    course_name: string; // 📘 اسم المادة الدراسية
+    exam_date: string; // 📅 تاريخ انعقاد الامتحان
+    exam_day: string; // 🗓️ اليوم (السبت، الأحد...)
+    start_time: string; // ⏰ توقيت البدء
+    end_time: string; // ⏰ توقيت النهاية
+    hall_name?: string; // 🏛️ اسم القاعة أو المدرج الامتحاني
+    notes?: string; // 📝 الملاحظات والتعليمات الامتحانية
+  }[]
+): Promise<void> {
+  // 🗺️ قاموس أسماء الأيام بالعربية الفصيحة
+  const dayArabicNames: Record<string, string> = {
+    saturday: 'السبت',
+    sunday: 'الأحد',
+    monday: 'الإثنين',
+    tuesday: 'الثلاثاء',
+    wednesday: 'الأربعاء',
+    thursday: 'الخميس',
+    friday: 'الجمعة',
+  };
+
+  const attemptLabel = attemptType === 'second_attempt' ? 'الدور الثاني (الإكمال)' : 'الدور الأول'; // 🎯 صياغة الدور
+  const semesterLabel = semester === 2 ? 'الكورس الثاني' : 'الكورس الأول'; // 📚 صياغة الكورس
+  const stageLabel = `المرحلة ${stageNumber}`; // 🎓 صياغة المرحلة
+
+  // 📝 تحويل مصفوفة الامتحانات لصفوف إكسل
+  const data = slots.map((s, idx) => ({
+    seq: idx + 1, // 🔢 التسلسل
+    courseCode: s.course_code || '—', // 🏷️ رمز المادة
+    courseName: s.course_name, // 📘 اسم المادة
+    examDay: dayArabicNames[s.exam_day] || s.exam_day, // 🗓️ اليوم بالعربية
+    examDate: s.exam_date, // 📅 التاريخ
+    examTime: `${s.start_time} - ${s.end_time}`, // ⏰ التوقيت
+    hall: s.hall_name || 'القاعات الامتحانية المعتمدة', // 🏛️ القاعة
+    notes: s.notes || 'الالتزام بالتعليمات الامتحانية والزي الموحد', // 📝 الملاحظات
+    dept: departmentName, // 🏢 القسم
+    stage: stageLabel, // 🎓 المرحلة
+    semester: semesterLabel, // 📚 الكورس
+    attempt: attemptLabel, // 🎯 الدور
+  }));
+
+  const dateFormatted = new Date().toISOString().slice(0, 10); // 📅 تاريخ اليوم للتسمية
+  await generateAndDownloadExcel(
+    [
+      {
+        sheetName: 'جدول_الامتحانات_النهائية', // 📑 اسم ورقة العمل
+        columns: [
+          { header: 'ت', key: 'seq', width: 8 }, // 🔢 رقم التسلسل
+          { header: 'رمز المادة', key: 'courseCode', width: 14 }, // 🏷️ رمز المادة
+          { header: 'المادة الدراسية', key: 'courseName', width: 32 }, // 📘 اسم المادة
+          { header: 'اليوم', key: 'examDay', width: 14 }, // 🗓️ اليوم
+          { header: 'تاريخ الامتحان', key: 'examDate', width: 16 }, // 📅 التاريخ
+          { header: 'التوقيت الامتحاني', key: 'examTime', width: 20 }, // ⏰ التوقيت
+          { header: 'القاعة / المدرج', key: 'hall', width: 24 }, // 🏛️ القاعة
+          { header: 'الملاحظات والتعليمات', key: 'notes', width: 35 }, // 📝 التعليمات
+          { header: 'القسم الأكاديمي', key: 'dept', width: 24 }, // 🏢 القسم
+          { header: 'المرحلة', key: 'stage', width: 14 }, // 🎓 المرحلة
+          { header: 'الكورس', key: 'semester', width: 16 }, // 📚 الكورس
+          { header: 'الدور', key: 'attempt', width: 18 }, // 🎯 الدور
+        ],
+        data, // 📊 مصفوفة البيانات
+        headerColor: 'FF0F2942', // 🎨 كحلي ملكي فاخر
+      },
+    ],
+    `جدول_الامتحانات_النهائية_${departmentName.replace(/\s+/g, '_')}_${stageLabel.replace(/\s+/g, '_')}_${dateFormatted}.xlsx`
+  );
+}
+
 
 
 

@@ -24,7 +24,9 @@ import {
   Users,
   Sun,
   Moon,
+  FileSpreadsheet,
 } from 'lucide-react'; // 🎨 الأيقونات
+import { exportCampusHallOccupancyExcel } from '@/lib/excel-utils'; // 📊 تصدير مصفوفة إشغال القاعات إلى Excel الفاخر
 
 interface MasterHallMatrixModalProps {
   isOpen: boolean;               // 👁️ هل النافذة مفتوحة؟
@@ -50,6 +52,7 @@ export default function MasterHallMatrixModal({
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>('saturday');
   const [filterType, setFilterType] = useState<'all' | 'hall' | 'lab' | 'court'>('all');
   const [filterStudyType, setFilterStudyType] = useState<'all' | 'morning' | 'evening'>('all'); // ☀️🌙 فلترة الفترة
+  const [isExportingExcel, setIsExportingExcel] = useState<boolean>(false); // 📊 حالة تصدير إكسل إشغال القاعات
 
   // 🔍 تصفية القاعات بحسب النوع (مدرجات / مختبرات / قاعات خاصة)
   const filteredRooms = useMemo(() => {
@@ -65,6 +68,46 @@ export default function MasterHallMatrixModal({
       return (l.study_type || 'morning') === filterStudyType;
     });
   }, [lectures, selectedDay, filterStudyType]);
+
+  // 📊 دالة تصدير مصفوفة إشغال القاعات والمختبرات لليوم المختار إلى Excel
+  const handleExportExcel = async () => {
+    setIsExportingExcel(true);
+    try {
+      const selectedDayLabel = DAYS_OF_WEEK_LIST.find((d) => d.key === selectedDay)?.label_ar || selectedDay;
+      const occupancyData = filteredRooms.map((room) => {
+        const getSlotInfo = (slotMin: number, slotMax: number) => {
+          const matchLec = dayLectures.find((l) => {
+            const isSameRoom = l.room.trim().toLowerCase() === room.name.trim().toLowerCase() ||
+                              l.room.includes(room.name.split(' ')[0]) ||
+                              room.name.includes(l.room.split(' ')[0]);
+            if (!isSameRoom) return false;
+            const lecStart = timeStringToMinutes(l.start_time);
+            const lecEnd = timeStringToMinutes(l.end_time);
+            return lecStart < slotMax && slotMin < lecEnd;
+          });
+
+          if (!matchLec) return 'متاحة (شاغرة)';
+          const dept = departments.find((d) => d.id === matchLec.department_id); // 🏢 مطابقة معرف القسم
+          const deptName = dept?.name || 'القسم الأكاديمي'; // 🏷️ اسم القسم المعتمد
+          return `${matchLec.course_name} (${deptName} - م${matchLec.stage_number} - ${matchLec.study_type === 'evening' ? 'مسائي' : 'صباحي'}) [${matchLec.teacher_name || ''}]`;
+        };
+
+        return {
+          room_name: room.name,
+          room_type: room.type === 'lab' ? 'مختبر عملي' : 'قاعة تدريس',
+          capacity: room.capacity,
+          building: 'المبنى الرئيسي (فرع ميسان)', // 🏛️ مبنى الكلية بفرع ميسان
+          slot1_content: getSlotInfo(510, 630),
+          slot2_content: getSlotInfo(645, 765),
+          slot3_content: getSlotInfo(780, 900),
+        };
+      });
+
+      await exportCampusHallOccupancyExcel(selectedDayLabel, occupancyData, 'جامعة_الإمام_الصادق_ميسان');
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -100,6 +143,21 @@ export default function MasterHallMatrixModal({
             >
               <Printer className="w-5 h-5 text-slate-700" />
               <span className="hidden sm:inline">طباعة المخطط</span>
+            </button>
+
+            {/* 📊 زر تصدير مصفوفة إشغال القاعات Excel */}
+            <button
+              type="button"
+              onClick={handleExportExcel}
+              disabled={isExportingExcel}
+              className="px-4 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] disabled:opacity-50 text-white rounded-2xl text-base font-black transition cursor-pointer flex items-center gap-2 border border-[#1e4570] shadow-xs"
+            >
+              {isExportingExcel ? (
+                <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+              ) : (
+                <FileSpreadsheet className="w-5 h-5 text-emerald-400" />
+              )}
+              <span className="hidden sm:inline">{isExportingExcel ? 'جاري التوليد...' : 'تصدير المخطط Excel'}</span>
             </button>
             <button
               type="button"

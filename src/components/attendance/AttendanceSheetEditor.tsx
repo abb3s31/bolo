@@ -81,8 +81,10 @@ import {
   Download,
   Lock,
   HelpCircle,
+  FileSpreadsheet,
 } from 'lucide-react'; // 🎨 استيراد أيقونات SVG الفيكتورية عالية الدقة
 import { exportBolognaAttendanceReportPDF } from '@/lib/pdf-export'; // 📄 مولد كشف الحضور الأكاديمي الرسمي لمسار بولونيا PDF
+import { exportCustomAttendanceList } from '@/lib/excel-utils'; // 📊 مولد كشف الحضور والإنذارات الأكاديمية الرسمي الفاخر Excel
 import ExcuseRequestsReviewModal from '@/components/attendance/ExcuseRequestsReviewModal'; // 📑 نافذة تدقيق ومراجعة طلبات الإجازات
 import AttendanceNoticeModal, { AttendanceNoticeCategory } from '@/components/attendance/AttendanceNoticeModal'; // 📢 نافذة التبليغات والتنبيهات الذكية
 
@@ -247,6 +249,7 @@ export default function AttendanceSheetEditor({
   const [isNoticeModalOpen, setIsNoticeModalOpen] = useState<boolean>(false); // 📢 نافذة إرسال التبليغات
   const [noticeTargetStudent, setNoticeTargetStudent] = useState<UserProfile | null>(null); // 👤 الطالب المستهدف بالتبليغ
   const [noticeDefaultCategory, setNoticeDefaultCategory] = useState<AttendanceNoticeCategory>('warning_1'); // ⚠️ فئة التبليغ الافتراضية
+  const [isExportingExcel, setIsExportingExcel] = useState<boolean>(false); // ⏳ حالة تصدير إكسل الفاخر
 
   // 🔢 7.1.1 عدد محاضرات النظري المعتمدة أسبوعياً من قبل رئاسة القسم (1 أو 2)
   const theoryLecturesCount = useMemo<1 | 2>(() => {
@@ -1138,6 +1141,61 @@ export default function AttendanceSheetEditor({
     }
   };
 
+  // 📊 21. دالة تصدير كشف الحضور والإنذارات الرسمي لمسار بولونيا إلى Excel الفاخر
+  const handleExportAttendanceExcel = async () => {
+    setIsExportingExcel(true);
+    showFloatingToast({
+      title: `جاري توليد كشف الحضور الرسمي Excel`,
+      subtitle: `تجهيز جدول إكسل الملون بألوان الكحلي الملكي لمسار بولونيا`,
+      type: 'save',
+    });
+
+    try {
+      const customTotal = getCourseTotalScheduledHours(durationConfig, course.id, course.credit_hours);
+      const excelRecords = students.map((st) => {
+        const summary = calculateStudentCourseAttendance(
+          st.id,
+          course.id,
+          initialRecords,
+          course.name,
+          course.code,
+          course.credit_hours || 3,
+          customTotal
+        );
+
+        return {
+          student_name: st.full_name,
+          university_number: st.university_number || st.id,
+          stage_number: course.stage_number || 1,
+          study_type: (st.study_type || 'morning') as 'morning' | 'evening',
+          course_name: course.name,
+          total_hours: customTotal,
+          unexcused_hours: summary.total_unexcused_absence_hours,
+          excused_hours: summary.absent_excused_count * 2,
+          absence_percentage: summary.absence_percentage,
+          warning_status: summary.warning_status,
+          notes: summary.warning_status === 'banned' ? 'تجاوز حد الغياب 10%' : undefined,
+        };
+      });
+
+      await exportCustomAttendanceList(excelRecords, course.department_name || 'القسم الأكاديمي');
+
+      showFloatingToast({
+        title: `تم تصدير ملف Excel بنجاح`,
+        subtitle: `تم تنزيل كشف حضور مادة (${course.name}) بتنسيق بولونيا الفاخر`,
+        type: 'save',
+      });
+    } catch {
+      showFloatingToast({
+        title: `حدث خطأ أثناء تصدير ملف الإكسل`,
+        subtitle: `يرجى المحاولة مرة أخرى لاحقاً`,
+        type: 'save',
+      });
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
+
   // 🔍 19. تصفية الطلاب بحسب البحث والفترة الدراسية (صباحي / مسائي)
   const filteredStudents = useMemo(() => {
     return students.filter((st) => {
@@ -1327,6 +1385,22 @@ export default function AttendanceSheetEditor({
           >
             <Printer className="w-5 h-5 text-cyan-300 shrink-0" />
             <span>{isExportingPDF ? 'جاري التصدير...' : 'تصدير الكشف (PDF)'}</span>
+          </button>
+
+          {/* 📊 زر تصدير كشف الحضور والإنذارات الأكاديمي الرسمي Excel */}
+          <button
+            type="button"
+            onClick={handleExportAttendanceExcel}
+            disabled={isExportingExcel}
+            className="px-4 sm:px-5 py-3 bg-[#0F2942] hover:bg-[#163a5f] active:scale-95 text-white rounded-2xl font-black text-sm sm:text-base transition-all shadow-md flex items-center gap-2 cursor-pointer border-2 border-[#1e4570] disabled:opacity-50"
+            title="تصدير كشف وسجل الحضور والغيابات والإنذارات الأكاديمية إلى Excel الفاخر"
+          >
+            {isExportingExcel ? (
+              <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+            ) : (
+              <FileSpreadsheet className="w-5 h-5 text-emerald-400 shrink-0" />
+            )}
+            <span>{isExportingExcel ? 'جاري التوليد...' : 'تصدير الكشف (Excel)'}</span>
           </button>
 
           {/* ↩️ زر إلغاء التعديلات والتراجع عند وجود مسودة غير محفوظة */}

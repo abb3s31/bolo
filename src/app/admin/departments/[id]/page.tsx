@@ -24,6 +24,7 @@ import {
 import { Department, Stage, Course, UserProfile, Grade } from '@/types'; // 🔗 الأنواع الصريحة
 import { detectArabicGender } from '@/lib/demographics-utils'; // 🧮 التعرف الذكي على جنس الطالب
 import { getStageNameInArabic } from '@/lib/grade-utils'; // 🎓 أسماء المراحل بالعربية
+import { exportCustomCoursesList, exportCustomStudentsList } from '@/lib/excel-utils'; // 📊 تصدير المواد والطلبة إلى Excel الفاخر
 import { 
   Layers, 
   BookOpen, 
@@ -45,7 +46,8 @@ import {
   Award,
   Pencil,
   X,
-  Save
+  Save,
+  FileSpreadsheet
 } from 'lucide-react'; // 🎨 الأيقونات البرمجية المتجهة النقية
 import ZeroTrustGuard from '@/components/security/ZeroTrustGuard'; // 🛡️ حارس أمان Zero Trust
 import { sanitizeRouteParam } from '@/lib/security/url-guard'; // 🛡️ معقم مسارات الروابط
@@ -78,6 +80,10 @@ export default function AdminDepartmentDetailsPage({ params }: { params: Promise
   // 📄 حالة نظام الصفحات (Pagination) لجدول المواد الدراسية
   const [coursesCurrentPage, setCoursesCurrentPage] = useState<number>(1); // 📄 رقم صفحة المواد الحالية
   const [coursesPageSize, setCoursesPageSize] = useState<number>(5); // 📏 عدد المواد بالصفحة الواحدة (افتراضي 5)
+
+  // 📊 حالات تصدير إكسل الفاخر
+  const [isExportingCoursesExcel, setIsExportingCoursesExcel] = useState<boolean>(false); // 📊 تصدير مواد المرحلة
+  const [isExportingStudentsExcel, setIsExportingStudentsExcel] = useState<boolean>(false); // 📊 تصدير طلبة المرحلة
   const [isCoursesPageSizeOpen, setIsCoursesPageSizeOpen] = useState<boolean>(false); // 🔽 حالة فتح قائمة حجم صفحة المواد
   const coursesPageSizeDropdownRef = useRef<HTMLDivElement>(null); // 🔗 مرجع قائمة حجم صفحة المواد
 
@@ -647,7 +653,7 @@ export default function AdminDepartmentDetailsPage({ params }: { params: Promise
                 </p>
               </div>
 
-              {/* 🎖️ بادج إجمالي وحدات المرحلة الرسمي والأنيق (بديل زر عرض كافة المواد القديم) */}
+              {/* 🎖️ بادج إجمالي وحدات المرحلة الرسمي وزر التصدير الفاخر */}
               <div className="flex items-center gap-2.5 flex-wrap">
                 <span className="px-4 py-2 bg-sky-50 text-slate-950 border border-sky-300 rounded-2xl text-xs sm:text-sm font-black flex items-center gap-2 shadow-2xs">
                   <Award className="w-4 h-4 text-sky-700" />
@@ -655,6 +661,37 @@ export default function AdminDepartmentDetailsPage({ params }: { params: Promise
                   <strong className="text-sky-950 font-mono text-sm sm:text-base">{activeStageEcts}</strong>
                   <span className="text-sky-900 font-bold">ECTS</span>
                 </span>
+
+                {/* 📊 زر تصدير مواد المرحلة Excel */}
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (stageCourses.length === 0) return;
+                    setIsExportingCoursesExcel(true);
+                    try {
+                      const formatted = stageCourses.map((c) => ({
+                        code: c.code,
+                        name: c.name,
+                        department_name: department?.name || 'القسم الأكاديمي',
+                        stage_number: c.stage_number,
+                        semester: c.semester,
+                        course_type: c.course_type,
+                        theory_teacher_name: c.theory_teacher_name,
+                        practical_teacher_name: c.practical_teacher_name,
+                        credit_hours: c.credit_hours,
+                      }));
+                      await exportCustomCoursesList(formatted, `${department?.name || 'القسم'}_المرحلة_${activeStageNum}`);
+                    } finally {
+                      setIsExportingCoursesExcel(false);
+                    }
+                  }}
+                  disabled={isExportingCoursesExcel || stageCourses.length === 0}
+                  className="px-3.5 py-2 bg-[#0F2942] hover:bg-[#163a5f] disabled:opacity-50 text-white rounded-2xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center gap-1.5 shadow-xs border border-[#1e4570]"
+                  title="تصدير مواد ووحدات هذه المرحلة إلى Excel"
+                >
+                  <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+                  <span>{isExportingCoursesExcel ? 'جاري التوليد...' : 'تصدير المواد Excel'}</span>
+                </button>
               </div>
             </div>
 
@@ -1248,6 +1285,35 @@ export default function AdminDepartmentDetailsPage({ params }: { params: Promise
                     <span>مسائي</span>
                   </button>
                 </div>
+
+                {/* 📊 زر تصدير طلبة المرحلة المفلترين إلى Excel */}
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (filteredStudents.length === 0) return;
+                    setIsExportingStudentsExcel(true);
+                    try {
+                      const formatted = filteredStudents.map((st) => ({
+                        full_name: st.full_name,
+                        university_number: st.university_number || '—',
+                        stage_number: st.stage_number,
+                        study_type: st.study_type,
+                        gender: st.gender || detectArabicGender(st.full_name),
+                        generated_email: st.generated_email || '—',
+                        temp_password: st.temp_password,
+                      }));
+                      await exportCustomStudentsList(formatted, `${department?.name || 'القسم'}_المرحلة_${activeStageNum}`);
+                    } finally {
+                      setIsExportingStudentsExcel(false);
+                    }
+                  }}
+                  disabled={isExportingStudentsExcel || filteredStudents.length === 0}
+                  className="px-3.5 py-2 bg-[#0F2942] hover:bg-[#163a5f] disabled:opacity-50 text-white rounded-2xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center gap-1.5 shadow-xs border border-[#1e4570]"
+                  title="تصدير كشف طلبة هذه المرحلة إلى Excel"
+                >
+                  <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+                  <span>{isExportingStudentsExcel ? 'جاري التوليد...' : 'تصدير الطلبة Excel'}</span>
+                </button>
               </div>
             </div>
 

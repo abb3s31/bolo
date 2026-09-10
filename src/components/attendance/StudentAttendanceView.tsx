@@ -60,8 +60,10 @@ import {
   Check,
   Palmtree,
   FlaskConical,
+  FileSpreadsheet, // 📊 أيقونة شيت الإكسل
 } from 'lucide-react'; // 🎨 الأيقونات الفيكتورية SVG
 import ExcuseRequestModal from '@/components/attendance/ExcuseRequestModal'; // 📑 نافذة تقديم عذر رسمي
+import { exportStudentPersonalAttendanceExcel } from '@/lib/excel-utils'; // 📊 دالة تصدير كشف الحضور الشخصي الفاخر لإكسل
 
 // 📋 واجهة الخصائص المستقبلة للوحة الطالب
 interface StudentAttendanceViewProps {
@@ -147,6 +149,7 @@ export default function StudentAttendanceView({
 
   // 📑 5. حالات النوافذ المنبثقة للأعذار
   const [isExcuseModalOpen, setIsExcuseModalOpen] = useState<boolean>(false); // 📑 نافذة تقديم عذر
+  const [isExportingExcel, setIsExportingExcel] = useState<boolean>(false); // ⏳ حالة تصدير إكسل الفاخر
 
   // 📄 6. قائمة طلبات الإجازات الخاصة بالطالب
   const [excuseRequests, setExcuseRequests] = useState<AttendanceExcuseRequest[]>([]);
@@ -326,6 +329,41 @@ export default function StudentAttendanceView({
     return 'حالة محددة';
   }, [selectedStatus]);
 
+  // 📊 دالة تصدير كشف الحضور والغيابات الشخصي للطالب بصيغة Excel الفاخرة
+  const handleExportAttendanceExcel = async () => {
+    setIsExportingExcel(true); // ⏳ بدء مؤشر التحميل والتصدير
+    try {
+      const allDepts = getStoredData<{ id: string; name: string }[]>('departments', []); // 🏢 جلب قائمة الأقسام العلمية
+      const deptObj = allDepts.find((d) => d.id === departmentId); // 🔍 العثور على القسم الحالي
+      const deptName = deptObj?.name || 'القسم الأكاديمي'; // 🏷️ اسم القسم المعتمد
+
+      // 📝 تحويل ملخصات المواد إلى البنية الدقيقة المعتمدة للإكسل
+      const formattedRecords = courseSummaries.map((s) => {
+        const badgeMeta = getAttendanceWarningBadgeMeta(s.warning_status); // 🏷️ جلب مسمى الإنذار والموقف
+        return {
+          course_name: s.course_name, // 📘 اسم المادة
+          total_hours: s.total_scheduled_hours, // ⏳ إجمالي الساعات المقررة
+          unexcused_hours: s.total_unexcused_absence_hours, // ❌ غياب بدون عذر
+          excused_hours: s.total_excused_absence_hours, // 📑 غياب بعذر
+          absence_percentage: s.absence_percentage, // 📊 نسبة الغياب
+          warning_label: badgeMeta.label_ar, // ⚠️ الموقف والإنذار الأكاديمي
+        };
+      });
+
+      // 🚀 استدعاء دالة التصدير الفاخرة المعتمدة
+      await exportStudentPersonalAttendanceExcel(
+        studentName, // 👤 اسم الطالب الثلاثي
+        universityNumber, // 🆔 الرقم الجامعي
+        deptName, // 🏢 اسم القسم
+        formattedRecords // 📋 سجل وموقف كافة المواد
+      );
+    } catch (err: unknown) {
+      console.error('خطأ في تصدير كشف الحضور إلى إكسل:', err); // ❌ تسجيل الخطأ في حال حدوثه
+    } finally {
+      setIsExportingExcel(false); // ⏹️ إنهاء مؤشر التحميل
+    }
+  };
+
   return (
     <div className="space-y-6" dir="rtl">
       
@@ -388,6 +426,27 @@ export default function StudentAttendanceView({
           >
             <Send className="w-4 h-4 sm:w-5 sm:h-5 text-cyan-300 shrink-0" />
             <span>تقديم عذر رسمي</span>
+          </button>
+
+          {/* 📊 زر تصدير كشف الحضور والغيابات Excel الفاخر */}
+          <button
+            type="button"
+            onClick={handleExportAttendanceExcel}
+            disabled={isExportingExcel || courseSummaries.length === 0}
+            className="px-4 py-3 bg-emerald-700 hover:bg-emerald-800 active:scale-95 text-white rounded-2xl font-black text-sm sm:text-base transition-all shadow-sm flex items-center gap-2 cursor-pointer border-2 border-emerald-600 disabled:opacity-50"
+            title="تصدير كشف وسجل الحضور والغيابات لكافة المواد بصيغة Excel الفاخرة"
+          >
+            {isExportingExcel ? (
+              <>
+                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                <span>جاري التحضير...</span>
+              </>
+            ) : (
+              <>
+                <FileSpreadsheet className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-200 shrink-0" />
+                <span>تصدير الحضور (Excel)</span>
+              </>
+            )}
           </button>
 
           {/* 🎛️ أزرار التبديل بين أنماط العرض */}

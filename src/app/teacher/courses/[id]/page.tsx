@@ -21,11 +21,11 @@ import { getStoredData, saveStoredData, INITIAL_GRADES, INITIAL_COURSES, INITIAL
 import { Grade, Course, Department, TeacherCourse, UserProfile, AuditLog, ScheduleLecture, StudentAttendanceRecord, AttendanceStatus } from '@/types'; // 🔗 الأنواع الرسمية
 import { calculateCourseworkTotal, calculateFinalTotal, getLetterGrade, getCourseAssessmentScheme, getCourseGradeLimits, getStageNameInArabic, isStudentPassedFirstRound, isStudentEligibleForSupplementary } from '@/lib/grade-utils'; // 🧮 الحسابات والحدود وأسماء المراحل وفحص استحقاق الدور الثاني
 import { detectArabicGender } from '@/lib/demographics-utils'; // 🧮 التعرف الذكي على جنس الطالب
-import { downloadTeacherGradeTemplate, downloadTeacherAttendanceTemplate, parseExcelFile } from '@/lib/excel-utils'; // 📊 ميزة الجداول المجدولة
+import { downloadTeacherGradeTemplate, downloadTeacherAttendanceTemplate, parseExcelFile, exportCustomGradesList } from '@/lib/excel-utils'; // 📊 ميزة الجداول المجدولة وتصدير سعي بولونيا الفاخر
 import { sendAppNotification } from '@/lib/notification-utils'; // 🔔 مركز الإشعارات التفاعلي
 import { exportCourseGradeSheetPDF, exportCourseAttendanceSheetPDF } from '@/lib/pdf-export'; // 📄 مولد كشف درجات المادة وسجل الحضور PDF
 import { DAYS_OF_WEEK_LIST } from '@/lib/schedule-utils'; // 🕒 أسماء الأيام
-import { BookOpen, Download, Upload, ArrowRight, CheckCircle2, FileText, Lock, Shield, FlaskConical, AlertCircle, Info, Calendar, Clock, ClipboardList, CheckSquare, Square, History, Building2, GraduationCap, Users, DoorClosed, ShieldCheck, Sun, Moon, Send, BellRing, X, Check, RotateCcw, Sliders, ListFilter, Save, FileEdit, Scale, ChevronDown, ChevronUp, Award } from 'lucide-react'; // 🎨 الأيقونات الفيكتور SVG
+import { BookOpen, Download, Upload, ArrowRight, CheckCircle2, FileText, Lock, Shield, FlaskConical, AlertCircle, Info, Calendar, Clock, ClipboardList, CheckSquare, Square, History, Building2, GraduationCap, Users, DoorClosed, ShieldCheck, Sun, Moon, Send, BellRing, X, Check, RotateCcw, Sliders, ListFilter, Save, FileEdit, Scale, ChevronDown, ChevronUp, Award, FileSpreadsheet } from 'lucide-react'; // 🎨 الأيقونات الفيكتور SVG
 import ZeroTrustGuard from '@/components/security/ZeroTrustGuard'; // 🛡️ حارس أمان Zero Trust
 import { sanitizeGradeItem, sanitizeRouteParam } from '@/lib/security/sanitizer'; // 🧹 معقم درجات بولونيا ومسارات الروابط
 import AttendanceSheetEditor from '@/components/attendance/AttendanceSheetEditor'; // 📋 محرر الحضور والغياب للأستاذ
@@ -61,6 +61,7 @@ export default function TeacherCourseGradesPage({ params }: { params: Promise<{ 
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [isExportingPDF, setIsExportingPDF] = useState(false); // ⏳ حالة تصدير PDF
+  const [isExportingExcel, setIsExportingExcel] = useState(false); // 📊 حالة تصدير سعي المادة إكسل
   const [isExportingAttendancePDF, setIsExportingAttendancePDF] = useState(false); // ⏳ حالة تصدير سجل الحضور
   const [excelPreviewRows, setExcelPreviewRows] = useState<Record<string, string | number>[] | null>(null);
   const [showExcelInstructions, setShowExcelInstructions] = useState<boolean>(false); // ℹ️ حالة فتح نافذة تعليمات وضوابط الإكسل للدرجات
@@ -1198,6 +1199,45 @@ export default function TeacherCourseGradesPage({ params }: { params: Promise<{ 
     setIsExportingPDF(false);
   };
 
+  // 📊 دالة تصدير سجل درجات وسعي المادة الفعلي إلى Excel الفاخر
+  const handleExportCourseExcel = async () => {
+    if (!course || grades.length === 0) return;
+    setIsExportingExcel(true);
+    try {
+      const formattedGrades = grades.map((g) => ({
+        student_name: g.student_name,
+        university_number: g.university_number,
+        course_name: course.name,
+        quiz1: g.quiz1 || 0,
+        quiz2: g.quiz2 || 0,
+        assignment1: g.assignment1 || 0,
+        assignment2: g.assignment2 || 0,
+        report: g.report || 0,
+        midterm: g.midterm || 0,
+        practical: g.practical || 0,
+        final_coursework_total: g.final_coursework_total || 0,
+        final_exam: g.final_exam || 0,
+        supplementary_exam: g.supplementary_exam,
+        final_total: g.final_total,
+        letter_grade: g.letter_grade,
+        is_locked: g.is_locked || false,
+      }));
+
+      await exportCustomGradesList(
+        formattedGrades,
+        course.department_name || 'القسم الأكاديمي',
+        course.name
+      );
+      setSuccessMessage('✅ تم بنجاح تصدير سجل درجات وسعي المادة إلى Excel!');
+      setTimeout(() => setSuccessMessage(''), 3500);
+    } catch {
+      setErrorMessage('⚠️ حدث خطأ أثناء تصدير ملف الإكسل!');
+      setTimeout(() => setErrorMessage(''), 3500);
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
+
   // 📋 دالة تصدير سجل الحضور والغياب الأسبوعي الرسمي A4 Landscape متضمناً تواقيع رئيس القسم والمقرر
   const handleExportAttendancePDF = async () => {
     if (!course) return;
@@ -1849,6 +1889,27 @@ export default function TeacherCourseGradesPage({ params }: { params: Promise<{ 
                   <>
                     <FileText className="w-5 h-5 text-cyan-300" />
                     <span>تصدير كشف المادة (PDF)</span>
+                  </>
+                )}
+              </button>
+
+              {/* 📊 زر تصدير درجات وسعي بولونيا الفعلي Excel */}
+              <button
+                type="button"
+                onClick={handleExportCourseExcel}
+                disabled={isExportingExcel || grades.length === 0}
+                className="px-4 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white text-base font-black rounded-xl border border-[#1e4570] transition flex items-center gap-2 cursor-pointer shadow-xs active:scale-95 disabled:opacity-50"
+                title="تصدير كشف درجات وسعي المادة الفعلي إلى Excel الفاخر"
+              >
+                {isExportingExcel ? (
+                  <>
+                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                    <span>جاري التوليد...</span>
+                  </>
+                ) : (
+                  <>
+                    <FileSpreadsheet className="w-5 h-5 text-emerald-400" />
+                    <span>تصدير السعي (Excel)</span>
                   </>
                 )}
               </button>

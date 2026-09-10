@@ -4,6 +4,7 @@
 import React, { useState, useMemo } from 'react'; // 🔗 خطافات رياكت
 import { CourseAcademicTask, StudentTaskSubmission, UserProfile, Grade, SubmissionReviewDecision } from '@/types'; // 🔗 الواجهات الرسمية
 import { exportTaskSubmissionsReportPDF } from '@/lib/pdf-export'; // 📄 مولد كشف التسليمات PDF
+import { exportTaskSubmissionsExcel } from '@/lib/excel-utils'; // 📊 مولد كشف تسليمات التكليف الفاخر Excel
 import { sendAppNotification } from '@/lib/notification-utils'; // 🔔 مركز الإشعارات التفاعلي
 import { getStoredData, saveStoredData, INITIAL_GRADES, INITIAL_PROFILES } from '@/lib/mock-data'; // 💾 التخزين والمستخدمين
 import { calculateCourseworkTotal, calculateFinalTotal, getLetterGrade } from '@/lib/grade-utils'; // 🧮 حسابات السعي والدرجات
@@ -36,7 +37,8 @@ import {
   BellRing,
   Sun,
   Moon,
-  CheckSquare
+  CheckSquare,
+  FileSpreadsheet
 } from 'lucide-react'; // 🎨 الأيقونات
 
 interface TeacherSubmissionsReviewModalProps {
@@ -80,6 +82,7 @@ export function TeacherSubmissionsReviewModal({
   const [toastMessage, setToastMessage] = useState<string | null>(null); // رسالة الإشعار المؤقتة
   const [deletingSubmission, setDeletingSubmission] = useState<StudentTaskSubmission | null>(null); // 🗑️ حالة تسليم الطالب المراد حذفه
   const [isExportingPDF, setIsExportingPDF] = useState<boolean>(false);
+  const [isExportingExcel, setIsExportingExcel] = useState<boolean>(false); // 📊 حالة تصدير ملف الإكسل الفاخر
 
   if (!isOpen) return null;
 
@@ -341,6 +344,44 @@ export function TeacherSubmissionsReviewModal({
     }
   };
 
+  // 📊 تصدير كشف التسليمات والدرجات إلى Excel بتنسيق فاخر بهوية الكحلي الملكي
+  const handleExportExcel = async () => {
+    setIsExportingExcel(true);
+    try {
+      // 👥 تجهيز قائمة التسليمات والقرارات لجميع طلبة المادة
+      const formattedSubmissions = courseStudents.map((st) => {
+        const sub = submissions.find((s) => s.student_id === st.id);
+        const memberNames = sub?.group_members?.map((m) => m.full_name).filter(Boolean);
+        return {
+          student_name: st.full_name,
+          university_number: st.university_number || '—',
+          submission_type: (sub?.submission_type || 'individual') as 'individual' | 'group',
+          group_members_names: memberNames,
+          review_decision: sub?.review_decision,
+          decision_reason: sub?.decision_reason,
+          score: sub?.score,
+          max_score: task.max_score,
+          plagiarism_percentage: sub?.plagiarism_percentage,
+          teacher_feedback: sub?.teacher_feedback,
+          submitted_at: sub?.submitted_at,
+          graded_by: sub?.graded_by || (sub?.score !== undefined ? teacherName : undefined),
+        };
+      });
+
+      await exportTaskSubmissionsExcel(
+        task.title,
+        task.course_name,
+        formattedSubmissions,
+        task.department_name || 'القسم الأكاديمي'
+      );
+      showToast('✅ تم بنجاح تصدير كشف تسليمات التكليف إلى Excel!');
+    } catch {
+      showToast('⚠️ حدث خطأ أثناء تصدير ملف الإكسل!');
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
+
   // 📥 تنزيل / معاينة ملف الـ PDF المرفوع
   const handleDownloadPDF = (sub: StudentTaskSubmission) => {
     if (!sub.file_url) {
@@ -506,6 +547,24 @@ export function TeacherSubmissionsReviewModal({
                 <span className="w-5 h-5 border-2 border-cyan-300 border-t-transparent rounded-full animate-spin block"></span>
               ) : (
                 <Printer className="w-5 h-5" />
+              )}
+            </button>
+
+            {/* 📊 تصدير Excel الفاخر */}
+            <button
+              type="button"
+              onClick={handleExportExcel}
+              disabled={isExportingExcel}
+              className="px-3.5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] disabled:opacity-50 text-white rounded-2xl text-sm font-black transition cursor-pointer flex items-center gap-1.5 shadow-xs border border-[#1e4570]"
+              title="تصدير كشف التسليمات والدرجات إلى Excel الفاخر"
+            >
+              {isExportingExcel ? (
+                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin block"></span>
+              ) : (
+                <>
+                  <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+                  <span className="hidden sm:inline">تصدير Excel</span>
+                </>
               )}
             </button>
 

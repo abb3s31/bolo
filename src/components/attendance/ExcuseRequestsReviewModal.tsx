@@ -3,9 +3,10 @@
 // 📑 نافذة مراجعة واعتماد طلبات الإجازات والأعذار الرسمية (للأستاذ ورئيس القسم) - جامعة الإمام جعفر الصادق (ع) - فرع ميسان
 import { useState } from 'react'; // 🔗 رياكت
 import { AttendanceExcuseRequest, StudentAttendanceRecord } from '@/types'; // 🔗 الأنواع
-import { FileText, CheckCircle2, XCircle, Clock, ShieldCheck, X, AlertCircle, MessageSquare } from 'lucide-react'; // 🎨 الأيقونات
+import { FileText, CheckCircle2, XCircle, Clock, ShieldCheck, X, AlertCircle, MessageSquare, FileSpreadsheet } from 'lucide-react'; // 🎨 الأيقونات
 import { sendAppNotification } from '@/lib/notification-utils'; // 🔔 مركز الإشعارات
 import { saveExcuseRequestToSupabase } from '@/lib/supabase-client'; // ☁️ حفظ ومزامنة حالة العذر في Supabase
+import { exportExcuseRequestsExcel } from '@/lib/excel-utils'; // 📊 تصدير سجل طلبات الأعذار إلى Excel الفاخر
 
 interface ExcuseRequestsReviewModalProps {
   isOpen: boolean; // 🚪 حالة الفتح
@@ -32,6 +33,7 @@ export default function ExcuseRequestsReviewModal({
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
   const [reviewNotes, setReviewNotes] = useState<string>('');
   const [successToast, setSuccessToast] = useState<string>('');
+  const [isExportingExcel, setIsExportingExcel] = useState<boolean>(false); // 📊 حالة تصدير سجل الأعذار إكسل
 
   if (!isOpen) return null;
 
@@ -111,6 +113,36 @@ export default function ExcuseRequestsReviewModal({
     setTimeout(() => setSuccessToast(''), 3500);
   };
 
+  // 📊 تصدير سجل طلبات الأعذار والإجازات إلى Excel
+  const handleExportExcel = async () => {
+    if (requests.length === 0) return;
+    setIsExportingExcel(true);
+    try {
+      const formatted = requests.map((r) => ({
+        student_name: r.student_name,
+        university_number: r.university_number,
+        course_name: r.course_name,
+        week_number: r.week_number,
+        reason_type: r.reason_type === 'medical' ? 'عذر طبي' : r.reason_type === 'official_duty' ? 'مهمة رسمية' : 'عذر طارئ',
+        reason_details: r.reason_details,
+        document_reference: r.document_reference,
+        status: r.status,
+        reviewed_by_name: r.reviewed_by_name,
+        review_notes: r.review_notes,
+        created_at: r.created_at,
+      }));
+
+      await exportExcuseRequestsExcel(formatted, 'القسم الأكاديمي');
+      setSuccessToast('✅ تم بنجاح تصدير سجل طلبات الأعذار إلى Excel!');
+      setTimeout(() => setSuccessToast(''), 3500);
+    } catch {
+      setSuccessToast('⚠️ حدث خطأ أثناء تصدير ملف الإكسل!');
+      setTimeout(() => setSuccessToast(''), 3500);
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 top-0 left-0 right-0 bottom-0 w-screen h-screen min-h-[100dvh] z-[999999] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200" dir="rtl">
       <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh]">
@@ -135,14 +167,27 @@ export default function ExcuseRequestsReviewModal({
               </h3>
             </div>
           </div>
+          <div className="flex items-center gap-2">
+            {/* 📊 زر تصدير سجل الأعذار Excel */}
+            <button
+              type="button"
+              onClick={handleExportExcel}
+              disabled={isExportingExcel || requests.length === 0}
+              className="px-4 py-2 bg-[#0F2942] hover:bg-[#163a5f] disabled:opacity-50 text-white rounded-xl text-sm font-black transition cursor-pointer flex items-center gap-1.5 shadow-xs border border-[#1e4570]"
+              title="تصدير كشف طلبات الأعذار والإجازات إلى Excel"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+              <span>{isExportingExcel ? 'جاري التوليد...' : 'تصدير Excel'}</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-2.5 bg-slate-100 text-slate-700 hover:text-black hover:bg-slate-200 rounded-2xl transition cursor-pointer"
-          >
-            <X className="w-6 h-6" />
-          </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition cursor-pointer"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
         </div>
 
         {/* شريط الإشعار النجاحي إن وُجد */}
