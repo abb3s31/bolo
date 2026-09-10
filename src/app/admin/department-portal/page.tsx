@@ -9919,66 +9919,72 @@ export default function DepartmentPortalPage() {
         <div className="space-y-4">
           
           {/* 📊 شريط إحصائيات التكليفات وشريط الإجراءات */}
-          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-            <div>
-              <h3 className="text-xl sm:text-2xl font-black text-slate-950 flex items-center gap-2.5">
-                <ArrowRightLeft className="w-7 h-7 text-slate-950" />
-                <span>تكليفات الكادر التدريسي لقسم {deptName}</span>
-              </h3>
-              <p className="text-base sm:text-lg font-black text-slate-700 mt-1">
-                إدارة توزيع المواد الدراسية وتكليف الأساتذة وتثبيت الصلاحيات الأكاديمية
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex flex-wrap items-center gap-2.5 text-base font-black">
-                <span className="bg-slate-100 text-slate-950 px-4 py-2 rounded-2xl border border-slate-300 shadow-2xs">
-                  إجمالي التكليفات: {deptTeacherCourses.length}
-                </span>
-                <span className="bg-blue-100 text-blue-950 px-4 py-2 rounded-2xl border border-blue-300 shadow-2xs">
-                  الأساتذة المكلفون: {new Set(deptTeacherCourses.map((tc) => tc.teacher_id)).size} أستاذ
-                </span>
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-4">
+            {/* 🏷️ الهيدر والإحصائيات العلوية */}
+            <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+              <div>
+                <h3 className="text-xl sm:text-2xl font-black text-slate-950 flex items-center gap-2.5">
+                  <ArrowRightLeft className="w-7 h-7 text-[#0F2942]" /> {/* 🔄 أيقونة التكليفات الكحلية */}
+                  <span>تكليفات الكادر التدريسي لقسم {deptName}</span> {/* 🏷️ عنوان التكليفات */}
+                </h3>
+                <p className="text-base sm:text-lg font-black text-slate-700 mt-1">
+                  إدارة توزيع المواد الدراسية وتكليف الأساتذة وتثبيت الصلاحيات الأكاديمية {/* 📝 وصف إدارة التكليفات */}
+                </p>
               </div>
 
-              {/* 🖨️ زر طباعة جدول تكليفات الكادر التدريسي المعتمد A4 الرسمي بتصميم كحلي ملكي */}
-              <button
-                type="button"
-                onClick={() => {
-                  setAssignmentsPrintScope('filtered'); // 🎯 تحديد النطاق الافتراضي
-                  setShowAssignmentsPrintModal(true); // 🖨️ فتح نافذة المعاينة والطباعة
-                }}
-                className="px-5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black rounded-2xl text-sm shadow-md transition flex items-center gap-2 cursor-pointer border border-[#0F2942] shrink-0 active:scale-95 whitespace-nowrap"
-                title="طباعة وتصدير أمر إداري بتكليفات الكادر التدريسي بصيغة PDF معتمدة"
-              >
-                <Printer className="w-4 h-4 text-cyan-300" />
-                <span>طباعة جدول التكليفات PDF</span>
-              </button>
+              {/* 🏷️ إحصائيات التكليفات */}
+              <div className="flex flex-wrap items-center gap-2.5 text-base font-black">
+                <span className="bg-slate-100 text-slate-950 px-4 py-2 rounded-2xl border border-slate-300 shadow-2xs">
+                  إجمالي التكليفات: {deptTeacherCourses.length} {/* 🔢 عدد التكليفات الكلي */}
+                </span>
+                <span className="bg-blue-100 text-blue-950 px-4 py-2 rounded-2xl border border-blue-300 shadow-2xs">
+                  الأساتذة المكلفون: {new Set(deptTeacherCourses.map((tc) => tc.teacher_id)).size} أستاذ {/* 👥 عدد الأساتذة */}
+                </span>
+              </div>
+            </div>
 
-              {/* 📊 زر تصدير جدول تكليفات التدريسيين إلى ملف Excel معتمد */}
+            {/* 🛠️ شريط أزرار العمليات المنسقة بالكامل بسطر خاص بها */}
+            <div className="pt-4 border-t border-slate-200/80 flex flex-wrap items-center gap-3">
+              {/* 1️⃣ زر فتح كارت إضافة تكليف جديد بتصميم كحلي ملكي وأيقونة سماوية زاهية */}
               <button
-                type="button"
-                onClick={handleExportAssignmentsExcel}
-                disabled={isExportingAssignmentsExcel}
-                className="px-5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black rounded-2xl text-sm shadow-md transition flex items-center gap-2 cursor-pointer border border-[#0F2942] shrink-0 active:scale-95 whitespace-nowrap disabled:opacity-50"
-                title="تصدير جدول تكليفات الكادر التدريسي لمواد القسم إلى ملف Excel"
-              >
-                <FileSpreadsheet className="w-4 h-4 text-emerald-300" />
-                <span>{isExportingAssignmentsExcel ? 'جاري التصدير...' : selectedAssignmentIds.length > 0 ? `تصدير المحدد (${selectedAssignmentIds.length}) Excel` : 'تصدير التكليفات (Excel)'}</span>
-              </button>
-
-              {/* ➕ زر فتح كارت إضافة تكليف جديد بتصميم كحلي ملكي */}
-              <button
-                type="button"
+                type="button" // 🔘 نوع الزر لمنع الإرسال العفوي
                 onClick={() => {
                   setEditingAssignment(null); // 🧹 تصفير وضع التعديل ليكون وضع إضافة جديدة
-                  setSelectedTeacherId('');
-                  setSelectedCourseId('');
-                  setIsAssignmentModalOpen(true);
+                  setSelectedTeacherId(''); // 🔄 تصفير التدريسي المختار
+                  setSelectedCourseId(''); // 🔄 تصفير المادة المختارة
+                  setIsAssignmentModalOpen(true); // 🚀 فتح نافذة المودال فورياً
                 }}
-                className="px-5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black rounded-2xl text-sm shadow-md transition flex items-center gap-2 cursor-pointer border border-[#0F2942] shrink-0 active:scale-95 whitespace-nowrap"
+                className="px-5 py-3 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black rounded-2xl text-base shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer border border-[#0F2942] shrink-0 flex items-center gap-2.5" // 🎨 تصميم كحلي ملكي راقٍ
+                title="تكليف أستاذ بمادة دراسية جديدة" // 💡 تلميح الزر
               >
-                <Plus className="w-4 h-4" />
-                <span>تكليف أستاذ بمادة جديدة</span>
+                <Plus className="w-5 h-5 text-cyan-300" /> {/* ➕ أيقونة الإضافة الزرقاء */}
+                <span>تكليف أستاذ بمادة جديدة</span> {/* 📝 نص الزر المعتمد */}
+              </button>
+
+              {/* 2️⃣ زر تصدير جدول تكليفات التدريسيين إلى ملف Excel معتمد */}
+              <button
+                type="button" // 🔘 نوع الزر لمنع أي إرسال غير مقصود
+                onClick={handleExportAssignmentsExcel} // ⚡ استدعاء دالة تصدير التكليفات إكسل
+                disabled={isExportingAssignmentsExcel} // 🔒 قفل الزر أثناء التصدير
+                className="px-5 py-3 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black rounded-2xl text-base shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer border border-[#0F2942] shrink-0 flex items-center gap-2.5 disabled:opacity-50" // 🎨 تصميم كحلي ملكي موحد
+                title="تصدير جدول تكليفات الكادر التدريسي لمواد القسم إلى ملف Excel" // 💡 نص التلميح
+              >
+                <FileSpreadsheet className="w-5 h-5 text-emerald-300" /> {/* 📊 أيقونة الإكسل بلون زمردي */}
+                <span>{isExportingAssignmentsExcel ? 'جاري التصدير...' : selectedAssignmentIds.length > 0 ? `تصدير المحدد (${selectedAssignmentIds.length}) Excel` : 'تصدير التكليفات (Excel)'}</span> {/* 📝 نص الزر الديناميكي */}
+              </button>
+
+              {/* 3️⃣ زر طباعة جدول تكليفات الكادر التدريسي المعتمد A4 الرسمي بصيغة PDF */}
+              <button
+                type="button" // 🔘 نوع الزر لمنع الإرسال التلقائي
+                onClick={() => {
+                  setAssignmentsPrintScope('filtered'); // 🎯 تحديد النطاق الافتراضي للطباعة
+                  setShowAssignmentsPrintModal(true); // 🖨️ فتح نافذة المعاينة والطباعة
+                }}
+                className="px-5 py-3 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black rounded-2xl text-base shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer border border-[#0F2942] shrink-0 flex items-center gap-2.5" // 🎨 تصميم كحلي ملكي موحد
+                title="طباعة وتصدير أمر إداري بتكليفات الكادر التدريسي بصيغة PDF معتمدة" // 💡 تلميح زر الطباعة
+              >
+                <Printer className="w-5 h-5 text-rose-300" /> {/* 🖨️ أيقونة الطابعة بلون وردي مميز */}
+                <span>طباعة جدول التكليفات PDF</span> {/* 📝 نص زر الطباعة الرسمي */}
               </button>
             </div>
           </div>
@@ -11662,47 +11668,49 @@ export default function DepartmentPortalPage() {
       {activeTab === 'schedule' && (
         <div className="space-y-6 animate-in fade-in duration-150">
           
-          {/* 🧭 الرأس والشريط العلوي لمحدد المرحلة والكورس والمعاينة الحية */}
-          <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-7 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
+          {/* 🧭 الرأس والشريط العلوي لإدارة الجدول الأسبوعي بتوزيع هندسي متناسق وأزرار مرتبة */}
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-7 shadow-xs space-y-5">
+            {/* 🏷️ الهيدر التعريفي وعنوان إدارة الجداول */}
             <div className="space-y-2">
               <div className="flex items-center gap-2.5 flex-wrap">
                 <span className="px-4 py-1.5 bg-[#0F2942] text-white font-black text-sm sm:text-base rounded-xl shadow-xs flex items-center gap-2">
-                  <Clock className="w-5 h-5 text-cyan-300" />
-                  <span>نظام إدارة الجداول الأسبوعية والمخطط الزمني</span>
+                  <Clock className="w-5 h-5 text-cyan-300" /> {/* ⏰ أيقونة الساعة الزرقاء */}
+                  <span>نظام إدارة الجداول الأسبوعية والمخطط الزمني</span> {/* 🏷️ عنوان النظام */}
                 </span>
                 <span className="px-4 py-1.5 bg-gradient-to-r from-[#0F2942] to-[#163a5f] text-white font-black text-sm sm:text-base rounded-xl shadow-xs border border-blue-400/30 flex items-center gap-2">
-                  <GraduationCap className="w-4 h-4 text-cyan-300 shrink-0" />
-                  <span>قسم {deptName}</span>
+                  <GraduationCap className="w-4 h-4 text-cyan-300 shrink-0" /> {/* 🎓 أيقونة التخرج */}
+                  <span>قسم {deptName}</span> {/* 🏢 اسم القسم الحالي */}
                 </span>
               </div>
               <h2 className="text-2xl sm:text-3xl font-black text-slate-950 tracking-tight">
-                إدارة مواقيت المحاضرات وأيام الدوام والعطل الأسبوعية
+                إدارة مواقيت المحاضرات وأيام الدوام والعطل الأسبوعية {/* 📌 العنوان الرئيسي المعتمد */}
               </h2>
               <p className="text-base sm:text-lg font-black text-slate-800 mt-1 leading-relaxed">
-                تخصيص كامل لأيام الدوام والعطل لكل مرحلة، وجدولة المحاضرات والقاعات وتعيين الأساتذة مع ربط مباشر مع جداول الطلاب
+                تخصيص كامل لأيام الدوام والعطل لكل مرحلة، وجدولة المحاضرات والقاعات وتعيين الأساتذة مع ربط مباشر مع جداول الطلاب {/* 📝 الوصف التوضيحي للجدول */}
               </p>
             </div>
 
-            {/* أزرار إضافة محاضرة واستيراد Excel ونموذج وتوجيهات والمعاينة الحية */}
-            <div className="flex flex-wrap items-center gap-3 w-full md:w-auto justify-end">
+            {/* 🛠️ شريط أزرار العمليات المنسقة بالكامل بلون الكحلي الملكي الموحد وفق رغبة المستخدم */}
+            <div className="pt-4 border-t border-slate-200/80 flex flex-wrap items-center gap-3">
+              {/* 1️⃣ إضافة محاضرة جديدة (كحلي ملكي) */}
               <button
                 type="button" // 🔘 نوع الزر لمنع الإرسال العفوي
                 onClick={() => {
                   // 📍 تسجيل موضع السكرول الحالي للصفحة فوراً قبل فتح المودال حتى نرجعله بدقة
                   if (typeof window !== 'undefined') {
-                    lastScheduleScrollYRef.current = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0;
+                    lastScheduleScrollYRef.current = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0; // 📌 تثبيت موضع الصفحة
                   }
                   resetLectureModalState(); // 🧹 تصفير كافة الحقول والتواريخ والأوقات لتبدأ غير محددة
                   setIsLectureModalOpen(true); // 🚀 فتح نافذة المودال فورياً
                 }}
-                className="px-5 py-3 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-2xl font-black text-base flex items-center gap-2.5 shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer border border-[#0F2942] shrink-0"
-                title="إضافة محاضرة دراسية جديدة إلى الجدول الأسبوعي"
+                className="px-5 py-3 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-2xl font-black text-base flex items-center gap-2.5 shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer border border-[#0F2942] shrink-0" // 🎨 تصميم كحلي ملكي موحد
+                title="إضافة محاضرة دراسية جديدة إلى الجدول الأسبوعي" // 💡 تلميح الزر
               >
-                <Plus className="w-5 h-5 text-cyan-300" />
-                <span>إضافة محاضرة جديدة</span>
+                <Plus className="w-5 h-5 text-cyan-300" /> {/* ➕ أيقونة الإضافة الزرقاء */}
+                <span>إضافة محاضرة جديدة</span> {/* 📝 نص الزر المعتمد */}
               </button>
 
-              {/* 📥 زر تنزيل نموذج Excel لجدول القسم بتصميم كحلي فاخر مطابق لزر إضافة محاضرة */}
+              {/* 2️⃣ زر تنزيل نموذج Excel (كحلي ملكي) */}
               <button
                 type="button" // 🔘 نوع الزر لمنع أي إرسال غير مقصود
                 onClick={handleDownloadScheduleTemplate} // ⚡ تشغيل دالة تنزيل قالب جدول المحاضرات
@@ -11713,7 +11721,7 @@ export default function DepartmentPortalPage() {
                 <span>نموذج Excel</span> {/* 📝 نص الزر */}
               </button>
 
-              {/* ℹ️ زر تعليمات الاستيراد للجدول بتصميم كحلي فاخر مطابق لزر إضافة محاضرة */}
+              {/* 3️⃣ زر تعليمات الاستيراد (كحلي ملكي) */}
               <button
                 type="button" // 🔘 نوع الزر لمنع أي إرسال غير مقصود
                 onClick={() => setShowScheduleExcelInstructions(true)} // ⚡ فتح نافذة التعليمات للجدول
@@ -11724,20 +11732,20 @@ export default function DepartmentPortalPage() {
                 <span>التعليمات</span> {/* 📝 نص الزر */}
               </button>
 
-              {/* 📤 زر استيراد ملف Excel للجدول بتصميم كحلي فاخر مطابق لزر إضافة محاضرة */}
-              <label className="px-5 py-3 bg-[#0F2942] hover:bg-[#163a5f] text-white text-base font-black rounded-2xl transition flex items-center gap-2.5 cursor-pointer shadow-md hover:shadow-lg active:scale-95 border border-[#0F2942] shrink-0">
+              {/* 4️⃣ زر استيراد ملف Excel (كحلي ملكي) */}
+              <label className="px-5 py-3 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-2xl font-black text-base flex items-center gap-2.5 shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer border border-[#0F2942] shrink-0"> {/* 🎨 تصميم كحلي ملكي موحد */}
                 <Upload className="w-5 h-5 text-cyan-300" /> {/* 📤 أيقونة الرفع بلون سماوي زاهي */}
                 <span>{isImportingScheduleExcel ? 'جاري الاستيراد...' : 'استيراد Excel'}</span> {/* 📝 نص الزر */}
                 <input
-                  type="file"
-                  accept=".xlsx, .xls"
-                  onChange={handleScheduleExcelUpload}
-                  disabled={isImportingScheduleExcel}
-                  className="hidden"
+                  type="file" // 📁 مدخل ملف إكسل
+                  accept=".xlsx, .xls" // 📋 الامتدادات المدعومة
+                  onChange={handleScheduleExcelUpload} // ⚡ معالج رفع وقراءة الملف
+                  disabled={isImportingScheduleExcel} // 🔒 قفل الحقل أثناء المعالجة
+                  className="hidden" // 👁️ إخفاء المدخل الأصلي
                 />
               </label>
 
-              {/* 📊 زر تصدير جدول المحاضرات إلى Excel بتصميم كحلي فاخر مطابق لزر إضافة محاضرة */}
+              {/* 5️⃣ زر تصدير جدول المحاضرات إلى Excel (كحلي ملكي) */}
               <button
                 type="button" // 🔘 نوع الزر لمنع أي إرسال غير مقصود
                 onClick={handleExportScheduleToExcel} // ⚡ تصدير الجدول لملف إكسل معتمد
@@ -11748,25 +11756,26 @@ export default function DepartmentPortalPage() {
                 <span>تصدير Excel</span> {/* 📝 نص الزر */}
               </button>
 
+              {/* 6️⃣ زر معاينة جدول الطلاب (كحلي ملكي) */}
               <button
                 type="button" // 🔘 نوع الزر لمنع الإرسال التلقائي للنموذج
                 onClick={() => setIsPreviewScheduleModalOpen(true)} // ⚡ فتح نافذة معاينة جدول الطلاب
-                className="px-5 py-3 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-2xl font-black text-base flex items-center gap-2.5 shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer border border-[#0F2942] shrink-0" // 🎨 تصميم كحلي ملكي راقٍ وموحد
+                className="px-5 py-3 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-2xl font-black text-base flex items-center gap-2.5 shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer border border-[#0F2942] shrink-0" // 🎨 تصميم كحلي ملكي موحد
                 title="معاينة جدول الطلاب" // 💡 تلميح زر المعاينة
               >
                 <Eye className="w-5 h-5 text-cyan-300" /> {/* 👁️ أيقونة المعاينة بلون سماوي زاهٍ */}
                 <span>معاينة جدول الطلاب</span> {/* 📝 نص الزر المحدث وفق رغبة المستخدم */}
               </button>
 
-              {/* 🖨️ زر طباعة جدول المحاضرات الأسبوعي المعتمد PDF بتصميم كحلي ملكي راقٍ */}
+              {/* 7️⃣ زر طباعة جدول المحاضرات الأسبوعي المعتمد PDF (كحلي ملكي) */}
               <button
-                type="button"
-                onClick={() => setIsSchedulePrintModalOpen(true)}
-                className="px-5 py-3 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-2xl font-black text-base flex items-center gap-2.5 shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer border border-[#0F2942] shrink-0"
-                title="طباعة وتصدير وثيقة جدول المحاضرات الأسبوعي المعتمد بصيغة PDF"
+                type="button" // 🔘 نوع الزر لمنع الإرسال
+                onClick={() => setIsSchedulePrintModalOpen(true)} // ⚡ فتح نافذة طباعة الجدول
+                className="px-5 py-3 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-2xl font-black text-base flex items-center gap-2.5 shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer border border-[#0F2942] shrink-0" // 🎨 تصميم كحلي ملكي موحد
+                title="طباعة وتصدير وثيقة جدول المحاضرات الأسبوعي المعتمد بصيغة PDF" // 💡 تلميح زر الطباعة
               >
-                <Printer className="w-5 h-5 text-cyan-300" />
-                <span>طباعة جدول المحاضرات PDF</span>
+                <Printer className="w-5 h-5 text-rose-300" /> {/* 🖨️ أيقونة الطابعة بلون وردي زاهي */}
+                <span>طباعة جدول المحاضرات PDF</span> {/* 📝 نص زر الطباعة الرسمي */}
               </button>
             </div>
           </div>
@@ -14711,105 +14720,108 @@ export default function DepartmentPortalPage() {
       {activeTab === 'attendance' && (
         <div className="space-y-6 animate-in fade-in duration-150">
           
-          {/* هيدر التبويب الفاتح */}
-          <div className="bg-white p-6 rounded-3xl text-slate-900 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <span className="px-3 py-0.5 bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm font-black rounded-full flex items-center gap-1">
-                  <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>ضوابط الحضور والإنذارات الأكاديمية</span>
+          {/* 📋 الهيدر الرئيسي لسجلات الحضور والغيابات مع أزرار العمليات بسطر خاص */}
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-5">
+            {/* 🏷️ العنوان والبادجات التعريفية */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="px-3.5 py-1 bg-[#0F2942] text-white text-sm font-black rounded-xl flex items-center gap-1.5 shadow-2xs">
+                  <Sparkles className="w-3.5 h-3.5 text-cyan-300" /> {/* ✨ أيقونة الضوابط الأكاديمية */}
+                  <span>ضوابط الحضور والإنذارات الأكاديمية</span> {/* 🏷️ عنوان البادج */}
                 </span>
-                <span className="px-2.5 py-0.5 bg-blue-50 text-blue-950 border border-blue-200 font-bold text-sm font-black rounded-full">
-                  قسم {deptName}
+                <span className="px-3 py-1 bg-blue-50 text-blue-950 border border-blue-200 font-black text-sm rounded-xl">
+                  قسم {deptName} {/* 🏢 القسم الحالي */}
                 </span>
               </div>
-              <h2 className="text-xl sm:text-2xl font-black text-slate-950 flex items-center gap-2">
-                <ClipboardList className="w-6 h-6 text-emerald-600" />
-                <span>سجلات الحضور والغيابات والإنذارات الأكاديمية لمسار بولونيا</span>
+              <h2 className="text-2xl sm:text-3xl font-black text-slate-950 flex items-center gap-2.5 tracking-tight">
+                <ClipboardList className="w-7 h-7 text-[#0F2942]" /> {/* 📋 أيقونة السجلات */}
+                <span>سجلات الحضور والغيابات والإنذارات الأكاديمية لمسار بولونيا</span> {/* 📌 عنوان الصفحة الرئيسي */}
               </h2>
-              <p className="text-sm font-black sm:text-sm text-slate-950 font-black font-medium mt-1">
-                متابعة مركزية لنسب غياب طلبة القسم ورصد تجاوزات الحدود القانونية (5% إنذار أولي | 7% إنذار نهائي | 10% حرمان رسمي)
+              <p className="text-base sm:text-lg font-black text-slate-800 mt-1 leading-relaxed">
+                متابعة مركزية لنسب غياب طلبة القسم ورصد تجاوزات الحدود القانونية (5% إنذار أولي | 7% إنذار نهائي | 10% حرمان رسمي) {/* 📝 الوصف القانوني للغيابات */}
               </p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3 self-start md:self-auto">
-              {/* 🎛️ تبويبات التبديل بين جدول الطلاب والتحليلات البيانية بتصميم صلب وفاخر */}
-              <div className="bg-slate-100 p-1.5 rounded-2xl border-2 border-slate-300 shadow-xs flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setAttendanceViewMode('list')}
-                  className={`px-4 py-2.5 rounded-xl text-sm sm:text-base font-black transition-all cursor-pointer flex items-center gap-2 ${
-                    attendanceViewMode === 'list'
-                      ? 'bg-[#0F2942] text-white shadow-sm border border-[#0F2942]'
-                      : 'bg-white text-slate-950 hover:bg-slate-50 border border-slate-300'
-                  }`}
-                >
-                  <Users className={`w-4 h-4 ${attendanceViewMode === 'list' ? 'text-cyan-300' : 'text-slate-950'}`} />
-                  <span>جدول الطلاب</span>
-                </button>
-                
-                <button
-                  type="button"
-                  onClick={() => setAttendanceViewMode('analytics')}
-                  className={`px-4 py-2.5 rounded-xl text-sm sm:text-base font-black transition-all cursor-pointer flex items-center gap-2 ${
-                    attendanceViewMode === 'analytics'
-                      ? 'bg-[#0F2942] text-white shadow-sm border border-[#0F2942]'
-                      : 'bg-white text-slate-950 hover:bg-slate-50 border border-slate-300'
-                  }`}
-                >
-                  <BarChart3 className={`w-4 h-4 ${attendanceViewMode === 'analytics' ? 'text-cyan-300' : 'text-slate-950'}`} />
-                  <span>التحليلات والرسوم البيانية</span>
-                </button>
-              </div>
+            {/* 🛠️ شريط أزرار العمليات المنسقة بالكامل بسطر خاص بها بلون الكحلي الملكي وفق ترتيب المستخدم */}
+            <div className="pt-4 border-t border-slate-200/80 flex flex-wrap items-center gap-3">
+              {/* 1️⃣ زر جدول الطلاب */}
+              <button
+                type="button" // 🔘 نوع الزر
+                onClick={() => setAttendanceViewMode('list')} // ⚡ تفعيل نمط جدول الطلاب
+                className={`px-5 py-3 rounded-2xl text-base font-black transition-all cursor-pointer flex items-center gap-2.5 shadow-md active:scale-95 border shrink-0 ${
+                  attendanceViewMode === 'list'
+                    ? 'bg-[#0F2942] hover:bg-[#163a5f] text-white border-[#0F2942] ring-2 ring-cyan-400/40' // 🎨 مظهر نشط كحلي ملكي
+                    : 'bg-[#0F2942] hover:bg-[#163a5f] text-white/80 hover:text-white border-[#0F2942]' // 🎨 كحلي ملكي أنيق
+                }`}
+                title="عرض جدول كشف حضور وغياب الطلاب" // 💡 تلميح الزر
+              >
+                <Users className="w-5 h-5 text-cyan-300" /> {/* 👥 أيقونة الطلاب الزرقاء */}
+                <span>جدول الطلاب</span> {/* 📝 نص الزر */}
+              </button>
 
-              {/* 📊 زر تصدير كشف الحضور والغيابات والإنذارات الرسمية إلى Excel */}
+              {/* 2️⃣ زر التحليلات والرسوم البيانية */}
+              <button
+                type="button" // 🔘 نوع الزر
+                onClick={() => setAttendanceViewMode('analytics')} // ⚡ تفعيل نمط التحليلات
+                className={`px-5 py-3 rounded-2xl text-base font-black transition-all cursor-pointer flex items-center gap-2.5 shadow-md active:scale-95 border shrink-0 ${
+                  attendanceViewMode === 'analytics'
+                    ? 'bg-[#0F2942] hover:bg-[#163a5f] text-white border-[#0F2942] ring-2 ring-cyan-400/40' // 🎨 مظهر نشط كحلي ملكي
+                    : 'bg-[#0F2942] hover:bg-[#163a5f] text-white/80 hover:text-white border-[#0F2942]' // 🎨 كحلي ملكي أنيق
+                }`}
+                title="عرض الرسوم البيانية ومؤشرات الغياب" // 💡 تلميح الزر
+              >
+                <BarChart3 className="w-5 h-5 text-cyan-300" /> {/* 📊 أيقونة الرسوم البيانية */}
+                <span>التحليلات والرسوم البيانية</span> {/* 📝 نص الزر */}
+              </button>
+
+              {/* 3️⃣ زر تصدير الحضور (Excel) */}
               <button
                 type="button" // 🔘 نوع الزر لمنع أي إرسال تلقائي
                 onClick={handleExportAttendanceExcel} // ⚡ تشغيل دالة تصدير كشف الحضور للإكسل
                 disabled={isExportingAttendanceExcel} // 🛑 تعطيل الزر أثناء عملية التصدير
-                className="px-4 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-2xl text-sm sm:text-base font-black transition cursor-pointer flex items-center gap-2 border-2 border-[#0F2942] shadow-sm active:scale-95 disabled:opacity-50 whitespace-nowrap shrink-0" // 🎨 تصميم كحلي ملكي راقٍ
+                className="px-5 py-3 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-2xl text-base font-black transition-all cursor-pointer flex items-center gap-2.5 border border-[#0F2942] shadow-md hover:shadow-lg active:scale-95 disabled:opacity-50 whitespace-nowrap shrink-0" // 🎨 تصميم كحلي ملكي راقٍ
                 title="تصدير كشف الحضور والغيابات والإنذارات الأكاديمية لمسار بولونيا إلى ملف Excel" // 💡 نص التلميح
               >
-                <FileSpreadsheet className="w-4 h-4 text-emerald-300" /> {/* 📊 أيقونة الإكسل باللون الزمردي الزاهي */}
+                <FileSpreadsheet className="w-5 h-5 text-emerald-300" /> {/* 📊 أيقونة الإكسل باللون الزمردي الزاهي */}
                 <span>{isExportingAttendanceExcel ? 'جاري التصدير...' : selectedAttendanceStudentIds.length > 0 ? `تصدير المحدد (${selectedAttendanceStudentIds.length}) Excel` : 'تصدير الحضور (Excel)'}</span> {/* 🏷️ نص الزر التفاعلي الذكي */}
               </button>
 
-              {/* 📢 زر إرسال تبليغ أو تنبيه عام للمرحلة */}
+              {/* 4️⃣ زر تخصيص ساعات المحاضرات */}
               <button
-                type="button"
-                onClick={() => setIsDurationSettingsModalOpen(true)}
-                className="px-4 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-2xl text-sm sm:text-base font-black transition cursor-pointer flex items-center gap-2 border-2 border-[#0F2942] shadow-sm active:scale-95"
-                title="تخصيص وإعداد مدد وساعات المحاضرات للقسم ومواده"
+                type="button" // 🔘 نوع الزر
+                onClick={() => setIsDurationSettingsModalOpen(true)} // ⚡ فتح نافذة تخصيص ساعات المحاضرات
+                className="px-5 py-3 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-2xl text-base font-black transition-all cursor-pointer flex items-center gap-2.5 border border-[#0F2942] shadow-md hover:shadow-lg active:scale-95 shrink-0" // 🎨 تصميم كحلي ملكي راقٍ
+                title="تخصيص وإعداد مدد وساعات المحاضرات للقسم ومواده" // 💡 نص التلميح
               >
-                <SlidersHorizontal className="w-4 h-4 text-cyan-300" />
-                <span>تخصيص ساعات المحاضرات</span>
+                <SlidersHorizontal className="w-5 h-5 text-cyan-300" /> {/* ⚙️ أيقونة التخصيص */}
+                <span>تخصيص ساعات المحاضرات</span> {/* 📝 نص الزر */}
               </button>
 
+              {/* 5️⃣ زر إرسال تبليغ عام للمرحلة */}
               <button
-                type="button"
+                type="button" // 🔘 نوع الزر
                 onClick={() => {
-                  setAttendanceNoticeTargetStudent(null);
-                  setSelectedAttendanceStudentIds([]);
-                  setAttendanceNoticeDefaultCategory('general_announcement');
-                  setIsAttendanceNoticeModalOpen(true);
+                  setAttendanceNoticeTargetStudent(null); // 🎯 تصفير الطالب المستهدف ليكون للجميع
+                  setSelectedAttendanceStudentIds([]); // 🧹 تصفير التحديدات
+                  setAttendanceNoticeDefaultCategory('general_announcement'); // 📢 تصنيف التبليغ العام
+                  setIsAttendanceNoticeModalOpen(true); // 🚀 فتح نافذة إرسال التبليغ
                 }}
-                className="px-4 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-2xl text-sm sm:text-base font-black transition cursor-pointer flex items-center gap-2 border-2 border-[#0F2942] shadow-sm active:scale-95"
+                className="px-5 py-3 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-2xl text-base font-black transition-all cursor-pointer flex items-center gap-2.5 border border-[#0F2942] shadow-md hover:shadow-lg active:scale-95 shrink-0" // 🎨 تصميم كحلي ملكي راقٍ
+                title="إرسال تبليغ عام أو تنبيه لطلبة المرحلة" // 💡 نص التلميح
               >
-                <Send className="w-4 h-4 text-cyan-300" />
-                <span>إرسال تبليغ عام للمرحلة</span>
+                <Send className="w-5 h-5 text-cyan-300" /> {/* 📤 أيقونة الإرسال الزرقاء */}
+                <span>إرسال تبليغ عام للمرحلة</span> {/* 📝 نص الزر */}
               </button>
 
+              {/* 6️⃣ زر تدقيق ومراجعة طلبات الإجازات */}
               <button
-                type="button"
-                onClick={() => setIsDeptExcuseReviewOpen(true)}
-                className={`px-4 py-2.5 rounded-2xl text-sm sm:text-base font-black transition cursor-pointer flex items-center gap-2 shadow-sm ${
-                  excuseRequests.filter((e) => e.department_id === currentDeptId && e.status === 'pending').length > 0
-                    ? 'bg-indigo-700 hover:bg-indigo-800 text-white animate-pulse'
-                    : 'bg-slate-800 hover:bg-slate-700 text-white border-2 border-slate-700'
-                }`}
+                type="button" // 🔘 نوع الزر
+                onClick={() => setIsDeptExcuseReviewOpen(true)} // ⚡ فتح نافذة مراجعة الإجازات
+                className="px-5 py-3 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-2xl text-base font-black transition-all cursor-pointer flex items-center gap-2.5 border border-[#0F2942] shadow-md hover:shadow-lg active:scale-95 shrink-0" // 🎨 تصميم كحلي ملكي راقٍ
+                title="تدقيق ومراجعة طلبات الإجازات والأعذار الرسمية" // 💡 نص التلميح
               >
-                <FileText className="w-4 h-4 text-cyan-300" />
-                <span>تدقيق ومراجعة طلبات الإجازات ({excuseRequests.filter((e) => e.department_id === currentDeptId && e.status === 'pending').length})</span>
+                <FileText className="w-5 h-5 text-cyan-300" /> {/* 📑 أيقونة طلبات الإجازات */}
+                <span>تدقيق ومراجعة طلبات الإجازات ({excuseRequests.filter((e) => e.department_id === currentDeptId && e.status === 'pending').length})</span> {/* 📝 نص الزر مع العداد */}
               </button>
             </div>
           </div>

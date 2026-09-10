@@ -246,7 +246,8 @@ export default function Header() {
                     </span>
                   )}
                 </div>
-                <div className="text-xs sm:text-sm font-black text-indigo-900 text-right leading-tight mt-0.5">
+                {/* 🏷️ المسمى الوظيفي ورئاسة القسم باللون الأسود المعتمد */}
+                <div className="text-xs sm:text-sm font-black text-black text-right leading-tight mt-0.5">
                   {currentUser.role === 'super_admin' || currentUser.role === 'admin'
                     ? 'المسؤول العام'
                     : currentUser.role === 'department_head'
