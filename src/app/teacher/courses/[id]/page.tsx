@@ -25,7 +25,7 @@ import { downloadTeacherGradeTemplate, downloadTeacherAttendanceTemplate, parseE
 import { sendAppNotification } from '@/lib/notification-utils'; // 🔔 مركز الإشعارات التفاعلي
 import { exportCourseGradeSheetPDF, exportCourseAttendanceSheetPDF } from '@/lib/pdf-export'; // 📄 مولد كشف درجات المادة وسجل الحضور PDF
 import { DAYS_OF_WEEK_LIST } from '@/lib/schedule-utils'; // 🕒 أسماء الأيام
-import { BookOpen, Download, Upload, ArrowRight, CheckCircle2, FileText, Lock, Shield, FlaskConical, AlertCircle, Info, Calendar, Clock, ClipboardList, CheckSquare, Square, History, Building2, GraduationCap, Users, DoorClosed, ShieldCheck, Sun, Moon, Send, BellRing, X, Check, RotateCcw, Sliders, ListFilter, Save, FileEdit, Scale, ChevronDown, ChevronUp, Award, Sparkles } from 'lucide-react'; // 🎨 الأيقونات الفيكتور SVG
+import { BookOpen, Download, Upload, ArrowRight, CheckCircle2, FileText, Lock, Shield, FlaskConical, AlertCircle, Info, Calendar, Clock, ClipboardList, CheckSquare, Square, History, Building2, GraduationCap, Users, DoorClosed, ShieldCheck, Sun, Moon, Send, BellRing, X, Check, RotateCcw, Sliders, ListFilter, Save, FileEdit, Scale, ChevronDown, ChevronUp, Award } from 'lucide-react'; // 🎨 الأيقونات الفيكتور SVG
 import ZeroTrustGuard from '@/components/security/ZeroTrustGuard'; // 🛡️ حارس أمان Zero Trust
 import { sanitizeGradeItem, sanitizeRouteParam } from '@/lib/security/sanitizer'; // 🧹 معقم درجات بولونيا ومسارات الروابط
 import AttendanceSheetEditor from '@/components/attendance/AttendanceSheetEditor'; // 📋 محرر الحضور والغياب للأستاذ

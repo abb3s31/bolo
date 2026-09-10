@@ -23,7 +23,6 @@ import {
   LogOut, 
   CheckCircle2, 
   Loader2, 
-  Sparkles, 
   GraduationCap, 
   ShieldCheck, 
   Building2 
@@ -249,7 +248,7 @@ export default function TeacherLoginPage() {
                   onClick={handleAppendDomain}
                   className="text-sm font-black sm:text-sm text-blue-900 hover:text-blue-950 font-black flex items-center gap-1 mt-1 cursor-pointer"
                 >
-                  <Sparkles className="w-4 h-4" />
+                  <CheckCircle2 className="w-4 h-4 text-blue-700" />
                   <span>إكمال النطاق تلقائياً (@sadiq.edu.iq)</span>
                 </button>
               )}

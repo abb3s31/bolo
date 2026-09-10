@@ -26,7 +26,6 @@ import {
   Award,
   Sun,
   Moon,
-  Sparkles,
   ChevronDown
 } from 'lucide-react';
 import { Course, CourseAcademicTask, AcademicTaskType, ReportTopicItem, TeacherCourse, StudentTaskSubmission, UserProfile } from '@/types';
@@ -811,7 +810,7 @@ export function TeacherAssessmentsManager({
                           </>
                         ) : task.study_type === 'both' ? (
                           <>
-                            <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                            <Users className="w-3.5 h-3.5 text-emerald-400" />
                             <span>صباحي ومسائي</span>
                           </>
                         ) : (
@@ -1231,7 +1230,7 @@ export function TeacherAssessmentsManager({
                       ) : formData.study_type === 'evening' ? (
                         <Moon className="w-4 h-4 text-indigo-400 shrink-0" />
                       ) : (
-                        <Sparkles className="w-4 h-4 text-cyan-400 shrink-0" />
+                        <Users className="w-4 h-4 text-cyan-400 shrink-0" />
                       )}
                       <span className="truncate">
                         {formData.study_type === 'morning'
@@ -1249,7 +1248,7 @@ export function TeacherAssessmentsManager({
                       {[
                         { key: 'morning' as const, label: 'الدراسة الصباحية (صباحي)', icon: Sun, color: 'text-sky-400' },
                         { key: 'evening' as const, label: 'الدراسة المسائية (مسائي)', icon: Moon, color: 'text-indigo-400' },
-                        { key: 'both' as const, label: 'كلاهما (صباحي ومسائي معاً)', icon: Sparkles, color: 'text-cyan-400' },
+                        { key: 'both' as const, label: 'كلاهما (صباحي ومسائي معاً)', icon: Users, color: 'text-cyan-400' },
                       ].map((s) => {
                         const isSel = formData.study_type === s.key;
                         const Icon = s.icon;

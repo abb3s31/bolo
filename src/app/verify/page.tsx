@@ -20,7 +20,6 @@ import {
   ArrowRight, 
   Building2, 
   GraduationCap, 
-  Sparkles,
   ExternalLink,
   User
 } from 'lucide-react';

@@ -10,7 +10,7 @@ import {
   GraduationCap, 
   Shirt, 
   AlertTriangle, 
-  Sparkles, 
+  CreditCard, // 💳 أيقونة بطاقة الدفع لتبليغات الأقساط بدلاً من النجوم
   Download, 
   Calendar, 
   Clock, 
@@ -69,7 +69,7 @@ export default function StudentAnnouncementsFeed({
     absence_warning_1: { label: 'تحذير غياب أولي (5%)', icon: AlertTriangle, color: 'text-rose-700', bg: 'bg-rose-50 border-rose-200' },
     absence_warning_2: { label: 'تحذير غياب ثانٍ (7%)', icon: AlertTriangle, color: 'text-rose-800', bg: 'bg-rose-100 border-rose-300' },
     absence_warning_3: { label: 'إنذار غياب نهائي (10%)', icon: AlertTriangle, color: 'text-red-700', bg: 'bg-red-50 border-red-300' },
-    tuition_notice: { label: 'تبليغ تسديد أقساط', icon: Sparkles, color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' },
+    tuition_notice: { label: 'تبليغ تسديد أقساط', icon: CreditCard, color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' },
     general: { label: 'تعميم وقرار عام', icon: Bell, color: 'text-slate-700', bg: 'bg-slate-50 border-slate-200' },
   };
 

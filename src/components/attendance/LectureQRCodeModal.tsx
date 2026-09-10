@@ -10,7 +10,6 @@ import {
   Users,
   CheckCircle2,
   Copy,
-  Sparkles,
   RefreshCw,
   Key,
   ShieldCheck,

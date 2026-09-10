@@ -20,8 +20,7 @@ import {
   Calendar, 
   Clock, 
   CheckCircle2,
-  Layers,
-  Sparkles
+  Layers
 } from 'lucide-react'; // 🎨 استيراد الأيقونات المعتمدة
 
 // 🏷️ واجهة خصائص المودال المحددة بدقة ومنع any تماماً

@@ -52,7 +52,6 @@ import {
   Building2, 
   ArrowLeft, 
   FileSpreadsheet, 
-  Sparkles, 
   UserCheck, 
   FileCheck,
   ChevronRight,

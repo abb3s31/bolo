@@ -8,7 +8,6 @@ import {
   Send,
   X,
   AlertCircle,
-  Sparkles,
   CheckCircle2,
   ShieldCheck,
   HeartPulse,
@@ -196,8 +195,7 @@ export default function ExcuseRequestModal({
             
             <div className="p-6 sm:p-7 overflow-y-auto overscroll-contain space-y-4 flex-1">
               {/* 💡 بطاقة إرشادية */}
-              <div className="p-4 bg-indigo-50 border-2 border-indigo-200 rounded-2xl flex items-start gap-3 text-xs sm:text-sm font-bold text-indigo-950">
-                <Sparkles className="w-5 h-5 text-indigo-700 shrink-0 mt-0.5" />
+              <div className="p-4 bg-indigo-50 border-2 border-indigo-200 rounded-2xl text-xs sm:text-sm font-bold text-indigo-950">
                 <span>
                   وفق ضوابط مسار بولونيا، يتم احتساب الإجازة الرسمية المعتمدة لرفع الإنذارات الأكاديمية وإعادة احتساب نسبة الحضور.
                 </span>

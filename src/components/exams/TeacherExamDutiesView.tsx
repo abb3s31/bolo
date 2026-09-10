@@ -16,7 +16,6 @@ import {
   UserCheck, 
   Download,
   AlertCircle,
-  Sparkles,
   X
 } from 'lucide-react'; // 🎨 الأيقونات SVG
 
@@ -266,8 +265,7 @@ export default function TeacherExamDutiesView({
                 </div>
 
                 {duty.notes && (
-                  <div className="p-3 bg-slate-50 rounded-2xl border border-slate-300 text-sm font-black text-slate-950 flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-blue-700 shrink-0" />
+                  <div className="p-3 bg-slate-50 rounded-2xl border border-slate-300 text-sm font-black text-slate-950">
                     <span><strong>ملاحظة:</strong> {duty.notes}</span>
                   </div>
                 )}

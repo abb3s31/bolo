@@ -4,14 +4,14 @@
 // 🎓 مسار بولونيا: متابعة التزام التدريسيين بنشر الكويزات، الواجبات، التقارير، والمدتيرم لجميع مراحل القسم وتدقيق قرارات التسليم
 
 import React, { useState, useEffect, useMemo } from 'react'; // 🔗 خطافات رياكت
-import { 
-  BookOpen, 
-  Layers, 
-  Clock, 
-  Download, 
-  MapPin, 
-  Award, 
-  Filter, 
+import {
+  BookOpen,
+  Layers,
+  Clock,
+  Download,
+  MapPin,
+  Award,
+  Filter,
   Search,
   CheckCircle2,
   Users,
@@ -24,7 +24,6 @@ import {
   Eye,
   X,
   Printer,
-  Sparkles,
   Calendar,
   AlertCircle,
   GraduationCap,
@@ -40,8 +39,8 @@ import { CourseAcademicTask, AcademicTaskType, StudentTaskSubmission, UserProfil
 import { INITIAL_ACADEMIC_TASKS, INITIAL_STUDENT_SUBMISSIONS, INITIAL_PROFILES, getStoredData, getAcademicYear } from '@/lib/mock-data'; // 💾 البيانات
 import { exportCourseTaskBriefPDF, exportTaskSubmissionsReportPDF } from '@/lib/pdf-export'; // 📄 مصدّر الـ PDF المعتمد
 import { getStageNameInArabic } from '@/lib/grade-utils'; // 🎓 أسماء المراحل بالعربية الفصحى
-import { 
-  syncAcademicYearFromSupabase, 
+import {
+  syncAcademicYearFromSupabase,
   subscribeToAcademicYearChanges,
   syncAcademicTasksFromSupabase,
   syncTaskSubmissionsFromSupabase
@@ -90,7 +89,7 @@ export function DepartmentAssessmentsOverview({
     if (typeof syncAcademicYearFromSupabase === 'function') {
       syncAcademicYearFromSupabase().then((liveYear) => {
         if (liveYear) setAcademicYear(liveYear);
-      }).catch(() => {});
+      }).catch(() => { });
     }
 
     let unsubscribe: (() => void) | undefined;
@@ -126,10 +125,10 @@ export function DepartmentAssessmentsOverview({
     // ☁️ مزامنة التكليفات والتسليمات الحية من سحابة Supabase
     syncAcademicTasksFromSupabase().then((liveTasks) => {
       if (liveTasks && liveTasks.length > 0) setTasks(liveTasks);
-    }).catch(() => {});
+    }).catch(() => { });
     syncTaskSubmissionsFromSupabase().then((liveSubs) => {
       if (liveSubs && liveSubs.length > 0) setSubmissions(liveSubs);
-    }).catch(() => {});
+    }).catch(() => { });
   }, []);
 
   // 🔍 تصفية وفلترة تكليفات القسم متعددة الأبعاد
@@ -217,7 +216,7 @@ export function DepartmentAssessmentsOverview({
 
   return (
     <div className="space-y-6 font-sans text-right" dir="rtl">
-      
+
       {/* 🔔 التنبيه العائم الفاخر (Light Mode أبيض ناصع) */}
       {toastMsg && (
         <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[99999] max-w-lg w-[92%] sm:w-auto animate-in slide-in-from-top-4 fade-in duration-200">
@@ -275,16 +274,15 @@ export function DepartmentAssessmentsOverview({
 
         {/* 📊 بطاقات مؤشرات الأداء والأوزان التكوينية الخمسة لمسار بولونيا */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
-          
+
           {/* 1. الكويزات */}
           <button
             type="button"
             onClick={() => setSelectedType(selectedType === 'quiz' ? 'all' : 'quiz')}
-            className={`p-4 rounded-2xl border transition-all text-right cursor-pointer flex flex-col justify-between ${
-              selectedType === 'quiz'
+            className={`p-4 rounded-2xl border transition-all text-right cursor-pointer flex flex-col justify-between ${selectedType === 'quiz'
                 ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-md ring-2 ring-[#0F2942]/30'
                 : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-950'
-            }`}
+              }`}
           >
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs sm:text-sm font-black">الكويزات والاختبارات</span>
@@ -302,11 +300,10 @@ export function DepartmentAssessmentsOverview({
           <button
             type="button"
             onClick={() => setSelectedType(selectedType === 'assignment' ? 'all' : 'assignment')}
-            className={`p-4 rounded-2xl border transition-all text-right cursor-pointer flex flex-col justify-between ${
-              selectedType === 'assignment'
+            className={`p-4 rounded-2xl border transition-all text-right cursor-pointer flex flex-col justify-between ${selectedType === 'assignment'
                 ? 'bg-blue-900 text-white border-blue-900 shadow-md ring-2 ring-blue-400/30'
                 : 'bg-blue-50/60 hover:bg-blue-100/70 border-blue-200 text-blue-950'
-            }`}
+              }`}
           >
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs sm:text-sm font-black">الواجبات والتطبيقات</span>
@@ -324,11 +321,10 @@ export function DepartmentAssessmentsOverview({
           <button
             type="button"
             onClick={() => setSelectedType(selectedType === 'report' ? 'all' : 'report')}
-            className={`p-4 rounded-2xl border transition-all text-right cursor-pointer flex flex-col justify-between ${
-              selectedType === 'report'
+            className={`p-4 rounded-2xl border transition-all text-right cursor-pointer flex flex-col justify-between ${selectedType === 'report'
                 ? 'bg-sky-900 text-white border-sky-900 shadow-md ring-2 ring-sky-400/30'
                 : 'bg-sky-50/60 hover:bg-sky-100/70 border-sky-200 text-sky-950'
-            }`}
+              }`}
           >
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs sm:text-sm font-black">التقارير والبحوث</span>
@@ -346,11 +342,10 @@ export function DepartmentAssessmentsOverview({
           <button
             type="button"
             onClick={() => setSelectedType(selectedType === 'midterm_exam' ? 'all' : 'midterm_exam')}
-            className={`p-4 rounded-2xl border transition-all text-right cursor-pointer flex flex-col justify-between ${
-              selectedType === 'midterm_exam'
+            className={`p-4 rounded-2xl border transition-all text-right cursor-pointer flex flex-col justify-between ${selectedType === 'midterm_exam'
                 ? 'bg-rose-900 text-white border-rose-900 shadow-md ring-2 ring-rose-400/30'
                 : 'bg-rose-50/60 hover:bg-rose-100/70 border-rose-200 text-rose-950'
-            }`}
+              }`}
           >
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs sm:text-sm font-black">امتحانات المدتيرم</span>
@@ -368,11 +363,10 @@ export function DepartmentAssessmentsOverview({
           <button
             type="button"
             onClick={() => setSelectedType(selectedType === 'practical_exam' ? 'all' : 'practical_exam')}
-            className={`p-4 rounded-2xl border transition-all text-right cursor-pointer flex flex-col justify-between ${
-              selectedType === 'practical_exam'
+            className={`p-4 rounded-2xl border transition-all text-right cursor-pointer flex flex-col justify-between ${selectedType === 'practical_exam'
                 ? 'bg-emerald-900 text-white border-emerald-900 shadow-md ring-2 ring-emerald-400/30'
                 : 'bg-emerald-50/60 hover:bg-emerald-100/70 border-emerald-200 text-emerald-950'
-            }`}
+              }`}
           >
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs sm:text-sm font-black">الامتحانات العملية</span>
@@ -390,8 +384,7 @@ export function DepartmentAssessmentsOverview({
 
         {/* 🚦 شريط ملخص قرارات تدقيق رئاسة القسم لمسار بولونيا */}
         <div className="p-4 bg-slate-50 border border-slate-300 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-2.5 text-sm sm:text-base font-black text-slate-900">
-            <Sparkles className="w-5 h-5 text-indigo-700 shrink-0" />
+          <div className="text-sm sm:text-base font-black text-slate-900">
             <span>موقف تسليمات وقرارات التدقيق الأكاديمي:</span>
           </div>
 
@@ -421,9 +414,9 @@ export function DepartmentAssessmentsOverview({
 
       {/* 🔍 أدوات التصفية والبحث المتقدم الممتدة بكامل العرض */}
       <div className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 shadow-xs space-y-4">
-        
+
         <div className="flex flex-col lg:flex-row items-center justify-between gap-4">
-          
+
           {/* 🔍 حقل البحث الفوري */}
           <div className="relative w-full lg:w-96">
             <Search className="w-5 h-5 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2" />
@@ -449,16 +442,14 @@ export function DepartmentAssessmentsOverview({
                 key={stg.id}
                 type="button"
                 onClick={() => setSelectedStage(stg.id)}
-                className={`flex-1 py-2 px-2.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
-                  selectedStage === stg.id
+                className={`flex-1 py-2 px-2.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${selectedStage === stg.id
                     ? 'bg-[#0F2942] text-white shadow-xs'
                     : 'text-slate-700 hover:bg-white'
-                }`}
+                  }`}
               >
                 <span>{stg.label}</span>
-                <span className={`px-1.5 py-0.5 rounded-full text-xs font-mono font-black ${
-                  selectedStage === stg.id ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800'
-                }`}>
+                <span className={`px-1.5 py-0.5 rounded-full text-xs font-mono font-black ${selectedStage === stg.id ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800'
+                  }`}>
                   {stg.count}
                 </span>
               </button>
@@ -507,16 +498,14 @@ export function DepartmentAssessmentsOverview({
                         setSelectedType(item.id);
                         setIsTypeDropdownOpen(false);
                       }}
-                      className={`w-full px-3 py-2.5 rounded-xl font-black text-xs sm:text-sm text-right transition cursor-pointer flex items-center justify-between gap-2 ${
-                        isSel ? 'bg-[#0F2942] text-white shadow-xs' : 'text-slate-950 hover:bg-slate-100'
-                      }`}
+                      className={`w-full px-3 py-2.5 rounded-xl font-black text-xs sm:text-sm text-right transition cursor-pointer flex items-center justify-between gap-2 ${isSel ? 'bg-[#0F2942] text-white shadow-xs' : 'text-slate-950 hover:bg-slate-100'
+                        }`}
                     >
                       <div className="flex items-center gap-2">
                         <IconComp className={`w-4 h-4 ${isSel ? 'text-cyan-300' : item.iconColor} shrink-0`} />
                         <span>{item.label}</span>
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-mono font-black ${
-                          isSel ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800'
-                        }`}>
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-mono font-black ${isSel ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800'
+                          }`}>
                           {item.count}
                         </span>
                       </div>
@@ -554,7 +543,7 @@ export function DepartmentAssessmentsOverview({
                   { id: 'all', label: 'كافة الفترات الدراسية', count: stats.total, icon: Layers, iconColor: 'text-slate-700' },
                   { id: 'morning', label: 'الدراسة الصباحية', count: stats.morningTasks, icon: Sun, iconColor: 'text-sky-600' },
                   { id: 'evening', label: 'الدراسة المسائية', count: stats.eveningTasks, icon: Moon, iconColor: 'text-sky-600' },
-                  { id: 'both', label: 'الصباحي والمسائي معاً', count: stats.bothTasks, icon: Sparkles, iconColor: 'text-emerald-600' },
+                  { id: 'both', label: 'الصباحي والمسائي معاً', count: stats.bothTasks, icon: Users, iconColor: 'text-emerald-600' },
                 ].map((item) => {
                   const isSel = selectedStudyType === item.id;
                   const IconComp = item.icon;
@@ -566,16 +555,14 @@ export function DepartmentAssessmentsOverview({
                         setSelectedStudyType(item.id);
                         setIsStudyDropdownOpen(false);
                       }}
-                      className={`w-full px-3 py-2.5 rounded-xl font-black text-xs sm:text-sm text-right transition cursor-pointer flex items-center justify-between gap-2 ${
-                        isSel ? 'bg-[#0F2942] text-white shadow-xs' : 'text-slate-950 hover:bg-slate-100'
-                      }`}
+                      className={`w-full px-3 py-2.5 rounded-xl font-black text-xs sm:text-sm text-right transition cursor-pointer flex items-center justify-between gap-2 ${isSel ? 'bg-[#0F2942] text-white shadow-xs' : 'text-slate-950 hover:bg-slate-100'
+                        }`}
                     >
                       <div className="flex items-center gap-2">
                         <IconComp className={`w-4 h-4 ${isSel ? 'text-cyan-300' : item.iconColor} shrink-0`} />
                         <span>{item.label}</span>
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-mono font-black ${
-                          isSel ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800'
-                        }`}>
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-mono font-black ${isSel ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800'
+                          }`}>
                           {item.count}
                         </span>
                       </div>
@@ -633,22 +620,22 @@ export function DepartmentAssessmentsOverview({
                     const badgeBg = isQuiz
                       ? 'bg-slate-100 border-slate-300 text-slate-950'
                       : isAssignment
-                      ? 'bg-blue-50 border-blue-200 text-blue-950'
-                      : isReport
-                      ? 'bg-sky-50 border-sky-200 text-sky-950'
-                      : isMidterm
-                      ? 'bg-rose-50 border-rose-200 text-rose-950'
-                      : 'bg-emerald-50 border-emerald-200 text-emerald-950';
+                        ? 'bg-blue-50 border-blue-200 text-blue-950'
+                        : isReport
+                          ? 'bg-sky-50 border-sky-200 text-sky-950'
+                          : isMidterm
+                            ? 'bg-rose-50 border-rose-200 text-rose-950'
+                            : 'bg-emerald-50 border-emerald-200 text-emerald-950';
 
                     const typeLabel = isQuiz
                       ? 'كويز'
                       : isAssignment
-                      ? 'واجب منزلي'
-                      : isReport
-                      ? 'تقرير بحثي'
-                      : isMidterm
-                      ? 'امتحان مدتيرم'
-                      : 'امتحان عملي';
+                        ? 'واجب منزلي'
+                        : isReport
+                          ? 'تقرير بحثي'
+                          : isMidterm
+                            ? 'امتحان مدتيرم'
+                            : 'امتحان عملي';
 
                     const taskSubs = submissions.filter((s) => s.task_id === task.id);
                     const acceptedSubs = taskSubs.filter((s) => s.review_decision === 'accepted').length;
@@ -689,13 +676,12 @@ export function DepartmentAssessmentsOverview({
                           </span>
                         </td>
                         <td className="p-3.5 text-center whitespace-nowrap">
-                          <span className={`px-3 py-1.5 rounded-xl text-xs font-black inline-flex items-center gap-1.5 shadow-2xs border ${
-                            task.study_type === 'evening'
+                          <span className={`px-3 py-1.5 rounded-xl text-xs font-black inline-flex items-center gap-1.5 shadow-2xs border ${task.study_type === 'evening'
                               ? 'bg-slate-100 text-slate-950 border-slate-300'
                               : task.study_type === 'both'
-                              ? 'bg-emerald-50 text-emerald-950 border-emerald-300'
-                              : 'bg-sky-50 text-sky-950 border-sky-200'
-                          }`}>
+                                ? 'bg-emerald-50 text-emerald-950 border-emerald-300'
+                                : 'bg-sky-50 text-sky-950 border-sky-200'
+                            }`}>
                             {task.study_type === 'evening' ? (
                               <>
                                 <Moon className="w-3.5 h-3.5 text-sky-700" />
@@ -703,7 +689,7 @@ export function DepartmentAssessmentsOverview({
                               </>
                             ) : task.study_type === 'both' ? (
                               <>
-                                <Sparkles className="w-3.5 h-3.5 text-emerald-700" />
+                                <Users className="w-3.5 h-3.5 text-emerald-700" />
                                 <span>صباحي ومسائي</span>
                               </>
                             ) : (
@@ -736,11 +722,10 @@ export function DepartmentAssessmentsOverview({
                               <span className="px-2.5 py-1 bg-slate-100 text-slate-950 border border-slate-300 rounded-xl text-xs font-black font-mono">
                                 {taskSubs.length} تسليم
                               </span>
-                              <span className={`px-2.5 py-1 rounded-xl text-xs font-black border ${
-                                task.is_submission_open === false 
-                                  ? 'bg-rose-100 text-rose-950 border-rose-300' 
+                              <span className={`px-2.5 py-1 rounded-xl text-xs font-black border ${task.is_submission_open === false
+                                  ? 'bg-rose-100 text-rose-950 border-rose-300'
                                   : 'bg-emerald-100 text-emerald-950 border-emerald-300'
-                              }`}>
+                                }`}>
                                 {task.is_submission_open === false ? 'مقفل' : 'مفتوح'}
                               </span>
                               {acceptedSubs > 0 && (
@@ -816,8 +801,8 @@ export function DepartmentAssessmentsOverview({
                 })()
               )}
             </tbody>
-        </table>
-      </div>
+          </table>
+        </div>
 
         {/* 📑 شريط التنقل بين صفحات التكليفات والمهام */}
         <AdminPagination
@@ -835,7 +820,7 @@ export function DepartmentAssessmentsOverview({
       {inspectingTask && (
         <div className="fixed inset-0 z-[999999] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto animate-in fade-in" dir="rtl">
           <div className="bg-white border-2 border-slate-300 rounded-3xl w-full max-w-5xl max-h-[92vh] overflow-hidden shadow-2xl flex flex-col animate-in zoom-in-95 duration-200">
-            
+
             {/* الترويسة الثابتة */}
             <div className="p-6 bg-white text-slate-900 rounded-t-3xl flex items-center justify-between border-b border-slate-200 sticky top-0 z-10">
               <div className="flex items-center gap-3.5">
@@ -980,11 +965,10 @@ export function DepartmentAssessmentsOverview({
                             </td>
                             {inspectingTask.task_type === 'report' && (
                               <td className="p-3.5 text-center font-mono">
-                                <span className={`px-2 py-0.5 rounded-md text-xs font-black border font-mono ${
-                                  (sub.plagiarism_percentage || 0) <= 20 
-                                    ? 'bg-emerald-50 text-emerald-950 border-emerald-300' 
+                                <span className={`px-2 py-0.5 rounded-md text-xs font-black border font-mono ${(sub.plagiarism_percentage || 0) <= 20
+                                    ? 'bg-emerald-50 text-emerald-950 border-emerald-300'
                                     : 'bg-rose-50 text-rose-950 border-rose-300'
-                                }`}>
+                                  }`}>
                                   {sub.plagiarism_percentage !== undefined ? `${sub.plagiarism_percentage}%` : '—'}
                                 </span>
                               </td>

@@ -8,7 +8,7 @@ import {
   Calendar, 
   Clock, 
   AlertTriangle, 
-  Sparkles, 
+  CreditCard, // 💳 أيقونة بطاقة الدفع لتبليغات الأقساط بدلاً من النجوم
   Shirt, 
   GraduationCap, 
   Palmtree, 
@@ -36,7 +36,7 @@ const CATEGORY_META: Record<AnnouncementCategory, { label: string; icon: LucideI
   absence_warning_1: { label: 'تحذير غياب أولي (5%)', icon: AlertTriangle, color: 'text-rose-700', bg: 'bg-rose-50', border: 'border-rose-200' },
   absence_warning_2: { label: 'تحذير غياب ثانٍ (7%)', icon: AlertTriangle, color: 'text-rose-800', bg: 'bg-rose-100', border: 'border-rose-300' },
   absence_warning_3: { label: 'إنذار غياب نهائي (10%)', icon: AlertTriangle, color: 'text-red-800', bg: 'bg-red-50', border: 'border-red-300' },
-  tuition_notice: { label: 'تبليغ تسديد أقساط', icon: Sparkles, color: 'text-blue-800', bg: 'bg-blue-50', border: 'border-blue-200' },
+  tuition_notice: { label: 'تبليغ تسديد أقساط', icon: CreditCard, color: 'text-blue-800', bg: 'bg-blue-50', border: 'border-blue-200' },
   general: { label: 'تعميم وقرار رسمي عام', icon: Bell, color: 'text-slate-800', bg: 'bg-slate-50', border: 'border-slate-200' },
 };
 

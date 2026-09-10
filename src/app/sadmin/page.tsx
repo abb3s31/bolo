@@ -19,7 +19,6 @@ import {
   KeyRound,
   Loader2,
   UserPlus,
-  Sparkles,
   User
 } from 'lucide-react'; // 🎨 الأيقونات الفيكتور SVG
 

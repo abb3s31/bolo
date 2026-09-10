@@ -17,8 +17,7 @@ import {
   RefreshCw, 
   Database,
   Bug,
-  Code2,
-  Sparkles
+  Code2
 } from 'lucide-react'; // 🎨 الأيقونات
 
 export default function WafStatusWidget() {

@@ -20,6 +20,7 @@ export interface ArabicDatePickerProps {
   placeholder?: string; // 🏷️ نص العنصر النائب عند عدم التحديد
   disabled?: boolean; // 🔒 حالة التعطيل
   className?: string; // 🎨 كلاسات إضافية للتصميم
+  variant?: 'default' | 'royal-navy'; // 👑 نمط مظهر الزر: افتراضي أو كحلي ملكي راقٍ
 }
 
 // 🗓️ مصفوفة أسماء الشهور بالعربية الفصيحة والمعتمدة بالعراق
@@ -56,6 +57,7 @@ export default function ArabicDatePicker({
   placeholder = '-- / -- / ---- تحديد تاريخ المحاضرة',
   disabled = false,
   className = '',
+  variant = 'default', // 👑 نمط الزر الافتراضي أو الكحلي الملكي
 }: ArabicDatePickerProps) {
   // 🚪 حالة فتح أو إغلاق نافذة التقويم
   const [isOpen, setIsOpen] = useState<boolean>(false);
@@ -254,6 +256,9 @@ export default function ArabicDatePicker({
   const isCurrentMonthView = todayObj.getFullYear() === viewYear && todayObj.getMonth() === viewMonth;
   const todayDayNum = todayObj.getDate();
 
+  // 👑 فحص هل النمط هو الكحلي الملكي
+  const isRoyal = variant === 'royal-navy';
+
   return (
     <div className="relative w-full">
       {/* 🔘 زر فتح وإغلاق التقويم الأكاديمي مع إظهار النص كاملاً بدون أي قص */}
@@ -263,22 +268,54 @@ export default function ArabicDatePicker({
         disabled={disabled}
         onClick={toggleCalendar} /* 🗓️ حدث النقر لفتح وإغلاق نافذة التقويم المنبثقة فوراً */
         /* 🔘 زر فتح وإغلاق التقويم مع تثبيت الارتفاع الدقيق h-[48px] و min-h-[48px] ليتطابق بالمليمتر مع القوائم المجاورة */
-        className={`w-full h-[48px] min-h-[48px] px-3.5 py-2.5 bg-white border-2 rounded-xl text-sm font-black flex items-center justify-between cursor-pointer shadow-2xs transition-all text-right ${
-          isOpen ? 'border-[#0F2942] ring-2 ring-[#0F2942]/20' : 'border-slate-300 hover:border-slate-400'
+        className={`w-full h-[48px] min-h-[48px] px-3.5 py-2.5 rounded-xl text-sm font-black flex items-center justify-between cursor-pointer transition-all text-right ${
+          isRoyal
+            ? `bg-[#0F2942] hover:bg-[#163a5d] text-white border-2 border-[#0F2942] shadow-sm ${
+                isOpen ? 'ring-2 ring-cyan-400/40 border-cyan-400' : ''
+              }`
+            : `bg-white border-2 shadow-2xs ${
+                isOpen ? 'border-[#0F2942] ring-2 ring-[#0F2942]/20' : 'border-slate-300 hover:border-slate-400'
+              }`
         } ${disabled ? 'opacity-60 cursor-not-allowed bg-slate-100' : ''} ${className}`}
         title={displayFormattedDate()}
       >
         <div className="flex items-center gap-2 min-w-0">
-          <div className="p-1.5 bg-blue-50 text-[#0F2942] rounded-lg shrink-0 border border-blue-200">
-            <CalendarIcon className="w-4 h-4 text-[#0F2942]" />
+          <div
+            className={`p-1.5 rounded-lg shrink-0 border ${
+              isRoyal
+                ? 'bg-white/15 text-cyan-300 border-white/20 shadow-2xs'
+                : 'bg-blue-50 text-[#0F2942] border-blue-200'
+            }`}
+          >
+            <CalendarIcon className={`w-4 h-4 ${isRoyal ? 'text-cyan-300' : 'text-[#0F2942]'}`} />
           </div>
-          <span className={`text-sm font-black whitespace-nowrap ${!value ? 'text-slate-500 font-bold' : 'text-slate-950'}`}>
+          <span
+            className={`text-sm font-black whitespace-nowrap ${
+              !value
+                ? isRoyal
+                  ? 'text-white/60 font-bold'
+                  : 'text-slate-500 font-bold'
+                : isRoyal
+                ? 'text-white'
+                : 'text-slate-950'
+            }`}
+          >
             {displayFormattedDate()}
           </span>
         </div>
 
         {/* 🔽 أيقونة السهم المنسدل التفاعلي لإضفاء مظهر احترافي متوازن */}
-        <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform duration-200 shrink-0 mr-1.5 ${isOpen ? 'rotate-180 text-[#0F2942]' : ''}`} />
+        <ChevronDown
+          className={`w-4 h-4 transition-transform duration-200 shrink-0 mr-1.5 ${
+            isRoyal
+              ? isOpen
+                ? 'rotate-180 text-cyan-300'
+                : 'text-white/80'
+              : isOpen
+              ? 'rotate-180 text-[#0F2942]'
+              : 'text-slate-500'
+          }`}
+        />
       </button>
 
       {/* 🚪 البورتال المنبثق للتقويم الفاخر بطبقة z-[999999] والمحكوم 100% بحدود الشاشة */}

@@ -3,7 +3,7 @@
 // 📱 نافذة إدخال رمز الحضور السريع (PIN / QR) للطالب - جامعة الإمام جعفر الصادق (ع) - فرع ميسان
 import { useState, useRef, useEffect } from 'react'; // 🔗 خطافات رياكت لإدارة الحالة والمراجع
 import { Course, StudentAttendanceRecord } from '@/types'; // 🔗 استيراد الأنواع
-import { QrCode, Key, CheckCircle2, X, Sparkles, AlertCircle, Clock, BookOpen, ChevronDown, Check } from 'lucide-react'; // 🎨 استيراد أيقونات SVG
+import { QrCode, Key, CheckCircle2, X, AlertCircle, Clock, BookOpen, ChevronDown, Check } from 'lucide-react'; // 🎨 استيراد أيقونات SVG
 
 // 📋 واجهة الخصائص المستقبلة للنافذة
 interface StudentCheckInModalProps {
@@ -119,8 +119,7 @@ export default function StudentCheckInModal({
           <form onSubmit={handleCheckIn} className="p-6 sm:p-7 space-y-5 text-slate-950">
             
             {/* 💡 بطاقة إرشادية */}
-            <div className="p-4 bg-indigo-50 border-2 border-indigo-200 rounded-2xl flex items-start gap-3 text-xs sm:text-sm font-bold text-indigo-950">
-              <Sparkles className="w-5 h-5 text-indigo-700 shrink-0 mt-0.5" />
+            <div className="p-4 bg-indigo-50 border-2 border-indigo-200 rounded-2xl text-xs sm:text-sm font-bold text-indigo-950">
               <span>
                 أدخل الرمز المعروض من قبل أستاذ المادة داخل القاعة أو المختبر لتأكيد حضورك فورياً.
               </span>

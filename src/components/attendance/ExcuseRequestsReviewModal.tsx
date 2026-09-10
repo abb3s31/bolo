@@ -3,7 +3,7 @@
 // 📑 نافذة مراجعة واعتماد طلبات الإجازات والأعذار الرسمية (للأستاذ ورئيس القسم) - جامعة الإمام جعفر الصادق (ع) - فرع ميسان
 import { useState } from 'react'; // 🔗 رياكت
 import { AttendanceExcuseRequest, StudentAttendanceRecord } from '@/types'; // 🔗 الأنواع
-import { FileText, CheckCircle2, XCircle, Clock, ShieldCheck, X, AlertCircle, Sparkles, MessageSquare } from 'lucide-react'; // 🎨 الأيقونات
+import { FileText, CheckCircle2, XCircle, Clock, ShieldCheck, X, AlertCircle, MessageSquare } from 'lucide-react'; // 🎨 الأيقونات
 import { sendAppNotification } from '@/lib/notification-utils'; // 🔔 مركز الإشعارات
 import { saveExcuseRequestToSupabase } from '@/lib/supabase-client'; // ☁️ حفظ ومزامنة حالة العذر في Supabase
 

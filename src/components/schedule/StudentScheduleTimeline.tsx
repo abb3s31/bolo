@@ -21,12 +21,14 @@ import {
   getCurrentAcademicWeek,
   formatDateArabicWithDay,
   IRAQI_ARABIC_MONTHS,
+  formatArabicOrdinalLectureName, // 🏷️ استيراد دالة الترتيب الأكاديمي الفصيح
+  formatArabicLectureCount,       // 🔤 استيراد دالة صياغة عدد المحاضرات السليمة نحوياً
 } from '@/lib/schedule-utils'; // 🕒 دوال حسابات الجدول والأسابيع الـ 15 والتواريخ الذكية
 import { getStageNameInArabic } from '@/lib/grade-utils'; // 🎓 تحويل رقم المرحلة إلى اسمها العربي الفصيح
 import {
   Clock,
   Calendar,
-  Sparkles,
+  Users, // 👥 استبدال أيقونة النجوم بالأيقونة المناسبة
   MapPin,
   User,
   BookOpen,
@@ -43,6 +45,7 @@ import {
   UserCheck,
   CalendarDays,
   X, // ❌ أيقونة إغلاق نافذة المعاينة والطباعة
+  ChevronDown, // 🔽 أيقونة سهم منسدل SVG لزر عرض التفاصيل
 } from 'lucide-react'; // 🎨 أيقونات واجهة المستخدم SVG
 
 // ⏱️ دالة تحويل وتنسيق توقيت المحاضرات بإضافة (ص / م) بشكل أكاديمي ذكي ودقيق 100%
@@ -105,14 +108,8 @@ export function formatOfficialIssueDate(date = new Date()): string {
   return `${d} / ${m} / ${y}`; // 📌 إرجاع الصيغة الرسمية الثابتة مثلاً 07 / 09 / 2026
 }
 
-// 🔤 دالة لغوية لصياغة عدد المحاضرات بقواعد لغة عربية سليمة ومضبوطة نحوياً (بدلاً من 1 محاضرات)
-export function formatArabicLectureCount(count: number): string {
-  if (count <= 0) return ''; // 🛡️ إذا لم تكن هناك محاضرات نرجع نصاً فارغاً
-  if (count === 1) return 'محاضرة واحدة'; // 🎯 مفرد مؤنث سليم
-  if (count === 2) return 'محاضرتان'; // ✌️ مثنى مؤنث سليم
-  if (count >= 3 && count <= 10) return `${count} محاضرات`; // 📚 جمع قلة صحيح
-  return `${count} محاضرة`; // 🔢 تمييز مفرد منصوب لما بعد العشرة
-}
+// 🏷️ إعادة تصدير دوال الترتيب والعدد الأكاديمي من المكتبة المركزية schedule-utils لضمان التوافقية التامة 100%
+export { formatArabicOrdinalLectureName, formatArabicLectureCount };
 
 // ⏱️ دالة حساب وتنسيق مدة المحاضرة بالعربية الفصيحة بدقة جامعية (ساعة ونصف، ساعة واحدة)
 export function formatLectureDurationArabic(startTime: string, endTime: string): string {
@@ -183,6 +180,7 @@ export default function StudentScheduleTimeline({
   const [currentClockString, setCurrentClockString] = useState<string>('');
   const [isMounted, setIsMounted] = useState<boolean>(false); // ⚡ حالة التأكد من تحميل المكون على متصفح العميل
   const [isPrintModalOpen, setIsPrintModalOpen] = useState<boolean>(initialOpenPrintModal); // 🖨️ حالة فتح وإغلاق نافذة المعاينة والطباعة الرسمية
+  const [activeTimelineTooltipId, setActiveTimelineTooltipId] = useState<string | null>(null); // 🕒 تتبع معرف المحاضرة التي تم النقر على خط التايم لاين الخاص بها لعرض تفاصيل الوقت بدقة
 
   // 🚪 دالة إغلاق نافذة الطباعة ومزامنة المكون الأب
   const handleClosePrintModal = () => {
@@ -521,8 +519,7 @@ export default function StudentScheduleTimeline({
         <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-              <span className="px-3 py-1 bg-blue-50 border border-blue-200 text-[#0F2942] font-black text-sm rounded-xl flex items-center gap-1.5 shadow-2xs">
-                <Sparkles className="w-4 h-4 text-blue-700" />
+              <span className="px-3 py-1 bg-blue-50 border border-blue-200 text-[#0F2942] font-black text-sm rounded-xl shadow-2xs">
                 <span>الجدول الأكاديمي والمخطط الزمني</span>
               </span>
               <span className="px-3 py-1 bg-slate-100 text-slate-900 border border-slate-300 font-black text-sm rounded-xl">
@@ -698,8 +695,7 @@ export default function StudentScheduleTimeline({
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="text-sm sm:text-base font-black text-slate-950">التقويم الأكاديمي للفصل (15 أسبوعاً)</h3>
-                  <span className="px-2.5 py-0.5 bg-emerald-50 text-emerald-950 border border-emerald-400 font-black text-xs rounded-full flex items-center gap-1 shadow-2xs">
-                    <Sparkles className="w-3 h-3 text-emerald-600" />
+                  <span className="px-2.5 py-0.5 bg-emerald-50 text-emerald-950 border border-emerald-400 font-black text-xs rounded-full shadow-2xs">
                     <span>الأسبوع الحالي: {currentAcademicWeek}</span>
                   </span>
                 </div>
@@ -784,7 +780,16 @@ export default function StudentScheduleTimeline({
                 <button
                   key={d.key}
                   type="button"
-                  onClick={() => setSelectedDay(d.key)}
+                  onClick={() => {
+                    setSelectedDay(d.key); // 🎯 تعيين اليوم المختار
+                    // 🚀 إذا كان المستخدم بتبويب الجدول الأسبوعي، نبقى بالجدول الأسبوعي ونمرر الشاشة بسلاسة لكارد اليوم المختار
+                    if (viewMode === 'weekly') {
+                      const targetCard = document.getElementById(`weekly-day-${d.key}`);
+                      if (targetCard) {
+                        targetCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      }
+                    }
+                  }}
                   className={`relative min-h-[92px] sm:min-h-[100px] p-2 sm:p-2.5 rounded-2xl border-2 transition-all flex flex-col items-center justify-between text-center cursor-pointer select-none ${
                     isSelected
                       ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-md ring-2 ring-[#0F2942]/20 scale-[1.02] z-20'
@@ -811,7 +816,7 @@ export default function StudentScheduleTimeline({
                       {d.label_ar}
                     </span>
                     <span className={`text-[11px] sm:text-xs font-black leading-tight font-mono ${
-                      isSelected ? 'text-cyan-300' : 'text-slate-700'
+                      isSelected ? 'text-cyan-300' : 'text-slate-950'
                     }`}>
                       {formattedDayDate}
                     </span>
@@ -824,10 +829,10 @@ export default function StudentScheduleTimeline({
                         className={`px-2 py-0.5 rounded-lg text-[10px] sm:text-xs font-black inline-flex items-center gap-1 truncate ${
                           isSelected 
                             ? 'bg-white/20 text-white border border-white/20' 
-                            : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                            : 'bg-emerald-50 text-emerald-950 border border-emerald-300'
                         }`}
                       >
-                        <Sun className="w-3 h-3 text-emerald-600 shrink-0" />
+                        <Sun className="w-3 h-3 text-emerald-700 shrink-0" />
                         <span>عطلة</span>
                       </span>
                     ) : (
@@ -837,7 +842,7 @@ export default function StudentScheduleTimeline({
                             ? 'bg-white/20 text-white border-white/30'
                             : dayLecturesCount > 0
                             ? 'bg-blue-50 text-blue-950 border-blue-300'
-                            : 'bg-slate-100 text-slate-700 border-slate-200'
+                            : 'bg-slate-100 text-slate-950 border-slate-300'
                         }`}
                       >
                         {dayLecturesCount > 0 ? formatArabicLectureCount(dayLecturesCount) : 'فارغ'}
@@ -909,11 +914,11 @@ export default function StudentScheduleTimeline({
       {viewMode === 'timeline' && (
         <div className="p-5 sm:p-7 space-y-6">
           
-          {/* هيدر اليوم المختار مع تاريخه ورابط اليوم الفعلي */}
+          {/* هيدر اليوم المختار مع تاريخه ورابط اليوم الفعلي بتصميم فاتح واحترافي */}
           <div className="flex items-center justify-between border-b border-slate-200 pb-4 flex-wrap gap-3">
             <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-slate-950 text-white rounded-2xl shadow-xs">
-                <Calendar className="w-5 h-5 text-cyan-300" />
+              <div className="w-12 h-12 rounded-xl bg-slate-100 border-2 border-slate-300 flex items-center justify-center shrink-0 shadow-2xs">
+                <Calendar className="w-6 h-6 text-[#0F2942]" />
               </div>
               <div>
                 <h3 className="text-lg sm:text-xl font-black text-slate-950 flex items-center gap-2 flex-wrap">
@@ -921,56 +926,62 @@ export default function StudentScheduleTimeline({
                     جدول يوم {formatDateArabicWithDay(calculateDateForAnyDayInWeek(effectiveStartDate, 1, selectedAcademicWeek, selectedDay))} (الأسبوع {selectedAcademicWeek})
                   </span>
                   {selectedDay === currentRealDay && selectedAcademicWeek === currentAcademicWeek && (
-                    <span className="px-3.5 py-1 bg-rose-100 text-rose-950 text-xs sm:text-sm font-black rounded-full border-2 border-rose-300 shadow-2xs">
+                    <span className="px-3.5 py-1 bg-[#0F2942] text-white text-xs sm:text-sm font-black rounded-full shadow-xs">
                       اليوم الفعلي
                     </span>
                   )}
                 </h3>
-                <p className="text-sm sm:text-base text-slate-700 font-black mt-0.5">
+                {/* 📝 نص إجمالي المحاضرات بخط أسود عالي التباين بناءً على رغبة المستخدم */}
+                <p className="text-sm sm:text-base font-black text-slate-950 mt-0.5">
                   {isSelectedDayOff ? 'عطلة رسمية معتمدة' : dayLectures.length > 0 ? `إجمالي المحاضرات المقررة: ${formatArabicLectureCount(dayLectures.length)}` : 'لا توجد محاضرات مجدولة لهذا اليوم'}
                 </p>
               </div>
             </div>
 
             {selectedDay === currentRealDay && nextUpcomingLecture && !liveLecture && (
-              <div className="px-4 py-2 bg-blue-50 border border-blue-300 rounded-2xl flex items-center gap-2 text-blue-950 text-sm sm:text-base font-black shadow-2xs">
-                <Clock className="w-4 h-4 text-blue-700" />
+              <div className="px-4 py-2 bg-slate-50 border-2 border-slate-300 rounded-xl flex items-center gap-2 text-slate-950 text-xs sm:text-sm font-black shadow-2xs">
+                <Clock className="w-4 h-4 text-[#0F2942]" />
                 <span>
-                  المحاضرة القادمة: <strong>{nextUpcomingLecture.course_name}</strong> في الساعة{' '}
-                  <span className="font-mono">{formatArabicScheduleTime(nextUpcomingLecture.start_time)}</span>
+                  المحاضرة القادمة: <strong className="text-slate-950 font-black">{nextUpcomingLecture.course_name}</strong> في الساعة{' '}
+                  <span className="font-mono font-black">{formatArabicScheduleTime(nextUpcomingLecture.start_time)}</span>
                 </span>
               </div>
             )}
           </div>
 
-          {/* 📊 شريط ملخص وإحصائيات اليوم الأكاديمي الفاخر (ليوم السبت وكافة أيام الأسبوع) */}
+          {/* 📊 شريط ملخص وإحصائيات اليوم الأكاديمي مع وسوم مرتبة ونصوص سوداء واضحة */}
           {dayStats && !isSelectedDayOff && (
-            <div className="bg-gradient-to-r from-[#0F2942] via-[#163a5f] to-[#0F2942] text-white p-4 sm:p-5 rounded-3xl shadow-md border border-[#1e4570] flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center shrink-0 shadow-inner">
-                  <Sparkles className="w-6 h-6 text-cyan-300" />
+            <div className="bg-white text-slate-950 p-4 sm:p-5 rounded-2xl shadow-xs border-2 border-slate-200 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div className="flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-xl bg-slate-100 border-2 border-slate-300 flex items-center justify-center shrink-0 shadow-2xs">
+                  <CalendarDays className="w-6 h-6 text-[#0F2942]" />
                 </div>
                 <div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs font-black text-cyan-200">ملخص الخطة الأكاديمية ليوم {DAYS_OF_WEEK_LIST.find((d) => d.key === selectedDay)?.label_ar}:</span>
-                    <span className="px-2.5 py-0.5 rounded-full bg-white/15 text-white text-xs font-black border border-white/20">
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    {/* 📝 عنوان الخطة الأكاديمية بنص أسود عالي الوضوح */}
+                    <span className="text-sm sm:text-base font-black text-slate-950">
+                      ملخص الخطة الأكاديمية ليوم {DAYS_OF_WEEK_LIST.find((d) => d.key === selectedDay)?.label_ar}:
+                    </span>
+                    {/* 🏷️ وسم إجمالي المحاضرات بلون كحلي ملكي راقٍ */}
+                    <span className="px-3.5 py-1 rounded-xl bg-[#0F2942] text-white text-xs sm:text-sm font-black shadow-2xs">
                       {formatArabicLectureCount(dayLectures.length)}
                     </span>
                   </div>
-                  <div className="text-sm sm:text-base font-black text-white mt-1 flex items-center gap-3 flex-wrap">
-                    <span className="flex items-center gap-1.5 text-blue-100 bg-white/10 px-2.5 py-0.5 rounded-lg">
-                      <BookOpen className="w-4 h-4 text-cyan-300" />
+                  {/* 🏷️ وسوم النظري والعملي المرتبة بنمط فاخر ومتباين */}
+                  <div className="text-sm font-black text-slate-950 mt-2 flex items-center gap-2 flex-wrap">
+                    <span className="flex items-center gap-1.5 text-blue-950 bg-blue-50 border-2 border-blue-200 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-black shadow-2xs">
+                      <BookOpen className="w-4 h-4 text-blue-900" />
                       <span>{dayStats.theoryCount} نظري</span>
                     </span>
                     {dayStats.practicalCount > 0 && (
-                      <span className="flex items-center gap-1.5 text-emerald-200 bg-emerald-950/40 border border-emerald-500/30 px-2.5 py-0.5 rounded-lg">
-                        <FlaskConical className="w-4 h-4 text-emerald-400" />
+                      <span className="flex items-center gap-1.5 text-emerald-950 bg-emerald-50 border-2 border-emerald-200 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-black shadow-2xs">
+                        <FlaskConical className="w-4 h-4 text-emerald-900" />
                         <span>{dayStats.practicalCount} عملي مختبري</span>
                       </span>
                     )}
                     {dayStats.tutorialCount > 0 && (
-                      <span className="flex items-center gap-1.5 text-purple-200 bg-purple-950/40 border border-purple-500/30 px-2.5 py-0.5 rounded-lg">
-                        <Sparkles className="w-4 h-4 text-purple-300" />
+                      <span className="flex items-center gap-1.5 text-purple-950 bg-purple-50 border-2 border-purple-200 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-black shadow-2xs">
+                        <Users className="w-4 h-4 text-purple-900" />
                         <span>{dayStats.tutorialCount} حلقة نقاشية</span>
                       </span>
                     )}
@@ -978,18 +989,18 @@ export default function StudentScheduleTimeline({
                 </div>
               </div>
 
-              <div className="flex items-center gap-2.5 w-full md:w-auto justify-between md:justify-end border-t md:border-t-0 border-white/10 pt-3 md:pt-0">
-                <div className="px-3 py-1.5 rounded-xl bg-white/10 border border-white/15 text-right">
-                  <div className="text-[10px] sm:text-xs font-black text-cyan-200">الفترة الأكاديمية للدوام</div>
-                  <div className="text-xs sm:text-sm font-black text-white font-sans mt-0.5 flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5 text-cyan-300 shrink-0" />
+              <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end border-t md:border-t-0 border-slate-200 pt-3 md:pt-0">
+                <div className="px-4 py-2.5 rounded-xl bg-slate-50 border-2 border-slate-200 text-right">
+                  <div className="text-xs font-black text-slate-950">الفترة الأكاديمية للدوام</div>
+                  <div className="text-sm sm:text-base font-black text-slate-950 font-sans mt-0.5 flex items-center gap-1.5">
+                    <Clock className="w-4 h-4 text-[#0F2942] shrink-0" />
                     {/* 🕒 عرض نطاق الدوام باتجاه صريح يمنع تداخل الأرقام */}
                     <span dir="ltr">{formatArabicScheduleTime(`${dayStats.firstStart} - ${dayStats.lastEnd}`)}</span>
                   </div>
                 </div>
-                <div className="px-3 py-1.5 rounded-xl bg-white/10 border border-white/15 text-right">
-                  <div className="text-[10px] sm:text-xs font-black text-cyan-200">إجمالي الساعات المقررة</div>
-                  <div className="text-xs sm:text-sm font-black text-emerald-300 font-mono mt-0.5">
+                <div className="px-4 py-2.5 rounded-xl bg-slate-50 border-2 border-slate-200 text-right">
+                  <div className="text-xs font-black text-slate-950">إجمالي الساعات المقررة</div>
+                  <div className="text-sm sm:text-base font-black text-slate-950 font-mono mt-0.5">
                     {dayStats.totalHoursStr}
                   </div>
                 </div>
@@ -1004,7 +1015,7 @@ export default function StudentScheduleTimeline({
                 <Coffee className="w-7 h-7 text-slate-700" />
               </div>
               <h4 className="text-lg sm:text-xl font-black text-slate-950">اليوم عطلة رسمية وأكاديمية</h4>
-              <p className="text-sm sm:text-base text-slate-700 font-black max-w-md mx-auto">
+              <p className="text-sm sm:text-base text-slate-950 font-black max-w-md mx-auto">
                 لا توجد محاضرات دراسية مجدولة لهذا اليوم بحسب الخطة المعتمدة من رئاسة القسم.
               </p>
             </div>
@@ -1012,15 +1023,15 @@ export default function StudentScheduleTimeline({
             <div className="py-12 px-4 text-center rounded-3xl bg-slate-50 border-2 border-dashed border-slate-300 space-y-2">
               <BookOpen className="w-10 h-10 text-slate-400 mx-auto" />
               <h4 className="text-base sm:text-lg font-black text-slate-950">لا توجد محاضرات مجدولة لهذا اليوم</h4>
-              <p className="text-sm sm:text-base text-slate-600 font-black">
+              <p className="text-sm sm:text-base text-slate-950 font-black">
                 لم يتم إدراج محاضرات في جدول هذا اليوم لهذا الكورس حتى الآن.
               </p>
             </div>
           ) : (
-            /* 🚀 المسار الزمني الرأسي المتصل (True Connected Vertical Timeline) */
-            <div className="relative pr-8 sm:pr-12 space-y-5">
-              {/* 📍 خط المسار الزمني الرأسي المتصل الذي يربط بين المحاضرات المتعاقبة */}
-              <div className="absolute right-3.5 sm:right-5 top-7 bottom-7 w-1 bg-gradient-to-b from-blue-500 via-[#0F2942] to-emerald-500 rounded-full z-0 opacity-80" />
+            /* 🚀 المسار الزمني الرأسي المتصل بنمط Light Mode رصين واحترافي */
+            <div className="relative pr-8 sm:pr-12 space-y-6">
+              {/* 📍 خط المسار الزمني الرأسي المتصل الهادئ والأنيق */}
+              <div className="absolute right-3.5 sm:right-5 top-7 bottom-7 w-1 bg-slate-200 rounded-full z-0" />
 
               {dayLectures.map((lecture, idx) => {
                 const liveStatus = getLectureLiveStatus(
@@ -1029,14 +1040,27 @@ export default function StudentScheduleTimeline({
                   selectedDay,
                   currentRealDay
                 );
-                const theme = LECTURE_COLOR_THEMES[lecture.color] || LECTURE_COLOR_THEMES.blue;
-                const typeInfo = LECTURE_TYPE_LABELS[lecture.type] || LECTURE_TYPE_LABELS.theory;
                 const isPractical = lecture.type === 'practical';
                 const isTutorial = lecture.type === 'tutorial';
-                const isTheory = !isPractical && !isTutorial;
                 const durationStr = formatLectureDurationArabic(lecture.start_time, lecture.end_time);
                 const formattedRoom = formatAcademicRoomName(lecture.room, lecture.type);
                 const nextLec = idx < dayLectures.length - 1 ? dayLectures[idx + 1] : null;
+
+                // 🕒 حسابات المسار الزمني الدقيقة للمحاضرة وموقعها الزمني باليوم
+                const startMin = timeStringToMinutes(lecture.start_time);
+                const endMin = timeStringToMinutes(lecture.end_time);
+                const duration = Math.max(1, endMin - startMin);
+
+                const isSameDay = selectedDay === currentRealDay;
+                const isFinished = isSameDay ? currentTimeMinutes >= endMin : false;
+                const isLive = isSameDay ? (currentTimeMinutes >= startMin && currentTimeMinutes < endMin) : false;
+
+                // نسبة التقدم من 0 إلى 100
+                const progressPercent = isFinished ? 100 : isLive ? Math.min(100, Math.max(0, Math.round(((currentTimeMinutes - startMin) / duration) * 100))) : 0;
+
+                // الدقائق المنقضية والمتبقية
+                const elapsedMinutes = isFinished ? duration : isLive ? Math.max(0, currentTimeMinutes - startMin) : 0;
+                const remainingMinutes = isFinished ? 0 : isLive ? Math.max(0, endMin - currentTimeMinutes) : duration;
 
                 return (
                   // 🧱 كارد المحاضرة معزول في طبقة GPU صلبة ومستقرة تماماً بدون أي حركة أو انزلاق
@@ -1046,37 +1070,41 @@ export default function StudentScheduleTimeline({
                     style={{ transform: 'translateZ(0)', WebkitBackfaceVisibility: 'hidden', backfaceVisibility: 'hidden' }}
                   >
                     
-                    {/* 🎯 عقدة المسار الزمني المرقمة ثابتة في مكانها وبدون أي نبض أو تكبير */}
+                    {/* 🎯 عقدة المسار الزمني المرقمة بتصميم محايد وأنيق متصل بالخط الزمني */}
                     <div
-                      className={`absolute -right-8 sm:-right-12 top-5 w-7 h-7 sm:w-10 sm:h-10 rounded-2xl flex items-center justify-center font-black text-xs sm:text-sm shadow-md border-2 ${
-                        liveStatus === 'live'
-                          ? 'bg-rose-600 text-white border-white ring-4 ring-rose-400'
-                          : isPractical
-                          ? 'bg-emerald-700 text-white border-emerald-300 shadow-emerald-900/20'
-                          : 'bg-[#0F2942] text-cyan-300 border-blue-300 shadow-blue-900/20'
+                      className={`absolute -right-8 sm:-right-12 top-5 w-7 h-7 sm:w-10 sm:h-10 rounded-2xl flex items-center justify-center font-black text-xs sm:text-sm shadow-xs border-2 ${
+                        isLive
+                          ? 'bg-[#0F2942] text-white border-white ring-4 ring-[#0F2942]/30 animate-pulse'
+                          : isFinished
+                          ? 'bg-[#0F2942] text-white border-[#0F2942]'
+                          : 'bg-white text-slate-950 border-slate-300'
                       }`}
                       style={{ transform: 'translateZ(0)', WebkitBackfaceVisibility: 'hidden', backfaceVisibility: 'hidden' }}
-                      title={`المحاضرة رقم ${idx + 1}`}
+                      title={`${formatArabicOrdinalLectureName(idx + 1)} (${isFinished ? 'مكتملة' : isLive ? 'جارية' : 'قادمة'})`}
                     >
                       {idx + 1}
                     </div>
 
-                    {/* 🃏 كارد المحاضرة الأكاديمية الفاخر ثابت وصلب ومستقر بدون أي اهتزاز على الهوفر */}
+                    {/* 🃏 كارد المحاضرة الأكاديمية بنمط Light Mode رصين ونظيف */}
                     <div
-                      className={`rounded-3xl border-2 p-5 sm:p-6 shadow-sm ${
-                        liveStatus === 'live'
-                          ? 'bg-white border-rose-500 shadow-xl ring-2 ring-rose-500/20'
-                          : isPractical
-                          ? 'bg-gradient-to-l from-white via-white to-emerald-50/50 border-emerald-300'
-                          : 'bg-gradient-to-l from-white via-white to-blue-50/50 border-blue-200'
+                      className={`rounded-2xl border-2 bg-white p-5 sm:p-6 shadow-xs transition-colors ${
+                        isLive
+                          ? 'border-[#0F2942] ring-2 ring-[#0F2942]/15'
+                          : 'border-slate-200 hover:border-slate-300'
                       }`}
                       style={{ transform: 'translateZ(0)' }}
                     >
-                      {/* 1️⃣ الشريط العلوي للبطاقة: التوقيت + المدة + شارة النوع + الحالة بتوزيع صلب ومستقر */}
-                      <div className="flex flex-wrap items-center justify-between gap-2.5 border-b border-slate-200 pb-3.5 mb-3.5 w-full">
+                      {/* 1️⃣ الشريط العلوي للبطاقة: التسلسل + التوقيت + المدة + شارة النوع + الحالة بحجم موحد ولون كحلي ملكي راقٍ */}
+                      <div className="flex flex-wrap items-center justify-between gap-2.5 border-b border-slate-200 pb-3.5 mb-3 w-full">
                         <div className="flex items-center gap-2 flex-wrap min-w-0">
-                          {/* ⏰ توقيت المحاضرة الصريح بنظام 12 ساعة ومحاذاة اتجاه صريحة تمنع أي تداخل */}
-                          <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#0F2942] text-white font-black text-xs sm:text-sm rounded-xl shadow-xs border border-[#1e4570] shrink-0 font-sans select-none">
+                          {/* 🎖️ وسم تسلسل المحاضرة الأكاديمي الفصيح (المحاضرة الأولى، المحاضرة الثانية...) بحجم موحد ولون كحلي ملكي */}
+                          <span className="h-9 inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#0F2942] text-white font-black text-xs sm:text-sm rounded-xl shadow-2xs border border-[#0F2942] shrink-0 select-none">
+                            <span className="w-2 h-2 rounded-full bg-cyan-300 animate-pulse shrink-0" />
+                            <span>{formatArabicOrdinalLectureName(idx + 1)}</span>
+                          </span>
+
+                          {/* ⏰ توقيت المحاضرة الصريح بحجم موحد وكحلي ملكي صلب */}
+                          <span className="h-9 inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#0F2942] text-white font-black text-xs sm:text-sm rounded-xl shadow-2xs border border-[#0F2942] shrink-0 font-sans select-none">
                             <Clock className="w-4 h-4 text-cyan-300 shrink-0" />
                             <span className="font-sans font-black whitespace-nowrap tracking-wide inline-flex items-center gap-1" dir="rtl">
                               <span>{formatSingleTime(lecture.start_time)}</span>
@@ -1085,18 +1113,15 @@ export default function StudentScheduleTimeline({
                             </span>
                           </span>
 
-                          {/* ⏱️ مدة المحاضرة بالعربية الفصيحة */}
+                          {/* ⏱️ مدة المحاضرة بحجم موحد ولون كحلي ملكي مع أيقونة كحلية */}
                           {durationStr && (
-                            <span className={`px-2.5 py-1 rounded-xl text-xs font-black border flex items-center gap-1 shrink-0 ${
-                              isPractical
-                                ? 'bg-emerald-50 text-emerald-950 border-emerald-200'
-                                : 'bg-blue-50 text-blue-950 border-blue-200'
-                            }`}>
+                            <span className="h-9 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-black bg-white text-[#0F2942] border-2 border-[#0F2942] flex items-center gap-1.5 shrink-0 shadow-2xs">
+                              <Clock className="w-4 h-4 text-[#0F2942] shrink-0" />
                               <span>{durationStr}</span>
                             </span>
                           )}
 
-                          {/* 📅 التاريخ التقويمي ورقم الأسبوع المحسوب ديناميكياً لليوم والأسبوع المختار */}
+                          {/* 📅 التاريخ التقويمي ورقم الأسبوع بحجم موحد ولون كحلي ملكي مع أيقونة كحلية */}
                           {(() => {
                             const dynamicLecDate = lecture.weekly_overrides?.[selectedAcademicWeek]?.date
                               || lecture.custom_weekly_dates?.[selectedAcademicWeek]
@@ -1107,100 +1132,205 @@ export default function StudentScheduleTimeline({
                                 lecture.day
                               );
                             return (
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-indigo-50 text-indigo-950 border border-indigo-200 rounded-xl text-xs font-black shrink-0">
-                                <Calendar className="w-3.5 h-3.5 text-indigo-700 shrink-0" />
+                              <span className="h-9 inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-white text-[#0F2942] border-2 border-[#0F2942] rounded-xl text-xs sm:text-sm font-black shrink-0 shadow-2xs">
+                                <Calendar className="w-4 h-4 text-[#0F2942] shrink-0" />
                                 <span>الأسبوع {selectedAcademicWeek}</span>
-                                <span className="text-indigo-400">•</span>
-                                <span className="font-mono">{dynamicLecDate}</span>
+                                <span className="text-[#0F2942]/40">•</span>
+                                <span className="font-mono text-[#0F2942] font-black">{dynamicLecDate}</span>
                               </span>
                             );
                           })()}
 
-                          {/* 🏷️ شارة المحاضرة البارزة (نظري / عملي) */}
-                          <span className={`px-3 py-1 font-black text-xs sm:text-sm rounded-xl flex items-center gap-1.5 shadow-2xs border shrink-0 ${
-                            isPractical
-                              ? 'bg-emerald-600 text-white border-emerald-700'
-                              : isTutorial
-                              ? 'bg-purple-600 text-white border-purple-700'
-                              : 'bg-[#0F2942] text-white border-[#0F2942]'
-                          }`}>
+                          {/* 🏷️ شارة نوع المحاضرة (نظري / عملي) بحجم موحد ولون كحلي ملكي مع أيقونة كحلية */}
+                          <span className="h-9 px-3.5 py-1.5 font-black text-xs sm:text-sm rounded-xl flex items-center gap-1.5 border-2 border-[#0F2942] bg-white text-[#0F2942] shrink-0 shadow-2xs">
                             {isPractical ? (
-                              <FlaskConical className="w-3.5 h-3.5 text-emerald-200" />
+                              <FlaskConical className="w-4 h-4 text-[#0F2942] shrink-0" />
                             ) : isTutorial ? (
-                              <Sparkles className="w-3.5 h-3.5 text-purple-200" />
+                              <Users className="w-4 h-4 text-[#0F2942] shrink-0" />
                             ) : (
-                              <BookOpen className="w-3.5 h-3.5 text-cyan-300" />
+                              <BookOpen className="w-4 h-4 text-[#0F2942] shrink-0" />
                             )}
                             <span>{isPractical ? 'محاضرة عملية (مختبر)' : isTutorial ? 'حلقة نقاشية' : 'محاضرة نظرية'}</span>
                           </span>
 
-                          {/* ☀️ / 🌙 شارة الصباحي والمسائي */}
-                          <span className={`px-2.5 py-1 rounded-xl text-xs sm:text-sm font-black border flex items-center gap-1 shadow-2xs shrink-0 ${
-                            (lecture.study_type || 'morning') === 'evening'
-                              ? 'bg-indigo-50 text-indigo-950 border-indigo-300'
-                              : 'bg-sky-50 text-sky-950 border-sky-300'
-                          }`}>
+                          {/* ☀️ / 🌙 شارة الصباحي والمسائي بحجم موحد ولون كحلي ملكي مع أيقونة كحلية */}
+                          <span className="h-9 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-black border-2 border-[#0F2942] bg-white text-[#0F2942] flex items-center gap-1.5 shrink-0 shadow-2xs">
                             {(lecture.study_type || 'morning') === 'evening' ? (
-                              <Moon className="w-3.5 h-3.5 text-indigo-700" />
+                              <Moon className="w-4 h-4 text-[#0F2942] shrink-0" />
                             ) : (
-                              <Sun className="w-3.5 h-3.5 text-sky-600" />
+                              <Sun className="w-4 h-4 text-[#0F2942] shrink-0" />
                             )}
                             <span>{(lecture.study_type || 'morning') === 'evening' ? 'مسائي' : 'صباحي'}</span>
                           </span>
                         </div>
 
-                        {/* شارات الحالة الحية ثابتة بدون وميض */}
+                        {/* شارات الحالة الحية (عرض احترافي يقتصر على الجارية والمكتملة فقط بدون حشو) */}
                         <div className="shrink-0">
-                          {liveStatus === 'live' && (
-                            <span className="px-3 py-1 bg-rose-600 text-white font-black text-xs sm:text-sm rounded-xl flex items-center gap-1.5 shadow-2xs">
-                              <span className="w-2 h-2 rounded-full bg-white" />
+                          {isLive && (
+                            <span className="h-9 px-3.5 py-1.5 bg-[#0F2942] text-white font-black text-xs sm:text-sm rounded-xl flex items-center gap-2 shadow-2xs border border-[#0F2942]">
+                              <span className="w-2.5 h-2.5 rounded-full bg-cyan-300 animate-ping" />
                               <span>جارية الآن</span>
                             </span>
                           )}
-                          {liveStatus === 'upcoming' && (
-                            <span className="px-3 py-1 bg-blue-100 text-blue-950 font-black text-xs sm:text-sm rounded-xl border border-blue-300 flex items-center gap-1">
-                              <Clock className="w-3.5 h-3.5 text-blue-700" />
-                              <span>قادمة اليوم</span>
-                            </span>
-                          )}
-                          {liveStatus === 'finished' && (
-                            <span className="px-3 py-1 bg-emerald-100 text-emerald-950 font-black text-xs sm:text-sm rounded-xl border border-emerald-300 flex items-center gap-1">
-                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
+                          {!isLive && isFinished && (
+                            <span className="h-9 px-3.5 py-1.5 bg-emerald-50 text-emerald-950 font-black text-xs sm:text-sm rounded-xl border-2 border-emerald-300 flex items-center gap-1.5 shadow-2xs">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-800" />
                               <span>مكتملة</span>
                             </span>
                           )}
                         </div>
                       </div>
 
-                      {/* 2️⃣ وسط البطاقة: اسم المادة + كود المادة الأكاديمي مثبت الاتجاه والموضع */}
-                      <div className="space-y-3 w-full">
+                      {/* ⏳ خط TIMELINE كحلي ملكي تفاعلي متحرك مع تفاصيل الوقت عند النقر */}
+                      <div 
+                        className="mt-3 mb-4 p-3.5 rounded-2xl bg-slate-50 border-2 border-slate-300 transition-all select-none shadow-2xs"
+                      >
+                        <div className="flex items-center justify-between text-xs sm:text-sm font-black text-black mb-2.5 flex-wrap gap-2">
+                          <div className="flex items-center gap-2">
+                            <Clock className="w-4 h-4 text-black shrink-0" />
+                            <span className="text-black font-black">مسار توقيت المحاضرة:</span>
+                            <span className="font-sans font-black text-black">
+                              {formatSingleTime(lecture.start_time)} — {formatSingleTime(lecture.end_time)}
+                            </span>
+                          </div>
+                          {/* 📊 عرض حالة الوقت الأكاديمية الاحترافية وزر عرض التفاصيل بأيقونات SVG */}
+                          <div className="flex items-center gap-2.5">
+                            <span className="text-xs font-black text-black bg-white px-3 py-1 rounded-lg border-2 border-slate-300">
+                              {isFinished ? 'مكتملة 100%' : isLive ? `جارية الآن (${progressPercent}%)` : `المدة المقررة: ${duration} دقيقة`}
+                            </span>
+                            {/* 🔘 زر عرض التفاصيل الأنيق بأيقونات SVG (يظهر فقط عندما تكون التفاصيل مغلقة لتفادي التكرار) */}
+                            {activeTimelineTooltipId !== lecture.id && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveTimelineTooltipId(lecture.id);
+                                }}
+                                className="h-8 px-3.5 bg-white hover:bg-[#0F2942] text-[#0F2942] hover:text-white border-2 border-[#0F2942] rounded-xl text-xs sm:text-sm font-black transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer group/btn"
+                                title="عرض تفاصيل المسار الزمني للمحاضرة"
+                              >
+                                <Clock className="w-3.5 h-3.5 text-[#0F2942] group-hover/btn:text-white transition-colors shrink-0" />
+                                <span>عرض التفاصيل</span>
+                                <ChevronDown className="w-3.5 h-3.5 text-[#0F2942] group-hover/btn:text-white transition-colors shrink-0" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* مسار الخط الزمني الكحلي الملكي المتحرك */}
+                        <div 
+                          onClick={() => setActiveTimelineTooltipId(activeTimelineTooltipId === lecture.id ? null : lecture.id)}
+                          className="w-full h-3.5 bg-slate-200 rounded-full overflow-hidden relative shadow-inner cursor-pointer"
+                          title="انقر لعرض أو طي تفاصيل الوقت التفاعلي للمحاضرة"
+                        >
+                          <div 
+                            className={`h-full bg-gradient-to-r from-[#0F2942] via-[#1a3f65] to-[#0F2942] rounded-full transition-all duration-700 relative ${
+                              isLive ? 'animate-pulse shadow-sm shadow-[#0F2942]/50' : ''
+                            }`}
+                            style={{ width: `${progressPercent}%` }}
+                          >
+                            {/* وميض ولمعان الانميشن أثناء جريان المحاضرة */}
+                            {isLive && (
+                              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-300/40 to-transparent animate-pulse" />
+                            )}
+                          </div>
+                        </div>
+
+                        {/* 🎯 بطاقة تفاصيل الوقت بنمط Light Mode مرتب وفاخر مع زر إغلاق وحيد صريح */}
+                        {activeTimelineTooltipId === lecture.id && (
+                          <div 
+                            onClick={(e) => e.stopPropagation()}
+                            className="mt-3.5 p-4 bg-white text-black rounded-2xl shadow-lg border-2 border-slate-300 animate-in fade-in zoom-in-95 duration-150 text-right"
+                          >
+                            {/* ترويسة البطاقة مع زر إغلاق وحيد صريح وأنيق */}
+                            <div className="flex items-center justify-between pb-3 border-b-2 border-slate-200 mb-3">
+                              <div className="flex items-center gap-2.5">
+                                <div className="p-2 bg-[#0F2942] text-white rounded-xl shadow-2xs shrink-0">
+                                  <Clock className="w-5 h-5 text-cyan-300" />
+                                </div>
+                                <div>
+                                  {/* تكبير خط نص تفاصيل المسار الزمني للمحاضرة بشكل متوسط */}
+                                  <h5 className="text-base sm:text-lg font-black text-black">
+                                    تفاصيل المسار الزمني للمحاضرة
+                                  </h5>
+                                  {/* تكبير خط نص اسم المادة (مقدمة في التخصص والمهارات الأكاديمية) وجعله أسود بالكامل */}
+                                  <p className="text-sm sm:text-base font-black text-black mt-0.5">
+                                    {lecture.course_name}
+                                  </p>
+                                </div>
+                              </div>
+                              {/* 🚪 زر إغلاق وحيد صريح بأيقونة SVG */}
+                              <button 
+                                type="button" 
+                                onClick={() => setActiveTimelineTooltipId(null)}
+                                className="flex items-center gap-1.5 text-xs sm:text-sm font-black text-black hover:text-white px-3.5 py-1.5 bg-white hover:bg-black border-2 border-black rounded-xl shadow-2xs cursor-pointer transition-all"
+                                title="إغلاق التفاصيل"
+                              >
+                                <X className="w-4 h-4 shrink-0" />
+                                <span>إغلاق</span>
+                              </button>
+                            </div>
+
+                            {/* شبكة البيانات الثلاثية بنمط Light Mode أنيق ومتناسق بنصوص سوداء 100% وأيقونات SVG */}
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-right">
+                              <div className="p-3.5 bg-slate-50 rounded-xl border-2 border-slate-300">
+                                <span className="text-xs sm:text-sm text-black font-black flex items-center gap-1.5">
+                                  <Clock className="w-4 h-4 text-black shrink-0" />
+                                  <span>الوقت المنقضي:</span>
+                                </span>
+                                <span className="text-sm sm:text-base font-black text-black font-sans mt-1.5 block">
+                                  {isFinished ? `استغرقت ${duration} دقيقة كاملة` : isLive ? `مضى ${elapsedMinutes} دقيقة من أصل ${duration} د` : 'لم تبدأ بعد (0 دقيقة)'}
+                                </span>
+                              </div>
+
+                              <div className="p-3.5 bg-slate-50 rounded-xl border-2 border-slate-300">
+                                <span className="text-xs sm:text-sm text-black font-black flex items-center gap-1.5">
+                                  <Clock className="w-4 h-4 text-black shrink-0" />
+                                  <span>الوقت المتبقي:</span>
+                                </span>
+                                <span className="text-sm sm:text-base font-black text-black font-sans mt-1.5 block">
+                                  {isFinished ? 'انتهت المحاضرة' : isLive ? `${remainingMinutes} دقيقة متبقية` : `تبدأ خلال ${remainingMinutes} دقيقة`}
+                                </span>
+                              </div>
+
+                              <div className="p-3.5 bg-slate-50 rounded-xl border-2 border-slate-300">
+                                <span className="text-xs sm:text-sm text-black font-black flex items-center gap-1.5">
+                                  <CheckCircle2 className="w-4 h-4 text-black shrink-0" />
+                                  <span>نسبة الإنجاز الزمني:</span>
+                                </span>
+                                <span className="text-sm sm:text-base font-black text-black font-mono mt-1.5 block">
+                                  {progressPercent}%
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 2️⃣ وسط البطاقة: اسم المادة بتكبير متوسط وخط أسود فاحم + كود المادة الأكاديمي */}
+                      <div className="space-y-3.5 w-full">
                         <div className="flex items-center justify-between gap-3 w-full min-w-0" dir="rtl">
-                          <h4 className="text-lg sm:text-2xl font-black text-slate-950 leading-tight text-right min-w-0 flex-1">
+                          {/* تكبير خط اسم المادة (مقدمة في التخصص والمهارات الأكاديمية) بشكل متوسط ولون أسود ناصع */}
+                          <h4 className="text-xl sm:text-2xl font-black text-black leading-tight text-right min-w-0 flex-1">
                             {lecture.course_name}
                           </h4>
                           {lecture.course_code && (
-                            <span className="px-3 py-1 bg-slate-100 text-slate-900 text-xs sm:text-sm font-mono font-black rounded-xl border border-slate-300 shadow-2xs shrink-0" dir="ltr">
+                            <span className="px-3.5 py-1.5 bg-white text-black text-xs sm:text-sm font-mono font-black rounded-xl border-2 border-black shrink-0 shadow-2xs" dir="ltr">
                               {lecture.course_code}
                             </span>
                           )}
                         </div>
 
-                        {/* 3️⃣ تفاصيل القاعة والأستاذ في بطاقات متباينة وأنيقة وثابتة */}
+                        {/* 3️⃣ تفاصيل القاعة والأستاذ في بطاقات موحدة ومتناغمة بنصوص سوداء واضحة 100% */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 w-full">
                           {/* بطاقة المكان والقاعة */}
-                          <div className={`flex items-center gap-3 p-3 rounded-2xl border ${
-                            isPractical
-                              ? 'bg-emerald-50/80 border-emerald-200 text-emerald-950'
-                              : 'bg-slate-50 border-slate-300 text-slate-900'
-                          }`}>
-                            <div className={`p-2 rounded-xl shrink-0 ${
-                              isPractical ? 'bg-emerald-600 text-white' : 'bg-[#0F2942] text-white'
-                            }`}>
-                              <MapPin className="w-4 h-4" />
+                          <div className="flex items-center gap-3 p-3.5 rounded-2xl bg-slate-50 border-2 border-slate-300 text-black">
+                            <div className="p-2.5 rounded-xl bg-white border-2 border-slate-300 text-black shrink-0 shadow-2xs">
+                              <MapPin className="w-4 h-4 text-black shrink-0" />
                             </div>
                             <div className="text-right">
-                              <div className="text-xs font-black text-slate-600">المكان / القاعة:</div>
-                              <strong className="text-sm sm:text-base font-black text-slate-950 block mt-0.5">
+                              <div className="text-xs sm:text-sm font-black text-black">المكان / القاعة:</div>
+                              <strong className="text-sm sm:text-base font-black text-black block mt-0.5">
                                 {formattedRoom}
                               </strong>
                             </div>
@@ -1208,13 +1338,13 @@ export default function StudentScheduleTimeline({
 
                           {/* بطاقة الأستاذ المحاضر */}
                           {lecture.teacher_name && (
-                            <div className="flex items-center gap-3 p-3 rounded-2xl bg-white border border-slate-300 text-slate-900 shadow-2xs">
-                              <div className="p-2 rounded-xl bg-blue-100 text-blue-800 border border-blue-200 shrink-0">
-                                <UserCheck className="w-4 h-4 text-blue-700" />
+                            <div className="flex items-center gap-3 p-3.5 rounded-2xl bg-slate-50 border-2 border-slate-300 text-black">
+                              <div className="p-2.5 rounded-xl bg-white border-2 border-slate-300 text-black shrink-0 shadow-2xs">
+                                <UserCheck className="w-4 h-4 text-black shrink-0" />
                               </div>
                               <div className="text-right">
-                                <div className="text-xs font-black text-slate-600">الأستاذ المحاضر:</div>
-                                <strong className="text-sm sm:text-base font-black text-slate-950 block mt-0.5">
+                                <div className="text-xs sm:text-sm font-black text-black">الأستاذ المحاضر:</div>
+                                <strong className="text-sm sm:text-base font-black text-black block mt-0.5">
                                   {lecture.teacher_name}
                                 </strong>
                               </div>
@@ -1222,23 +1352,26 @@ export default function StudentScheduleTimeline({
                           )}
                         </div>
 
-                        {/* ملاحظات وتنبيهات إن وجدت */}
+                        {/* ملاحظات وتنبيهات إن وجدت بنص أسود وإطار واضح */}
                         {lecture.notes && (
-                          <div className="p-3 bg-slate-100 border border-slate-300 rounded-2xl text-slate-950 text-xs sm:text-sm font-black flex items-start gap-2">
-                            <AlertCircle className="w-4 h-4 text-slate-700 shrink-0 mt-0.5" />
+                          <div className="p-3 bg-slate-50 border-2 border-slate-300 rounded-xl text-black text-xs sm:text-sm font-black flex items-start gap-2">
+                            <AlertCircle className="w-4 h-4 text-black shrink-0 mt-0.5" />
                             <span>{lecture.notes}</span>
                           </div>
                         )}
 
-                        {/* 4️⃣ جسر الانتقال إلى المحاضرة التالية (Next Lecture Bridge) */}
+                        {/* 4️⃣ جسر الانتقال إلى المحاضرة التالية بنص متوسط وواضح وبادج كحلي ملكي */}
                         {nextLec && (
-                          <div className="pt-3 border-t border-slate-200/80 flex items-center justify-between text-xs font-black text-slate-600 flex-wrap gap-2">
-                            <span className="flex items-center gap-1.5 text-slate-700">
-                              <Clock className="w-3.5 h-3.5 text-[#0F2942]" />
-                              <span>المحاضرة التالية: <strong className="text-slate-950">{nextLec.course_name}</strong></span>
+                          <div className="pt-3 border-t-2 border-slate-200 flex items-center justify-between text-sm sm:text-base font-black text-black flex-wrap gap-2.5">
+                            <span className="flex items-center gap-2 text-black">
+                              <Clock className="w-4 h-4 text-[#0F2942] shrink-0" />
+                              <span>
+                                المحاضرة التالية: <strong className="text-black font-black underline decoration-slate-400 underline-offset-4">{nextLec.course_name}</strong>
+                              </span>
                             </span>
-                            <span className="font-mono text-[#0F2942] bg-slate-100 px-2.5 py-0.5 rounded-lg border border-slate-300" dir="rtl">
-                              تبدأ في {formatArabicScheduleTime(nextLec.start_time)}
+                            <span className="font-sans text-xs sm:text-sm font-black text-white bg-[#0F2942] px-3.5 py-1.5 rounded-xl shadow-2xs inline-flex items-center gap-1.5" dir="rtl">
+                              <Clock className="w-3.5 h-3.5 text-cyan-300 shrink-0" />
+                              <span>تبدأ في {formatArabicScheduleTime(nextLec.start_time)}</span>
                             </span>
                           </div>
                         )}
@@ -1255,13 +1388,15 @@ export default function StudentScheduleTimeline({
       {/* 📊 5. نمط الجدول الأسبوعي الشامل */}
       {viewMode === 'weekly' && (
         <div className="p-5 sm:p-7 space-y-6">
-          <div className="flex items-center justify-between border-b border-slate-200 pb-4 flex-wrap gap-3">
+          {/* 🏷️ ترويسة الجدول الأسبوعي الشامل بنصوص سوداء عريضة وزر طباعة كحلي ملكي */}
+          <div className="flex items-center justify-between border-b-2 border-slate-200 pb-4 flex-wrap gap-3">
             <div>
-              <h3 className="text-lg sm:text-xl font-black text-slate-950 flex items-center gap-2.5">
-                <CalendarDays className="w-5 h-5 text-[#0F2942]" />
+              <h3 className="text-xl sm:text-2xl font-black text-black flex items-center gap-2.5">
+                <CalendarDays className="w-6 h-6 text-[#0F2942]" />
                 <span>الجدول الأسبوعي الشامل — الكورس {selectedSemester === 1 ? 'الأول' : 'الثاني'}</span>
               </h3>
-              <p className="text-xs sm:text-sm font-black text-slate-700 mt-0.5">
+              {/* 📝 العنوان الفرعي بنص أسود عالي الوضوح بناءً على رغبة المستخدم */}
+              <p className="text-sm sm:text-base font-black text-black mt-1">
                 استعراض جدول الأسبوع الكامل من السبت إلى الجمعة مع توضيح القاعات وأوقات الدوام
               </p>
             </div>
@@ -1270,117 +1405,190 @@ export default function StudentScheduleTimeline({
             <button
               type="button"
               onClick={() => setIsPrintModalOpen(true)}
-              className="px-5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black rounded-xl text-sm cursor-pointer flex items-center gap-2 border border-[#1e4570] shadow-md shrink-0"
+              className="px-5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black rounded-xl text-sm cursor-pointer flex items-center gap-2 border-2 border-[#0F2942] shadow-md shrink-0 transition-all"
             >
               <Printer className="w-4 h-4 text-cyan-300" />
               <span>طباعة الجدول الرسمي</span>
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-3">
+          {/* 🗓️ مسارات الأيام الأفقية (كل يوم يمثل صفاً أفقياً مستقلاً ممتداً بالعرض الكامل لمنع الفراغات العمودية والسكرول نهائياً) */}
+          <div className="space-y-4">
             {DAYS_OF_WEEK_LIST.map((d) => {
-              const isOff = activeConfig.off_days.includes(d.key);
+              const isOff = activeConfig.off_days.includes(d.key); // 🌴 فحص هل اليوم عطلة رسمية بالجدول
               const dayLecs = stageLectures
                 .filter((l) => l.day === d.key)
-                .sort((a, b) => getAcademicSlotOrder(a.start_time) - getAcademicSlotOrder(b.start_time));
-              const isToday = currentRealDay === d.key;
+                .sort((a, b) => getAcademicSlotOrder(a.start_time) - getAcademicSlotOrder(b.start_time)); // 🔢 فرز المحاضرات حسب التوقيت الزمني
+              const isToday = currentRealDay === d.key; // 📍 فحص هل اليوم هو اليوم الفعلي للتقويم
+              const dayCalcDate = calculateDateForAnyDayInWeek(effectiveStartDate, 1, selectedAcademicWeek, d.key); // 🗓️ تاريخ اليوم المحسوب
+              const p = dayCalcDate.split('-'); // ✂️ تفكيك التاريخ لاستخراج اليوم والشهر
+              const formattedDayDate = p.length === 3
+                ? `${parseInt(p[2], 10)} ${IRAQI_ARABIC_MONTHS[parseInt(p[1], 10) - 1] || ''} ${p[0]}`
+                : '';
+
+              const isDaySelected = selectedDay === d.key; // 🌟 فحص هل تم اختيار هذا اليوم من الشريط العلوي
 
               return (
                 <div
                   key={d.key}
-                  className={`rounded-2xl border-2 flex flex-col overflow-hidden ${
-                    isToday
-                      ? 'bg-blue-50/40 border-blue-500 shadow-md ring-2 ring-blue-500/20'
+                  id={`weekly-day-${d.key}`}
+                  className={`w-full rounded-2xl border-2 transition-all p-4 sm:p-5 scroll-mt-6 ${
+                    isDaySelected
+                      ? 'bg-blue-50/30 border-[#0F2942] ring-4 ring-[#0F2942]/20 shadow-md'
+                      : isToday
+                      ? 'bg-blue-50/15 border-[#0F2942]/80 ring-2 ring-[#0F2942]/15 shadow-sm'
                       : isOff
-                      ? 'bg-slate-50/70 border-slate-200'
-                      : 'bg-white border-slate-200 shadow-2xs'
+                      ? 'bg-slate-50/70 border-slate-200 shadow-2xs'
+                      : 'bg-white border-slate-200 hover:border-slate-300 shadow-2xs'
                   }`}
                 >
-                  <div className={`p-3 border-b flex items-center justify-between ${
-                    isToday
-                      ? 'bg-[#0F2942] text-white border-[#0F2942]'
-                      : isOff
-                      ? 'bg-slate-100 border-slate-200 text-slate-800'
-                      : 'bg-slate-50 border-slate-200 text-slate-950'
-                  }`}>
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-black text-sm sm:text-base">{d.label_ar}</span>
+                  {/* 📅 ترويسة اليوم الأفقية الممتدة بالعرض الكامل (Header Bar) لمنع تمدد الفراغات */}
+                  <div className="flex items-center justify-between flex-wrap gap-3 pb-3 border-b-2 border-slate-100">
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                      <div className={`p-2 rounded-xl border-2 shrink-0 ${
+                        isDaySelected || isToday
+                          ? 'bg-[#0F2942] text-white border-[#0F2942]'
+                          : isOff
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                          : 'bg-slate-100 text-[#0F2942] border-slate-300'
+                      }`}>
+                        <Calendar className="w-5 h-5 shrink-0" />
+                      </div>
+                      
+                      <div className="flex items-baseline gap-2.5 flex-wrap">
+                        <h4 className="text-lg sm:text-xl font-black text-black">
+                          {d.label_ar}
+                        </h4>
+                        {formattedDayDate && (
+                          <span className="text-xs sm:text-sm font-black text-black font-mono">
+                            • {formattedDayDate}
+                          </span>
+                        )}
+                      </div>
+
+                      {isDaySelected && (
+                        <span className="px-2.5 py-0.5 bg-[#0F2942] text-white font-black text-xs rounded-full shadow-2xs flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-cyan-300 shrink-0" />
+                          <span>اليوم المحدد</span>
+                        </span>
+                      )}
+
                       {isToday && (
-                        <span className="px-1.5 py-0.5 bg-rose-600 text-white font-black text-[10px] rounded-md shadow-2xs">
-                          اليوم
+                        <span className="px-2.5 py-0.5 bg-rose-600 text-white font-black text-xs rounded-full shadow-2xs flex items-center gap-1.5 animate-pulse">
+                          <span className="w-1.5 h-1.5 rounded-full bg-white shrink-0" />
+                          <span>اليوم الفعلي</span>
                         </span>
                       )}
                     </div>
-                    {isOff ? (
-                      <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-900 border border-emerald-200 font-black text-[10px] rounded-md flex items-center gap-1">
-                        <Sun className="w-3 h-3 text-emerald-600" />
-                        <span>عطلة</span>
-                      </span>
-                    ) : (
-                      <span className={`px-1.5 py-0.5 rounded-md font-black text-[10px] border ${
-                        isToday 
-                          ? 'bg-white/20 text-white border-white/20' 
-                          : dayLecs.length > 0 // 📚 إذا كان اليوم بي محاضرات
-                          ? 'bg-blue-50 text-blue-950 border-blue-200' // 🎨 لون أزرق ناصع
-                          : 'bg-slate-200 text-slate-700 border-slate-300' // ⚪ لون رمادي محايد
-                      }`}>
-                        {/* 🔤 صياغة لغوية فصيحة ومضبوطة لعدد المحاضرات بدلاً من 1 محاضرات */}
-                        {dayLecs.length > 0 ? formatArabicLectureCount(dayLecs.length) : 'فارغ'}
-                      </span>
-                    )}
+
+                    <div className="flex items-center gap-2">
+                      {isOff ? (
+                        <span className="px-3 py-1 bg-emerald-50 text-emerald-950 border-2 border-emerald-400 font-black text-xs sm:text-sm rounded-xl flex items-center gap-1.5 shadow-2xs">
+                          <Sun className="w-4 h-4 text-emerald-700 shrink-0" />
+                          <span>عطلة رسمية معتمدة</span>
+                        </span>
+                      ) : (
+                        <span
+                          className={`px-3 py-1 rounded-xl font-black text-xs sm:text-sm border-2 shadow-2xs flex items-center gap-1.5 ${
+                            dayLecs.length > 0
+                              ? 'bg-[#0F2942] text-white border-[#0F2942]'
+                              : 'bg-slate-100 text-black border-slate-300'
+                          }`}
+                        >
+                          <BookOpen className={`w-3.5 h-3.5 shrink-0 ${dayLecs.length > 0 ? 'text-cyan-300' : 'text-black'}`} />
+                          <span>{dayLecs.length > 0 ? formatArabicLectureCount(dayLecs.length) : 'لا توجد محاضرات'}</span>
+                        </span>
+                      )}
+                    </div>
                   </div>
 
-                  <div className="p-2.5 space-y-2 flex-1 flex flex-col">
+                  {/* 📚 مسار المحاضرات الأفقي أسفل الترويسة الممتد بعرض الصفحة (3 كاردات بالسطر كحد أقصى) */}
+                  <div className="pt-4">
                     {isOff ? (
-                      <div className="flex-1 flex flex-col items-center justify-center py-6 text-center p-2 rounded-xl bg-emerald-50/50 border border-emerald-200/60 text-emerald-900 space-y-1">
-                        <Coffee className="w-5 h-5 text-emerald-600" />
-                        <span className="text-xs font-black">عطلة رسمية معتمدة</span>
+                      <div className="flex items-center gap-3.5 p-4 rounded-xl bg-emerald-50/60 border-2 border-dashed border-emerald-300 text-black">
+                        <div className="p-2.5 rounded-xl bg-white border border-emerald-300 shrink-0 shadow-2xs">
+                          <Coffee className="w-5 h-5 text-emerald-700" />
+                        </div>
+                        <div>
+                          <div className="text-sm sm:text-base font-black text-black">عطلة أسبوعية رسمية معتمدة</div>
+                          <div className="text-xs sm:text-sm font-black text-black mt-0.5">لا توجد محاضرات مجدولة لهذا اليوم بحسب التقويم الجامعي الرسمي</div>
+                        </div>
                       </div>
                     ) : dayLecs.length === 0 ? (
-                      <div className="flex-1 flex flex-col items-center justify-center py-6 text-center p-2 rounded-xl bg-slate-50 border border-dashed border-slate-200 text-slate-500 space-y-1">
-                        <Calendar className="w-5 h-5 text-slate-400" />
-                        <span className="text-xs font-bold">لا توجد محاضرات</span>
+                      <div className="flex items-center gap-3 p-4 rounded-xl bg-slate-50 border-2 border-dashed border-slate-300 text-black">
+                        <Calendar className="w-5 h-5 text-black shrink-0" />
+                        <span className="text-sm font-black text-black">لا توجد محاضرات مجدولة لهذا اليوم في هذا الكورس</span>
                       </div>
                     ) : (
-                      dayLecs.map((lec) => {
-                        const theme = LECTURE_COLOR_THEMES[lec.color] || LECTURE_COLOR_THEMES.blue;
-                        const typeInfo = LECTURE_TYPE_LABELS[lec.type] || LECTURE_TYPE_LABELS.theory;
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4.5">
+                        {dayLecs.map((lec, idx) => {
+                          const isPractical = lec.type === 'practical'; // 🧪 فحص نوع المحاضرة العملية المختبرية
+                          const isTutorial = lec.type === 'tutorial'; // 👥 فحص نوع الحلقة النقاشية
+                          const durationText = formatLectureDurationArabic(lec.start_time, lec.end_time); // ⏱️ حساب مدة المحاضرة بالعربية
 
-                        return (
-                          <div
-                            key={lec.id}
-                            className={`p-2.5 rounded-xl border-2 ${theme.bgLight} ${theme.border} space-y-1.5 shadow-2xs`}
-                          >
-                            <div className="flex items-center justify-between gap-1 text-[11px] font-black">
-                              <span className="text-slate-950 font-mono flex items-center gap-1 font-black" dir="rtl">
-                                <Clock className="w-3 h-3 text-slate-700 shrink-0" />
-                                <span>{formatArabicScheduleTime(`${lec.start_time} - ${lec.end_time}`)}</span>
-                              </span>
-                              <span className={`px-1.5 py-0.5 rounded-md ${theme.badgeBg} ${theme.badgeText} text-[10px] font-black shrink-0`}>
-                                {typeInfo.ar.includes('مختبر') ? 'عملي' : typeInfo.ar.includes('حلقة') ? 'مناقشة' : 'نظري'}
-                              </span>
-                            </div>
+                          return (
+                            <div
+                              key={lec.id}
+                              className="p-4 rounded-2xl border-2 border-slate-300 bg-white hover:border-[#0F2942] transition-all flex flex-col justify-between space-y-3 shadow-2xs hover:shadow-sm"
+                            >
+                              {/* ترويسة بطاقة المحاضرة: الترتيب الأكاديمي الفصيح (المحاضرة الأولى...) + التوقيت والنوع والمدة */}
+                              <div className="space-y-2.5">
+                                {/* 🎖️ شارة تسلسل المحاضرة الأكاديمي الفصيح (المحاضرة الأولى، المحاضرة الثانية...) بتصميم كحلي ملكي راقٍ */}
+                                <div className="flex items-center justify-between gap-1.5 pb-2 border-b border-slate-100">
+                                  <span className="h-7 px-2.5 py-0.5 bg-[#0F2942] text-white font-black text-xs rounded-lg flex items-center gap-1.5 shadow-2xs select-none">
+                                    <span className="w-2 h-2 rounded-full bg-cyan-300 shrink-0" />
+                                    <span>{formatArabicOrdinalLectureName(idx + 1)}</span>
+                                  </span>
 
-                            <h5 className="text-xs sm:text-sm font-black text-slate-950 leading-snug line-clamp-2">
-                              {lec.course_name}
-                            </h5>
-
-                            <div className="space-y-0.5 pt-1 border-t border-slate-200/60 text-[11px] font-black">
-                              <div className="flex items-center gap-1 text-slate-900 truncate">
-                                <MapPin className="w-3 h-3 text-[#0F2942] shrink-0" />
-                                {/* 🏛️ تنسيق اسم القاعة أو المختبر بذكاء وتجنب الأرقام المجردة */}
-                                <span className="truncate">{formatAcademicRoomName(lec.room, lec.type)}</span>
-                              </div>
-                              {lec.teacher_name && (
-                                <div className="flex items-center gap-1 text-slate-700 truncate">
-                                  <UserCheck className="w-3 h-3 text-blue-700 shrink-0" />
-                                  <span className="truncate">{lec.teacher_name}</span>
+                                  {/* شارة المدة بالدقائق والساعات بنص أسود واضح */}
+                                  {durationText && (
+                                    <span className="h-7 px-2.5 py-0.5 bg-slate-100 rounded-lg border border-slate-300 text-black text-xs font-black flex items-center">
+                                      {durationText}
+                                    </span>
+                                  )}
                                 </div>
-                              )}
+
+                                {/* ⏰ التوقيت في كبسولة واضحة وشارة النوع بإطار أسود داكن */}
+                                <div className="flex items-center justify-between gap-1.5 flex-wrap">
+                                  <span className="h-7 px-2.5 py-0.5 bg-slate-50 text-black border-2 border-slate-300 font-black text-xs rounded-lg flex items-center gap-1.5 shadow-2xs font-sans" dir="rtl">
+                                    <Clock className="w-3.5 h-3.5 text-[#0F2942] shrink-0" />
+                                    <span>{formatArabicScheduleTime(`${lec.start_time} - ${lec.end_time}`)}</span>
+                                  </span>
+                                  <span className="h-7 px-2.5 py-0.5 bg-white text-black border-2 border-black font-black text-xs rounded-lg shrink-0 flex items-center gap-1">
+                                    {isPractical ? (
+                                      <FlaskConical className="w-3 h-3 text-black shrink-0" />
+                                    ) : isTutorial ? (
+                                      <Users className="w-3 h-3 text-black shrink-0" />
+                                    ) : (
+                                      <BookOpen className="w-3 h-3 text-black shrink-0" />
+                                    )}
+                                    <span>{isPractical ? 'عملي مختبري' : isTutorial ? 'حلقة نقاشية' : 'نظري'}</span>
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* اسم المادة الأكاديمية بخط أسود عريض وكبير */}
+                              <h5 className="text-sm sm:text-base font-black text-black leading-snug">
+                                {lec.course_name}
+                              </h5>
+
+                              {/* تفاصيل المكان والأستاذ بنصوص سوداء 100% وأيقونات SVG واضحة */}
+                              <div className="space-y-1.5 pt-2.5 border-t-2 border-slate-100 text-xs font-black">
+                                <div className="flex items-center gap-2 text-black">
+                                  <MapPin className="w-4 h-4 text-black shrink-0" />
+                                  <span className="truncate text-black font-black">{formatAcademicRoomName(lec.room, lec.type)}</span>
+                                </div>
+                                {lec.teacher_name && (
+                                  <div className="flex items-center gap-2 text-black">
+                                    <UserCheck className="w-4 h-4 text-black shrink-0" />
+                                    <span className="truncate text-black font-black">{lec.teacher_name}</span>
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        );
-                      })
+                          );
+                        })}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -1388,19 +1596,24 @@ export default function StudentScheduleTimeline({
             })}
           </div>
 
-          <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between text-xs sm:text-sm font-black text-slate-950 flex-wrap gap-2">
-            <span className="flex items-center gap-1.5">
-              <Coffee className="w-4 h-4 text-emerald-600" />
-              <span>أيام العطل الأسبوعية المعتمدة:</span>
-              <strong className="text-slate-950">
+          {/* 🏛️ تذييل الجدول الأسبوعي بنصوص سوداء واضحة 100% وأيقونات SVG */}
+          <div className="p-4 bg-white border-2 border-slate-300 rounded-2xl flex items-center justify-between text-xs sm:text-sm font-black text-black flex-wrap gap-2.5 shadow-2xs">
+            <span className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-emerald-50 border border-emerald-300 shrink-0">
+                <Coffee className="w-4 h-4 text-emerald-700" />
+              </div>
+              <span className="text-black font-black">أيام العطل الأسبوعية المعتمدة:</span>
+              <strong className="text-black font-black">
                 {activeConfig.off_days
                   .map((k) => DAYS_OF_WEEK_LIST.find((d) => d.key === k)?.label_ar)
                   .join(' و ')}
               </strong>
             </span>
-            <span className="text-xs sm:text-sm font-black text-slate-800 flex items-center gap-1.5">
-              <Building2 className="w-4 h-4 text-[#0F2942]" />
-              <span>جامعة الإمام جعفر الصادق (ع) - فرع ميسان</span>
+            <span className="text-xs sm:text-sm font-black text-black flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-slate-100 border border-slate-300 shrink-0">
+                <Building2 className="w-4 h-4 text-[#0F2942]" />
+              </div>
+              <span className="text-black font-black">جامعة الإمام جعفر الصادق (ع) - فرع ميسان</span>
             </span>
           </div>
         </div>

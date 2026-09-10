@@ -15,7 +15,6 @@ import {
   AlertCircle, 
   Download, 
   CheckCircle2, 
-  Sparkles, 
   FileText,
   Timer
 } from 'lucide-react'; // 🎨 الأيقونات

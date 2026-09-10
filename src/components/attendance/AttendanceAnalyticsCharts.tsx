@@ -15,7 +15,6 @@ import {
   FileCheck,
   Palmtree,
   Clock,
-  Sparkles,
   Ban,
   Award,
   Activity,

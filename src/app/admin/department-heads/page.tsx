@@ -55,7 +55,7 @@ import {
   SlidersHorizontal,
   Clock,
   Filter,
-  Sparkles,
+  Key,
   Download,
   Upload,
   FileSpreadsheet,
@@ -2077,7 +2077,7 @@ export default function DepartmentHeadsManagementPage() {
                     onClick={handleAutoGenerateCredentials}
                     className="px-4 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black text-xs sm:text-sm rounded-xl transition flex items-center gap-2 shadow-xs cursor-pointer whitespace-nowrap border border-[#1e4570]"
                   >
-                    <Sparkles className="w-4 h-4 text-cyan-300" />
+                    <Key className="w-4 h-4 text-cyan-300" />
                     <span>توليد بريد ورمز معقد تلقائياً (بدون تكرار)</span>
                   </button>
                 </div>
@@ -2188,7 +2188,7 @@ export default function DepartmentHeadsManagementPage() {
                         className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-950 border border-indigo-200 rounded-lg text-xs font-black flex items-center gap-1.5 transition cursor-pointer active:scale-95 shadow-2xs"
                         title="توليد بريد أكاديمي رسمي فريد 100% غير مكرر"
                       >
-                        <Sparkles className="w-3.5 h-3.5 text-indigo-700" />
+                        <RefreshCw className="w-3.5 h-3.5 text-indigo-700" />
                         <span>توليد بريد فريد</span>
                       </button>
                     </div>
@@ -2652,7 +2652,7 @@ export default function DepartmentHeadsManagementPage() {
                 onClick={handleFixDuplicateEmails}
                 className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black transition flex items-center gap-2 cursor-pointer shadow-md active:scale-95 whitespace-nowrap"
               >
-                <Sparkles className="w-4 h-4 text-rose-200" />
+                <RefreshCw className="w-4 h-4 text-rose-200" />
                 <span>فصل الحسابات وتوليد بريد فريد فوراً ⚡</span>
               </button>
             </div>

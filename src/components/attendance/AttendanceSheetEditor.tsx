@@ -59,7 +59,6 @@ import {
   Save,
   Users,
   Search,
-  Sparkles,
   FileText,
   ClipboardList,
   Square,
@@ -1236,7 +1235,7 @@ export default function AttendanceSheetEditor({
                 {floatingToast.type === 'save' && <Save className="w-6 h-6 stroke-[2.5]" />}
                 {floatingToast.type === 'pdf' && <Download className="w-6 h-6 stroke-[2.5]" />}
                 {floatingToast.type === 'unset' && <HelpCircle className="w-6 h-6 stroke-[2.5]" />}
-                {(floatingToast.type === 'action' || floatingToast.type === 'info') && <Sparkles className="w-6 h-6 stroke-[2.5]" />}
+                {(floatingToast.type === 'action' || floatingToast.type === 'info') && <Info className="w-6 h-6 stroke-[2.5]" />}
               </div>
               <div className="flex flex-col text-right">
                 <span className="font-black text-sm sm:text-base text-slate-950 tracking-wide">{floatingToast.title}</span>
@@ -1262,8 +1261,7 @@ export default function AttendanceSheetEditor({
       <div className="bg-white p-6 sm:p-7 rounded-3xl text-slate-950 border-2 border-slate-200 shadow-sm flex flex-col xl:flex-row xl:items-center justify-between gap-5">
         <div>
           <div className="flex flex-wrap items-center gap-2 mb-2.5">
-            <span className="px-3.5 py-1.5 bg-indigo-50 border-2 border-indigo-200 text-indigo-950 text-xs sm:text-sm font-black rounded-2xl flex items-center gap-1.5 shadow-2xs">
-              <Sparkles className="w-4 h-4 text-indigo-700 shrink-0" />
+            <span className="px-3.5 py-1.5 bg-indigo-50 border-2 border-indigo-200 text-indigo-950 text-xs sm:text-sm font-black rounded-2xl shadow-2xs">
               <span>نظام الحضور والغياب والإجازات — مسار بولونيا</span>
             </span>
             <span className="px-3.5 py-1.5 bg-emerald-50 text-emerald-950 border-2 border-emerald-300 font-black text-xs sm:text-sm rounded-2xl shadow-2xs">

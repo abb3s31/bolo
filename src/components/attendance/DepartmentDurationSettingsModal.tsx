@@ -8,7 +8,6 @@ import {
   Trash2,
   Check,
   X,
-  Sparkles,
   SlidersHorizontal,
   BookOpen,
   FlaskConical,
@@ -419,8 +418,7 @@ export default function DepartmentDurationSettingsModal({
           <div className="bg-white p-5 rounded-3xl border-2 border-slate-200 shadow-2xs space-y-4">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
               <div>
-                <h4 className="text-base sm:text-lg font-black text-slate-950 flex items-center gap-2">
-                  <Sparkles className="w-5 h-5 text-indigo-700" />
+                <h4 className="text-base sm:text-lg font-black text-slate-950">
                   <span>2. تخصيص الساعات الكلية ومدد المحاضرات لمواد القسم ({courses.length} مادة):</span>
                 </h4>
                 <p className="text-xs font-bold text-slate-600 mt-0.5">

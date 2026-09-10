@@ -48,7 +48,6 @@ import {
   BookOpen,
   Filter,
   Layers,
-  Sparkles,
   Printer,
   ShieldCheck,
   FileText,
@@ -334,8 +333,7 @@ export default function StudentAttendanceView({
       <div className="bg-white p-6 sm:p-7 rounded-3xl border-2 border-slate-200 shadow-sm flex flex-col xl:flex-row xl:items-center justify-between gap-5">
         <div>
           <div className="flex flex-wrap items-center gap-2 mb-2.5">
-            <span className="px-3.5 py-1.5 bg-indigo-50 border-2 border-indigo-200 text-indigo-950 text-xs sm:text-sm font-black rounded-2xl flex items-center gap-1.5 shadow-2xs">
-              <Sparkles className="w-4 h-4 text-indigo-700 shrink-0" />
+            <span className="px-3.5 py-1.5 bg-indigo-50 border-2 border-indigo-200 text-indigo-950 text-xs sm:text-sm font-black rounded-2xl shadow-2xs">
               <span>نظام تتبع الحضور والغيابات — مسار بولونيا</span>
             </span>
             

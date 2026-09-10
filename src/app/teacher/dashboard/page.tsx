@@ -21,7 +21,7 @@ import { UserProfile, Course, TeacherCourse, ScheduleLecture, DepartmentSchedule
 import { reconcileCoursesWithTeacherCourses } from '@/app/admin/department-portal/page'; // 🔄 محرك التوفيق والتزامن المركزي بين المواد والتكليفات
 import { detectArabicGender } from '@/lib/demographics-utils'; // 🧮 التعرف الذكي على جنس الطلاب
 import { getStageNameInArabic } from '@/lib/grade-utils'; // 🎓 دالة أسماء المراحل بالعربية
-import { BookOpen, ChevronLeft, Layers, Clock, Calendar, Sparkles, FileText, ShieldCheck, Users, Sun, Moon, Building2, GraduationCap, ArrowLeft, ClipboardCheck, Award, Lock, Unlock, RotateCcw, FlaskConical } from 'lucide-react'; // 🎨 الأيقونات SVG
+import { BookOpen, ChevronLeft, Layers, Clock, Calendar, FileText, ShieldCheck, Users, Sun, Moon, Building2, GraduationCap, ArrowLeft, ClipboardCheck, Award, Lock, Unlock, RotateCcw, FlaskConical } from 'lucide-react'; // 🎨 الأيقونات SVG
 import ZeroTrustGuard from '@/components/security/ZeroTrustGuard'; // 🛡️ حارس أمان Zero Trust
 import TeacherScheduleTimeline from '@/components/schedule/TeacherScheduleTimeline'; // 🕒 مكون جدول ومواقيت الأستاذ
 import TeacherExamDutiesView from '@/components/exams/TeacherExamDutiesView'; // 📝 مكون جدول المراقبات الامتحانية للأستاذ

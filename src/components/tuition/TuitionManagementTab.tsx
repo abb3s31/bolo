@@ -54,7 +54,7 @@ import {
   ChevronDown,
   Banknote,
   Award,
-  Sparkles
+  GraduationCap
 } from 'lucide-react'; // 🎨 استيراد أيقونات SVG الرسمية
 import AdminPagination from '@/components/AdminPagination'; // 📑 مكوّن الترقيم والتنقل بين الصفحات الموحد
 
@@ -1819,7 +1819,7 @@ export default function TuitionManagementTab({
                         case 'martyrs_family':
                           return <Award className="w-5 h-5 text-blue-700 shrink-0" />;
                         case 'top_student':
-                          return <Sparkles className="w-5 h-5 text-emerald-700 shrink-0" />;
+                          return <GraduationCap className="w-5 h-5 text-emerald-700 shrink-0" />;
                         case 'siblings':
                           return <Users className="w-5 h-5 text-sky-700 shrink-0" />;
                         case 'destitute_aid':
@@ -1868,7 +1868,7 @@ export default function TuitionManagementTab({
                                 case 'martyrs_family':
                                   return <Award className={`w-5 h-5 shrink-0 ${isSelected ? 'text-white' : 'text-blue-700'}`} />;
                                 case 'top_student':
-                                  return <Sparkles className={`w-5 h-5 shrink-0 ${isSelected ? 'text-white' : 'text-emerald-400'}`} />;
+                                  return <GraduationCap className={`w-5 h-5 shrink-0 ${isSelected ? 'text-white' : 'text-emerald-400'}`} />;
                                 case 'siblings':
                                   return <Users className={`w-5 h-5 shrink-0 ${isSelected ? 'text-white' : 'text-sky-700'}`} />;
                                 case 'destitute_aid':

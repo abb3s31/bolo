@@ -17,7 +17,6 @@ import {
   Trash2, 
   X, 
   ExternalLink, 
-  Sparkles, 
   FileText, 
   GraduationCap, 
   Lock, 
@@ -111,7 +110,7 @@ export default function NotificationBell({ currentUser }: NotificationBellProps)
       case 'grades_locked':
         return <Lock className="w-4 h-4 text-slate-800" />;
       default:
-        return <Sparkles className="w-4 h-4 text-blue-700" />;
+        return <Bell className="w-4 h-4 text-blue-700" />;
     }
   };
 

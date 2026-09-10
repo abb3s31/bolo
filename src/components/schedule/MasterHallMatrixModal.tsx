@@ -19,7 +19,6 @@ import {
   MapPin,
   Clock,
   Printer,
-  Sparkles,
   CheckCircle2,
   AlertCircle,
   Users,
@@ -77,8 +76,7 @@ export default function MasterHallMatrixModal({
         <div className="bg-white p-5 sm:p-6 text-slate-900 border-b border-slate-200 flex items-center justify-between gap-4 shrink-0">
           <div>
             <div className="flex items-center gap-2 mb-1.5">
-              <span className="px-3 py-1 bg-blue-50 border border-blue-200 text-[#0F2942] font-black text-sm rounded-xl flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-blue-700" />
+              <span className="px-3 py-1 bg-blue-50 border border-blue-200 text-[#0F2942] font-black text-sm rounded-xl">
                 <span>مخطط إشغال مرافق الحرم الجامعي</span>
               </span>
               <span className="px-3 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 font-black text-sm rounded-xl">

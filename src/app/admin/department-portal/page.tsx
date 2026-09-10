@@ -89,7 +89,9 @@ import {
   formatDateArabicWithDay,       // 🏷️ تنسيق التاريخ بالعربية مع اسم اليوم
   IRAQI_ARABIC_MONTHS,           // 🗓️ الشهور العراقية المعتمدة
   formatArabicScheduleTime,      // ⏱️ تنسيق التوقيت الأكاديمي مع ص وم
-  formatSingleTime               // 🕒 دالة التوقيت الفردي الصباحي والمسائي
+  formatSingleTime,              // 🕒 دالة التوقيت الفردي الصباحي والمسائي
+  formatArabicOrdinalLectureName, // 🎖️ دالة صياغة تسلسل المحاضرة الأكاديمي الفصيح
+  formatArabicLectureCount       // 🔤 دالة صياغة عدد المحاضرات السليمة نحوياً
 } from '@/lib/schedule-utils'; // 🕒 أدوات وحسابات الجدول الأسبوعي وكشف التضارب الزمني والتعاقب الذكي للأسابيع
 import { sendAppNotification } from '@/lib/notification-utils'; // 🔔 مركز الإشعارات التفاعلي
 import AnalyticsCharts from '@/components/AnalyticsCharts'; // 📈 لوحة الرسوم البيانية التفاعلية
@@ -105,10 +107,10 @@ import TuitionManagementTab from '@/components/tuition/TuitionManagementTab'; //
 import { DepartmentAssessmentsOverview } from '@/components/assessments/DepartmentAssessmentsOverview'; // 📚 لوحة تدقيق وإشراف التكليفات والامتحانات الفصلية
 import { exportOfficialWarningLetterPDF, exportDepartmentCoursesPDF, DepartmentCoursePDFItem } from '@/lib/pdf-export'; // 📜 مولد كتب الإنذارات وكشوفات المواد الرسمية PDF
 import FloatingCrudModal from '@/components/FloatingCrudModal'; // 📦 المكون العائم الفاخر للـ CRUD
-import ConfirmDeleteModal from '@/components/ConfirmDeleteModal'; // 🗑️ كارد الحذف الاحترافي الفاخر
+import ConfirmDeleteModal, { ConfirmModalIcon } from '@/components/ConfirmDeleteModal'; // 🗑️ كارد الحذف الاحترافي الفاخر
 import { lockBodyScroll, unlockBodyScroll } from '@/lib/scroll-lock'; // 🔒 نظام إدارة التمرير المركزي للنوافذ المنبثقة
 import { PrintFilterDropdown, PrintFilterOption } from '@/components/PrintFilterDropdown'; // 🖨️ مكون القوائم المنسدلة الاحترافية لفلاتر الطباعة
-import { downloadDepartmentTeachersTemplate, downloadDepartmentStudentsTemplate, downloadDepartmentCoursesTemplate, generateDepartmentScheduleTemplate, parseExcelFile, exportCustomTeachersList, exportCustomStudentsList, exportCustomCoursesList, exportCustomScheduleList } from '@/lib/excel-utils'; // 📊 دوال قراءة وتوليد نماذج Excel
+import { downloadDepartmentTeachersTemplate, downloadDepartmentStudentsTemplate, downloadDepartmentCoursesTemplate, generateDepartmentScheduleTemplate, parseExcelFile, exportCustomTeachersList, exportCustomStudentsList, exportCustomCoursesList, exportCustomScheduleList, exportCustomTeacherCoursesList, exportCustomGradesList, exportCustomAttendanceList } from '@/lib/excel-utils'; // 📊 دوال قراءة وتوليد ونماذج وتصدير جداول Excel المعتمدة
 import AdminPagination from '@/components/AdminPagination'; // 📄 مكون نظام الصفحات الموحد والفاخر
 
 // 📊 نوع بيانات تقرير نتائج استيراد الإكسل
@@ -147,6 +149,7 @@ import {
   Calendar, 
   CalendarDays, 
   CheckCircle2, 
+  CheckCheck, // ✨ أيقونة التحديد الشامل لكافة المحاضرات
   AlertCircle, 
   ArrowRightLeft,
   BarChart3,
@@ -797,6 +800,14 @@ export default function DepartmentPortalPage() {
   const [courseImportReport, setCourseImportReport] = useState<ImportSummaryReport | null>(null); // 📊 تقرير استيراد المواد
   const [courseActiveReportTab, setCourseActiveReportTab] = useState<'accepted' | 'duplicates' | 'rejected'>('accepted'); // 📑 التبويب النشط في تقرير المواد
 
+  // 📊 حالات التحميل لتصدير ملفات Excel لمختلف الأقسام والتبويبات
+  const [isExportingTeachersExcel, setIsExportingTeachersExcel] = useState(false); // ⏳ حالة تصدير كادر الأساتذة
+  const [isExportingStudentsExcel, setIsExportingStudentsExcel] = useState(false); // ⏳ حالة تصدير كشف الطلاب
+  const [isExportingCoursesExcel, setIsExportingCoursesExcel] = useState(false); // ⏳ حالة تصدير المواد والمقررات
+  const [isExportingAssignmentsExcel, setIsExportingAssignmentsExcel] = useState(false); // ⏳ حالة تصدير التكليفات التدريسية
+  const [isExportingGradesExcel, setIsExportingGradesExcel] = useState(false); // ⏳ حالة تصدير سجلات درجات بولونيا
+  const [isExportingAttendanceExcel, setIsExportingAttendanceExcel] = useState(false); // ⏳ حالة تصدير كشف الحضور والغيابات
+
   // 🎛️ حالة نافذة تخصيص توزيع الدرجات والعناوين لبنود بولونيا الـ 7
   const [isAssessmentModalOpen, setIsAssessmentModalOpen] = useState(false);
   const [selectedCourseForAssessment, setSelectedCourseForAssessment] = useState<Course | null>(null);
@@ -838,7 +849,7 @@ export default function DepartmentPortalPage() {
     warningNote?: string;
     confirmText?: string;
     variant?: 'danger' | 'success' | 'warning' | 'info';
-    iconType?: 'trash' | 'graduation' | 'promote' | 'check' | 'sparkles' | 'alert' | 'user' | 'info' | 'unlink' | 'user-minus';
+    iconType?: ConfirmModalIcon;
     onConfirm: () => void;
   }>({
     isOpen: false,
@@ -4004,27 +4015,51 @@ export default function DepartmentPortalPage() {
     });
   };
 
-  // 🗑️ حذف جماعي لمحاضرات الجدول المحددة
+  // 🗑️ حذف جماعي لمحاضرات الجدول المحددة (مع كشف ذكي إذا تم تحديد كافة محاضرات المرحلة)
   const handleBulkDeleteScheduleLectures = () => {
+    // 🛑 فحص أمان أولي: إذا ماكو أي محاضرة محددة نرجع فوراً
     if (selectedScheduleLectureIds.length === 0) return;
+
+    // 📚 جلب محاضرات المرحلة الحالية للتأكد هل المستخدم محدد كل الجدول لو جزء منه
+    const stageLectures = scheduleLectures.filter(
+      (l) =>
+        isLectureInCurrentDept(l) &&
+        l.stage_number === selectedScheduleStage &&
+        l.semester === selectedScheduleSemester &&
+        (l.study_type || 'morning') === selectedScheduleStudyType
+    );
+    // 🌟 هل التحديد شامل 100% لكل محاضرات هذه المرحلة؟
+    const isAllSelected =
+      stageLectures.length > 0 &&
+      stageLectures.every((l) => selectedScheduleLectureIds.includes(l.id));
+
     setDeleteModalConfig({
       isOpen: true,
-      title: 'حذف المحاضرات المحددة من الجدول',
-      itemName: `${selectedScheduleLectureIds.length} محاضرة أسبوعية`,
-      itemDetails: 'سيتم حذف المحاضرات المحددة من الجدول الأسبوعي للمرحلة.',
+      title: isAllSelected ? 'حذف شامل لكافة محاضرات الجدول الأسبوعي' : 'حذف المحاضرات المحددة من الجدول',
+      itemName: isAllSelected
+        ? `كافة محاضرات المرحلة (${selectedScheduleLectureIds.length} محاضرة)`
+        : `${selectedScheduleLectureIds.length} محاضرة أسبوعية`,
+      itemDetails: isAllSelected
+        ? 'سيتم تفريغ وحذف جميع المحاضرات المجدولة لكافة أسابيع وأيام الفصل الدراسي لهذه المرحلة.'
+        : 'سيتم حذف المحاضرات المحددة من الجدول الأسبوعي للمرحلة.',
       warningMessage: '⚠️ تحذير: سيتم إزالة هذه المحاضرات من جداول الطلاب والأساتذة فوراً.',
       confirmText: `تأكيد حذف (${selectedScheduleLectureIds.length}) محاضرة`,
       variant: 'danger',
       iconType: 'trash',
       onConfirm: () => {
-        // ☁️ حذف المحاضرات سحابياً بدفعة واحدة
+        // ☁️ حذف المحاضرات سحابياً بدفعة واحدة من سوبابيز
         deleteScheduleLecturesBulkFromSupabase(selectedScheduleLectureIds);
 
+        // 💾 تصفية وحفظ المحاضرات المتبقية بالتخزين المحلي
         const remaining = scheduleLectures.filter((l) => !selectedScheduleLectureIds.includes(l.id));
         setScheduleLectures(remaining);
         saveStoredData('schedule_lectures', remaining);
         setSelectedScheduleLectureIds([]);
-        setSuccessMessage(`تم بنجاح حذف (${selectedScheduleLectureIds.length}) محاضرة من الجدول الأسبوعي`);
+        setSuccessMessage(
+          isAllSelected
+            ? `تم بنجاح تفريغ وحذف كافة محاضرات الجدول الأسبوعي (${selectedScheduleLectureIds.length} محاضرة)`
+            : `تم بنجاح حذف (${selectedScheduleLectureIds.length}) محاضرة من الجدول الأسبوعي`
+        );
         setTimeout(() => setSuccessMessage(''), 4000);
         setDeleteModalConfig((prev) => ({ ...prev, isOpen: false }));
       }
@@ -4053,6 +4088,319 @@ export default function DepartmentPortalPage() {
         setDeleteModalConfig((prev) => ({ ...prev, isOpen: false }));
       }
     });
+  };
+
+  // =========================================================================
+  // 📊 دوال تصدير جداول Excel الرسمية (أساتذة، طلاب، مواد، تكليفات، درجات، حضور)
+  // =========================================================================
+
+  // 1️⃣ تصدير كادر أساتذة القسم إلى Excel (مع البريد الأكاديمي والرمز السري الرسمي)
+  const handleExportTeachersExcel = async () => {
+    try {
+      setIsExportingTeachersExcel(true); // ⏳ نشغل علامة التحميل علمود المستخدم يعرف ديصدر
+      // 🎯 نحدد الأساتذة: إذا محدد أستاذ معين نصدره، وإلا نصدر كادر القسم بالكامل
+      const targetTeachers = selectedTeacherIds.length > 0
+        ? deptTeachers.filter((t: UserProfile): boolean => selectedTeacherIds.includes(t.id))
+        : deptTeachers;
+
+      if (targetTeachers.length === 0) {
+        setErrorMessage('لا يوجد أساتذة في القسم للتصدير حالياً.'); // ⚠️ تنبيه إذا ماكو أساتذة
+        setTimeout(() => setErrorMessage(''), 3000); // ⏱️ مسح التنبيه
+        return; // 🛑 خروج
+      }
+
+      await exportCustomTeachersList(targetTeachers, deptName); // 📊 تصدير كشف الأساتذة مع البريد والرمز
+      setSuccessMessage(`تم بنجاح تصدير كشف (${targetTeachers.length}) أستاذ بالبريد والرمز إلى ملف Excel! 📊`); // 💬 رسالة نجاح
+      setTimeout(() => setSuccessMessage(''), 4000); // ⏱️ مسح الرسالة
+    } catch (error) {
+      console.error('خطأ في تصدير أساتذة القسم:', error); // 🚨 طباعة الخطأ بالكونسول
+      setErrorMessage('حدث خطأ أثناء تصدير ملف الإكسل للأساتذة.'); // 🛑 إشعار بالخطأ
+      setTimeout(() => setErrorMessage(''), 4000); // ⏱️ مسح الإشعار
+    } finally {
+      setIsExportingTeachersExcel(false); // 🛑 نوقف علامة التحميل
+    }
+  };
+
+  // 2️⃣ تصدير كشف طلبة القسم إلى Excel (مع الرقم الجامعي، المرحلة، الفترة، البريد، والرمز السري)
+  const handleExportStudentsExcel = async () => {
+    try {
+      setIsExportingStudentsExcel(true); // ⏳ تشغيل مؤشر تصدير كشف الطلبة
+      // 🎯 نحدد الطلبة: إما المحددين يدوياً أو المفلترين حسب المرحلة والدراسة أو كل طلاب القسم
+      const targetStudents = selectedStudentIds.length > 0
+        ? deptStudents.filter((s: UserProfile): boolean => selectedStudentIds.includes(s.id))
+        : (filteredStudents.length > 0 ? filteredStudents : deptStudents);
+
+      if (targetStudents.length === 0) {
+        setErrorMessage('لا يوجد طلاب في القسم للتصدير حالياً.'); // ⚠️ تنبيه بعدم وجود طلاب
+        setTimeout(() => setErrorMessage(''), 3000); // ⏱️ مسح التنبيه
+        return; // 🛑 خروج
+      }
+
+      await exportCustomStudentsList(targetStudents, deptName); // 📊 توليد ملف الإكسل المعتمد للطلبة
+      setSuccessMessage(`تم بنجاح تصدير كشف (${targetStudents.length}) طالب بالرقم الجامعي والبريد والرمز إلى ملف Excel! 📊`); // 💬 إشعار نجاح
+      setTimeout(() => setSuccessMessage(''), 4000); // ⏱️ مسح الإشعار
+    } catch (error) {
+      console.error('خطأ في تصدير طلبة القسم:', error); // 🚨 طباعة بالكونسول
+      setErrorMessage('حدث خطأ أثناء تصدير ملف الإكسل للطلاب.'); // 🛑 رسالة خطأ
+      setTimeout(() => setErrorMessage(''), 4000); // ⏱️ مسح الرسالة
+    } finally {
+      setIsExportingStudentsExcel(false); // 🛑 إيقاف مؤشر التحميل
+    }
+  };
+
+  // 3️⃣ تصدير كشف المواد والمقررات الدراسية إلى Excel
+  const handleExportCoursesExcel = async () => {
+    try {
+      setIsExportingCoursesExcel(true); // ⏳ تشغيل مؤشر تصدير المواد
+      // 🎯 نحدد المقررات: المحددة بالـ Checkbox أو المفلترة أو كل مواد القسم
+      const targetCourses = selectedCourseIds.length > 0
+        ? deptCourses.filter((c: Course): boolean => selectedCourseIds.includes(c.id))
+        : (filteredCourses.length > 0 ? filteredCourses : deptCourses);
+
+      if (targetCourses.length === 0) {
+        setErrorMessage('لا توجد مواد دراسية في القسم للتصدير حالياً.'); // ⚠️ تنبيه إذا ماكو مواد
+        setTimeout(() => setErrorMessage(''), 3000); // ⏱️ مسح التنبيه
+        return; // 🛑 خروج
+      }
+
+      // 🧹 تهيئة قائمة المواد وربط أسماء التدريسيين للنظري والعملي بدقة
+      const formattedCourses = targetCourses.map((c: Course) => {
+        const matchedTheoryTeacher = c.theory_teacher_id
+          ? deptTeachers.find((t: UserProfile): boolean => t.id === c.theory_teacher_id)
+          : undefined; // 🔍 مطابقة أستاذ النظري
+        const theoryTeacherName = c.theory_teacher_name || matchedTheoryTeacher?.full_name; // 👤 اسم أستاذ النظري
+
+        const matchedPracticalTeacher = c.practical_teacher_id
+          ? deptTeachers.find((t: UserProfile): boolean => t.id === c.practical_teacher_id)
+          : undefined; // 🔍 مطابقة أستاذ العملي
+        const practicalTeacherName = c.practical_teacher_name || matchedPracticalTeacher?.full_name; // 👤 اسم أستاذ العملي
+
+        return {
+          code: c.code, // 🏷️ رمز المادة
+          name: c.name, // 📘 اسم المادة
+          department_name: deptName, // 🏢 اسم القسم
+          stage_number: c.stage_number || 1, // 🎓 رقم المرحلة
+          semester: c.semester || 1, // 🗓️ الفصل الدراسي
+          course_type: c.course_type, // 🔬 نوع المادة
+          theory_teacher_name: theoryTeacherName, // 👨‍🏫 تدريسي النظري
+          practical_teacher_name: practicalTeacherName, // 🧪 تدريسي العملي
+          credit_hours: c.credit_hours || 3, // ⏱️ عدد الوحدات
+        };
+      });
+
+      await exportCustomCoursesList(formattedCourses, deptName); // 📊 تصدير كشف المواد والوحدات والأساتذة
+      setSuccessMessage(`تم بنجاح تصدير كشف (${formattedCourses.length}) مادة دراسية إلى ملف Excel! 📊`); // 💬 رسالة تأكيد
+      setTimeout(() => setSuccessMessage(''), 4000); // ⏱️ مسح التأكيد
+    } catch (error) {
+      console.error('خطأ في تصدير المواد الدراسية:', error); // 🚨 طباعة
+      setErrorMessage('حدث خطأ أثناء تصدير ملف إكسل المواد.'); // 🛑 تنبيه بالخطأ
+      setTimeout(() => setErrorMessage(''), 4000); // ⏱️ مسح
+    } finally {
+      setIsExportingCoursesExcel(false); // 🛑 إطفاء مؤشر التحميل
+    }
+  };
+
+  // 4️⃣ تصدير قائمة تكليفات الكادر التدريسي إلى Excel
+  const handleExportAssignmentsExcel = async () => {
+    try {
+      setIsExportingAssignmentsExcel(true); // ⏳ تشغيل مؤشر تصدير التكليفات
+      // 🎯 نحدد التكليفات: إما المحددة أو المفلترة أو تكليفات القسم بالكامل
+      const targetAssignments = selectedAssignmentIds.length > 0
+        ? deptTeacherCourses.filter((tc: TeacherCourse): boolean => selectedAssignmentIds.includes(tc.id))
+        : (filteredTeacherCourses.length > 0 ? filteredTeacherCourses : deptTeacherCourses);
+
+      if (targetAssignments.length === 0) {
+        setErrorMessage('لا توجد تكليفات تدريسية في القسم للتصدير حالياً.'); // ⚠️ تنبيه
+        setTimeout(() => setErrorMessage(''), 3000); // ⏱️ مسح
+        return; // 🛑 خروج
+      }
+
+      // 🔄 تجهيز وتنسيق بيانات التكليفات مع البريد الأكاديمي ورموز المقررات
+      const formattedAssignments = targetAssignments.map((tc: TeacherCourse) => {
+        const teacher = deptTeachers.find((t: UserProfile) => t.id === tc.teacher_id);
+        const course = deptCourses.find((c: Course) => c.id === tc.course_id);
+        return {
+          teacher_name: tc.teacher_name || teacher?.full_name || 'غير معروف',
+          teacher_email: teacher?.generated_email || '—',
+          course_name: tc.course_name || course?.name || 'غير معروف',
+          course_code: course?.code || '—',
+          stage_number: course?.stage_number || 1,
+          semester: tc.semester || course?.semester || 1,
+          role_in_course: tc.role_in_course,
+          created_at: tc.created_at,
+        };
+      });
+
+      await exportCustomTeacherCoursesList(formattedAssignments, deptName); // 📊 تصدير جدول التكليفات الرسمي
+      setSuccessMessage(`تم بنجاح تصدير (${formattedAssignments.length}) تكليف تدريسي إلى ملف Excel! 📊`); // 💬 نجاح التصدير
+      setTimeout(() => setSuccessMessage(''), 4000); // ⏱️ مسح
+    } catch (error) {
+      console.error('خطأ في تصدير التكليفات:', error); // 🚨 طباعة
+      setErrorMessage('حدث خطأ أثناء تصدير ملف إكسل التكليفات.'); // 🛑 خطأ
+      setTimeout(() => setErrorMessage(''), 4000); // ⏱️ مسح
+    } finally {
+      setIsExportingAssignmentsExcel(false); // 🛑 إيقاف مؤشر التحميل
+    }
+  };
+
+  // 5️⃣ تصدير سجلات درجات وسعيات مسار بولونيا إلى Excel
+  const handleExportGradesExcel = async () => {
+    try {
+      setIsExportingGradesExcel(true); // ⏳ تشغيل مؤشر تصدير درجات بولونيا
+      // 🎯 نحدد سجلات الدرجات: المحددة بالاختيار أو المفلترة أو جميع درجات القسم
+      const targetGrades = selectedGradeIds.length > 0
+        ? deptGrades.filter((g: Grade): boolean => selectedGradeIds.includes(g.id))
+        : (filteredGrades.length > 0 ? filteredGrades : deptGrades);
+
+      if (targetGrades.length === 0) {
+        setErrorMessage('لا توجد سجلات درجات وسعيات في القسم للتصدير حالياً.'); // ⚠️ تنبيه
+        setTimeout(() => setErrorMessage(''), 3000); // ⏱️ مسح
+        return; // 🛑 خروج
+      }
+
+      // 💯 تجهيز كافة تفاصيل السعي الـ 7 والامتحان النهائي والمجموع الحقيقي
+      const formattedGrades = targetGrades.map((g: Grade) => { // 🔄 تكرار على سجلات الدرجات
+        const student = deptStudents.find((s: UserProfile): boolean => s.id === g.student_id); // 👤 مطابقة بيانات الطالب
+        const course = deptCourses.find((c: Course): boolean => c.id === g.course_id); // 📘 مطابقة المادة الدراسية
+        const q1 = g.quiz1 ?? 0; // 📝 درجة كويز 1
+        const q2 = g.quiz2 ?? 0; // 📝 درجة كويز 2
+        const a1 = g.assignment1 ?? 0; // 📑 درجة واجب 1
+        const a2 = g.assignment2 ?? 0; // 📑 درجة واجب 2
+        const rep = g.report ?? 0; // 📄 درجة التقرير والمشروع
+        const mid = g.midterm ?? 0; // 🎯 درجة امتحان نصف الفصل
+        const prac = g.practical ?? 0; // 🔬 درجة العملي
+        const coursework = g.final_coursework_total ?? (q1 + q2 + a1 + a2 + rep + mid + prac); // 💯 مجموع السعي الفصلي من 50
+        const finalEx = g.final_exam ?? 0; // 📝 درجة الامتحان النهائي من 50
+        const suppEx = g.supplementary_exam ?? null; // 🔄 درجة الدور الثاني إن وجدت
+        const effectiveFinal = (suppEx !== null && suppEx !== undefined) ? suppEx : finalEx; // ⚖️ النهائي الفعلي المعتمد
+        const total = g.final_total ?? (coursework + effectiveFinal); // 🎓 المجموع الكلي النهائي من 100
+
+        return { // 📦 إرجاع كائن السجل المنسق للإكسل
+          student_name: student?.full_name || 'طالب غير معروف', // 👤 اسم الطالب الثلاثي
+          university_number: student?.university_number || '—', // 🆔 الرقم الجامعي
+          course_name: course?.name || 'مادة غير معروفة', // 📘 اسم المادة
+          quiz1: q1, // 📝 كويز 1
+          quiz2: q2, // 📝 كويز 2
+          assignment1: a1, // 📑 واجب 1
+          assignment2: a2, // 📑 واجب 2
+          report: rep, // 📄 تقرير ومشاريع
+          midterm: mid, // 🎯 نصف الفصل
+          practical: prac, // 🔬 العملي
+          final_coursework_total: coursework, // 💯 مجموع السعي (50)
+          final_exam: finalEx, // 📝 النهائي (50)
+          supplementary_exam: suppEx, // 🔄 الدور الثاني
+          final_total: total, // 🎓 المجموع الكلي (100)
+          letter_grade: g.letter_grade || (total >= 90 ? 'A' : total >= 80 ? 'B' : total >= 70 ? 'C' : total >= 60 ? 'D' : total >= 50 ? 'E' : 'F'), // 🅰️ التقدير الحرفي
+          is_locked: g.is_locked || false, // 🔒 حالة اعتماد السعي
+        }; // 🔚 نهاية إرجاع الكائن
+      }); // 🔚 نهاية التحويل
+
+      const selectedCourseName = filterGradeCourse !== 'all' // 🔍 اسم المادة المفلترة
+        ? (deptCourses.find((c: Course): boolean => c.id === filterGradeCourse)?.name || 'مادة_محددة') // 📘 اسم المادة المحددة
+        : 'كافة المواد'; // 🌐 التصدير لكافة المواد
+
+      await exportCustomGradesList(formattedGrades, deptName, selectedCourseName); // 📊 تصدير سجل بولونيا بالبنود الـ 7 والنهائي والمجموع والتقدير
+      setSuccessMessage(`تم بنجاح تصدير (${formattedGrades.length}) سجل درجات وسعي بولونيا إلى ملف Excel! 📊`); // 💬 نجاح
+      setTimeout(() => setSuccessMessage(''), 4000); // ⏱️ مسح
+    } catch (error) { // 🚨 التقاط الخطأ
+      console.error('خطأ في تصدير درجات بولونيا:', error); // 🚨 كونسول
+      setErrorMessage('حدث خطأ أثناء تصدير ملف إكسل الدرجات.'); // 🛑 خطأ
+      setTimeout(() => setErrorMessage(''), 4000); // ⏱️ مسح
+    } finally { // 🏁 مرحلة الإنهاء
+      setIsExportingGradesExcel(false); // 🛑 إيقاف مؤشر التحميل
+    } // 🔚 نهاية معالجة الخطأ
+  }; // 🔚 نهاية دالة تصدير الدرجات
+
+  // 6️⃣ تصدير كشف الحضور والغيابات ونسب الإنذار لبولونيا إلى Excel
+  const handleExportAttendanceExcel = async () => { // 📤 دالة تصدير كشف الحضور إلى إكسل
+    try { // 🛡️ حماية التنفيذ
+      setIsExportingAttendanceExcel(true); // ⏳ تشغيل مؤشر تصدير الحضور
+      // 🎯 تحديد الطلبة المستهدفين: إما المحددين بجدول الحضور أو حسب فلتر المرحلة الحالية
+      const targetStudents = selectedAttendanceStudentIds && selectedAttendanceStudentIds.length > 0 // 🔍 هل يوجد طلاب محددون؟
+        ? deptStudents.filter((s: UserProfile): boolean => selectedAttendanceStudentIds.includes(s.id)) // 🎯 أخذ الطلاب المحددين فقط
+        : (filterAttendanceStage !== 'all' // 📚 هل هناك فلترة للمرحلة؟
+            ? deptStudents.filter((s: UserProfile): boolean => (s.stage_number || 1) === filterAttendanceStage) // 🎓 أخذ طلاب المرحلة المحددة
+            : deptStudents); // 🌐 أخذ جميع طلاب القسم
+
+      if (targetStudents.length === 0) { // ⚠️ التحقق من وجود طلاب
+        setErrorMessage('لا يوجد طلاب في القسم لتصدير سجلات حضورهم حالياً.'); // ⚠️ تنبيه
+        setTimeout(() => setErrorMessage(''), 3000); // ⏱️ مسح
+        return; // 🛑 خروج
+      } // 🔚 نهاية التحقق
+
+      // 🎯 تصفية المقررات التابعة للقسم المتوافقة مع فلاتر المرحلة والكورس والمادة
+      const targetCourses = deptCourses.filter((c: Course): boolean => { // 🔄 تصفية المقررات
+        if (filterAttendanceStage !== 'all' && c.stage_number !== filterAttendanceStage) return false; // 🚫 استبعاد المراحل الأخرى
+        if (filterAttendanceSemester !== 'all' && c.semester !== filterAttendanceSemester) return false; // 🚫 استبعاد الكورسات الأخرى
+        if (filterAttendanceCourse !== 'all' && c.id !== filterAttendanceCourse) return false; // 🚫 استبعاد المواد الأخرى
+        return true; // ✅ الاحتفاظ بالمادة المطابقة
+      }); // 🔚 نهاية تصفية المقررات
+
+      const effectiveCourses = targetCourses.length > 0 ? targetCourses : deptCourses; // 🎯 المقررات الفعلية المستهدفة
+
+      // 📅 أخذ سجلات الأسبوع المفلتر أو كافة الأسابيع
+      const effectiveRecords = filterAttendanceWeek === 'all' // 🗓️ فحص فلتر الأسبوع
+        ? attendanceRecords // 🌐 كافة السجلات
+        : attendanceRecords.filter((r: StudentAttendanceRecord): boolean => r.week_number === filterAttendanceWeek); // 🎯 سجلات الأسبوع المختار
+
+      // ⏱️ احتساب نسب وساعات الغياب والإنذارات الأكاديمية لكل طالب ومادة بدقة
+      const formattedAttendanceRecords: { // 📋 قائمة السجلات المجهزة للتصدير
+        student_name: string; // 👤 اسم الطالب
+        university_number: string; // 🆔 الرقم الجامعي
+        stage_number: number; // 🎓 المرحلة
+        study_type: 'morning' | 'evening'; // ☀️ الفترة
+        course_name: string; // 📘 المادة
+        total_hours: number; // ⏳ الساعات المقررة
+        unexcused_hours: number; // 🔴 بدون عذر
+        excused_hours: number; // 🟡 بعذر
+        absence_percentage: number; // 📊 النسبة %
+        warning_status: 'none' | 'first_warning' | 'final_warning' | 'dismissed'; // ⚠️ الإنذار
+        notes?: string; // 📝 ملاحظات
+      }[] = []; // 📦 مصفوفة فارغة في البداية
+
+      for (const st of targetStudents) { // 🔄 دوران على كل طالب
+        for (const c of effectiveCourses) { // 🔄 دوران على كل مادة
+          const summary = calculateStudentCourseAttendance( // 🧮 حساب خلاصة حضور المادة
+            st.id, // 🆔 معرف الطالب
+            c.id, // 🆔 معرف المادة
+            effectiveRecords, // 📋 سجلات الحضور الفعلية
+            c.name, // 📘 اسم المادة
+            c.code, // 🏷️ رمز المادة
+            c.credit_hours || 3 // ⏱️ الساعات المعتمدة
+          ); // 🔚 نهاية الاحتساب
+
+          // ⚠️ تحويل حالة الإنذار للنوع المطلوب بدقة
+          let mappedWarning: 'none' | 'first_warning' | 'final_warning' | 'dismissed' = 'none'; // 🛑 الحالة الافتراضية
+          if (summary.warning_status === 'warning_1') mappedWarning = 'first_warning'; // ⚠️ إنذار أولي
+          else if (summary.warning_status === 'warning_2') mappedWarning = 'final_warning'; // 🚨 إنذار نهائي
+          else if (summary.warning_status === 'banned') mappedWarning = 'dismissed'; // 🚫 حرمان وتجاوز
+
+          formattedAttendanceRecords.push({ // ➕ إضافة سجل حضور منسق للقائمة
+            student_name: st.full_name, // 👤 اسم الطالب الثلاثي
+            university_number: st.university_number || '—', // 🆔 الرقم الجامعي
+            stage_number: st.stage_number || c.stage_number || 1, // 🎓 رقم المرحلة
+            study_type: st.study_type === 'evening' ? 'evening' : 'morning', // ☀️ نوع الدراسة صباحي أو مسائي
+            course_name: c.name, // 📘 اسم المادة الدراسية
+            total_hours: summary.total_scheduled_hours || 45, // ⏳ إجمالي ساعات المادة المعتمدة
+            unexcused_hours: summary.total_unexcused_absence_hours, // 🔴 ساعات الغياب غير المبرر
+            excused_hours: summary.total_excused_absence_hours, // 🟡 ساعات الإجازات الرسمية
+            absence_percentage: summary.absence_percentage, // 📊 نسبة الغياب غير المبرر
+            warning_status: mappedWarning, // ⚠️ الموقف الأكاديمي للإنذار
+            notes: mappedWarning !== 'none' ? 'إنذار أكاديمي رسمي' : 'دوام منتظم', // 📝 ملاحظات إضافية
+          }); // 🔚 نهاية إضافة السجل
+        } // 🔚 حلقة المواد
+      } // 🔚 حلقة الطلاب
+
+      await exportCustomAttendanceList(formattedAttendanceRecords, deptName); // 📊 تصدير الحضور ونسب الغياب والإنذارات
+      setSuccessMessage(`تم بنجاح تصدير كشف الغيابات والإنذارات لـ (${targetStudents.length}) طالب إلى ملف Excel! 📊`); // 💬 نجاح
+      setTimeout(() => setSuccessMessage(''), 4000); // ⏱️ مسح
+    } catch (error) {
+      console.error('خطأ في تصدير الحضور والغيابات:', error); // 🚨 كونسول
+      setErrorMessage('حدث خطأ أثناء تصدير ملف إكسل الحضور.'); // 🛑 خطأ
+      setTimeout(() => setErrorMessage(''), 4000); // ⏱️ مسح
+    } finally {
+      setIsExportingAttendanceExcel(false); // 🛑 إيقاف المؤشر
+    }
   };
 
   // ==========================================
@@ -5995,6 +6343,18 @@ export default function DepartmentPortalPage() {
                     className="hidden"
                   />
                 </label>
+
+                {/* 📊 زر تصدير كادر الأساتذة إلى Excel مع البريد الأكاديمي والرمز السري الرسمي */}
+                <button
+                  type="button"
+                  onClick={handleExportTeachersExcel}
+                  disabled={isExportingTeachersExcel}
+                  className="px-5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-2xl font-black text-base flex items-center gap-2 shadow-sm transition-all active:scale-95 cursor-pointer border border-[#163a5f] shrink-0 whitespace-nowrap disabled:opacity-50"
+                  title="تصدير كادر الأساتذة إلى ملف Excel مع البريد الأكاديمي والرمز السري"
+                >
+                  <FileSpreadsheet className="w-5 h-5 text-emerald-300" />
+                  <span>{isExportingTeachersExcel ? 'جاري التصدير...' : selectedTeacherIds.length > 0 ? `تصدير المحدد (${selectedTeacherIds.length}) Excel` : 'تصدير الأساتذة (Excel)'}</span>
+                </button>
               </div>
             </div>
 
@@ -6645,6 +7005,18 @@ export default function DepartmentPortalPage() {
                     className="hidden"
                   />
                 </label>
+
+                {/* 📊 زر تصدير بيانات الطلبة إلى Excel مع البريد الأكاديمي والرمز السري والدوام */}
+                <button
+                  type="button"
+                  onClick={handleExportStudentsExcel}
+                  disabled={isExportingStudentsExcel}
+                  className="px-5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-2xl font-black text-base flex items-center gap-2 shadow-sm transition-all active:scale-95 cursor-pointer border border-[#163a5f] shrink-0 whitespace-nowrap disabled:opacity-50"
+                  title="تصدير قائمة الطلاب إلى ملف Excel مع البريد الأكاديمي والرمز السري"
+                >
+                  <FileSpreadsheet className="w-5 h-5 text-emerald-300" />
+                  <span>{isExportingStudentsExcel ? 'جاري التصدير...' : selectedStudentIds.length > 0 ? `تصدير المحدد (${selectedStudentIds.length}) Excel` : 'تصدير الطلاب (Excel)'}</span>
+                </button>
               </div>
             </div>
 
@@ -7683,6 +8055,18 @@ export default function DepartmentPortalPage() {
               >
                 <Printer className="w-5 h-5 text-rose-300" /> {/* 🖨️ أيقونة الطابعة باللون الوردي الناصع لتمييزها بجانب أزرار إكسل */}
                 <span>{isExportingCoursesPDF ? 'جاري إعداد PDF...' : selectedCourseIds.length > 0 ? `طباعة المحدد (${selectedCourseIds.length}) PDF` : 'طباعة كشف المواد (PDF)'}</span> {/* 🏷️ نص الزر التفاعلي الذكي */}
+              </button>
+
+              {/* 📊 زر تصدير كشف المواد الدراسية إلى Excel مع التدريسيين والوحدات ورموز المواد */}
+              <button
+                type="button"
+                onClick={handleExportCoursesExcel}
+                disabled={isExportingCoursesExcel}
+                className="px-5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-2xl font-black text-base flex items-center gap-2 shadow-sm transition-all active:scale-95 cursor-pointer border border-[#0F2942] shrink-0 whitespace-nowrap disabled:opacity-50"
+                title="تصدير كشف المواد والمقررات الدراسية إلى ملف Excel"
+              >
+                <FileSpreadsheet className="w-5 h-5 text-emerald-300" />
+                <span>{isExportingCoursesExcel ? 'جاري التصدير...' : selectedCourseIds.length > 0 ? `تصدير المحدد (${selectedCourseIds.length}) Excel` : 'تصدير المواد (Excel)'}</span>
               </button>
             </div>
           </div>
@@ -9119,6 +9503,18 @@ export default function DepartmentPortalPage() {
                         <span>{isExportingCoursesPDF ? 'جاري التصدير...' : `طباعة PDF (${selectedCourseIds.length})`}</span> {/* 🏷️ نص الزر */}
                       </button>
 
+                      {/* 📊 زر تصدير المواد المحددة إلى Excel */}
+                      <button
+                        type="button" // 🛑 نوع الزر لمنع أي إرسال غير مقصود
+                        onClick={handleExportCoursesExcel} // ⚡ تصدير المواد المحددة لملف Excel
+                        disabled={isExportingCoursesExcel} // 🛑 تعطيل الزر أثناء التصدير
+                        className="px-3 py-1.5 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-xl font-black text-xs sm:text-sm transition flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95 border border-[#163a5f] disabled:opacity-50" // 🎨 تنسيق كحلي ملكي مصغر
+                        title="تصدير المواد الدراسية المحددة فقط إلى ملف Excel معتمد" // 💡 تلميح الزر
+                      >
+                        <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-300" /> {/* 📊 أيقونة الإكسل بلون زمردي */}
+                        <span>{isExportingCoursesExcel ? 'جاري التصدير...' : `تصدير Excel (${selectedCourseIds.length})`}</span> {/* 🏷️ نص الزر */}
+                      </button>
+
                       {/* زر حذف المواد المحددة بنفس الحجم */}
                       <button
                         type="button" // 🛑 نوع الزر
@@ -9558,6 +9954,18 @@ export default function DepartmentPortalPage() {
                 <span>طباعة جدول التكليفات PDF</span>
               </button>
 
+              {/* 📊 زر تصدير جدول تكليفات التدريسيين إلى ملف Excel معتمد */}
+              <button
+                type="button"
+                onClick={handleExportAssignmentsExcel}
+                disabled={isExportingAssignmentsExcel}
+                className="px-5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black rounded-2xl text-sm shadow-md transition flex items-center gap-2 cursor-pointer border border-[#0F2942] shrink-0 active:scale-95 whitespace-nowrap disabled:opacity-50"
+                title="تصدير جدول تكليفات الكادر التدريسي لمواد القسم إلى ملف Excel"
+              >
+                <FileSpreadsheet className="w-4 h-4 text-emerald-300" />
+                <span>{isExportingAssignmentsExcel ? 'جاري التصدير...' : selectedAssignmentIds.length > 0 ? `تصدير المحدد (${selectedAssignmentIds.length}) Excel` : 'تصدير التكليفات (Excel)'}</span>
+              </button>
+
               {/* ➕ زر فتح كارت إضافة تكليف جديد بتصميم كحلي ملكي */}
               <button
                 type="button"
@@ -9765,7 +10173,8 @@ export default function DepartmentPortalPage() {
                       className="w-full px-4 py-3.5 bg-white hover:bg-slate-50 border-2 border-slate-400 hover:border-[#0F2942] focus:border-[#0F2942] rounded-2xl text-slate-950 font-black text-base focus:outline-none flex items-center justify-between cursor-pointer shadow-2xs transition-all text-right"
                     >
                       <div className="flex items-center gap-3 truncate">
-                        <div className="w-9 h-9 rounded-xl bg-indigo-900 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
+                        {/* 📘 أيقونة المادة الدراسية بخلفية كحلية ملكية متناسقة تماماً مع أيقونة الأستاذ */}
+                        <div className="w-9 h-9 rounded-xl bg-[#0F2942] text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
                           <BookOpen className="w-4 h-4 text-cyan-300" />
                         </div>
                         {selectedCourseId ? (
@@ -9986,8 +10395,8 @@ export default function DepartmentPortalPage() {
 
               </div>
 
-              <div className="p-4 bg-slate-100 border border-slate-300 rounded-2xl text-slate-950 text-sm font-black flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-indigo-700 shrink-0" />
+              {/* ℹ️ ملاحظة تنبيهية واضحة بدون أيقونة النجوم حسب التوجيه */}
+              <div className="p-4 bg-slate-100 border border-slate-300 rounded-2xl text-slate-950 text-sm sm:text-base font-black leading-relaxed">
                 <span>سيتم إرسال إشعار أكاديمي فوري وتحديث حساب الأستاذ وصلاحيات الرصد تلقائياً فور تثبيت التكليف.</span>
               </div>
 
@@ -10023,337 +10432,350 @@ export default function DepartmentPortalPage() {
                 </div>
               </div>
 
-              {/* 🏷️ شريط فلاتر متناسق وأنيق: منسدلة الأساتذة + أزرار المراحل بدون سكرول + أزرار الكورسات */}
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+              {/* 🏷️ شريط فلاتر متناسق وأنيق: صفان متوازنان هندسياً بتصميم التبويبات الموحد الفاخر */}
+              <div className="space-y-3 pt-1">
                 
-                {/* 1. قائمة منسدلة تفاعلية ذكية لاختيار وتصفية الأستاذ المكلف (تظهر داخل حدود الشاشة فقط و z-999999) */}
-                <div className="relative">
-                  <button
-                    ref={filterTeacherButtonRef} // 🔗 ريفرنس الزر لحساب الإحداثيات الدقيقة
-                    type="button"
-                    onClick={handleToggleFilterTeacherDropdown} // ⚡ دالة الفتح والغلق الذكية
-                    className="px-4 py-2.5 bg-white hover:bg-slate-50 border-2 border-slate-300 hover:border-[#0F2942] rounded-2xl text-slate-950 font-black text-sm sm:text-base flex items-center justify-between gap-3 shadow-2xs transition-all cursor-pointer min-w-[260px]"
-                    title="تصفية التكليفات حسب الأستاذ المكلف"
-                  >
-                    <div className="flex items-center gap-2.5 truncate">
-                      <div className="w-7 h-7 rounded-lg bg-[#0F2942] text-cyan-300 flex items-center justify-center shrink-0 shadow-2xs">
-                        <Users className="w-4 h-4" /> {/* 👤 أيقونة الأستاذ */}
-                      </div>
-                      <span className="font-black text-slate-950 text-sm sm:text-base truncate">
-                        {filterAssignmentTeacher === 'all' 
-                          ? 'كافة الأساتذة المكلفين' 
-                          : (deptTeachers.find((t) => t.id === filterAssignmentTeacher)?.full_name || 'أستاذ غير معروف')}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <span className="px-2 py-0.5 rounded-full text-xs font-mono font-black bg-blue-100 text-blue-950 border border-blue-200">
-                        {filterAssignmentTeacher === 'all' 
-                          ? deptTeacherCourses.length 
-                          : deptTeacherCourses.filter((tc) => tc.teacher_id === filterAssignmentTeacher).length}
-                      </span>
-                      <ChevronDown className={`w-4 h-4 text-slate-900 transition-transform duration-200 ${isFilterTeacherDropdownOpen ? 'rotate-180 text-[#0F2942]' : ''}`} />
-                    </div>
-                  </button>
-
-                  {/* 📋 القائمة المنسدلة الاحترافية العائمة عبر Portal مع z-[999999] وتضمن البقاء 100% داخل حدود الشاشة */}
-                  {isFilterTeacherDropdownOpen && filterTeacherCoords && typeof document !== 'undefined' && createPortal(
-                    <>
-                      {/* خلفية شفافة نقية تلتقط النقرات لإغلاق القائمة */}
-                      <div 
-                        className="fixed inset-0 z-[999999]" 
-                        onClick={() => {
-                          setIsFilterTeacherDropdownOpen(false); // 🔒 نسد القائمة عند النقر بالخلفية
-                          setFilterTeacherSearchQuery(''); // 🧹 نصفر خانة البحث
-                        }} 
-                      />
-                      {/* صندوق القائمة المنسدلة المحسوب هندسياً بالبكسل داخل الشاشة */}
-                      <div 
-                        style={{
-                          position: 'fixed',
-                          ...(filterTeacherCoords.openUpwards
-                            ? { bottom: `${filterTeacherCoords.bottom}px` } // ⬆️ فتح للأعلى إذا المساحة التحتانية ما تكفي
-                            : { top: `${filterTeacherCoords.top}px` }), // ⬇️ فتح للأسفل كالمعتاد
-                          left: `${filterTeacherCoords.left}px`,
-                          width: `${Math.max(280, filterTeacherCoords.width)}px`,
-                          maxHeight: `${filterTeacherCoords.maxHeight}px`,
-                        }}
-                        className="bg-white border-2 border-slate-400 rounded-2xl shadow-2xl overflow-hidden z-[999999] flex flex-col p-2 space-y-2 animate-in fade-in zoom-in-95 duration-150"
-                        dir="rtl"
-                        onClick={(e) => e.stopPropagation()} // 🛑 منع تسريب النقر للخلفية
-                      >
-                        {/* 🔍 حقل البحث السريع بالاسم داخل قائمة الأساتذة */}
-                        <div className="relative shrink-0">
-                          <Search className="w-4 h-4 absolute right-3 top-3 text-slate-900" />
-                          <input
-                            type="text"
-                            value={filterTeacherSearchQuery}
-                            onChange={(e) => setFilterTeacherSearchQuery(e.target.value)}
-                            placeholder="بحث سريع باسم التدريسي..."
-                            className="w-full pl-3 pr-9 py-2 bg-slate-50 border border-slate-400 rounded-xl text-sm font-black text-slate-950 placeholder:text-slate-500 focus:border-slate-900 focus:outline-none"
-                            autoFocus
-                            onClick={(e) => e.stopPropagation()}
-                          />
+                {/* 🔹 السطر الأول: منسدلة اختيار الأستاذ المكلف + تبويبات المراحل الدراسية بتناسق تام */}
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  {/* 1. قائمة منسدلة تفاعلية ذكية لاختيار وتصفية الأستاذ المكلف (تظهر داخل حدود الشاشة فقط و z-999999) */}
+                  <div className="relative">
+                    <button
+                      ref={filterTeacherButtonRef} // 🔗 ريفرنس الزر لحساب الإحداثيات الدقيقة
+                      type="button"
+                      onClick={handleToggleFilterTeacherDropdown} // ⚡ دالة الفتح والغلق الذكية
+                      className="px-4 py-2.5 bg-white hover:bg-slate-50 border-2 border-slate-300 hover:border-[#0F2942] rounded-2xl text-slate-950 font-black text-sm sm:text-base flex items-center justify-between gap-3 shadow-2xs transition-all cursor-pointer min-w-[260px]"
+                      title="تصفية التكليفات حسب الأستاذ المكلف"
+                    >
+                      <div className="flex items-center gap-2.5 truncate">
+                        <div className="w-7 h-7 rounded-lg bg-[#0F2942] text-cyan-300 flex items-center justify-center shrink-0 shadow-2xs">
+                          <Users className="w-4 h-4" /> {/* 👤 أيقونة الأستاذ */}
                         </div>
+                        <span className="font-black text-slate-950 text-sm sm:text-base truncate">
+                          {filterAssignmentTeacher === 'all' 
+                            ? 'كافة الأساتذة المكلفين' 
+                            : (deptTeachers.find((t) => t.id === filterAssignmentTeacher)?.full_name || 'أستاذ غير معروف')}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className="px-2 py-0.5 rounded-full text-xs font-mono font-black bg-blue-100 text-blue-950 border border-blue-200">
+                          {filterAssignmentTeacher === 'all' 
+                            ? deptTeacherCourses.length 
+                            : deptTeacherCourses.filter((tc) => tc.teacher_id === filterAssignmentTeacher).length}
+                        </span>
+                        <ChevronDown className={`w-4 h-4 text-slate-900 transition-transform duration-200 ${isFilterTeacherDropdownOpen ? 'rotate-180 text-[#0F2942]' : ''}`} />
+                      </div>
+                    </button>
 
-                        {/* قائمة الأساتذة المكلفين مع عداد المواد لكل تدريسي */}
-                        <div className="overflow-y-auto space-y-1 flex-1 min-h-0 pr-0.5">
-                          {/* خيار كافة الأساتذة المكلفين (عرض الكل) */}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setFilterAssignmentTeacher('all'); // 🌐 تصفية الكل
-                              setIsFilterTeacherDropdownOpen(false); // 🔒 إغلاق القائمة
-                              setFilterTeacherSearchQuery(''); // 🧹 مسح البحث
-                            }}
-                            className={`w-full p-2.5 rounded-xl text-right font-black text-sm sm:text-base transition flex items-center justify-between cursor-pointer border ${
-                              filterAssignmentTeacher === 'all'
-                                ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-xs'
-                                : 'text-slate-950 hover:bg-slate-100 border-transparent'
-                            }`}
-                          >
-                            <div className="flex items-center gap-2">
-                              <Users className="w-4 h-4" />
-                              <span>كافة الأساتذة المكلفين</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className={`text-xs px-2 py-0.5 rounded-md font-mono font-black ${
-                                filterAssignmentTeacher === 'all' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-950'
-                              }`}>
-                                {deptTeacherCourses.length}
-                              </span>
-                              {filterAssignmentTeacher === 'all' && <Check className="w-4 h-4 text-cyan-300 stroke-[3]" />}
-                            </div>
-                          </button>
+                    {/* 📋 القائمة المنسدلة الاحترافية العائمة عبر Portal مع z-[999999] وتضمن البقاء 100% داخل حدود الشاشة */}
+                    {isFilterTeacherDropdownOpen && filterTeacherCoords && typeof document !== 'undefined' && createPortal(
+                      <>
+                        {/* خلفية شفافة نقية تلتقط النقرات لإغلاق القائمة */}
+                        <div 
+                          className="fixed inset-0 z-[999999]" 
+                          onClick={() => {
+                            setIsFilterTeacherDropdownOpen(false); // 🔒 نسد القائمة عند النقر بالخلفية
+                            setFilterTeacherSearchQuery(''); // 🧹 نصفر خانة البحث
+                          }} 
+                        />
+                        {/* صندوق القائمة المنسدلة المحسوب هندسياً بالبكسل داخل الشاشة */}
+                        <div 
+                          style={{
+                            position: 'fixed',
+                            ...(filterTeacherCoords.openUpwards
+                              ? { bottom: `${filterTeacherCoords.bottom}px` } // ⬆️ فتح للأعلى إذا المساحة التحتانية ما تكفي
+                              : { top: `${filterTeacherCoords.top}px` }), // ⬇️ فتح للأسفل كالمعتاد
+                            left: `${filterTeacherCoords.left}px`,
+                            width: `${Math.max(280, filterTeacherCoords.width)}px`,
+                            maxHeight: `${filterTeacherCoords.maxHeight}px`,
+                          }}
+                          className="bg-white border-2 border-slate-400 rounded-2xl shadow-2xl overflow-hidden z-[999999] flex flex-col p-2 space-y-2 animate-in fade-in zoom-in-95 duration-150"
+                          dir="rtl"
+                          onClick={(e) => e.stopPropagation()} // 🛑 منع تسريب النقر للخلفية
+                        >
+                          {/* 🔍 حقل البحث السريع بالاسم داخل قائمة الأساتذة */}
+                          <div className="relative shrink-0">
+                            <Search className="w-4 h-4 absolute right-3 top-3 text-slate-900" />
+                            <input
+                              type="text"
+                              value={filterTeacherSearchQuery}
+                              onChange={(e) => setFilterTeacherSearchQuery(e.target.value)}
+                              placeholder="بحث سريع باسم التدريسي..."
+                              className="w-full pl-3 pr-9 py-2 bg-slate-50 border border-slate-400 rounded-xl text-sm font-black text-slate-950 placeholder:text-slate-500 focus:border-slate-900 focus:outline-none"
+                              autoFocus
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          </div>
 
-                          {/* قائمة أساتذة القسم المكلفين */}
-                          {deptTeachers
-                            .filter((t) => {
-                              if (!filterTeacherSearchQuery) return true;
-                              return t.full_name.toLowerCase().includes(filterTeacherSearchQuery.toLowerCase());
-                            })
-                            .map((t) => {
-                              const count = deptTeacherCourses.filter((tc) => tc.teacher_id === t.id).length;
-                              const isSelected = filterAssignmentTeacher === t.id;
-                              return (
-                                <button
-                                  key={t.id}
-                                  type="button"
-                                  onClick={() => {
-                                    setFilterAssignmentTeacher(t.id); // 👤 اختيار الأستاذ المحدد
-                                    setIsFilterTeacherDropdownOpen(false); // 🔒 إغلاق القائمة
-                                    setFilterTeacherSearchQuery(''); // 🧹 مسح البحث
-                                  }}
-                                  className={`w-full p-2.5 rounded-xl text-right font-black text-sm sm:text-base transition flex items-center justify-between cursor-pointer border ${
-                                    isSelected
-                                      ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-xs'
-                                      : 'text-slate-950 hover:bg-slate-100 border-transparent'
-                                  }`}
-                                >
-                                  <div className="flex items-center gap-2 truncate">
-                                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${
-                                      isSelected ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-950'
-                                    }`}>
-                                      {t.full_name.charAt(0)}
+                          {/* قائمة الأساتذة المكلفين مع عداد المواد لكل تدريسي */}
+                          <div className="overflow-y-auto space-y-1 flex-1 min-h-0 pr-0.5">
+                            {/* خيار كافة الأساتذة المكلفين (عرض الكل) */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setFilterAssignmentTeacher('all'); // 🌐 تصفية الكل
+                                setIsFilterTeacherDropdownOpen(false); // 🔒 إغلاق القائمة
+                                setFilterTeacherSearchQuery(''); // 🧹 مسح البحث
+                              }}
+                              className={`w-full p-2.5 rounded-xl text-right font-black text-sm sm:text-base transition flex items-center justify-between cursor-pointer border ${
+                                filterAssignmentTeacher === 'all'
+                                  ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-xs'
+                                  : 'text-slate-950 hover:bg-slate-100 border-transparent'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <Users className="w-4 h-4" />
+                                <span>كافة الأساتذة المكلفين</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className={`text-xs px-2 py-0.5 rounded-md font-mono font-black ${
+                                  filterAssignmentTeacher === 'all' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-950'
+                                }`}>
+                                  {deptTeacherCourses.length}
+                                </span>
+                                {filterAssignmentTeacher === 'all' && <Check className="w-4 h-4 text-cyan-300 stroke-[3]" />}
+                              </div>
+                            </button>
+
+                            {/* قائمة أساتذة القسم المكلفين */}
+                            {deptTeachers
+                              .filter((t) => {
+                                if (!filterTeacherSearchQuery) return true;
+                                return t.full_name.toLowerCase().includes(filterTeacherSearchQuery.toLowerCase());
+                              })
+                              .map((t) => {
+                                const count = deptTeacherCourses.filter((tc) => tc.teacher_id === t.id).length;
+                                const isSelected = filterAssignmentTeacher === t.id;
+                                return (
+                                  <button
+                                    key={t.id}
+                                    type="button"
+                                    onClick={() => {
+                                      setFilterAssignmentTeacher(t.id); // 👤 اختيار الأستاذ المحدد
+                                      setIsFilterTeacherDropdownOpen(false); // 🔒 إغلاق القائمة
+                                      setFilterTeacherSearchQuery(''); // 🧹 مسح البحث
+                                    }}
+                                    className={`w-full p-2.5 rounded-xl text-right font-black text-sm sm:text-base transition flex items-center justify-between cursor-pointer border ${
+                                      isSelected
+                                        ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-xs'
+                                        : 'text-slate-950 hover:bg-slate-100 border-transparent'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-2 truncate">
+                                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${
+                                        isSelected ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-950'
+                                      }`}>
+                                        {t.full_name.charAt(0)}
+                                      </div>
+                                      <span className="truncate">{t.full_name}</span>
                                     </div>
-                                    <span className="truncate">{t.full_name}</span>
-                                  </div>
-                                  <div className="flex items-center gap-2 shrink-0 mr-2">
-                                    <span className={`text-xs px-2 py-0.5 rounded-md font-mono font-black ${
-                                      isSelected ? 'bg-white/20 text-white' : 'bg-blue-50 text-blue-950 border border-blue-200'
-                                    }`}>
-                                      {count} مواد
-                                    </span>
-                                    {isSelected && <Check className="w-4 h-4 text-cyan-300 stroke-[3]" />}
-                                  </div>
-                                </button>
-                              );
-                            })}
+                                    <div className="flex items-center gap-2 shrink-0 mr-2">
+                                      <span className={`text-xs px-2 py-0.5 rounded-md font-mono font-black ${
+                                        isSelected ? 'bg-white/20 text-white' : 'bg-blue-50 text-blue-950 border border-blue-200'
+                                      }`}>
+                                        {count} مواد
+                                      </span>
+                                      {isSelected && <Check className="w-4 h-4 text-cyan-300 stroke-[3]" />}
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                          </div>
                         </div>
-                      </div>
-                    </>,
-                    document.body
-                  )}
-                </div>
+                      </>,
+                      document.body
+                    )}
+                  </div>
 
-                {/* 2. أزرار تصفية المراحل الدراسية بتصميم متناسق يلغي السكرول الأفقي نهائياً */}
-                <div className="flex items-center bg-slate-100 p-1 rounded-2xl border border-slate-300 gap-1 flex-wrap sm:flex-nowrap">
-                  <button
-                    type="button"
-                    onClick={() => setFilterAssignmentStage('all')}
-                    className={`py-2 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
-                      filterAssignmentStage === 'all'
-                        ? 'bg-[#0F2942] text-white shadow-xs'
-                        : 'text-slate-700 hover:bg-white'
-                    }`}
-                  >
-                    <span>كافة المراحل</span>
-                    <span className={`px-1.5 py-0.5 rounded-full text-xs font-mono font-black ${
-                      filterAssignmentStage === 'all' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800'
-                    }`}>
-                      {deptTeacherCourses.length}
-                    </span>
-                  </button>
-
-                  {[
-                    { num: 1, name: 'الأولى' },
-                    { num: 2, name: 'الثانية' },
-                    { num: 3, name: 'الثالثة' },
-                    { num: 4, name: 'الرابعة' },
-                  ].map((st) => {
-                    const count = deptTeacherCourses.filter((tc) => {
-                      const course = courses.find((c) => c.id === tc.course_id);
-                      return (course?.stage_number || 1) === st.num;
-                    }).length;
-                    return (
+                  {/* 2. أزرار تصفية المراحل الدراسية بتصميم الحاوية الفاخرة */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm sm:text-base font-black text-slate-950 whitespace-nowrap">المرحلة:</span>
+                    <div className="flex items-center bg-slate-100 p-1 rounded-2xl border border-slate-300 gap-1 flex-wrap sm:flex-nowrap">
                       <button
-                        key={st.num}
                         type="button"
-                        onClick={() => setFilterAssignmentStage(st.num)}
+                        onClick={() => setFilterAssignmentStage('all')}
                         className={`py-2 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
-                          filterAssignmentStage === st.num
+                          filterAssignmentStage === 'all'
                             ? 'bg-[#0F2942] text-white shadow-xs'
                             : 'text-slate-700 hover:bg-white'
                         }`}
                       >
-                        <span>المرحلة {st.name}</span>
+                        <span>كافة المراحل</span>
                         <span className={`px-1.5 py-0.5 rounded-full text-xs font-mono font-black ${
-                          filterAssignmentStage === st.num ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800'
+                          filterAssignmentStage === 'all' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800'
                         }`}>
-                          {count}
+                          {deptTeacherCourses.length}
                         </span>
                       </button>
-                    );
-                  })}
+
+                      {[
+                        { num: 1, name: 'الأولى' },
+                        { num: 2, name: 'الثانية' },
+                        { num: 3, name: 'الثالثة' },
+                        { num: 4, name: 'الرابعة' },
+                      ].map((st) => {
+                        const count = deptTeacherCourses.filter((tc) => {
+                          const course = courses.find((c) => c.id === tc.course_id);
+                          return (course?.stage_number || 1) === st.num;
+                        }).length;
+                        return (
+                          <button
+                            key={st.num}
+                            type="button"
+                            onClick={() => setFilterAssignmentStage(st.num)}
+                            className={`py-2 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
+                              filterAssignmentStage === st.num
+                                ? 'bg-[#0F2942] text-white shadow-xs'
+                                : 'text-slate-700 hover:bg-white'
+                            }`}
+                          >
+                            <span>المرحلة {st.name}</span>
+                            <span className={`px-1.5 py-0.5 rounded-full text-xs font-mono font-black ${
+                              filterAssignmentStage === st.num ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800'
+                            }`}>
+                              {count}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
 
-                {/* 3. تصفية الكورس الدراسي بالأزرار الكحلية الملكية الفاخرة */}
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-sm sm:text-base font-black text-slate-950 ml-1">الكورس:</span>
-                  <button
-                    type="button"
-                    onClick={() => setFilterAssignmentSemester('all')}
-                    className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-                      filterAssignmentSemester === 'all'
-                        ? 'bg-[#0F2942] text-white shadow-xs'
-                        : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300'
-                    }`}
-                  >
-                    <span>كافة الكورسات</span>
-                    <span className={`px-1.5 py-0.5 rounded-full text-xs font-mono font-black ${
-                      filterAssignmentSemester === 'all' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800'
-                    }`}>
-                      {deptTeacherCourses.length}
-                    </span>
-                  </button>
+                {/* 🔹 السطر الثاني: تبويبات الكورس الدراسي + تبويبات طبيعة التكليف الأكاديمي بتصميم موحد فاخر مطابق تماماً للمراحل */}
+                <div className="flex flex-wrap items-center justify-start gap-4 sm:gap-6">
+                  {/* 3. تصفية الكورس الدراسي بالحاوية الموحدة الفاخرة */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm sm:text-base font-black text-slate-950 whitespace-nowrap">الكورس:</span>
+                    <div className="flex items-center bg-slate-100 p-1 rounded-2xl border border-slate-300 gap-1 flex-wrap sm:flex-nowrap">
+                      <button
+                        type="button"
+                        onClick={() => setFilterAssignmentSemester('all')}
+                        className={`py-2 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
+                          filterAssignmentSemester === 'all'
+                            ? 'bg-[#0F2942] text-white shadow-xs'
+                            : 'text-slate-700 hover:bg-white'
+                        }`}
+                      >
+                        <span>كافة الكورسات</span>
+                        <span className={`px-1.5 py-0.5 rounded-full text-xs font-mono font-black ${
+                          filterAssignmentSemester === 'all' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800'
+                        }`}>
+                          {deptTeacherCourses.length}
+                        </span>
+                      </button>
 
-                  <button
-                    type="button"
-                    onClick={() => setFilterAssignmentSemester(1)}
-                    className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-                      filterAssignmentSemester === 1
-                        ? 'bg-[#0F2942] text-white shadow-xs'
-                        : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300'
-                    }`}
-                  >
-                    <span>الكورس الأول</span>
-                    <span className={`px-1.5 py-0.5 rounded-full text-xs font-mono font-black ${
-                      filterAssignmentSemester === 1 ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800'
-                    }`}>
-                      {deptTeacherCourses.filter((tc) => (tc.semester || 1) === 1).length}
-                    </span>
-                  </button>
+                      <button
+                        type="button"
+                        onClick={() => setFilterAssignmentSemester(1)}
+                        className={`py-2 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
+                          filterAssignmentSemester === 1
+                            ? 'bg-[#0F2942] text-white shadow-xs'
+                            : 'text-slate-700 hover:bg-white'
+                        }`}
+                      >
+                        <span>الكورس الأول</span>
+                        <span className={`px-1.5 py-0.5 rounded-full text-xs font-mono font-black ${
+                          filterAssignmentSemester === 1 ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800'
+                        }`}>
+                          {deptTeacherCourses.filter((tc) => (tc.semester || 1) === 1).length}
+                        </span>
+                      </button>
 
-                  <button
-                    type="button"
-                    onClick={() => setFilterAssignmentSemester(2)}
-                    className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-                      filterAssignmentSemester === 2
-                        ? 'bg-[#0F2942] text-white shadow-xs'
-                        : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300'
-                    }`}
-                  >
-                    <span>الكورس الثاني</span>
-                    <span className={`px-1.5 py-0.5 rounded-full text-xs font-mono font-black ${
-                      filterAssignmentSemester === 2 ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800'
-                    }`}>
-                      {deptTeacherCourses.filter((tc) => (tc.semester || 1) === 2).length}
-                    </span>
-                  </button>
-                </div>
+                      <button
+                        type="button"
+                        onClick={() => setFilterAssignmentSemester(2)}
+                        className={`py-2 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
+                          filterAssignmentSemester === 2
+                            ? 'bg-[#0F2942] text-white shadow-xs'
+                            : 'text-slate-700 hover:bg-white'
+                        }`}
+                      >
+                        <span>الكورس الثاني</span>
+                        <span className={`px-1.5 py-0.5 rounded-full text-xs font-mono font-black ${
+                          filterAssignmentSemester === 2 ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800'
+                        }`}>
+                          {deptTeacherCourses.filter((tc) => (tc.semester || 1) === 2).length}
+                        </span>
+                      </button>
+                    </div>
+                  </div>
 
-                {/* 4. 🏷️ تصفية طبيعة التكليف الأكاديمي (نظري فقط / عملي فقط / نظري وعملي) بنفس نمط وألوان الكورسات */}
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-sm sm:text-base font-black text-slate-950 ml-1">طبيعة التكليف:</span>
-                  <button
-                    type="button"
-                    onClick={() => setFilterAssignmentRole('all')}
-                    className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-                      filterAssignmentRole === 'all'
-                        ? 'bg-[#0F2942] text-white shadow-xs'
-                        : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300'
-                    }`}
-                  >
-                    <span>كافة التكليفات</span>
-                    <span className={`px-1.5 py-0.5 rounded-full text-xs font-mono font-black ${
-                      filterAssignmentRole === 'all' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800'
-                    }`}>
-                      {deptTeacherCourses.length}
-                    </span>
-                  </button>
+                  {/* 4. تصفية طبيعة التكليف الأكاديمي بالحاوية الموحدة الفاخرة ومطابقة المراحل */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm sm:text-base font-black text-slate-950 whitespace-nowrap">طبيعة التكليف:</span>
+                    <div className="flex items-center bg-slate-100 p-1 rounded-2xl border border-slate-300 gap-1 flex-wrap sm:flex-nowrap">
+                      <button
+                        type="button"
+                        onClick={() => setFilterAssignmentRole('all')}
+                        className={`py-2 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
+                          filterAssignmentRole === 'all'
+                            ? 'bg-[#0F2942] text-white shadow-xs'
+                            : 'text-slate-700 hover:bg-white'
+                        }`}
+                      >
+                        <span>كافة التكليفات</span>
+                        <span className={`px-1.5 py-0.5 rounded-full text-xs font-mono font-black ${
+                          filterAssignmentRole === 'all' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800'
+                        }`}>
+                          {deptTeacherCourses.length}
+                        </span>
+                      </button>
 
-                  <button
-                    type="button"
-                    onClick={() => setFilterAssignmentRole('theory')}
-                    className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-                      filterAssignmentRole === 'theory'
-                        ? 'bg-[#0F2942] text-white shadow-xs'
-                        : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300'
-                    }`}
-                  >
-                    <BookOpen className="w-3.5 h-3.5" />
-                    <span>مكلف نظري فقط</span>
-                    <span className={`px-1.5 py-0.5 rounded-full text-xs font-mono font-black ${
-                      filterAssignmentRole === 'theory' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800'
-                    }`}>
-                      {deptTeacherCourses.filter((tc) => tc.role_in_course === 'theory' || !tc.role_in_course).length}
-                    </span>
-                  </button>
+                      <button
+                        type="button"
+                        onClick={() => setFilterAssignmentRole('theory')}
+                        className={`py-2 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
+                          filterAssignmentRole === 'theory'
+                            ? 'bg-[#0F2942] text-white shadow-xs'
+                            : 'text-slate-700 hover:bg-white'
+                        }`}
+                      >
+                        <BookOpen className={`w-3.5 h-3.5 ${filterAssignmentRole === 'theory' ? 'text-cyan-300' : 'text-slate-600'}`} />
+                        <span>مكلف نظري فقط</span>
+                        <span className={`px-1.5 py-0.5 rounded-full text-xs font-mono font-black ${
+                          filterAssignmentRole === 'theory' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800'
+                        }`}>
+                          {deptTeacherCourses.filter((tc) => tc.role_in_course === 'theory' || !tc.role_in_course).length}
+                        </span>
+                      </button>
 
-                  <button
-                    type="button"
-                    onClick={() => setFilterAssignmentRole('practical')}
-                    className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-                      filterAssignmentRole === 'practical'
-                        ? 'bg-[#0F2942] text-white shadow-xs'
-                        : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300'
-                    }`}
-                  >
-                    <FlaskConical className="w-3.5 h-3.5" />
-                    <span>مكلف عملي فقط</span>
-                    <span className={`px-1.5 py-0.5 rounded-full text-xs font-mono font-black ${
-                      filterAssignmentRole === 'practical' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800'
-                    }`}>
-                      {deptTeacherCourses.filter((tc) => tc.role_in_course === 'practical').length}
-                    </span>
-                  </button>
+                      <button
+                        type="button"
+                        onClick={() => setFilterAssignmentRole('practical')}
+                        className={`py-2 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
+                          filterAssignmentRole === 'practical'
+                            ? 'bg-[#0F2942] text-white shadow-xs'
+                            : 'text-slate-700 hover:bg-white'
+                        }`}
+                      >
+                        <FlaskConical className={`w-3.5 h-3.5 ${filterAssignmentRole === 'practical' ? 'text-cyan-300' : 'text-slate-600'}`} />
+                        <span>مكلف عملي فقط</span>
+                        <span className={`px-1.5 py-0.5 rounded-full text-xs font-mono font-black ${
+                          filterAssignmentRole === 'practical' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800'
+                        }`}>
+                          {deptTeacherCourses.filter((tc) => tc.role_in_course === 'practical').length}
+                        </span>
+                      </button>
 
-                  <button
-                    type="button"
-                    onClick={() => setFilterAssignmentRole('both')}
-                    className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-                      filterAssignmentRole === 'both'
-                        ? 'bg-[#0F2942] text-white shadow-xs'
-                        : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300'
-                    }`}
-                  >
-                    <Layers className="w-3.5 h-3.5" />
-                    <span>مكلف نظري وعملي</span>
-                    <span className={`px-1.5 py-0.5 rounded-full text-xs font-mono font-black ${
-                      filterAssignmentRole === 'both' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800'
-                    }`}>
-                      {deptTeacherCourses.filter((tc) => tc.role_in_course === 'both').length}
-                    </span>
-                  </button>
+                      <button
+                        type="button"
+                        onClick={() => setFilterAssignmentRole('both')}
+                        className={`py-2 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
+                          filterAssignmentRole === 'both'
+                            ? 'bg-[#0F2942] text-white shadow-xs'
+                            : 'text-slate-700 hover:bg-white'
+                        }`}
+                      >
+                        <Layers className={`w-3.5 h-3.5 ${filterAssignmentRole === 'both' ? 'text-cyan-300' : 'text-slate-600'}`} />
+                        <span>مكلف نظري وعملي</span>
+                        <span className={`px-1.5 py-0.5 rounded-full text-xs font-mono font-black ${
+                          filterAssignmentRole === 'both' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800'
+                        }`}>
+                          {deptTeacherCourses.filter((tc) => tc.role_in_course === 'both').length}
+                        </span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
               </div>
@@ -10371,6 +10793,16 @@ export default function DepartmentPortalPage() {
                   </span>
                 </div>
                 <div className="flex items-center gap-2.5">
+                  <button
+                    type="button"
+                    onClick={handleExportAssignmentsExcel}
+                    disabled={isExportingAssignmentsExcel}
+                    className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-sm transition flex items-center gap-2 cursor-pointer shadow-xs active:scale-95 disabled:opacity-50"
+                    title="تصدير التكليفات المحددة إلى ملف Excel"
+                  >
+                    <FileSpreadsheet className="w-4.5 h-4.5" />
+                    <span>{isExportingAssignmentsExcel ? 'جاري التصدير...' : `تصدير المحدد (${selectedAssignmentIds.length}) Excel`}</span>
+                  </button>
                   <button
                     type="button"
                     onClick={handleBulkRemoveAssignments}
@@ -10667,6 +11099,17 @@ export default function DepartmentPortalPage() {
                   متابعة وتدقيق درجات البنود الـ 7 للسعي الفصلي والامتحان النهائي ومطابقتها للمعايير الأكاديمية
                 </p>
               </div>
+              {/* 📊 زر تصدير كشف الدرجات والسعيات الرسمية لمسار بولونيا إلى Excel بتصميم كحلي ملكي */}
+              <button
+                type="button" // 🔘 نوع الزر لمنع أي إرسال غير مقصود
+                onClick={handleExportGradesExcel} // ⚡ استدعاء دالة تصدير كشف درجات بولونيا
+                disabled={isExportingGradesExcel || filteredGrades.length === 0} // 🛑 تعطيل الزر أثناء التصدير أو في حال عدم وجود درجات
+                className="px-5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-2xl font-black text-sm sm:text-base transition flex items-center gap-2 cursor-pointer shadow-md active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shrink-0 border border-[#163a5f]" // 🎨 تصميم كحلي ملكي موحد
+                title="تصدير كشف الدرجات والسعيات لمسار بولونيا إلى ملف Excel" // 💡 نص التلميح
+              >
+                <FileSpreadsheet className="w-5 h-5 text-emerald-300" /> {/* 📊 أيقونة الإكسل بلون زمردي مشرق */}
+                <span>{isExportingGradesExcel ? 'جاري التصدير...' : selectedGradeIds.length > 0 ? `تصدير المحدد (${selectedGradeIds.length}) Excel` : 'تصدير الدرجات (Excel)'}</span> {/* 🏷️ نص تفاعلي حسب التحديد */}
+              </button>
             </div>
 
             {/* 🔍 شريط البحث وفلاتر المراحل والمواد المنظم في صفين أنيقين */}
@@ -10930,6 +11373,15 @@ export default function DepartmentPortalPage() {
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleExportGradesExcel}
+                    disabled={isExportingGradesExcel}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-sm transition flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95 disabled:opacity-50"
+                  >
+                    <FileSpreadsheet className="w-4 h-4" />
+                    <span>{isExportingGradesExcel ? 'جاري التصدير...' : `تصدير المحدد (${selectedGradeIds.length}) Excel`}</span>
+                  </button>
                   <button
                     type="button"
                     onClick={handleBulkDeleteGrades}
@@ -11559,17 +12011,17 @@ export default function DepartmentPortalPage() {
                 </div>
               </div>
 
-              {/* 📆 محدد ومعدل تاريخ انطلاق الفصل الدراسي بتصميم أكاديمي فاخر ومتناسق */}
+              {/* 📆 محدد ومعدل تاريخ انطلاق الفصل الدراسي بتصميم كحلي ملكي فاخر وأكاديمي متناسق */}
               <div className="flex items-center gap-3 bg-slate-50/90 hover:bg-slate-50 px-3 py-2 rounded-2xl border border-slate-300 shadow-2xs transition-all">
                 <div className="flex items-center gap-2 shrink-0">
-                  <div className="p-1.5 bg-blue-100 text-[#0F2942] rounded-lg shrink-0 border border-blue-200 shadow-2xs">
-                    <CalendarDays className="w-4 h-4 text-[#0F2942]" />
+                  <div className="p-1.5 bg-[#0F2942] text-cyan-300 rounded-lg shrink-0 border border-[#0F2942] shadow-2xs">
+                    <CalendarDays className="w-4 h-4 text-cyan-300" />
                   </div>
                   <span className="text-sm font-black text-slate-950 whitespace-nowrap">
                     تاريخ انطلاق الفصل (الأسبوع 1):
                   </span>
                 </div>
-                <div className="w-60 sm:w-64 shrink-0">
+                <div className="w-60 sm:w-68 shrink-0">
                   <ArabicDatePicker
                     value={currentScheduleConfig.start_date || '2026-09-20'}
                     onChange={(newDate) => {
@@ -11579,6 +12031,7 @@ export default function DepartmentPortalPage() {
                       setShowSemesterDateConfirmModal(true); // 🛑 فتح نافذة التأكيد الفاخرة
                     }}
                     placeholder="حدد تاريخ الانطلاق"
+                    variant="royal-navy" // 👑 تطبيق النمط الكحلي الملكي الفاخر
                   />
                 </div>
               </div>
@@ -13399,7 +13852,7 @@ export default function DepartmentPortalPage() {
                           </span>
                         </div>
                         <span className="text-xs font-black text-blue-950 bg-blue-50 px-3 py-1 rounded-lg border border-blue-200 shadow-2xs shrink-0">
-                          {lecDay ? scheduleLectures.filter((l) => isLectureInCurrentDept(l) && l.stage_number === selectedScheduleStage && l.semester === selectedScheduleSemester && (l.study_type || 'morning') === lecStudyType && l.day === lecDay).length : 0} محاضرة
+                          {formatArabicLectureCount(lecDay ? scheduleLectures.filter((l) => isLectureInCurrentDept(l) && l.stage_number === selectedScheduleStage && l.semester === selectedScheduleSemester && (l.study_type || 'morning') === lecStudyType && l.day === lecDay).length : 0)}
                         </span>
                       </div>
 
@@ -13448,7 +13901,7 @@ export default function DepartmentPortalPage() {
                           .filter((l) => isLectureInCurrentDept(l) && l.stage_number === selectedScheduleStage && l.semester === selectedScheduleSemester && (l.study_type || 'morning') === lecStudyType && l.day === lecDay)
                           // 🕒 ترتيب المحاضرات زمنياً من الصباح للمساء بشكل طبيعي واحترافي
                           .sort((a, b) => (timeStringToMinutes(a.start_time) - timeStringToMinutes(b.start_time)) || a.course_name.localeCompare(b.course_name, 'ar'))
-                          .map((lecItem) => {
+                          .map((lecItem, idx) => {
                             const isNewlyAdded = recentlyAddedLectureId === lecItem.id; // 🌟 فحص هل المحاضرة مضافة أو محدثة للتو
                             const isEditingCurrent = editingLectureId === lecItem.id; // ✏️ فحص هل المحاضرة هي قيد التعديل الآن
                             return (
@@ -13466,6 +13919,11 @@ export default function DepartmentPortalPage() {
                               {/* 🏷️ 1. الترويسة: الشارات على اليمين + أزرار تعديل وحذف على اليسار مصفوفة أفقياً */}
                               <div className="flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap">
                                 <div className="flex items-center gap-1.5 flex-wrap">
+                                  {/* 🎖️ وسم تسلسل المحاضرة الأكاديمي الفصيح (المحاضرة الأولى، المحاضرة الثانية...) بتصميم كحلي ملكي راقٍ */}
+                                  <span className="px-2.5 py-1 rounded-lg text-xs font-black bg-[#0F2942] text-white border border-[#0F2942] flex items-center gap-1.5 shadow-2xs shrink-0">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-300 shrink-0" />
+                                    <span>{formatArabicOrdinalLectureName(idx + 1)}</span>
+                                  </span>
                                   {/* نوع الدراسة موحد بلون أزرق أكاديمي */}
                                   <span className="px-2 py-0.5 rounded-lg text-xs font-black bg-blue-50 text-blue-950 border border-blue-200 flex items-center gap-1 shadow-2xs">
                                     {(lecItem.study_type || 'morning') === 'evening' ? (
@@ -13630,56 +14088,307 @@ export default function DepartmentPortalPage() {
           {/* ========================================================================= */}
           {/* 📅 3. استعراض محاضرات المرحلة المجدولة بحسب أيام الأسبوع */}
           {/* ========================================================================= */}
-          <div className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-7 shadow-sm space-y-5">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-200 pb-4">
-              <div>
-                <h3 className="text-xl sm:text-2xl font-black text-slate-950 flex items-center gap-2.5">
-                  <Calendar className="w-6 h-6 text-[#0F2942]" />
-                  <span>جدول محاضرات {getStageNameInArabic(selectedScheduleStage)} — الكورس {selectedScheduleSemester === 1 ? 'الأول' : 'الثاني'}</span>
-                </h3>
-                <p className="text-sm sm:text-base font-black text-slate-800 mt-1">
-                  استعراض المحاضرات المقررة لكل يوم مع إمكانية التعديل والحذف المباشر
-                </p>
-              </div>
+          {(() => {
+            // 📚 جلب وفلترة كافة محاضرات المرحلة الحالية المحددة (للقسم والمرحلة والكورس ونوع الدراسة) لكافة الأسابيع والأيام
+            const currentStageScheduleLectures = scheduleLectures.filter(
+              (l) =>
+                isLectureInCurrentDept(l) &&
+                l.stage_number === selectedScheduleStage &&
+                l.semester === selectedScheduleSemester &&
+                (l.study_type || 'morning') === selectedScheduleStudyType
+            );
 
-              <span className="px-4 py-2 bg-slate-100 text-slate-950 font-black text-sm sm:text-base rounded-xl border border-slate-300 shadow-2xs flex items-center gap-1.5">
-                {selectedScheduleStudyType === 'evening' ? (
-                  <Moon className="w-4 h-4 text-indigo-600" />
-                ) : (
-                  <Sun className="w-4 h-4 text-sky-600" />
+            // 🆔 مصفوفة المعرفات الفريدة لكافة محاضرات المرحلة الحالية
+            const allStageLectureIds = currentStageScheduleLectures.map((l) => l.id);
+
+            // ✅ هل كافة محاضرات هذه المرحلة محددة حالياً؟
+            const isAllStageLecturesSelected =
+              allStageLectureIds.length > 0 &&
+              allStageLectureIds.every((id) => selectedScheduleLectureIds.includes(id));
+
+            // 🌗 هل تم تحديد جزء من محاضرات المرحلة؟
+            const isPartiallySelected =
+              !isAllStageLecturesSelected &&
+              allStageLectureIds.some((id) => selectedScheduleLectureIds.includes(id));
+
+            // 🔢 عدد المحاضرات المحددة من هذه المرحلة حالياً
+            const selectedStageLecturesCount = allStageLectureIds.filter((id) =>
+              selectedScheduleLectureIds.includes(id)
+            ).length;
+
+            // 🎯 جلب كائنات المحاضرات المحددة حالياً من جدول المحاضرات لاستخراج تفاصيل التحديد الكاملة
+            const currentlySelectedLectures = scheduleLectures.filter((l) =>
+              selectedScheduleLectureIds.includes(l.id)
+            );
+
+            // 🗓️ استخراج الأيام المحددة الفريدة ومرتبة زمنياً وفق تسلسل أيام الأسبوع
+            const daysOrderKeys = ['saturday', 'sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
+            const dayNamesMapAr: Record<string, string> = {
+              saturday: 'السبت',
+              sunday: 'الأحد',
+              monday: 'الإثنين',
+              tuesday: 'الثلاثاء',
+              wednesday: 'الأربعاء',
+              thursday: 'الخميس',
+              friday: 'الجمعة',
+            };
+            const selectedDaysList = Array.from(new Set(currentlySelectedLectures.map((l) => l.day)))
+              .sort((a, b) => daysOrderKeys.indexOf(a) - daysOrderKeys.indexOf(b))
+              .map((d) => dayNamesMapAr[d] || d);
+
+            // 🎓 استخراج المراحل المحددة الفريدة ومرتبة تصاعدياً
+            const stageLabelsMapAr: Record<number, string> = {
+              1: 'المرحلة الأولى',
+              2: 'المرحلة الثانية',
+              3: 'المرحلة الثالثة',
+              4: 'المرحلة الرابعة',
+            };
+            const selectedStagesList = Array.from(
+              new Set(currentlySelectedLectures.map((l) => l.stage_number || selectedScheduleStage))
+            )
+              .sort((a, b) => a - b)
+              .map((s) => stageLabelsMapAr[s] || `المرحلة ${s}`);
+
+            // ☀️/🌙 استخراج فترات الدوام المحددة (صباحي ومسائي)
+            const selectedStudyTypesList = Array.from(
+              new Set(currentlySelectedLectures.map((l) => l.study_type || 'morning'))
+            );
+
+            // 📚 استخراج الكورسات المحددة الفريدة (الكورس الأول / الكورس الثاني)
+            const semesterLabelsMapAr: Record<number, string> = {
+              1: 'الكورس الأول',
+              2: 'الكورس الثاني',
+            };
+            const selectedSemestersList = Array.from(
+              new Set(currentlySelectedLectures.map((l) => l.semester || selectedScheduleSemester))
+            )
+              .sort((a, b) => a - b)
+              .map((sem) => semesterLabelsMapAr[sem] || `الكورس ${sem}`);
+
+            // 🔁 دالة تبديل تحديد كافة المحاضرات لجميع الأسابيع والأيام دفعة واحدة
+            const handleToggleSelectAllStageLectures = () => {
+              if (isAllStageLecturesSelected) {
+                // ❌ إلغاء تحديد كافة محاضرات هذه المرحلة
+                setSelectedScheduleLectureIds((prev) =>
+                  prev.filter((id) => !allStageLectureIds.includes(id))
+                );
+              } else {
+                // ✅ تحديد كافة محاضرات المرحلة دفعة واحدة ومنع تكرار المعرفات
+                setSelectedScheduleLectureIds((prev) =>
+                  Array.from(new Set([...prev, ...allStageLectureIds]))
+                );
+              }
+            };
+
+            return (
+              <div className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-7 shadow-sm space-y-5">
+                <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 border-b border-slate-200 pb-4">
+                  <div>
+                    <h3 className="text-xl sm:text-2xl font-black text-slate-950 flex items-center gap-2.5">
+                      <Calendar className="w-6 h-6 text-[#0F2942]" />
+                      <span>جدول محاضرات {getStageNameInArabic(selectedScheduleStage)} — الكورس {selectedScheduleSemester === 1 ? 'الأول' : 'الثاني'}</span>
+                    </h3>
+                    <p className="text-sm sm:text-base font-black text-slate-800 mt-1">
+                      استعراض المحاضرات المقررة لكل يوم مع إمكانية التعديل والحذف المباشر
+                    </p>
+                  </div>
+
+                  {/* 🎛️ أدوات التحكم العلوية: شارة إجمالي المحاضرات + زر تحديد كافة المحاضرات لكل الأسابيع */}
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    {/* 📊 شارة إجمالي المحاضرات مع تفاصيل التحديد الذكية */}
+                    <span className="px-4 py-2 bg-slate-100 text-slate-950 font-black text-sm sm:text-base rounded-xl border border-slate-300 shadow-2xs flex items-center gap-2 flex-wrap">
+                      {selectedScheduleStudyType === 'evening' ? (
+                        <Moon className="w-4 h-4 text-indigo-600" />
+                      ) : (
+                        <Sun className="w-4 h-4 text-sky-600" />
+                      )}
+                      <span>إجمالي المحاضرات ({selectedScheduleStudyType === 'evening' ? 'مسائي' : 'صباحي'}): <strong>{currentStageScheduleLectures.length}</strong></span>
+                      {selectedStageLecturesCount > 0 && (
+                        <div className="mr-2 inline-flex items-center gap-2 flex-wrap">
+                          {/* 🎖️ وسم عدد المحاضرات المحددة بلون كحلي ملكي موحد وبحجم متوسط واضح */}
+                          <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-sm font-black bg-[#0F2942] text-white border border-[#0F2942] shadow-xs">
+                            <CheckSquare className="w-4 h-4 text-cyan-300 shrink-0" />
+                            <span>محدد: {selectedStageLecturesCount}</span>
+                          </span>
+
+                          {/* 📅 وسم الأيام المحددة بلون كحلي ملكي موحد */}
+                          {selectedDaysList.length > 0 && (
+                            <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-sm font-black bg-[#0F2942] text-white border border-[#0F2942] shadow-xs">
+                              <Calendar className="w-4 h-4 text-cyan-300 shrink-0" />
+                              <span>{selectedDaysList.join('، ')}</span>
+                            </span>
+                          )}
+
+                          {/* 🎓 وسم المراحل المحددة بلون كحلي ملكي موحد */}
+                          {selectedStagesList.length > 0 && (
+                            <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-sm font-black bg-[#0F2942] text-white border border-[#0F2942] shadow-xs">
+                              <GraduationCap className="w-4 h-4 text-cyan-300 shrink-0" />
+                              <span>{selectedStagesList.join('، ')}</span>
+                            </span>
+                          )}
+
+                          {/* ☀️/🌙 وسم الفترة المحددة (صباحي ومسائي) بلون كحلي ملكي موحد */}
+                          {selectedStudyTypesList.length > 0 && (
+                            <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-sm font-black bg-[#0F2942] text-white border border-[#0F2942] shadow-xs">
+                              {selectedStudyTypesList.includes('evening') && !selectedStudyTypesList.includes('morning') ? (
+                                <Moon className="w-4 h-4 text-cyan-300 shrink-0" />
+                              ) : (
+                                <Sun className="w-4 h-4 text-cyan-300 shrink-0" />
+                              )}
+                              <span>{selectedStudyTypesList.map((t) => (t === 'evening' ? 'مسائي' : 'صباحي')).join(' و ')}</span>
+                            </span>
+                          )}
+
+                          {/* 📚 وسم الكورسات المحددة بلون كحلي ملكي موحد */}
+                          {selectedSemestersList.length > 0 && (
+                            <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-sm font-black bg-[#0F2942] text-white border border-[#0F2942] shadow-xs">
+                              <BookOpen className="w-4 h-4 text-cyan-300 shrink-0" />
+                              <span>{selectedSemestersList.join('، ')}</span>
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </span>
+
+                    {/* 🔘 زر التحديد الشامل لكافة المحاضرات في كل الأسابيع والأيام */}
+                    {allStageLectureIds.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleToggleSelectAllStageLectures}
+                        className={`px-4 py-2 rounded-xl text-sm sm:text-base font-black transition-all flex items-center gap-2 cursor-pointer shadow-xs active:scale-95 border-2 select-none ${
+                          isAllStageLecturesSelected
+                            ? 'bg-blue-50 hover:bg-blue-100 text-[#0F2942] border-[#0F2942] ring-2 ring-[#0F2942]/20'
+                            : isPartiallySelected
+                            ? 'bg-blue-50/80 hover:bg-blue-100 text-[#0F2942] border-blue-400'
+                            : 'bg-[#0F2942] hover:bg-[#163a5f] text-white border-[#0F2942]'
+                        }`}
+                        title={
+                          isAllStageLecturesSelected
+                            ? 'إلغاء تحديد كافة محاضرات المرحلة'
+                            : 'تحديد كافة المحاضرات في جميع الأسابيع والأيام دفعة واحدة'
+                        }
+                      >
+                        {isAllStageLecturesSelected ? (
+                          <>
+                            <CheckSquare className="w-5 h-5 text-blue-700 shrink-0" />
+                            <span>إلغاء تحديد كافة المحاضرات ({allStageLectureIds.length})</span>
+                          </>
+                        ) : isPartiallySelected ? (
+                          <>
+                            <CheckSquare className="w-5 h-5 text-[#0F2942] shrink-0" />
+                            <span>تحديد باقي المحاضرات ({allStageLectureIds.length})</span>
+                          </>
+                        ) : (
+                          <>
+                            <CheckCheck className="w-5 h-5 text-cyan-300 shrink-0" />
+                            <span>تحديد كافة المحاضرات ({allStageLectureIds.length})</span>
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* 🔘 شريط الإجراءات الجماعية العائم للمحاضرات المحددة */}
+                {selectedScheduleLectureIds.length > 0 && (
+                  <div className="p-4 bg-gradient-to-l from-blue-50 via-slate-50 to-blue-50 border-2 border-blue-300 rounded-2xl flex flex-col xl:flex-row items-start xl:items-center justify-between gap-4 shadow-sm animate-in slide-in-from-top-2 duration-150">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 flex-wrap">
+                      <div className="flex items-center gap-2">
+                        <CheckSquare className="w-5 h-5 text-blue-700 shrink-0" />
+                        <span className="font-black text-blue-950 text-sm sm:text-base">
+                          {isAllStageLecturesSelected ? (
+                            <span>
+                              تم تحديد <strong>كافة محاضرات الجدول</strong> ({allStageLectureIds.length} من إجمالي {allStageLectureIds.length} محاضرة) لجميع الأسابيع والأيام
+                            </span>
+                          ) : (
+                            <span>
+                              تم تحديد <strong className="font-mono text-blue-900 text-lg">{selectedScheduleLectureIds.length}</strong> {selectedScheduleLectureIds.length === 1 ? 'محاضرة' : 'محاضرات'} (من إجمالي {allStageLectureIds.length} محاضرة أسبوعية)
+                            </span>
+                          )}
+                        </span>
+                      </div>
+
+                      {/* 🏷️ وسوم تفاصيل التحديد الموحدة بلون كحلي ملكي واحد وبحجم متوسط واضح وبارز */}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {/* 📅 الأيام المحددة بلون كحلي ملكي موحد */}
+                        {selectedDaysList.length > 0 && (
+                          <span className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-[#0F2942] text-white border border-[#0F2942] rounded-xl text-sm font-black shadow-xs">
+                            <Calendar className="w-4.5 h-4.5 text-cyan-300 shrink-0" />
+                            <span className="text-cyan-200 font-bold">الأيام:</span>
+                            <span className="text-white">{selectedDaysList.join('، ')}</span>
+                          </span>
+                        )}
+
+                        {/* 🎓 المراحل المحددة بلون كحلي ملكي موحد */}
+                        {selectedStagesList.length > 0 && (
+                          <span className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-[#0F2942] text-white border border-[#0F2942] rounded-xl text-sm font-black shadow-xs">
+                            <GraduationCap className="w-4.5 h-4.5 text-cyan-300 shrink-0" />
+                            <span className="text-cyan-200 font-bold">المراحل:</span>
+                            <span className="text-white">{selectedStagesList.join('، ')}</span>
+                          </span>
+                        )}
+
+                        {/* ☀️/🌙 الفترة المحددة بلون كحلي ملكي موحد */}
+                        {selectedStudyTypesList.length > 0 && (
+                          <span className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-[#0F2942] text-white border border-[#0F2942] rounded-xl text-sm font-black shadow-xs">
+                            {selectedStudyTypesList.includes('evening') && !selectedStudyTypesList.includes('morning') ? (
+                              <Moon className="w-4.5 h-4.5 text-cyan-300 shrink-0" />
+                            ) : (
+                              <Sun className="w-4.5 h-4.5 text-cyan-300 shrink-0" />
+                            )}
+                            <span className="text-cyan-200 font-bold">الفترة:</span>
+                            <span className="text-white">
+                              {selectedStudyTypesList.map((t) => (t === 'evening' ? 'مسائي' : 'صباحي')).join(' و ')}
+                            </span>
+                          </span>
+                        )}
+
+                        {/* 📚 الكورسات المحددة بلون كحلي ملكي موحد */}
+                        {selectedSemestersList.length > 0 && (
+                          <span className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-[#0F2942] text-white border border-[#0F2942] rounded-xl text-sm font-black shadow-xs">
+                            <BookOpen className="w-4.5 h-4.5 text-cyan-300 shrink-0" />
+                            <span className="text-cyan-200 font-bold">الكورسات:</span>
+                            <span className="text-white">{selectedSemestersList.join('، ')}</span>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {/* ⚡ زر مساند فوري: تحديد كافة المحاضرات إذا لم تكن كلها محددة */}
+                      {!isAllStageLecturesSelected && allStageLectureIds.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={handleToggleSelectAllStageLectures}
+                          className="px-3.5 py-2 bg-white hover:bg-slate-100 text-[#0F2942] border-2 border-[#0F2942] rounded-xl font-black text-xs sm:text-sm transition flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
+                          title="تحديد باقي كافة المحاضرات دفعة واحدة"
+                        >
+                          <CheckCheck className="w-4 h-4 text-[#0F2942]" />
+                          <span>تحديد الكل ({allStageLectureIds.length})</span>
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={handleBulkDeleteScheduleLectures}
+                        className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl font-black text-sm transition flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        <span>
+                          {isAllStageLecturesSelected
+                            ? `حذف كافة المحاضرات (${selectedScheduleLectureIds.length})`
+                            : `حذف المحاضرات المحددة (${selectedScheduleLectureIds.length})`}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedScheduleLectureIds([])}
+                        className="px-3.5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl font-black text-sm transition cursor-pointer"
+                      >
+                        إلغاء التحديد
+                      </button>
+                    </div>
+                  </div>
                 )}
-                <span>إجمالي المحاضرات ({selectedScheduleStudyType === 'evening' ? 'مسائي' : 'صباحي'}): {scheduleLectures.filter((l) => isLectureInCurrentDept(l) && l.stage_number === selectedScheduleStage && l.semester === selectedScheduleSemester && (l.study_type || 'morning') === selectedScheduleStudyType).length}</span>
-              </span>
-            </div>
-
-            {/* 🔘 شريط الإجراءات الجماعية العائم للمحاضرات المحددة */}
-            {selectedScheduleLectureIds.length > 0 && (
-              <div className="p-3.5 bg-blue-50 border-2 border-blue-300 rounded-2xl flex flex-wrap items-center justify-between gap-3 animate-in slide-in-from-top-2 duration-150">
-                <div className="flex items-center gap-2.5">
-                  <CheckSquare className="w-5 h-5 text-blue-700" />
-                  <span className="font-black text-blue-950 text-base">
-                    تم تحديد <strong className="font-mono">{selectedScheduleLectureIds.length}</strong> محاضرات أسبوعية
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={handleBulkDeleteScheduleLectures}
-                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl font-black text-sm transition flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    <span>حذف المحاضرات المحددة ({selectedScheduleLectureIds.length})</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedScheduleLectureIds([])}
-                    className="px-3.5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl font-black text-sm transition cursor-pointer"
-                  >
-                    إلغاء التحديد
-                  </button>
-                </div>
-              </div>
-            )}
 
             <div className="space-y-4">
               {DAYS_OF_WEEK_LIST.map((d) => {
@@ -13712,7 +14421,7 @@ export default function DepartmentPortalPage() {
                           </span>
                         ) : (
                           <span className="px-3 py-1 bg-emerald-100 text-emerald-950 border border-emerald-300 text-sm font-black rounded-xl">
-                            <CheckCircle2 className="w-4 h-4 inline mr-1 text-emerald-800" /> يوم دوام رسمي ({dayLecs.length} محاضرة)
+                            <CheckCircle2 className="w-4 h-4 inline mr-1 text-emerald-800" /> يوم دوام رسمي ({formatArabicLectureCount(dayLecs.length)})
                           </span>
                         )}
                       </div>
@@ -13779,7 +14488,7 @@ export default function DepartmentPortalPage() {
                       </p>
                     ) : (
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
-                        {dayLecs.map((lec) => {
+                        {dayLecs.map((lec, idx) => {
                           const typeArabic = lec.type === 'theory' ? 'محاضرة نظرية' : lec.type === 'practical' ? 'مختبر وعملي' : 'حلقة مناقشة';
                           const lecStudy = lec.study_type || 'morning';
                           const isSelected = selectedScheduleLectureIds.includes(lec.id);
@@ -13861,6 +14570,11 @@ export default function DepartmentPortalPage() {
 
                                 {/* شارات الدراسة والنوع موحدة بنصوص واضحة وعريضة */}
                                 <div className="flex items-center gap-1.5 flex-wrap">
+                                  {/* 🎖️ وسم تسلسل المحاضرة الأكاديمي الفصيح (المحاضرة الأولى، المحاضرة الثانية...) بتصميم كحلي ملكي راقٍ */}
+                                  <span className="px-3 py-1.5 bg-[#0F2942] text-white border border-[#0F2942] rounded-xl text-xs sm:text-sm font-black shadow-2xs flex items-center gap-1.5 shrink-0">
+                                    <span className="w-2 h-2 rounded-full bg-cyan-300 shrink-0" />
+                                    <span>{formatArabicOrdinalLectureName(idx + 1)}</span>
+                                  </span>
                                   <span className={unifiedBadgeClass}>
                                     {lecStudy === 'evening' ? (
                                       <Moon className="w-3.5 h-3.5 text-blue-900 shrink-0" />
@@ -13985,6 +14699,8 @@ export default function DepartmentPortalPage() {
               })}
             </div>
           </div>
+            );
+          })()}
 
         </div>
       )}
@@ -14045,6 +14761,18 @@ export default function DepartmentPortalPage() {
                   <span>التحليلات والرسوم البيانية</span>
                 </button>
               </div>
+
+              {/* 📊 زر تصدير كشف الحضور والغيابات والإنذارات الرسمية إلى Excel */}
+              <button
+                type="button" // 🔘 نوع الزر لمنع أي إرسال تلقائي
+                onClick={handleExportAttendanceExcel} // ⚡ تشغيل دالة تصدير كشف الحضور للإكسل
+                disabled={isExportingAttendanceExcel} // 🛑 تعطيل الزر أثناء عملية التصدير
+                className="px-4 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-2xl text-sm sm:text-base font-black transition cursor-pointer flex items-center gap-2 border-2 border-[#0F2942] shadow-sm active:scale-95 disabled:opacity-50 whitespace-nowrap shrink-0" // 🎨 تصميم كحلي ملكي راقٍ
+                title="تصدير كشف الحضور والغيابات والإنذارات الأكاديمية لمسار بولونيا إلى ملف Excel" // 💡 نص التلميح
+              >
+                <FileSpreadsheet className="w-4 h-4 text-emerald-300" /> {/* 📊 أيقونة الإكسل باللون الزمردي الزاهي */}
+                <span>{isExportingAttendanceExcel ? 'جاري التصدير...' : selectedAttendanceStudentIds.length > 0 ? `تصدير المحدد (${selectedAttendanceStudentIds.length}) Excel` : 'تصدير الحضور (Excel)'}</span> {/* 🏷️ نص الزر التفاعلي الذكي */}
+              </button>
 
               {/* 📢 زر إرسال تبليغ أو تنبيه عام للمرحلة */}
               <button
@@ -14962,6 +15690,17 @@ export default function DepartmentPortalPage() {
                       >
                         <Send className="w-4 h-4 text-cyan-100" />
                         <span>إرسال تنبيه للمحددين</span>
+                      </button>
+
+                      <button
+                        type="button" // 🛑 نوع الزر لمنع الإرسال التلقائي
+                        onClick={handleExportAttendanceExcel} // ⚡ تصدير حضور الطلبة المحددين إلى Excel
+                        disabled={isExportingAttendanceExcel} // 🛑 تعطيل الزر أثناء التصدير لمنع النقرات المتكررة
+                        className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-sm font-black transition cursor-pointer flex items-center gap-1.5 shadow-xs disabled:opacity-50" // 🎨 تنسيق زمردي احترافي للأكسل
+                        title="تصدير كشف حضور وغيابات الطلاب المحددين إلى ملف Excel" // 💡 تلميح الزر
+                      >
+                        <FileSpreadsheet className="w-4 h-4 text-emerald-200" /> {/* 📊 أيقونة الإكسل بلون زمردي فاتح */}
+                        <span>{isExportingAttendanceExcel ? 'جاري التصدير...' : `تصدير المحدد (${selectedAttendanceStudentIds.length}) Excel`}</span> {/* 🏷️ نص الزر التفاعلي الذكي */}
                       </button>
 
                       <button

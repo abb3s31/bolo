@@ -29,7 +29,6 @@ import {
   Check, 
   AlertCircle, 
   AlertTriangle,
-  Sparkles, 
   Users,
   ArrowUp,
   ArrowDown,
@@ -2082,7 +2081,7 @@ export default function AdminCoursesPage() {
               <div className="p-4 bg-slate-50/80 border border-slate-200 rounded-2xl space-y-2.5">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-black text-slate-900 flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-sky-600" />
+                    <Sliders className="w-4 h-4 text-sky-600" />
                     <span>تطبيق قوالب التوزيع الجاهزة وفق دليل بولونيا:</span>
                   </span>
                   <span className="text-xs font-black text-slate-950">انقر للتعبئة الفورية</span>

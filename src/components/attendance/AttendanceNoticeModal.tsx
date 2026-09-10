@@ -15,7 +15,6 @@ import {
   Calendar, 
   Clock, 
   FileText, 
-  Sparkles, 
   Sun, 
   Moon, 
   GraduationCap, 
@@ -132,7 +131,7 @@ export default function AttendanceNoticeModal({
     { 
       id: 'general_announcement', 
       label: 'تبليغ وتوجيه عام', 
-      icon: <Sparkles className="w-4 h-4 text-indigo-600" />, 
+      icon: <BellRing className="w-4 h-4 text-indigo-600" />, 
       badgeColor: 'bg-indigo-50 text-indigo-950 border-indigo-300' 
     },
   ];

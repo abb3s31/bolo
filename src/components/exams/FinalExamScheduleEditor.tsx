@@ -25,7 +25,6 @@ import {
   ShieldCheck, 
   Download, 
   X, 
-  Sparkles, 
   CheckSquare, 
   Award, 
   ArrowUp, 
@@ -943,24 +942,27 @@ export default function FinalExamScheduleEditor({
     }
   };
 
-  // 📤 تصدير المواد الامتحانية المحددة إلى Excel
-  const handleExportSelectedExcel = async () => {
-    const selectedSlots = currentSlots.filter((s) => selectedSlotIds.includes(s.id));
-    if (selectedSlots.length === 0) {
-      setToastMessage('يرجى تحديد مادة امتحانية واحدة على الأقل للتصدير.');
+  // 📤 تصدير جدول الامتحانات (المحدد أو كامل الجدول) إلى Excel
+  const handleExportExcelSchedule = async () => {
+    const slotsToExport = selectedSlotIds.length > 0
+      ? currentSlots.filter((s) => selectedSlotIds.includes(s.id))
+      : currentSlots;
+
+    if (slotsToExport.length === 0) {
+      setToastMessage('لا توجد مواد امتحانية في هذا الجدول لتصديرها.');
       setTimeout(() => setToastMessage(''), 4000);
       return;
     }
 
     try {
       await exportCustomFinalExamSlotsList(
-        selectedSlots,
+        slotsToExport,
         departmentName,
         `المرحلة_${getStageNameInArabic(selectedStage)}`,
         selectedSemester === 1 ? 'الكورس_الأول' : 'الكورس_الثاني',
         selectedAttempt === 'first_attempt' ? 'الدور_الأول' : 'الدور_الثاني'
       );
-      setToastMessage(`تم تصدير (${selectedSlots.length}) مادة امتحانية إلى Excel بنجاح! 📊`);
+      setToastMessage(`تم تصدير (${slotsToExport.length}) مادة امتحانية إلى Excel بنجاح! 📊`);
       setTimeout(() => setToastMessage(''), 4000);
     } catch {
       setToastMessage('حدث خطأ أثناء تصدير ملف الإكسل.');
@@ -1244,6 +1246,18 @@ export default function FinalExamScheduleEditor({
               )}
             </button>
 
+            {/* 📊 زر تصدير جدول الامتحانات بصيغة Excel الفاخرة */}
+            <button
+              type="button"
+              onClick={handleExportExcelSchedule}
+              disabled={currentSlots.length === 0}
+              className="px-4 py-2.5 bg-[#0F2942] hover:bg-[#16385c] disabled:opacity-50 active:scale-95 text-white rounded-2xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center gap-1.5 shadow-xs whitespace-nowrap"
+              title="تصدير جدول الامتحانات الحالي إلى ملف Excel رسمي"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-emerald-300" />
+              <span>{selectedSlotIds.length > 0 ? `تصدير المحدد (${selectedSlotIds.length}) إكسل` : 'تصدير الجدول (Excel)'}</span>
+            </button>
+
             {/* ℹ️ زر تعليمات وضوابط الإكسل */}
             <button
               type="button"
@@ -1355,7 +1369,7 @@ export default function FinalExamScheduleEditor({
           <div className="flex items-center gap-2 flex-wrap">
             <button
               type="button"
-              onClick={handleExportSelectedExcel}
+              onClick={handleExportExcelSchedule}
               className="px-4 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl font-black text-xs sm:text-sm transition flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95 whitespace-nowrap"
               title="تصدير بيانات المواد المحددة إلى ملف Excel"
             >
@@ -1469,8 +1483,7 @@ export default function FinalExamScheduleEditor({
                     <div className="col-span-3 text-right pr-2">
                       <h4 className="font-black text-slate-950 text-base sm:text-lg leading-tight">{slot.course_name}</h4>
                       {slot.notes && (
-                        <span className="text-sm sm:text-base font-black text-slate-800 block mt-1 flex items-center gap-1">
-                          <Sparkles className="w-4 h-4 text-slate-700 inline shrink-0" />
+                        <span className="text-sm sm:text-base font-black text-slate-800 block mt-1">
                           <span>{slot.notes}</span>
                         </span>
                       )}
@@ -2115,8 +2128,7 @@ export default function FinalExamScheduleEditor({
                   {/* شريط اختيار سريع للمواد المتبقية غير المضافة بعد */}
                   {!editingSlotId && unaddedCourses.length > 0 && (
                     <div className="p-3 bg-slate-100 border-2 border-slate-300 rounded-2xl flex items-center gap-2.5 flex-wrap text-base font-black">
-                      <span className="text-slate-950 font-black flex items-center gap-1.5 text-sm sm:text-base">
-                        <Sparkles className="w-5 h-5 text-slate-700 shrink-0" />
+                      <span className="text-slate-950 font-black text-sm sm:text-base">
                         <span>مواد مقترحة متبقية:</span>
                       </span>
                       {unaddedCourses.map((c) => (
@@ -2413,8 +2425,7 @@ export default function FinalExamScheduleEditor({
 
                     {/* السطر الرابع: ملاحظات وتنبيهات */}
                     <div>
-                      <label className="block text-slate-950 font-black mb-1 text-xs sm:text-sm flex items-center gap-1.5">
-                        <Sparkles className="w-4 h-4 text-slate-900" strokeWidth={2.2} />
+                      <label className="block text-slate-950 font-black mb-1 text-xs sm:text-sm">
                         <span>ملاحظات وتنبيهات امتحانية (اختياري):</span>
                       </label>
                       <input
@@ -2464,7 +2475,7 @@ export default function FinalExamScheduleEditor({
                     {/* قائمة بطاقات المواد المضافة */}
                     {currentSlots.length === 0 ? (
                       <div className="p-6 text-center bg-white border border-dashed border-slate-300 rounded-2xl space-y-2.5">
-                        <Sparkles className="w-7 h-7 text-slate-600 mx-auto" strokeWidth={2.2} />
+                        <FileText className="w-7 h-7 text-slate-600 mx-auto" strokeWidth={2.2} />
                         <p className="text-base font-black text-slate-950">
                           لم يتم إضافة أي مادة لهذا الجدول بعد.
                         </p>

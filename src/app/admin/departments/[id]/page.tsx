@@ -45,7 +45,7 @@ import {
   Award,
   Pencil,
   X,
-  Sparkles
+  Save
 } from 'lucide-react'; // 🎨 الأيقونات البرمجية المتجهة النقية
 import ZeroTrustGuard from '@/components/security/ZeroTrustGuard'; // 🛡️ حارس أمان Zero Trust
 import { sanitizeRouteParam } from '@/lib/security/url-guard'; // 🛡️ معقم مسارات الروابط
@@ -1601,7 +1601,7 @@ export default function AdminDepartmentDetailsPage({ params }: { params: Promise
                   </>
                 ) : (
                   <>
-                    <Sparkles className="w-4 h-4 text-sky-300" />
+                    <Save className="w-4 h-4 text-sky-300" />
                     <span>حفظ واعتماد الوحدات</span>
                   </>
                 )}

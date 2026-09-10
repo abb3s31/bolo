@@ -1360,73 +1360,75 @@ export async function parseExcelFile(file: File): Promise<Record<string, string 
   return sanitizedData;
 }
 
-// 📤 دالة تصدير قائمة الأساتذة المحددين إلى Excel بتنسيق فاخر
+// 📤 دالة تصدير كادر أساتذة القسم إلى Excel مع البريد الأكاديمي والرمز السري المعتمد
 export async function exportCustomTeachersList(teachers: { full_name: string; gender?: string; generated_email: string; temp_password?: string }[], deptName: string): Promise<void> {
+  // 📝 تحويل قائمة الأساتذة إلى صفوف جدول إكسل منسقة
   const data = teachers.map((t, idx) => ({
-    seq: idx + 1,
-    name: t.full_name,
-    gender: t.gender === 'female' ? 'أنثى' : 'ذكر',
-    email: t.generated_email,
-    pass: t.temp_password || '••••••••',
-    dept: deptName,
+    seq: idx + 1, // 🔢 التسلسل
+    name: t.full_name, // 👤 اسم الأستاذ واللقب الأكاديمي
+    gender: t.gender === 'female' ? 'أنثى' : 'ذكر', // 🚻 الجنس
+    email: t.generated_email, // ✉️ البريد الأكاديمي المعتمد
+    pass: t.temp_password || '—', // 🔑 كلمة المرور والرمز السري المعتمد
+    dept: deptName, // 🏢 القسم الأكاديمي
   }));
 
-  const dateFormatted = new Date().toISOString().slice(0, 10);
+  const dateFormatted = new Date().toISOString().slice(0, 10); // 📅 تاريخ اليوم للتسمية
   await generateAndDownloadExcel(
     [
       {
-        sheetName: 'كادر التدريسيين المحددين',
+        sheetName: 'كادر_الأساتذة', // 📑 اسم ورقة العمل بالإكسل
         columns: [
-          { header: 'ت', key: 'seq', width: 8 },
-          { header: 'اسم الأستاذ واللقب الأكاديمي', key: 'name', width: 32 },
-          { header: 'الجنس', key: 'gender', width: 14 },
-          { header: 'البريد الأكاديمي', key: 'email', width: 32 },
-          { header: 'كلمة المرور', key: 'pass', width: 22 },
-          { header: 'القسم الأكاديمي', key: 'dept', width: 25 },
+          { header: 'ت', key: 'seq', width: 8 }, // 🔢 رقم التسلسل
+          { header: 'اسم الأستاذ واللقب الأكاديمي', key: 'name', width: 34 }, // 👤 الاسم واللقب
+          { header: 'الجنس', key: 'gender', width: 14 }, // 🚻 الجنس
+          { header: 'البريد الأكاديمي الرسمي', key: 'email', width: 34 }, // ✉️ البريد الرسمي
+          { header: 'كلمة المرور (الرمز السري)', key: 'pass', width: 25 }, // 🔑 كلمة المرور
+          { header: 'القسم الأكاديمي', key: 'dept', width: 25 }, // 🏢 اسم القسم
         ],
-        data,
-        headerColor: 'FF0F2942', // كحلي ملكي فاخر
+        data, // 📊 مصفوفة البيانات
+        headerColor: 'FF0F2942', // 🎨 كحلي ملكي رسمي
       },
     ],
-    `اساتذة_محددين_قسم_${deptName}_${dateFormatted}.xlsx`
+    `اساتذة_قسم_${deptName}_${dateFormatted}.xlsx` // 📁 اسم الملف عند التحميل
   );
 }
 
-// 📤 دالة تصدير قائمة الطلاب المحددين إلى Excel بتنسيق فاخر
+// 📤 دالة تصدير كشف طلبة القسم إلى Excel مع الرقم الجامعي، المرحلة، الفترة، البريد، والرمز السري
 export async function exportCustomStudentsList(students: { full_name: string; university_number: string; stage_number?: number; study_type?: string; gender?: string; generated_email: string; temp_password?: string }[], deptName: string): Promise<void> {
+  // 📝 تحويل مصفوفة الطلبة إلى صفوف إكسل كاملة الحقول
   const data = students.map((s, idx) => ({
-    seq: idx + 1,
-    name: s.full_name,
-    uniNum: s.university_number,
-    stage: `المرحلة ${s.stage_number || 1}`,
-    studyType: s.study_type === 'evening' ? 'مسائي' : 'صباحي',
-    gender: s.gender === 'female' ? 'أنثى' : 'ذكر',
-    email: s.generated_email,
-    pass: s.temp_password || '••••••••',
-    dept: deptName,
+    seq: idx + 1, // 🔢 التسلسل
+    name: s.full_name, // 👤 اسم الطالب الثلاثي
+    uniNum: s.university_number, // 🆔 الرقم الجامعي
+    stage: `المرحلة ${s.stage_number || 1}`, // 🎓 المرحلة الدراسية
+    studyType: s.study_type === 'evening' ? 'مسائي' : 'صباحي', // ☀️🌙 الفترة الدراسية
+    gender: s.gender === 'female' ? 'أنثى' : 'ذكر', // 🚻 الجنس
+    email: s.generated_email, // ✉️ البريد الأكاديمي
+    pass: s.temp_password || '—', // 🔑 كلمة المرور والرمز السري
+    dept: deptName, // 🏢 القسم الأكاديمي
   }));
 
-  const dateFormatted = new Date().toISOString().slice(0, 10);
+  const dateFormatted = new Date().toISOString().slice(0, 10); // 📅 تاريخ اليوم للتسمية
   await generateAndDownloadExcel(
     [
       {
-        sheetName: 'طلبة القسم المحددين',
+        sheetName: 'شؤون_الطلبة', // 📑 اسم ورقة العمل بالإكسل
         columns: [
-          { header: 'ت', key: 'seq', width: 8 },
-          { header: 'اسم الطالب الثلاثي', key: 'name', width: 32 },
-          { header: 'الرقم الجامعي', key: 'uniNum', width: 18 },
-          { header: 'المرحلة الدراسية', key: 'stage', width: 16 },
-          { header: 'الفترة الدراسية', key: 'studyType', width: 18 },
-          { header: 'الجنس', key: 'gender', width: 14 },
-          { header: 'البريد الأكاديمي', key: 'email', width: 32 },
-          { header: 'كلمة المرور', key: 'pass', width: 22 },
-          { header: 'القسم الأكاديمي', key: 'dept', width: 25 },
+          { header: 'ت', key: 'seq', width: 8 }, // 🔢 رقم التسلسل
+          { header: 'اسم الطالب الثلاثي', key: 'name', width: 34 }, // 👤 اسم الطالب
+          { header: 'الرقم الجامعي', key: 'uniNum', width: 18 }, // 🆔 الرقم الجامعي
+          { header: 'المرحلة الدراسية', key: 'stage', width: 16 }, // 🎓 المرحلة
+          { header: 'الفترة الدراسية', key: 'studyType', width: 18 }, // ☀️ نوع الدراسة
+          { header: 'الجنس', key: 'gender', width: 14 }, // 🚻 الجنس
+          { header: 'البريد الأكاديمي الرسمي', key: 'email', width: 34 }, // ✉️ البريد الرسمي
+          { header: 'كلمة المرور (الرمز السري)', key: 'pass', width: 25 }, // 🔑 كلمة المرور
+          { header: 'القسم الأكاديمي', key: 'dept', width: 25 }, // 🏢 القسم الأكاديمي
         ],
-        data,
-        headerColor: 'FF0F2942', // كحلي ملكي فاخر
+        data, // 📊 مصفوفة البيانات
+        headerColor: 'FF0F2942', // 🎨 كحلي ملكي رسمي
       },
     ],
-    `طلبة_محددين_قسم_${deptName}_${dateFormatted}.xlsx`
+    `طلبة_قسم_${deptName}_${dateFormatted}.xlsx` // 📁 اسم الملف عند التحميل
   );
 }
 
@@ -2496,6 +2498,214 @@ export async function downloadTuitionRecordsTemplate(
   await generateAndDownloadExcel(
     sheetsToExport,
     `نموذج_أقساط_وتخفيضات_${deptName.replace(/\s+/g, '_')}_${dateFormatted}.xlsx`
+  );
+}
+
+// 📤 دالة تصدير قائمة تكليفات الكادر التدريسي إلى Excel بتنسيق فاخر
+export async function exportCustomTeacherCoursesList(
+  assignments: {
+    teacher_name: string; // 👤 اسم الأستاذ المكلف
+    teacher_email?: string; // 📧 البريد الأكاديمي للأستاذ
+    course_name: string; // 📝 اسم المادة الدراسية
+    course_code?: string; // 🔢 رمز المادة الكودي
+    stage_number?: number; // 🎓 رقم المرحلة الدراسية
+    semester?: number; // 🗓️ الفصل الدراسي (1 أو 2)
+    role_in_course?: 'theory' | 'practical' | 'both'; // 🏷️ طبيعة التكليف (نظري/عملي)
+    created_at?: string; // ⏰ تاريخ التكليف
+  }[],
+  deptName: string // 🏢 اسم القسم الأكاديمي
+): Promise<void> {
+  // 🗺️ قاموس ترجمة صفة التدريس والتكليف
+  const roleMap: Record<string, string> = {
+    theory: 'نظري فقط', // 📖 نظري فقط
+    practical: 'عملي فقط', // 🔬 عملي فقط
+    both: 'نظري وعملي', // 📚 نظري وعملي
+  };
+
+  // 📝 تجهيز مصفوفة البيانات للصفوف الإكسل
+  const data = assignments.map((a, idx) => ({
+    seq: idx + 1, // 🔢 التسلسل
+    teacher: a.teacher_name, // 👤 اسم الأستاذ
+    email: a.teacher_email || '—', // 📧 البريد الأكاديمي
+    course: a.course_name, // 📘 المادة الدراسية
+    code: a.course_code || '—', // 🔠 رمز المادة
+    stage: a.stage_number ? `المرحلة ${a.stage_number}` : '—', // 🎓 المرحلة
+    semester: a.semester === 2 ? 'الكورس الثاني' : 'الكورس الأول', // 🗓️ الكورس
+    role: a.role_in_course ? roleMap[a.role_in_course] || a.role_in_course : 'نظري وعملي', // 🏷️ طبيعة التكليف
+    date: a.created_at ? a.created_at.slice(0, 10) : '—', // 📅 تاريخ التكليف
+    dept: deptName, // 🏢 القسم الأكاديمي
+  }));
+
+  const dateFormatted = new Date().toISOString().slice(0, 10); // 📅 تاريخ اليوم للتسمية
+  await generateAndDownloadExcel(
+    [
+      {
+        sheetName: 'تكليفات_التدريسيين', // 📑 اسم ورقة العمل
+        columns: [
+          { header: 'ت', key: 'seq', width: 8 },
+          { header: 'اسم الأستاذ المكلف', key: 'teacher', width: 32 },
+          { header: 'البريد الأكاديمي', key: 'email', width: 32 },
+          { header: 'المادة الدراسية', key: 'course', width: 30 },
+          { header: 'رمز المادة', key: 'code', width: 14 },
+          { header: 'المرحلة', key: 'stage', width: 16 },
+          { header: 'الفصل الدراسي', key: 'semester', width: 16 },
+          { header: 'طبيعة التكليف', key: 'role', width: 18 },
+          { header: 'تاريخ التكليف', key: 'date', width: 16 },
+          { header: 'القسم الأكاديمي', key: 'dept', width: 25 },
+        ],
+        data,
+        headerColor: 'FF0F2942', // 🎨 كحلي ملكي فاخر
+      },
+    ],
+    `تكليفات_كادر_${deptName}_${dateFormatted}.xlsx`
+  );
+}
+
+// 📤 دالة تصدير سجل درجات وسعيات مسار بولونيا إلى Excel بتنسيق فاخر
+export async function exportCustomGradesList(
+  grades: {
+    student_name: string; // 👤 اسم الطالب الثلاثي
+    university_number: string; // 🆔 الرقم الجامعي
+    course_name: string; // 📝 اسم المادة الدراسية
+    quiz1: number; // 📝 كويز 1
+    quiz2: number; // 📝 كويز 2
+    assignment1: number; // 📑 واجب 1
+    assignment2: number; // 📑 واجب 2
+    report: number; // 📄 تقرير ومشاريع
+    midterm: number; // 🎯 امتحان منتصف الفصل
+    practical: number; // 🔬 التقييم العملي والنشاط
+    final_coursework_total: number; // 💯 مجموع السعي الفصلي (من 50)
+    final_exam: number; // 📝 الامتحان النهائي (من 50)
+    supplementary_exam?: number | null; // 🔄 امتحان الدور الثاني (إن وجد)
+    final_total?: number; // 💯 المجموع الكلي النهائي من 100
+    letter_grade?: string; // 🅰️ التقدير الحرفي المعتمد
+    is_locked: boolean; // 🔒 هل السعي مقفول ومعتمد رسمياً؟
+  }[],
+  deptName: string, // 🏢 اسم القسم الأكاديمي
+  courseFilterName: string = 'كافة المواد' // 📘 اسم المادة المصفاة للتسمية
+): Promise<void> {
+  // 📝 تجهيز البيانات وتحويل الأرقام والتقديرات لصيغة قابلة للتصدير
+  const data = grades.map((g, idx) => ({
+    seq: idx + 1, // 🔢 التسلسل
+    student: g.student_name, // 👤 الطالب
+    uniNum: g.university_number, // 🆔 الرقم الجامعي
+    course: g.course_name, // 📘 المادة
+    q1: g.quiz1, // كويز 1
+    q2: g.quiz2, // كويز 2
+    a1: g.assignment1, // واجب 1
+    a2: g.assignment2, // واجب 2
+    rep: g.report, // تقرير
+    mid: g.midterm, // نصفي
+    prac: g.practical, // عملي
+    coursework: g.final_coursework_total, // السعي من 50
+    finalExam: g.final_exam, // النهائي من 50
+    suppExam: g.supplementary_exam ?? '—', // الدور الثاني
+    total: g.final_total ?? (g.final_coursework_total + g.final_exam), // المجموع النهائي
+    gradeLetter: g.letter_grade || '—', // التقدير الحرفي
+    status: g.is_locked ? 'معتمد ومقفل' : 'مسودة قيد الرصد', // حالة السجل
+    dept: deptName, // القسم
+  }));
+
+  const dateFormatted = new Date().toISOString().slice(0, 10); // 📅 تاريخ اليوم للتسمية
+  await generateAndDownloadExcel(
+    [
+      {
+        sheetName: 'سجل_درجات_بولونيا', // 📑 اسم ورقة العمل
+        columns: [
+          { header: 'ت', key: 'seq', width: 8 },
+          { header: 'اسم الطالب الثلاثي', key: 'student', width: 32 },
+          { header: 'الرقم الجامعي', key: 'uniNum', width: 18 },
+          { header: 'المادة الدراسية', key: 'course', width: 28 },
+          { header: 'كويز 1 (5)', key: 'q1', width: 12 },
+          { header: 'كويز 2 (5)', key: 'q2', width: 12 },
+          { header: 'واجب 1 (5)', key: 'a1', width: 12 },
+          { header: 'واجب 2 (5)', key: 'a2', width: 12 },
+          { header: 'تقرير (5)', key: 'rep', width: 12 },
+          { header: 'نصفي (15)', key: 'mid', width: 12 },
+          { header: 'عملي (10)', key: 'prac', width: 12 },
+          { header: 'مجموع السعي (50)', key: 'coursework', width: 18 },
+          { header: 'الامتحان النهائي (50)', key: 'finalExam', width: 20 },
+          { header: 'الدور الثاني', key: 'suppExam', width: 14 },
+          { header: 'المجموع الكلي (100)', key: 'total', width: 20 },
+          { header: 'التقدير', key: 'gradeLetter', width: 12 },
+          { header: 'حالة السجل', key: 'status', width: 16 },
+          { header: 'القسم الأكاديمي', key: 'dept', width: 24 },
+        ],
+        data,
+        headerColor: 'FF0F2942', // 🎨 كحلي ملكي فاخر
+      },
+    ],
+    `سجل_درجات_بولونيا_${deptName}_${courseFilterName.replace(/\s+/g, '_')}_${dateFormatted}.xlsx`
+  );
+}
+
+// 📤 دالة تصدير كشف الحضور والغيابات والإنذارات لمسار بولونيا إلى Excel بتنسيق فاخر
+export async function exportCustomAttendanceList(
+  records: {
+    student_name: string; // 👤 اسم الطالب الثلاثي
+    university_number: string; // 🆔 الرقم الجامعي
+    stage_number: number; // 🎓 رقم المرحلة الدراسية
+    study_type: 'morning' | 'evening'; // ☀️ نوع الدراسة (صباحي / مسائي)
+    course_name: string; // 📝 اسم المادة الدراسية
+    total_hours: number; // ⏳ إجمالي الساعات المقررة
+    unexcused_hours: number; // ❌ ساعات الغياب بدون عذر
+    excused_hours: number; // 📑 ساعات الغياب بعذر
+    absence_percentage: number; // 📊 نسبة الغياب الكلية
+    warning_status: 'none' | 'first_warning' | 'final_warning' | 'dismissed'; // ⚠️ حالة الإنذار الأكاديمي
+    notes?: string; // 📝 ملاحظات
+  }[],
+  deptName: string // 🏢 اسم القسم الأكاديمي
+): Promise<void> {
+  // 🏷️ قاموس مسميات وتوصيفات الإنذارات الأكاديمية الرسمية لبولونيا
+  const warningLabels: Record<string, string> = {
+    none: 'طبيعي (مستمر بالدوام)',
+    first_warning: 'إنذار أولي (5%)',
+    final_warning: 'إنذار نهائي (7%)',
+    dismissed: 'حرمان رسمي وتجاوز الحد (10%)',
+  };
+
+  // 📝 تجهيز البيانات وتنسيق نسب الغياب
+  const data = records.map((r, idx) => ({
+    seq: idx + 1, // 🔢 التسلسل
+    student: r.student_name, // 👤 اسم الطالب
+    uniNum: r.university_number, // 🆔 الرقم الجامعي
+    stage: `المرحلة ${r.stage_number}`, // 🎓 المرحلة
+    studyType: r.study_type === 'evening' ? 'مسائي' : 'صباحي', // ☀️ نوع الدراسة
+    course: r.course_name, // 📘 المادة
+    total: r.total_hours, // الساعات المقررة
+    unexcused: r.unexcused_hours, // بدون عذر
+    excused: r.excused_hours, // بعذر
+    pct: `${r.absence_percentage.toFixed(1)}%`, // النسبة
+    status: warningLabels[r.warning_status] || 'طبيعي', // الموقف الأكاديمي
+    notes: r.notes || '—', // ملاحظات
+    dept: deptName, // القسم
+  }));
+
+  const dateFormatted = new Date().toISOString().slice(0, 10); // 📅 تاريخ اليوم للتسمية
+  await generateAndDownloadExcel(
+    [
+      {
+        sheetName: 'سجل_الحضور_والإنذارات', // 📑 اسم ورقة العمل
+        columns: [
+          { header: 'ت', key: 'seq', width: 8 },
+          { header: 'اسم الطالب الثلاثي', key: 'student', width: 32 },
+          { header: 'الرقم الجامعي', key: 'uniNum', width: 18 },
+          { header: 'المرحلة', key: 'stage', width: 14 },
+          { header: 'الدراسة', key: 'studyType', width: 14 },
+          { header: 'المادة الدراسية', key: 'course', width: 28 },
+          { header: 'الساعات المقررة', key: 'total', width: 16 },
+          { header: 'غياب بدون عذر (ساعات)', key: 'unexcused', width: 22 },
+          { header: 'غياب بعذر (ساعات)', key: 'excused', width: 20 },
+          { header: 'نسبة الغياب', key: 'pct', width: 14 },
+          { header: 'الموقف والإنذار الأكاديمي', key: 'status', width: 28 },
+          { header: 'ملاحظات', key: 'notes', width: 22 },
+          { header: 'القسم الأكاديمي', key: 'dept', width: 24 },
+        ],
+        data,
+        headerColor: 'FF0F2942', // 🎨 كحلي ملكي فاخر
+      },
+    ],
+    `سجل_الغيابات_والإنذارات_${deptName}_${dateFormatted}.xlsx`
   );
 }
 

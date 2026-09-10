@@ -25,7 +25,7 @@ import { calculateCourseworkTotal, calculateFinalTotal, getLetterGrade, getStage
 import { detectArabicGender } from '@/lib/demographics-utils'; // 🧮 التعرف الذكي على جنس الطالب
 import { exportStudentTranscriptPDF } from '@/lib/pdf-export'; // 📄 مولد وثيقة السعي PDF
 import { getTodayDayOfWeek, timeStringToMinutes } from '@/lib/schedule-utils'; // 🕒 أدوات الجدول واليوم
-import { BookOpen, Layers, FileText, Target, Activity, FileSpreadsheet, ChevronDown, ChevronUp, Calendar, Download, FlaskConical, Clock, UserCheck, ShieldCheck, Award, Sparkles, Radio, ArrowLeft, CheckSquare, ClipboardList, CreditCard, AlertTriangle, GraduationCap, Sun, Moon, Megaphone, Lock } from 'lucide-react'; // 🎨 الأيقونات
+import { BookOpen, Layers, FileText, Target, Activity, FileSpreadsheet, ChevronDown, ChevronUp, Calendar, Download, FlaskConical, Clock, UserCheck, ShieldCheck, Award, Radio, ArrowLeft, CheckSquare, ClipboardList, CreditCard, AlertTriangle, GraduationCap, Sun, Moon, Megaphone, Lock } from 'lucide-react'; // 🎨 الأيقونات
 import ZeroTrustGuard from '@/components/security/ZeroTrustGuard'; // 🛡️ حارس أمان Zero Trust
 import StudentScheduleTimeline from '@/components/schedule/StudentScheduleTimeline'; // 🗓️ مكون الـ Timeline والجدول التفاعلي
 import StudentAttendanceView from '@/components/attendance/StudentAttendanceView'; // 📋 مكون سجل الحضور والغيابات للطالب
@@ -456,9 +456,8 @@ export default function StudentDashboard() {
                   <span>{(currentUser?.study_type || 'morning') === 'evening' ? 'الدراسة المسائية' : 'الدراسة الصباحية'}</span>
                 </span>
               </div>
-              <h1 className="text-xl sm:text-2xl font-black text-slate-950 flex items-center gap-2 mt-1.5">
+              <h1 className="text-xl sm:text-2xl font-black text-slate-950 mt-1.5">
                 <span>أهلاً بك، {currentUser?.full_name}</span>
-                <Sparkles className="w-5 h-5 text-blue-600 fill-blue-500" />
               </h1>
               {/* 🎓 اسم الجامعة والبريد الأكاديمي المعتمد للطالب */}
               <p className="text-sm font-black sm:text-sm text-slate-950 font-black mt-1">

@@ -16,7 +16,7 @@ import {
   AlertCircle, 
   Clock, 
   Lock, 
-  Sparkles, 
+  Award, 
   Send 
 } from 'lucide-react'; // 🎨 الأيقونات
 
@@ -298,7 +298,7 @@ export function StudentTaskSubmissionModal({
           </div>
 
           <div className="flex items-center gap-2.5 text-slate-700">
-            <Sparkles className="w-5 h-5 text-blue-600 flex-shrink-0" />
+            <Award className="w-5 h-5 text-blue-600 flex-shrink-0" />
             <div>
               <span className="text-slate-950 font-black text-sm block">الدرجة المخصصة:</span>
               <span className="text-slate-900 font-mono">{task.max_score} درجات من السعي</span>
@@ -328,8 +328,7 @@ export function StudentTaskSubmissionModal({
         {/* 🟣 تنبيه طلب التعديل من الأستاذ للنسخة السابقة بحدود ناعمة */}
         {existingSubmission?.review_decision === 'needs_revision' && (
           <div className="m-5 p-5 bg-indigo-50 border border-indigo-300 rounded-3xl space-y-2.5 text-indigo-950 text-base font-black animate-in fade-in">
-            <div className="flex items-center gap-2 text-indigo-900 font-black text-base">
-              <Sparkles className="w-5 h-5 text-indigo-600 shrink-0" />
+            <div className="text-indigo-900 font-black text-base">
               <span>طلب تعديل وإعادة رفع (المحاولة رقم {(existingSubmission.revision_count || 1) + 1})</span>
             </div>
             {existingSubmission.decision_reason && (

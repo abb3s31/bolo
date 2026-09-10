@@ -23,7 +23,6 @@ import {
   LogOut, 
   CheckCircle2, 
   Loader2, 
-  Sparkles, 
   BookOpen, 
   ShieldCheck, 
   Building2, 
@@ -250,7 +249,7 @@ export default function StudentLoginPage() {
                   onClick={handleAppendDomain}
                   className="text-sm font-black sm:text-sm text-indigo-900 hover:text-indigo-950 font-black flex items-center gap-1 mt-1 cursor-pointer"
                 >
-                  <Sparkles className="w-4 h-4" />
+                  <CheckCircle2 className="w-4 h-4 text-indigo-700" />
                   <span>إكمال النطاق تلقائياً (@sadiq.edu.iq)</span>
                 </button>
               )}

@@ -19,7 +19,7 @@ import {
   ChevronDown,
   Check,
   RotateCcw,
-  Sparkles,
+  FileText,
   FileSpreadsheet,
   CheckCircle2
 } from 'lucide-react'; // 🎨 الأيقونات SVG
@@ -438,7 +438,7 @@ export default function TeacherAuditLogsPage() {
               value={selectedField}
               onChange={setSelectedField}
               options={fieldOptions}
-              icon={<Sparkles className="w-4 h-4 text-indigo-900" />}
+              icon={<FileText className="w-4 h-4 text-indigo-900" />}
             />
           </div>
         </div>
@@ -486,7 +486,7 @@ export default function TeacherAuditLogsPage() {
 
                       {/* شارة البند الأكاديمي المترجم بالكامل */}
                       <span className="px-3.5 py-1 bg-blue-100 text-blue-950 border border-blue-300 rounded-xl text-base font-black flex items-center gap-1.5 shadow-2xs">
-                        <Sparkles className="w-4 h-4 text-blue-950" />
+                        <FileText className="w-4 h-4 text-blue-950" />
                         <span>{arabicField}</span>
                       </span>
                     </div>

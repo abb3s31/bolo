@@ -4,23 +4,22 @@
 // كويزات، واجبات، تقارير، مدتيرم، وعملي مع المادة الداخلة وعناوين التقارير والعداد التنازلي وتصدير PDF
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { 
-  BookOpen, 
-  HelpCircle, 
-  Layers, 
-  Clock, 
-  AlertTriangle, 
-  Download, 
-  Calendar, 
-  MapPin, 
-  Award, 
-  Filter, 
+import {
+  BookOpen,
+  HelpCircle,
+  Layers,
+  Clock,
+  AlertTriangle,
+  Download,
+  Calendar,
+  MapPin,
+  Award,
+  Filter,
   Search,
   CheckCircle2,
   ChevronDown,
   ChevronUp,
   FileCheck2,
-  Sparkles,
   Sun,
   Moon,
   X,
@@ -30,11 +29,11 @@ import {
 import { CourseAcademicTask, AcademicTaskType, StudentTaskSubmission, UserProfile } from '@/types';
 import { INITIAL_ACADEMIC_TASKS, INITIAL_STUDENT_SUBMISSIONS, getStoredData, saveStoredData } from '@/lib/mock-data';
 import { exportCourseTaskBriefPDF } from '@/lib/pdf-export';
-import { 
-  getCurrentSessionUser, 
-  syncAcademicTasksFromSupabase, 
-  syncTaskSubmissionsFromSupabase, 
-  saveTaskSubmissionToSupabase 
+import {
+  getCurrentSessionUser,
+  syncAcademicTasksFromSupabase,
+  syncTaskSubmissionsFromSupabase,
+  saveTaskSubmissionToSupabase
 } from '@/lib/supabase-client'; // ☁️ المزامنة السحابية وحفظ التسليمات
 import { StudentTaskSubmissionModal } from './StudentTaskSubmissionModal'; // 📤 نافذة تسليم ورفع الملفات
 import { UploadCloud, Lock, Unlock, Users, User, ExternalLink } from 'lucide-react';
@@ -91,10 +90,10 @@ export function StudentAssessmentsPortal({
     // ☁️ مزامنة التكليفات والتسليمات الحية من سحابة Supabase
     syncAcademicTasksFromSupabase().then((liveTasks) => {
       if (liveTasks && liveTasks.length > 0) setTasks(liveTasks);
-    }).catch(() => {});
+    }).catch(() => { });
     syncTaskSubmissionsFromSupabase().then((liveSubs) => {
       if (liveSubs && liveSubs.length > 0) setSubmissions(liveSubs);
-    }).catch(() => {});
+    }).catch(() => { });
   }, []);
 
   // 🔒 مستمع النقر بالخارج لإغلاق قائمة المواد
@@ -306,9 +305,8 @@ export function StudentAssessmentsPortal({
               <button
                 type="button"
                 onClick={() => setIsCourseDropdownOpen(!isCourseDropdownOpen)}
-                className={`bg-slate-800 border text-white text-sm sm:text-base font-black rounded-2xl px-4 py-2.5 flex items-center gap-2 cursor-pointer shadow-sm transition-all ${
-                  isCourseDropdownOpen ? 'border-cyan-500 ring-2 ring-cyan-500/20' : 'border-slate-700 hover:border-slate-600'
-                }`}
+                className={`bg-slate-800 border text-white text-sm sm:text-base font-black rounded-2xl px-4 py-2.5 flex items-center gap-2 cursor-pointer shadow-sm transition-all ${isCourseDropdownOpen ? 'border-cyan-500 ring-2 ring-cyan-500/20' : 'border-slate-700 hover:border-slate-600'
+                  }`}
               >
                 <BookOpen className="w-4 h-4 text-cyan-400 shrink-0" />
                 <span className="truncate max-w-[140px] sm:max-w-[200px]">
@@ -327,9 +325,8 @@ export function StudentAssessmentsPortal({
                       setSelectedCourse('all');
                       setIsCourseDropdownOpen(false);
                     }}
-                    className={`w-full px-3 py-2 rounded-xl text-right font-black text-xs sm:text-sm transition flex items-center justify-between cursor-pointer ${
-                      selectedCourse === 'all' ? 'bg-[#0F2942] text-white' : 'text-slate-200 hover:bg-slate-800'
-                    }`}
+                    className={`w-full px-3 py-2 rounded-xl text-right font-black text-xs sm:text-sm transition flex items-center justify-between cursor-pointer ${selectedCourse === 'all' ? 'bg-[#0F2942] text-white' : 'text-slate-200 hover:bg-slate-800'
+                      }`}
                   >
                     <span>كافة المواد الدراسية 📚</span>
                     {selectedCourse === 'all' && <Check className="w-4 h-4 text-cyan-400" />}
@@ -345,9 +342,8 @@ export function StudentAssessmentsPortal({
                           setSelectedCourse(c.id);
                           setIsCourseDropdownOpen(false);
                         }}
-                        className={`w-full px-3 py-2 rounded-xl text-right font-black text-xs sm:text-sm transition flex items-center justify-between cursor-pointer ${
-                          isSel ? 'bg-[#0F2942] text-white' : 'text-slate-200 hover:bg-slate-800'
-                        }`}
+                        className={`w-full px-3 py-2 rounded-xl text-right font-black text-xs sm:text-sm transition flex items-center justify-between cursor-pointer ${isSel ? 'bg-[#0F2942] text-white' : 'text-slate-200 hover:bg-slate-800'
+                          }`}
                       >
                         <span className="truncate">{c.name}</span>
                         {isSel && <Check className="w-4 h-4 text-cyan-400" />}
@@ -371,7 +367,7 @@ export function StudentAssessmentsPortal({
               <button
                 key={tab.id}
                 onClick={() => setSelectedType(tab.id)}
-                className={`text-base font-black px-4 py-2 rounded-2xl transition-all whitespace-nowrap cursor-pointer ${ selectedType === tab.id ? 'bg-sky-700 text-white shadow-md shadow-sky-700/20' : 'bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700' }`}
+                className={`text-base font-black px-4 py-2 rounded-2xl transition-all whitespace-nowrap cursor-pointer ${selectedType === tab.id ? 'bg-sky-700 text-white shadow-md shadow-sky-700/20' : 'bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700'}`}
               >
                 {tab.label}
               </button>
@@ -416,34 +412,33 @@ export function StudentAssessmentsPortal({
             const badgeBg = isQuiz
               ? 'bg-blue-500/10 border-blue-500/30 text-blue-400'
               : isAssignment
-              ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-400'
-              : isReport
-              ? 'bg-sky-500/10 border-sky-500/30 text-sky-400'
-              : isMidterm
-              ? 'bg-rose-500/10 border-rose-500/30 text-rose-400'
-              : 'bg-teal-500/10 border-teal-500/30 text-teal-400';
+                ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-400'
+                : isReport
+                  ? 'bg-sky-500/10 border-sky-500/30 text-sky-400'
+                  : isMidterm
+                    ? 'bg-rose-500/10 border-rose-500/30 text-rose-400'
+                    : 'bg-teal-500/10 border-teal-500/30 text-teal-400';
 
             const typeLabel = isQuiz
               ? 'كويز وامتحان قصير'
               : isAssignment
-              ? 'واجب بيتي / تطبيقي'
-              : isReport
-              ? 'تقرير وبحث علمي'
-              : isMidterm
-              ? 'امتحان مدتيرم'
-              : 'امتحان عملي ومختبري';
+                ? 'واجب بيتي / تطبيقي'
+                : isReport
+                  ? 'تقرير وبحث علمي'
+                  : isMidterm
+                    ? 'امتحان مدتيرم'
+                    : 'امتحان عملي ومختبري';
 
             return (
               <div
                 key={task.id}
                 onClick={() => setExpandedTaskId(isExpanded ? null : task.id)}
-                className={`bg-slate-900 border rounded-3xl p-6 shadow-lg transition-all cursor-pointer ${
-                  isCompleted
+                className={`bg-slate-900 border rounded-3xl p-6 shadow-lg transition-all cursor-pointer ${isCompleted
                     ? 'border-emerald-500/30 opacity-90'
                     : isExpanded
-                    ? 'border-cyan-500 shadow-cyan-500/10'
-                    : 'border-slate-800 hover:border-slate-700'
-                }`}
+                      ? 'border-cyan-500 shadow-cyan-500/10'
+                      : 'border-slate-800 hover:border-slate-700'
+                  }`}
               >
                 {/* رأس التكليف والمادة والموعد */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
@@ -454,11 +449,10 @@ export function StudentAssessmentsPortal({
                         e.stopPropagation();
                         toggleTaskCompletion(task.id);
                       }}
-                      className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all shrink-0 mt-0.5 border ${
-                        isCompleted
+                      className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all shrink-0 mt-0.5 border ${isCompleted
                           ? 'bg-emerald-500 border-emerald-400 text-slate-950'
                           : 'border-slate-700 hover:border-emerald-400 text-transparent hover:text-emerald-400 bg-slate-800'
-                      }`}
+                        }`}
                       title={isCompleted ? 'إلغاء وضع علامة تم الإنجاز' : 'تعليم كمُنجز'}
                     >
                       <CheckCircle2 className="w-5 h-5" />
@@ -480,7 +474,7 @@ export function StudentAssessmentsPortal({
                             </>
                           ) : task.study_type === 'both' ? (
                             <>
-                              <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                              <Users className="w-3.5 h-3.5 text-emerald-400" />
                               <span>صباحي ومسائي</span>
                             </>
                           ) : (
@@ -504,7 +498,7 @@ export function StudentAssessmentsPortal({
                   {/* شريط الموعد والحالة */}
                   <div className="flex items-center gap-2 sm:self-start shrink-0">
                     <span
-                      className={`text-base font-black px-3 py-1.5 rounded-xl border flex items-center gap-1.5 ${ timeStatus.isLate ? 'bg-rose-500/10 border-rose-500/30 text-rose-400' : timeStatus.isUrgent ? 'bg-sky-500/10 border-sky-500/30 text-sky-400' : 'bg-slate-800 border-slate-700 text-slate-300' }`}
+                      className={`text-base font-black px-3 py-1.5 rounded-xl border flex items-center gap-1.5 ${timeStatus.isLate ? 'bg-rose-500/10 border-rose-500/30 text-rose-400' : timeStatus.isUrgent ? 'bg-sky-500/10 border-sky-500/30 text-sky-400' : 'bg-slate-800 border-slate-700 text-slate-300'}`}
                     >
                       <Clock className="w-4 h-4" />
                       <span>{timeStatus.text}</span>
@@ -683,7 +677,7 @@ export function StudentAssessmentsPortal({
 
                               {/* نسبة الاستلال العلمي للتقارير */}
                               {isReport && mySubmission.plagiarism_percentage !== undefined && mySubmission.plagiarism_percentage !== null && (
-                                <span className={`px-3 py-1.5 rounded-2xl text-base font-black border font-mono ${ mySubmission.plagiarism_percentage <= 15 ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30' : mySubmission.plagiarism_percentage <= 25 ? 'bg-sky-500/10 text-sky-300 border-sky-500/30' : 'bg-rose-500/10 text-rose-300 border-rose-500/30' }`}>
+                                <span className={`px-3 py-1.5 rounded-2xl text-base font-black border font-mono ${mySubmission.plagiarism_percentage <= 15 ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30' : mySubmission.plagiarism_percentage <= 25 ? 'bg-sky-500/10 text-sky-300 border-sky-500/30' : 'bg-rose-500/10 text-rose-300 border-rose-500/30'}`}>
                                   🔬 {mySubmission.plagiarism_percentage}% استلال
                                 </span>
                               )}
@@ -781,7 +775,7 @@ export function StudentAssessmentsPortal({
 
                     {/* زر التحميل والرفع والإنجاز */}
                     <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-slate-800">
-                      
+
                       {/* زر رفع الواجب أو التقرير أو النسخة المعدلة للطالب */}
                       {(isAssignment || isReport) ? (
                         <button
@@ -791,17 +785,17 @@ export function StudentAssessmentsPortal({
                             setSelectedTaskForSubmissionModal(task);
                           }}
                           disabled={isLocked && !isSubmitted}
-                          className={`px-5 py-2.5 rounded-2xl text-base font-black transition flex items-center gap-2 cursor-pointer shadow-md ${ mySubmission?.review_decision === 'needs_revision' ? 'bg-sky-600 hover:bg-sky-500 text-white font-black shadow-sky-500/20 animate-bounce' : isSubmitted ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/20' : isLocked ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed opacity-60' : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/20' }`}
+                          className={`px-5 py-2.5 rounded-2xl text-base font-black transition flex items-center gap-2 cursor-pointer shadow-md ${mySubmission?.review_decision === 'needs_revision' ? 'bg-sky-600 hover:bg-sky-500 text-white font-black shadow-sky-500/20 animate-bounce' : isSubmitted ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/20' : isLocked ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed opacity-60' : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/20'}`}
                         >
                           <UploadCloud className="w-5 h-5" />
                           <span>
                             {mySubmission?.review_decision === 'needs_revision'
                               ? `🔄 رفع النسخة المعدلة (Revision #${(mySubmission.revision_count || 1) + 1})`
                               : isSubmitted
-                              ? 'تعديل أو إعادة رفع الملف 🔄'
-                              : isLocked
-                              ? '🔒 الاستلام مقفل'
-                              : '📤 رفع الحل / التقرير (PDF)'}
+                                ? 'تعديل أو إعادة رفع الملف 🔄'
+                                : isLocked
+                                  ? '🔒 الاستلام مقفل'
+                                  : '📤 رفع الحل / التقرير (PDF)'}
                           </span>
                         </button>
                       ) : (

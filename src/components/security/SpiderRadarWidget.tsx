@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from 'react'; // 🔗 خطافات رياكت
 import { getSpiderRadarMetrics, validateHoneypot, SPIDER_HONEYPOT_FIELD, SpiderThreatLevel } from '@/lib/security/spider-security'; // 🕸️ محرك العنكبوت
-import { Shield, Bug, Radar, Zap, Lock, AlertTriangle, CheckCircle2, Sparkles, RefreshCw } from 'lucide-react'; // 🎨 الأيقونات
+import { Shield, Bug, Radar, Zap, Lock, AlertTriangle, CheckCircle2, RefreshCw } from 'lucide-react'; // 🎨 الأيقونات
 
 export default function SpiderRadarWidget() {
   const [metrics, setMetrics] = useState(getSpiderRadarMetrics()); // 📊 المقاييس اللحظية
@@ -158,8 +158,7 @@ export default function SpiderRadarWidget() {
 
       {/* 🧪 منطقة اختبار ومحاكاة الفخاخ الحية */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-indigo-50/60 border border-indigo-200 rounded-3xl p-5">
-        <div className="flex items-center gap-3 text-base font-black text-indigo-950">
-          <Sparkles className="w-5 h-5 text-indigo-600 shrink-0" />
+        <div className="text-base font-black text-indigo-950">
           <span>
             <strong>اختبار جاهزية الفخ:</strong> يمكنك محاكاة سقوط أداة كشط أو روبوت آلي في الفخ البرمجي للتحقق من سرعة الاستجابة.
           </span>

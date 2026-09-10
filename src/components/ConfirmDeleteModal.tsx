@@ -8,7 +8,6 @@ import {
   ShieldAlert, 
   GraduationCap, 
   ArrowRightLeft, 
-  Sparkles, 
   CheckCircle2, 
   AlertTriangle, 
   Info, 
@@ -22,7 +21,7 @@ import {
 import { lockBodyScroll, unlockBodyScroll } from '@/lib/scroll-lock'; // 🔒 نظام إدارة التمرير المركزي
 
 export type ConfirmModalVariant = 'danger' | 'success' | 'warning' | 'info' | 'primary';
-export type ConfirmModalIcon = 'trash' | 'graduation' | 'promote' | 'check' | 'sparkles' | 'alert' | 'user' | 'info' | 'unlink' | 'user-minus' | 'rotate';
+export type ConfirmModalIcon = 'trash' | 'graduation' | 'promote' | 'check' | 'alert' | 'user' | 'info' | 'unlink' | 'user-minus' | 'rotate';
 
 export interface ConfirmDeleteModalProps {
   isOpen: boolean;                          // 📦 حالة فتح النافذة
@@ -110,8 +109,6 @@ export default function ConfirmDeleteModal({
         return <GraduationCap className="w-10 h-10 text-emerald-700 relative z-10" />;
       case 'promote':
         return <ArrowRightLeft className="w-10 h-10 text-emerald-700 relative z-10" />;
-      case 'sparkles':
-        return <Sparkles className="w-10 h-10 text-emerald-700 relative z-10" />;
       case 'check':
         return <CheckCircle2 className="w-10 h-10 text-emerald-700 relative z-10" />;
       case 'user':
@@ -138,8 +135,6 @@ export default function ConfirmDeleteModal({
         return <GraduationCap className="w-4 h-4 text-white" />;
       case 'promote':
         return <ArrowRightLeft className="w-4 h-4 text-white" />;
-      case 'sparkles':
-        return <Sparkles className="w-4 h-4 text-white" />;
       case 'check':
         return <CheckCircle2 className="w-4 h-4 text-white" />;
       case 'user':
