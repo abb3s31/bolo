@@ -27,6 +27,9 @@ import {
   Save, // 💾 أيقونة الحفظ
   X, // ❌ أيقونة الإغلاق
 } from 'lucide-react'; // 🎨 استيراد أيقونات لوسيد
+import { calculateSmartDropdownPosition } from '../dropdownUtils'; // 📐 حساب الموضع الذكي للقوائم المنسدلة
+import { LectureConflictSection } from './lecture/LectureConflictSection'; // 🛡️ كاشف التعارضات وقائمة اليوم
+import { LectureTimeSlotPicker } from './lecture/LectureTimeSlotPicker'; // 🕒 منتقي التوقيت الأكاديمي
 import type {
   UserProfile, // 👤 نوع بروفايل المستخدم
   Course, // 📚 نوع المادة الدراسية
@@ -199,8 +202,7 @@ export const LectureModal: React.FC<LectureModalProps> = ({
   const [isLecTypeDropdownOpen, setIsLecTypeDropdownOpen] = useState<boolean>(false); // 🔬 قائمة النوع
   const [isLecCourseDropdownOpen, setIsLecCourseDropdownOpen] = useState<boolean>(false); // 📚 قائمة المادة
   const [isLecTeacherDropdownOpen, setIsLecTeacherDropdownOpen] = useState<boolean>(false); // 👨‍🏫 قائمة الأستاذ
-  const [isLecStartTimeDropdownOpen, setIsLecStartTimeDropdownOpen] = useState<boolean>(false); // ⏰ قائمة وقت البدء
-  const [isLecEndTimeDropdownOpen, setIsLecEndTimeDropdownOpen] = useState<boolean>(false); // ⏰ قائمة وقت النهاية
+  // 🕒 تدار حالات قوائم التوقيت الآن داخل LectureTimeSlotPicker
   const [isLecWeekDropdownOpen, setIsLecWeekDropdownOpen] = useState<boolean>(false); // 🔢 قائمة الأسبوع
 
   // 📍 إحداثيات ومواقع القوائم المنسدلة المخصصة
@@ -208,8 +210,7 @@ export const LectureModal: React.FC<LectureModalProps> = ({
   const [lecTypeCoords, setLecTypeCoords] = useState<{ top?: number; bottom?: number; left: number; width: number; maxHeight?: number; openUpwards?: boolean } | null>(null);
   const [lecCourseCoords, setLecCourseCoords] = useState<{ top?: number; bottom?: number; left: number; width: number; maxHeight?: number; openUpwards?: boolean } | null>(null);
   const [lecTeacherCoords, setLecTeacherCoords] = useState<{ top?: number; bottom?: number; left: number; width: number; maxHeight?: number; openUpwards?: boolean } | null>(null);
-  const [lecStartTimeCoords, setLecStartTimeCoords] = useState<{ top?: number; bottom?: number; left: number; width: number; maxHeight?: number; openUpwards?: boolean } | null>(null);
-  const [lecEndTimeCoords, setLecEndTimeCoords] = useState<{ top?: number; bottom?: number; left: number; width: number; maxHeight?: number; openUpwards?: boolean } | null>(null);
+  // 📍 تدار إحداثيات قوائم التوقيت الآن داخل LectureTimeSlotPicker
   const [lecWeekCoords, setLecWeekCoords] = useState<{ top?: number; bottom?: number; left: number; width: number; maxHeight?: number; openUpwards?: boolean } | null>(null);
 
   // 🔗 مراجع الأزرار لتحديد مواقع القوائم المنسدلة
@@ -217,93 +218,11 @@ export const LectureModal: React.FC<LectureModalProps> = ({
   const lecTypeButtonRef = useRef<HTMLButtonElement | null>(null);
   const lecCourseButtonRef = useRef<HTMLButtonElement | null>(null);
   const lecTeacherButtonRef = useRef<HTMLButtonElement | null>(null);
-  const lecStartTimeButtonRef = useRef<HTMLButtonElement | null>(null);
-  const lecEndTimeButtonRef = useRef<HTMLButtonElement | null>(null);
+  // 📍 تدار مراجع أزرار التوقيت الآن داخل LectureTimeSlotPicker
   const lecWeekButtonRef = useRef<HTMLButtonElement | null>(null);
   const lecListContainerRef = useRef<HTMLDivElement | null>(null);
 
-  // 📐 دالة الحساب الذكي لموضع القائمة المنسدلة داخل الشاشة
-  const calculateSmartDropdownPosition = (
-    buttonEl: HTMLElement,
-    preferredHeight = 260,
-    preferredWidth?: number
-  ): { top?: number; bottom?: number; left: number; width: number; maxHeight: number; openUpwards: boolean } => {
-    if (typeof window === 'undefined') {
-      return { top: 0, bottom: undefined, left: 0, width: 200, maxHeight: preferredHeight, openUpwards: false };
-    }
-    const rect = buttonEl.getBoundingClientRect();
-    const viewportHeight = window.innerHeight;
-    const viewportWidth = window.innerWidth;
-    const spaceBelow = Math.max(0, viewportHeight - rect.bottom - 12);
-    const spaceAbove = Math.max(0, rect.top - 12);
-    let openUpwards = false;
-    if (spaceBelow >= preferredHeight) {
-      openUpwards = false;
-    } else if (spaceAbove >= preferredHeight) {
-      openUpwards = true;
-    } else {
-      openUpwards = spaceAbove > spaceBelow;
-    }
-    const availableSpace = openUpwards ? spaceAbove : spaceBelow;
-    const maxHeight = Math.min(preferredHeight, Math.max(120, availableSpace - 6));
-    const top = openUpwards ? undefined : Math.max(12, rect.bottom + 6);
-    const bottom = openUpwards ? Math.max(12, (viewportHeight - rect.top) + 6) : undefined;
-    let targetWidth = preferredWidth || rect.width;
-    if (targetWidth > viewportWidth - 24) targetWidth = viewportWidth - 24;
-    let left = rect.left;
-    if (left + targetWidth > viewportWidth - 12) left = Math.max(12, viewportWidth - targetWidth - 12);
-    if (left < 12) left = 12;
-    return { top, bottom, left, width: targetWidth, maxHeight, openUpwards };
-  };
-
-  // ⏱️ دالة تحليل التوقيت من صيغة 24 إلى 12 ساعة
-  const parseTime24To12 = (time24: string) => {
-    if (!time24 || !time24.trim()) {
-      return {
-        isEmpty: true,
-        hour12: 0,
-        hourDisplay: '--',
-        minute: '--',
-        period: 'AM' as const,
-        periodArabic: '',
-        displayFull: '-- : -- غير محدد',
-        time24: '',
-      };
-    }
-    const [hRaw, mRaw] = time24.split(':');
-    let h = parseInt(hRaw || '8', 10);
-    const m = mRaw || '00';
-    if (h === 0) h = 12;
-    const period: 'AM' | 'PM' = (h >= 12 || (h >= 1 && h <= 7)) ? 'PM' : 'AM';
-    let h12 = h;
-    if (h > 12) h12 = h - 12;
-    const hDisplay = String(h12).padStart(2, '0');
-    const periodArabic = period === 'AM' ? 'صباحاً' : 'مساءً';
-    return {
-      isEmpty: false,
-      hour12: h12,
-      hourDisplay: hDisplay,
-      minute: m,
-      period,
-      periodArabic,
-      displayFull: `${hDisplay}:${m} ${periodArabic}`,
-      time24: `${String(h).padStart(2, '0')}:${m}`,
-    };
-  };
-
-  // 🔄 دمج التوقيت إلى صيغة 24 ساعة المعتمدة (HH:mm)
-  const format12To24 = (hour12: number, minute: string, period: 'AM' | 'PM'): string => {
-    let h24 = hour12;
-    if (hour12 === 12) {
-      h24 = 12;
-    } else if (period === 'PM' && hour12 < 12) {
-      h24 = hour12 + 12;
-    } else if (period === 'AM' && hour12 < 12) {
-      h24 = hour12;
-    }
-    return `${String(h24).padStart(2, '0')}:${minute}`;
-  };
-
+  // 📐 يتم الآن استيراد calculateSmartDropdownPosition من dropdownUtils مباشرة
   // 🕒 حساب وقت نهاية المحاضرة حسب نظام الكليات بالعراق
   const calculateEndTimeFromStart = (startTime: string, type: LectureType | ''): string => {
     if (!startTime) return '';
@@ -329,8 +248,6 @@ export const LectureModal: React.FC<LectureModalProps> = ({
       setIsLecTypeDropdownOpen(false);
       setIsLecCourseDropdownOpen(false);
       setIsLecTeacherDropdownOpen(false);
-      setIsLecStartTimeDropdownOpen(false);
-      setIsLecEndTimeDropdownOpen(false);
       setIsLecWeekDropdownOpen(false);
     } else {
       setIsLecDayDropdownOpen(false);
@@ -344,8 +261,6 @@ export const LectureModal: React.FC<LectureModalProps> = ({
       setIsLecDayDropdownOpen(false);
       setIsLecCourseDropdownOpen(false);
       setIsLecTeacherDropdownOpen(false);
-      setIsLecStartTimeDropdownOpen(false);
-      setIsLecEndTimeDropdownOpen(false);
       setIsLecWeekDropdownOpen(false);
     } else {
       setIsLecTypeDropdownOpen(false);
@@ -361,8 +276,6 @@ export const LectureModal: React.FC<LectureModalProps> = ({
       setIsLecDayDropdownOpen(false);
       setIsLecTypeDropdownOpen(false);
       setIsLecTeacherDropdownOpen(false);
-      setIsLecStartTimeDropdownOpen(false);
-      setIsLecEndTimeDropdownOpen(false);
       setIsLecWeekDropdownOpen(false);
     } else {
       setIsLecCourseDropdownOpen(false);
@@ -377,50 +290,17 @@ export const LectureModal: React.FC<LectureModalProps> = ({
       setIsLecDayDropdownOpen(false);
       setIsLecTypeDropdownOpen(false);
       setIsLecCourseDropdownOpen(false);
-      setIsLecStartTimeDropdownOpen(false);
-      setIsLecEndTimeDropdownOpen(false);
       setIsLecWeekDropdownOpen(false);
     } else {
       setIsLecTeacherDropdownOpen(false);
     }
   };
 
-  const handleToggleLecStartTimeDropdown = () => {
-    if (!isLecStartTimeDropdownOpen && lecStartTimeButtonRef.current) {
-      setLecStartTimeCoords(calculateSmartDropdownPosition(lecStartTimeButtonRef.current, 340, 360));
-      setIsLecStartTimeDropdownOpen(true);
-      setIsLecEndTimeDropdownOpen(false);
-      setIsLecDayDropdownOpen(false);
-      setIsLecTypeDropdownOpen(false);
-      setIsLecCourseDropdownOpen(false);
-      setIsLecTeacherDropdownOpen(false);
-      setIsLecWeekDropdownOpen(false);
-    } else {
-      setIsLecStartTimeDropdownOpen(false);
-    }
-  };
-
-  const handleToggleLecEndTimeDropdown = () => {
-    if (!isLecEndTimeDropdownOpen && lecEndTimeButtonRef.current) {
-      setLecEndTimeCoords(calculateSmartDropdownPosition(lecEndTimeButtonRef.current, 340, 360));
-      setIsLecEndTimeDropdownOpen(true);
-      setIsLecStartTimeDropdownOpen(false);
-      setIsLecDayDropdownOpen(false);
-      setIsLecTypeDropdownOpen(false);
-      setIsLecCourseDropdownOpen(false);
-      setIsLecTeacherDropdownOpen(false);
-      setIsLecWeekDropdownOpen(false);
-    } else {
-      setIsLecEndTimeDropdownOpen(false);
-    }
-  };
-
+  // 🕒 تدار فتح وإغلاق قوائم التوقيت داخلياً في LectureTimeSlotPicker
   const handleToggleLecWeekDropdown = () => {
     if (!isLecWeekDropdownOpen && lecWeekButtonRef.current) {
       setLecWeekCoords(calculateSmartDropdownPosition(lecWeekButtonRef.current, 300, 380));
       setIsLecWeekDropdownOpen(true);
-      setIsLecStartTimeDropdownOpen(false);
-      setIsLecEndTimeDropdownOpen(false);
       setIsLecDayDropdownOpen(false);
       setIsLecTypeDropdownOpen(false);
       setIsLecCourseDropdownOpen(false);
@@ -437,203 +317,17 @@ export const LectureModal: React.FC<LectureModalProps> = ({
       if (isLecTypeDropdownOpen) setIsLecTypeDropdownOpen(false);
       if (isLecCourseDropdownOpen) setIsLecCourseDropdownOpen(false);
       if (isLecTeacherDropdownOpen) setIsLecTeacherDropdownOpen(false);
-      if (isLecStartTimeDropdownOpen) setIsLecStartTimeDropdownOpen(false);
-      if (isLecEndTimeDropdownOpen) setIsLecEndTimeDropdownOpen(false);
       if (isLecWeekDropdownOpen) setIsLecWeekDropdownOpen(false);
     };
-    if (isLecDayDropdownOpen || isLecTypeDropdownOpen || isLecCourseDropdownOpen || isLecTeacherDropdownOpen || isLecStartTimeDropdownOpen || isLecEndTimeDropdownOpen || isLecWeekDropdownOpen) {
+    if (isLecDayDropdownOpen || isLecTypeDropdownOpen || isLecCourseDropdownOpen || isLecTeacherDropdownOpen || isLecWeekDropdownOpen) {
       window.addEventListener('resize', handleCloseLecDropdowns);
     }
     return () => {
       window.removeEventListener('resize', handleCloseLecDropdowns);
     };
-  }, [isLecDayDropdownOpen, isLecTypeDropdownOpen, isLecCourseDropdownOpen, isLecTeacherDropdownOpen, isLecStartTimeDropdownOpen, isLecEndTimeDropdownOpen, isLecWeekDropdownOpen]);
+  }, [isLecDayDropdownOpen, isLecTypeDropdownOpen, isLecCourseDropdownOpen, isLecTeacherDropdownOpen, isLecWeekDropdownOpen]);
 
-  // 🕒 منتقي التوقيت المخصص
-  const renderCustomTimePickerDropdown = (
-    coords: { top?: number; bottom?: number; left: number; width: number; maxHeight?: number; openUpwards?: boolean } | null,
-    title: string,
-    currentTime24: string,
-    onTimeChange: (newTime: string) => void,
-    onClose: () => void,
-    _currentStudyType?: 'morning' | 'evening'
-  ) => {
-    if (!coords) return null;
-    const parsed = parseTime24To12(currentTime24);
-    const hoursList = [8, 9, 10, 11, 12, 1, 2, 3, 4, 5, 6, 7];
-    const minutesList = ['00', '15', '30', '45', '10', '20', '40', '50'];
-    const currentHour12 = parsed.isEmpty ? 8 : parsed.hour12;
-    const currentMin = parsed.isEmpty ? '30' : parsed.minute;
-    const currentPeriod: 'AM' | 'PM' = parsed.isEmpty ? (_currentStudyType === 'evening' ? 'PM' : 'AM') : parsed.period;
-
-    const handleHourSelect = (h12: number) => {
-      let autoPeriod: 'AM' | 'PM' = currentPeriod;
-      if (_currentStudyType === 'evening') {
-        autoPeriod = 'PM';
-      } else {
-        if (h12 === 12 || (h12 >= 1 && h12 <= 7)) {
-          autoPeriod = 'PM';
-        } else if (h12 >= 8 && h12 <= 11) {
-          autoPeriod = 'AM';
-        }
-      }
-      const newTime24 = format12To24(h12, currentMin, autoPeriod);
-      onTimeChange(newTime24);
-    };
-
-    const handleMinuteSelect = (min: string) => {
-      const newTime24 = format12To24(currentHour12, min, currentPeriod);
-      onTimeChange(newTime24);
-    };
-
-    const handlePeriodSelect = (p: 'AM' | 'PM') => {
-      const newTime24 = format12To24(currentHour12, currentMin, p);
-      onTimeChange(newTime24);
-    };
-
-    return (
-      <div
-        style={{
-          position: 'fixed',
-          ...(coords.openUpwards
-            ? { bottom: `${coords.bottom}px` }
-            : { top: `${coords.top}px` }),
-          left: `${coords.left}px`,
-          width: `${coords.width}px`,
-          maxHeight: `${coords.maxHeight || 340}px`,
-        }}
-        className="bg-white border-2 border-[#0F2942] rounded-3xl shadow-2xl z-[999999] p-3.5 space-y-2.5 animate-in fade-in zoom-in-95 duration-150 select-none text-right overflow-y-auto"
-        dir="rtl"
-        onClick={(e: React.MouseEvent) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-[#0F2942] text-white rounded-xl shadow-xs">
-              <Clock className="w-5 h-5 text-cyan-300" />
-            </div>
-            <div>
-              <div className="text-xs font-black text-black">{title}</div>
-              <div className="text-base font-black text-black flex items-center gap-1.5">
-                <span>{parsed.displayFull}</span>
-                {parsed.time24 && <span className="text-xs font-mono font-black text-black">({parsed.time24})</span>}
-              </div>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 text-black hover:text-slate-900 hover:bg-slate-100 rounded-xl transition cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        <div className="grid grid-cols-12 gap-2 pt-1 border-t border-slate-100">
-          <div className="col-span-6 space-y-1.5">
-            <div className="text-[11px] font-black text-black flex items-center gap-1">
-              <span>الساعة:</span>
-            </div>
-            <div className="grid grid-cols-4 gap-1">
-              {hoursList.map((h) => {
-                const isSelected = !parsed.isEmpty && parsed.hour12 === h;
-                return (
-                  <button
-                    key={h}
-                    type="button"
-                    onClick={() => handleHourSelect(h)}
-                    className={`py-1.5 text-xs font-mono font-black rounded-lg border transition-all cursor-pointer ${
-                      isSelected
-                        ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-xs'
-                        : 'bg-white text-black border-slate-300 hover:bg-slate-100'
-                    }`}
-                  >
-                    {h}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="col-span-3 space-y-1.5">
-            <div className="text-[11px] font-black text-black flex items-center gap-1">
-              <span>الدقيقة:</span>
-            </div>
-            <div className="grid grid-cols-2 gap-1">
-              {minutesList.map((m) => {
-                const isSelected = !parsed.isEmpty && parsed.minute === m;
-                return (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => handleMinuteSelect(m)}
-                    className={`py-1.5 text-xs font-mono font-black rounded-lg border transition-all cursor-pointer ${
-                      isSelected
-                        ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-xs'
-                        : 'bg-white text-black border-slate-300 hover:bg-slate-100'
-                    }`}
-                  >
-                    {m}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="col-span-3 space-y-1.5">
-            <div className="text-[11px] font-black text-black flex items-center gap-1">
-              <span>الفترة:</span>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <button
-                type="button"
-                onClick={() => handlePeriodSelect('AM')}
-                className={`py-2 px-2 text-xs font-black rounded-lg border transition-all cursor-pointer flex items-center justify-center gap-1 ${
-                  !parsed.isEmpty && parsed.period === 'AM'
-                    ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-xs'
-                    : 'bg-white text-black border-slate-300 hover:bg-slate-100'
-                }`}
-              >
-                <Sun className="w-3.5 h-3.5" />
-                <span>صباحاً</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handlePeriodSelect('PM')}
-                className={`py-2 px-2 text-xs font-black rounded-lg border transition-all cursor-pointer flex items-center justify-center gap-1 ${
-                  !parsed.isEmpty && parsed.period === 'PM'
-                    ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-xs'
-                    : 'bg-white text-black border-slate-300 hover:bg-slate-100'
-                }`}
-              >
-                <Moon className="w-3.5 h-3.5" />
-                <span>مساءً</span>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {currentTime24 && (
-          <div className="pt-2 border-t border-slate-200 flex items-center justify-center">
-            <button
-              type="button"
-              onClick={() => {
-                onTimeChange('');
-                onClose();
-              }}
-              className="w-full py-2 px-3 bg-slate-100 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-300 text-slate-700 text-xs font-black rounded-xl border border-slate-300 transition cursor-pointer text-center"
-              title="إلغاء تحديد هذا الوقت وجعله غير محدد"
-            >
-              <span className="flex items-center justify-center gap-1.5">
-                <RotateCcw className="w-3.5 h-3.5" />
-                <span>إلغاء تحديد الوقت (جعله غير محدد)</span>
-              </span>
-            </button>
-          </div>
-        )}
-      </div>
-    );
-  };
-
+  // 🕒 تم استبدال renderCustomTimePickerDropdown بالمكون المستقل LectureTimeSlotPicker
   return (
           <FloatingCrudModal
             isOpen={isLectureModalOpen}
@@ -2110,423 +1804,37 @@ export const LectureModal: React.FC<LectureModalProps> = ({
                     </div>
                   </div>
 
-                  {/* 4. وقت البدء + وقت الانتهاء بقوائم منسدلة احترافية مخصصة */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {/* البدء */}
-                    <div className="space-y-1.5 relative">
-                      <label className="block text-sm font-black text-slate-950 flex items-center gap-1.5">
-                        <Clock className="w-4 h-4 text-[#0F2942]" />
-                        <span>وقت بدء المحاضرة <span className="text-red-600">*</span></span>
-                      </label>
-                      <div>
-                        {(() => {
-                          const parsed = parseTime24To12(lecStartTime);
-                          return (
-                            <>
-                              <button
-                                ref={lecStartTimeButtonRef}
-                                type="button"
-                                onClick={handleToggleLecStartTimeDropdown}
-                                className={`w-full px-3.5 py-2.5 bg-slate-50 hover:bg-white border-2 rounded-xl text-sm font-black text-slate-950 flex items-center justify-between cursor-pointer shadow-2xs transition-all text-right ${
-                                  isLecStartTimeDropdownOpen ? 'border-[#0F2942] ring-2 ring-[#0F2942]/20' : 'border-slate-300'
-                                }`}
-                              >
-                                <div className="flex items-center gap-2">
-                                  <div className={`p-1.5 rounded-lg shrink-0 ${parsed.isEmpty ? 'bg-slate-100 text-slate-400' : 'bg-blue-100 text-blue-900'}`}>
-                                    <Clock className="w-4 h-4" />
-                                  </div>
-                                  {parsed.isEmpty ? (
-                                    <span className="text-slate-500 font-bold text-xs sm:text-sm">-- : -- تحديد وقت البدء</span>
-                                  ) : (
-                                    <div className="flex items-center gap-1.5">
-                                      <span className="font-mono text-base font-black text-slate-950">{parsed.hourDisplay}:{parsed.minute}</span>
-                                      <span className={`px-2 py-0.5 rounded-md text-xs font-black border ${
-                                        parsed.period === 'PM' ? 'bg-indigo-50 text-indigo-950 border-indigo-200' : 'bg-sky-50 text-sky-950 border-sky-300'
-                                      }`}>
-                                        {parsed.periodArabic}
-                                      </span>
-                                    </div>
-                                  )}
-                                </div>
-                                <ChevronDown className={`w-4 h-4 text-slate-600 transition-transform duration-200 shrink-0 ${isLecStartTimeDropdownOpen ? 'rotate-180 text-[#0F2942]' : ''}`} />
-                              </button>
-
-                              {isLecStartTimeDropdownOpen && lecStartTimeCoords && typeof document !== 'undefined' && createPortal(
-                                <>
-                                  <div 
-                                    className="fixed inset-0 z-[999999] bg-transparent" 
-                                    onClick={() => setIsLecStartTimeDropdownOpen(false)} 
-                                  />
-                                  {renderCustomTimePickerDropdown(
-                                    lecStartTimeCoords,
-                                    'وقت بدء المحاضرة',
-                                    lecStartTime,
-                                    (newTime) => {
-                                      setLecStartTime(newTime); // ⏱️ ضبط وقت بدء المحاضرة المختار
-                                      // 🕒 حساب وقت الانتهاء تلقائياً بموجب نظام الكليات الأهلية العراقية (ساعة للعملي وساعة ونصف للنظري)
-                                      const autoEnd = calculateEndTimeFromStart(newTime, lecType); // 🧮 استخراج وقت النهاية
-                                      if (autoEnd) {
-                                        setLecEndTime(autoEnd); // 🏁 ضبط وقت الانتهاء التلقائي
-                                      }
-                                    },
-                                    () => setIsLecStartTimeDropdownOpen(false),
-                                    lecStudyType
-                                  )}
-                                </>,
-                                document.body
-                              )}
-                            </>
-                          );
-                        })()}
-                      </div>
-                    </div>
-
-                    {/* الانتهاء */}
-                    <div className="space-y-1.5 relative">
-                      <label className="block text-sm font-black text-slate-950 flex items-center gap-1.5">
-                        <Clock className="w-4 h-4 text-[#0F2942]" />
-                        <span>وقت انتهاء المحاضرة <span className="text-red-600">*</span></span>
-                      </label>
-                      <div>
-                        {(() => {
-                          const parsed = parseTime24To12(lecEndTime);
-                          return (
-                            <>
-                              <button
-                                ref={lecEndTimeButtonRef}
-                                type="button"
-                                onClick={handleToggleLecEndTimeDropdown}
-                                className={`w-full px-3.5 py-2.5 bg-slate-50 hover:bg-white border-2 rounded-xl text-sm font-black text-slate-950 flex items-center justify-between cursor-pointer shadow-2xs transition-all text-right ${
-                                  isLecEndTimeDropdownOpen ? 'border-[#0F2942] ring-2 ring-[#0F2942]/20' : 'border-slate-300'
-                                }`}
-                              >
-                                <div className="flex items-center gap-2">
-                                  <div className={`p-1.5 rounded-lg shrink-0 ${parsed.isEmpty ? 'bg-slate-100 text-slate-400' : 'bg-blue-100 text-blue-900'}`}>
-                                    <Clock className="w-4 h-4" />
-                                  </div>
-                                  {parsed.isEmpty ? (
-                                    <span className="text-slate-500 font-bold text-xs sm:text-sm">-- : -- تحديد وقت الانتهاء</span>
-                                  ) : (
-                                    <div className="flex items-center gap-1.5">
-                                      <span className="font-mono text-base font-black text-slate-950">{parsed.hourDisplay}:{parsed.minute}</span>
-                                      <span className={`px-2 py-0.5 rounded-md text-xs font-black border ${
-                                        parsed.period === 'PM' ? 'bg-indigo-50 text-indigo-950 border-indigo-200' : 'bg-sky-50 text-sky-950 border-sky-300'
-                                      }`}>
-                                        {parsed.periodArabic}
-                                      </span>
-                                    </div>
-                                  )}
-                                </div>
-                                <ChevronDown className={`w-4 h-4 text-slate-600 transition-transform duration-200 shrink-0 ${isLecEndTimeDropdownOpen ? 'rotate-180 text-[#0F2942]' : ''}`} />
-                              </button>
-
-                              {isLecEndTimeDropdownOpen && lecEndTimeCoords && typeof document !== 'undefined' && createPortal(
-                                <>
-                                  <div 
-                                    className="fixed inset-0 z-[999999] bg-transparent" 
-                                    onClick={() => setIsLecEndTimeDropdownOpen(false)} 
-                                  />
-                                  {renderCustomTimePickerDropdown(
-                                    lecEndTimeCoords,
-                                    'وقت انتهاء المحاضرة',
-                                    lecEndTime,
-                                    (newTime) => setLecEndTime(newTime),
-                                    () => setIsLecEndTimeDropdownOpen(false),
-                                    lecStudyType
-                                  )}
-                                </>,
-                                document.body
-                              )}
-                            </>
-                          );
-                        })()}
-                      </div>
-                    </div>
-                  </div>
-
+                  {/* 4. وقت البدء + وقت الانتهاء عبر المكون المستقل LectureTimeSlotPicker */}
+                  <LectureTimeSlotPicker
+                    lecStartTime={lecStartTime}
+                    setLecStartTime={setLecStartTime}
+                    lecEndTime={lecEndTime}
+                    setLecEndTime={setLecEndTime}
+                    lecType={lecType}
+                    lecStudyType={lecStudyType}
+                  />
                 </div>
 
-                {/* 📊 العمود الأيسر (الرصد الذكي + كاشف التعارضات + محاضرات اليوم) - 5 أعمدة */}
-                <div className="lg:col-span-5 space-y-3.5">
-                  
-                  {/* ⚠️ 1. بطاقة كاشف التعارض والتضارب الزمني اللحظي */}
-                  {!lecDay || !lecStartTime || !lecEndTime ? (
-                    <div className="p-3.5 bg-slate-100 border-2 border-slate-300 rounded-2xl flex items-center gap-2.5 text-slate-950 shadow-2xs">
-                      <Clock className="w-5 h-5 text-slate-600 shrink-0" />
-                      <div className="text-xs sm:text-sm font-black text-slate-950">
-                        يرجى تحديد اليوم الأسبوعي ووقتي البدء والانتهاء لتفعيل كاشف التعارض الزمني
-                      </div>
-                    </div>
-                  ) : currentLecConflicts.length > 0 ? (
-                    <div className="p-3.5 bg-rose-50 border-2 border-rose-300 rounded-2xl space-y-2 animate-in slide-in-from-top-1 duration-200 shadow-xs">
-                      <div className="flex items-center gap-2 text-rose-950 font-black text-sm sm:text-base">
-                        <AlertCircle className="w-5 h-5 text-rose-700 shrink-0" />
-                        <span>كاشف التعارض والتضارب الزمني ({currentLecConflicts.length}):</span>
-                      </div>
-                      <div className="space-y-1.5 max-h-36 overflow-y-auto">
-                        {currentLecConflicts.map((c, i) => (
-                          <div key={i} className="text-xs sm:text-sm font-black text-rose-950 bg-white p-2.5 rounded-xl border border-rose-200 flex items-start gap-2 shadow-2xs">
-                            <span className="px-2 py-0.5 bg-rose-700 text-white rounded-md text-[11px] font-black shrink-0">
-                              {c.type === 'room' ? 'القاعة' : c.type === 'teacher' ? 'الأستاذ' : 'المرحلة'}
-                            </span>
-                            <span className="leading-snug">{c.message}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="p-3.5 bg-emerald-50 border-2 border-emerald-200 rounded-2xl flex items-center gap-2.5 text-emerald-950 shadow-2xs animate-in slide-in-from-top-1 duration-200">
-                      <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-                      <div className="text-xs sm:text-sm font-black">
-                        لا يوجد أي تعارض زمني أو انشغال للقاعة والأستاذ في هذا التوقيت
-                      </div>
-                    </div>
-                  )}
-
-                  {/* 📋 2. قائمة المحاضرات المجدولة لهذا اليوم بسكرول مستقل واحترافي لمنع تمدد المودال */}
-                  <div className="bg-white border-2 border-slate-200 p-4 rounded-2xl space-y-3 shadow-sm flex flex-col">
-                    {/* 🗓️ ترويسة قائمة المحاضرات: السطر الأول يضم العنوان وعداد المحاضرات، والسطر الثاني يضم الوسوم أسفلهما */}
-                    <div className="space-y-2 border-b border-slate-200 pb-3 shrink-0">
-                      {/* السطر الأول: عنوان المحاضرات مع الأيقونة يميناً + عداد المحاضرات يساراً */}
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <div className="p-2 bg-[#0F2942] text-white rounded-xl shadow-xs shrink-0">
-                            <Calendar className="w-4 h-4 text-cyan-300" />
-                          </div>
-                          <span className="text-sm sm:text-base font-black text-slate-950">
-                            محاضرات ({lecDay ? (DAYS_OF_WEEK_LIST.find((d) => d.key === lecDay)?.label_ar || lecDay) : 'غير محدد'})
-                          </span>
-                        </div>
-                        <span className="text-xs font-black text-blue-950 bg-blue-50 px-3 py-1 rounded-lg border border-blue-200 shadow-2xs shrink-0">
-                          {formatArabicLectureCount(lecDay ? scheduleLectures.filter((l) => isLectureInCurrentDept(l) && l.stage_number === selectedScheduleStage && l.semester === selectedScheduleSemester && (l.study_type || 'morning') === lecStudyType && l.day === lecDay).length : 0)}
-                        </span>
-                      </div>
-
-                      {/* السطر الثاني: الوسوم أسفل العنوان وعداد المحاضرات */}
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        {/* 🏷️ شارة نوع الدراسة موحدة باللون الأزرق الأكاديمي الاحترافي */}
-                        <span className="text-xs px-2.5 py-0.5 rounded-lg font-black flex items-center gap-1 bg-blue-50 text-blue-950 border border-blue-200 shadow-2xs">
-                          {lecStudyType === 'evening' ? (
-                            <>
-                              <Moon className="w-3.5 h-3.5 text-[#0F2942] shrink-0" />
-                              <span>مسائي</span>
-                            </>
-                          ) : (
-                            <>
-                              <Sun className="w-3.5 h-3.5 text-[#0F2942] shrink-0" />
-                              <span>صباحي</span>
-                            </>
-                          )}
-                        </span>
-                        <span className="text-xs px-2.5 py-0.5 rounded-lg bg-blue-50 text-blue-950 border border-blue-200 font-black shadow-2xs">
-                          الأسبوع {lecWeekNumber}
-                        </span>
-                        {lecDate && (
-                          <span className="text-xs font-mono font-black px-2.5 py-0.5 rounded-lg bg-blue-50 text-blue-950 border border-blue-200 shadow-2xs">
-                            {lecDate}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {!lecDay ? (
-                      <div className="text-sm sm:text-base font-black text-slate-800 bg-slate-50 p-6 rounded-2xl border-2 border-dashed border-slate-300 text-center shadow-2xs">
-                        حدد اليوم الأسبوعي من القائمة لاستعراض كافة المحاضرات المجدولة فيه.
-                      </div>
-                    ) : scheduleLectures.filter((l) => isLectureInCurrentDept(l) && l.stage_number === selectedScheduleStage && l.semester === selectedScheduleSemester && (l.study_type || 'morning') === lecStudyType && l.day === lecDay).length === 0 ? (
-                      <div className="text-sm sm:text-base font-black text-slate-800 bg-slate-50 p-6 rounded-2xl border-2 border-dashed border-slate-300 text-center shadow-2xs">
-                        لا توجد محاضرات مجدولة لهذا اليوم حتى الآن.
-                      </div>
-                    ) : (
-                      <div 
-                        ref={lecListContainerRef} 
-                        className="space-y-3 p-1 overflow-y-auto max-h-[440px] sm:max-h-[470px] pr-1.5 scroll-smooth"
-                        style={{ scrollbarWidth: 'thin' }}
-                      >
-                        {scheduleLectures
-                          .filter((l) => isLectureInCurrentDept(l) && l.stage_number === selectedScheduleStage && l.semester === selectedScheduleSemester && (l.study_type || 'morning') === lecStudyType && l.day === lecDay)
-                          // 🕒 ترتيب المحاضرات زمنياً من الصباح للمساء بشكل طبيعي واحترافي
-                          .sort((a, b) => (timeStringToMinutes(a.start_time) - timeStringToMinutes(b.start_time)) || a.course_name.localeCompare(b.course_name, 'ar'))
-                          .map((lecItem, idx) => {
-                            const isNewlyAdded = recentlyAddedLectureId === lecItem.id; // 🌟 فحص هل المحاضرة مضافة أو محدثة للتو
-                            const isEditingCurrent = editingLectureId === lecItem.id; // ✏️ فحص هل المحاضرة هي قيد التعديل الآن
-                            return (
-                            <div
-                              key={lecItem.id}
-                              id={`lec-card-${lecItem.id}`} // 🆔 معرف الكارت لعمل سكرول فوري إليه
-                              className={`p-3.5 sm:p-4 rounded-2xl border-2 transition-all space-y-3 ${
-                                isEditingCurrent
-                                  ? 'bg-blue-50/95 border-[#0F2942] ring-3 ring-blue-500/20 shadow-md scale-[1.01]'
-                                  : isNewlyAdded
-                                  ? 'bg-emerald-50 border-emerald-500 ring-2 ring-emerald-500/30 shadow-sm'
-                                  : 'bg-white border-slate-300 shadow-2xs hover:border-slate-400 hover:shadow-xs'
-                              }`}
-                            >
-                              {/* 🏷️ 1. الترويسة: الشارات على اليمين + أزرار تعديل وحذف على اليسار مصفوفة أفقياً */}
-                              <div className="flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap">
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                  {/* 🎖️ وسم تسلسل المحاضرة الأكاديمي الفصيح (المحاضرة الأولى، المحاضرة الثانية...) بتصميم كحلي ملكي راقٍ */}
-                                  <span className="px-2.5 py-1 rounded-lg text-xs font-black bg-[#0F2942] text-white border border-[#0F2942] flex items-center gap-1.5 shadow-2xs shrink-0">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-300 shrink-0" />
-                                    <span>{formatArabicOrdinalLectureName(idx + 1)}</span>
-                                  </span>
-                                  {/* نوع الدراسة موحد بلون أزرق أكاديمي */}
-                                  <span className="px-2 py-0.5 rounded-lg text-xs font-black bg-blue-50 text-blue-950 border border-blue-200 flex items-center gap-1 shadow-2xs">
-                                    {(lecItem.study_type || 'morning') === 'evening' ? (
-                                      <>
-                                        <Moon className="w-3.5 h-3.5 text-[#0F2942] shrink-0" />
-                                        <span>مسائي</span>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <Sun className="w-3.5 h-3.5 text-[#0F2942] shrink-0" />
-                                        <span>صباحي</span>
-                                      </>
-                                    )}
-                                  </span>
-
-                                  {/* طبيعة المحاضرة موحدة بلون أزرق أكاديمي */}
-                                  <span className="px-2 py-0.5 rounded-lg text-xs font-black bg-blue-50 text-blue-950 border border-blue-200 flex items-center gap-1 shadow-2xs">
-                                    {lecItem.type === 'practical' ? (
-                                      <>
-                                        <FlaskConical className="w-3.5 h-3.5 text-[#0F2942] shrink-0" />
-                                        <span>مختبر عملي</span>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <BookOpen className="w-3.5 h-3.5 text-[#0F2942] shrink-0" />
-                                        <span>محاضرة نظرية</span>
-                                      </>
-                                    )}
-                                  </span>
-
-                                  {/* رقم الأسبوع والتاريخ الأكاديمي الحقيقي موحد ومطابق ليوم وأسبوع المحاضرة بلون أزرق أكاديمي */}
-                                  {(() => {
-                                    const baseStart = currentScheduleConfig?.start_date || '2026-09-20';
-                                    const previewWeek = lecWeekNumber || selectedScheduleWeek;
-                                    const actualDate = lecItem.weekly_overrides?.[previewWeek]?.date
-                                      || lecItem.custom_weekly_dates?.[previewWeek]
-                                      || calculateDateForAnyDayInWeek(baseStart, 1, previewWeek, lecItem.day);
-
-                                    return (
-                                      <>
-                                        <span className="bg-blue-50 text-blue-950 px-2 py-0.5 rounded-lg border border-blue-200 text-xs font-black shadow-2xs">
-                                          الأسبوع {previewWeek}
-                                        </span>
-                                        {actualDate && (
-                                          <span className="bg-blue-50 text-blue-950 px-2 py-0.5 rounded-lg border border-blue-200 text-xs font-mono font-black shadow-2xs">
-                                            {actualDate}
-                                          </span>
-                                        )}
-                                      </>
-                                    );
-                                  })()}
-
-                                  {/* شارة قيد التعديل */}
-                                  {isEditingCurrent && (
-                                    <span className="px-2 py-0.5 bg-[#0F2942] text-white text-[11px] font-black rounded-lg shadow-xs flex items-center gap-1 animate-pulse">
-                                      <Edit3 className="w-3 h-3 text-cyan-300" />
-                                      <span>قيد التعديل</span>
-                                    </span>
-                                  )}
-
-                                  {/* شارة أضيفت للتو */}
-                                  {isNewlyAdded && (
-                                    <span className="px-2 py-0.5 bg-emerald-700 text-white text-[11px] font-black rounded-lg flex items-center gap-1 shadow-2xs">
-                                      <Check className="w-3.5 h-3.5 text-white shrink-0" />
-                                      <span>أُضيفت للتو</span>
-                                    </span>
-                                  )}
-                                </div>
-
-                                {/* 🛠️ أزرار التعديل والحذف: أفقية أنيقة متساوية الحجم */}
-                                <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleEditLecture(lecItem)}
-                                    className="flex items-center gap-1 px-3 py-1.5 bg-blue-100 hover:bg-[#0F2942] text-blue-950 hover:text-white border border-blue-300 hover:border-[#0F2942] rounded-xl text-xs font-black transition-all cursor-pointer shadow-2xs active:scale-95"
-                                    title="تعديل بيانات هذه المحاضرة"
-                                  >
-                                    <Edit3 className="w-3.5 h-3.5" />
-                                    <span>تعديل</span>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeleteLecture(lecItem.id)}
-                                    className="flex items-center gap-1 px-3 py-1.5 bg-rose-50 hover:bg-rose-600 text-rose-800 hover:text-white border border-rose-300 hover:border-rose-600 rounded-xl text-xs font-black transition-all cursor-pointer shadow-2xs active:scale-95"
-                                    title="حذف هذه المحاضرة من الجدول"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                    <span>حذف</span>
-                                  </button>
-                                </div>
-                              </div>
-
-                              {/* 📖 2. اسم المادة الأكاديمية: بخط بارز وكامل دون أي اقتطاع */}
-                              <div className="text-slate-950 font-black text-sm sm:text-base leading-snug">
-                                {lecItem.course_name}
-                              </div>
-
-                              {/* 🏛️ 3. شريط المعلومات: الوقت بسطر مستقل، وتحته القاعة والأستاذ بشكل ثابت واحترافي */}
-                              <div className="pt-2.5 border-t border-slate-100 space-y-2">
-                                {/* ⏱️ السطر الأول: باج التوقيت الأكاديمي الصريح بنظام 12 ساعة مع (ص) و (م) */}
-                                <div className="flex items-center">
-                                  {(() => {
-                                    const format12Hour = (timeStr: string): { time: string; period: 'ص' | 'م' } => {
-                                      if (!timeStr) return { time: '00:00', period: 'ص' };
-                                      const parts = timeStr.trim().split(':');
-                                      let h = parseInt(parts[0] || '0', 10);
-                                      const m = (parts[1] || '00').padStart(2, '0');
-                                      let period: 'ص' | 'م' = 'ص';
-                                      if (h === 12 || h === 0) period = 'م';
-                                      else if (h >= 13 && h <= 23) { period = 'م'; h -= 12; }
-                                      else if (h >= 1 && h <= 7) period = 'م';
-                                      else period = 'ص';
-                                      const hStr = h < 10 ? `0${h}` : `${h}`;
-                                      return { time: `${hStr}:${m}`, period };
-                                    };
-                                    const st12 = format12Hour(lecItem.start_time);
-                                    const et12 = format12Hour(lecItem.end_time);
-                                    return (
-                                      <div className="inline-flex items-center gap-1.5 bg-blue-50 text-blue-950 px-3 py-1 rounded-lg border border-blue-200 shadow-2xs select-none">
-                                        <Clock className="w-3.5 h-3.5 text-blue-800 shrink-0" />
-                                        <div className="inline-flex items-center gap-1 text-xs font-mono font-black" dir="rtl">
-                                          <span className="inline-flex items-center gap-1">
-                                            <span dir="ltr" className="font-mono font-bold tracking-tight">{st12.time}</span>
-                                            <span className="text-[10px] font-black text-blue-900 bg-blue-100/90 px-1 py-0.2 rounded border border-blue-200">{st12.period}</span>
-                                          </span>
-                                          <span className="text-blue-400 font-bold px-0.5 select-none leading-none">—</span>
-                                          <span className="inline-flex items-center gap-1">
-                                            <span dir="ltr" className="font-mono font-bold tracking-tight">{et12.time}</span>
-                                            <span className="text-[10px] font-black text-blue-900 bg-blue-100/90 px-1 py-0.2 rounded border border-blue-200">{et12.period}</span>
-                                          </span>
-                                        </div>
-                                      </div>
-                                    );
-                                  })()}
-                                </div>
-
-                                {/* 🏛️ السطر الثاني: القاعة والأستاذ جنباً إلى جنب أسفل التوقيت مباشرة بشكل موحد */}
-                                <div className="flex items-center gap-2 text-xs font-black text-blue-950 flex-wrap">
-                                  <span className="bg-blue-50 text-blue-950 px-2.5 py-1 rounded-lg border border-blue-200 shadow-2xs flex items-center gap-1">
-                                    <span>القاعة:</span>
-                                    <strong className="text-blue-950 font-black">{lecItem.room || 'غير محددة'}</strong>
-                                  </span>
-                                  {lecItem.teacher_name && (
-                                    <span className="bg-blue-50 text-blue-950 px-2.5 py-1 rounded-lg border border-blue-200 shadow-2xs flex items-center gap-1">
-                                      <span>الأستاذ:</span>
-                                      <strong className="text-blue-950 font-black">{lecItem.teacher_name}</strong>
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                </div>
+                {/* 📊 العمود الأيسر (الرصد الذكي + كاشف التعارضات + محاضرات اليوم) عبر المكون المستقل */}
+                <LectureConflictSection
+                  lecDay={lecDay}
+                  lecStartTime={lecStartTime}
+                  lecEndTime={lecEndTime}
+                  currentLecConflicts={currentLecConflicts}
+                  scheduleLectures={scheduleLectures}
+                  selectedScheduleStage={selectedScheduleStage}
+                  selectedScheduleSemester={selectedScheduleSemester}
+                  lecStudyType={lecStudyType}
+                  lecWeekNumber={lecWeekNumber}
+                  selectedScheduleWeek={selectedScheduleWeek}
+                  editingLectureId={editingLectureId}
+                  recentlyAddedLectureId={recentlyAddedLectureId}
+                  currentScheduleConfig={currentScheduleConfig}
+                  lecListContainerRef={lecListContainerRef}
+                  isLectureInCurrentDept={isLectureInCurrentDept}
+                  handleEditLecture={handleEditLecture}
+                  handleDeleteLecture={handleDeleteLecture}
+                />
               </div>
             </div>
           </FloatingCrudModal>

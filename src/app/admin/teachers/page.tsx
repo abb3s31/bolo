@@ -17,6 +17,10 @@ import {
   syncTeacherCoursesFromSupabase,
   saveCourseToSupabase // ☁️ حفظ ومزامنة المادة سحابياً بعد فك الارتباط بالأستاذ
 } from '@/lib/supabase-client'; // 🔌 فحص الجلسة ودوال المزامنة السحابية المباشرة
+import { AdminTeacherAddModal } from '@/components/admin/teachers/AdminTeacherAddModal'; // 📝 مودال إضافة أستاذ جديد
+import { AdminTeacherEditModal } from '@/components/admin/teachers/AdminTeacherEditModal'; // ✏️ مودال تعديل بيانات الأستاذ
+import { AdminTeacherPrintModal } from '@/components/admin/teachers/AdminTeacherPrintModal'; // 🖨️ مودال معاينة وطباعة بطاقات الأساتذة
+import { AdminTeacherImportReportModal } from '@/components/admin/teachers/AdminTeacherImportReportModal'; // 📊 مودال تقرير استيراد الإكسل
 import FloatingCrudModal from '@/components/FloatingCrudModal'; // 📦 المكون العائم الفاخر للـ CRUD
 import ConfirmDeleteModal from '@/components/ConfirmDeleteModal'; // 🗑️ كارد الحذف الاحترافي الفاخر
 import { AcademicPasswordStrengthBox } from '@/components/AcademicPasswordStrengthBox'; // 🛡️ صندوق معايير كلمة المرور الموحد
@@ -853,455 +857,58 @@ export default function AdminTeachersPage() {
         </div>
       )}
 
-      {/* 📝 1. كارت إضافة أستاذ جديد عائم فوق الصفحة (Floating Create Modal) */}
-      <FloatingCrudModal
-        isOpen={showAddModal}
-        onClose={() => {
-          setShowAddModal(false);
-          setShowTeacherPassword(false);
-        }}
-        title="إضافة أستاذ جديد وتوليد بياناته الموثقة"
-        subtitle="سيتم حفظ البريد المعقد والرمز العشوائي وتزامنهما فوراً بقاعدة البيانات"
-        icon={<Plus className="w-6 h-6" />}
-        onSubmit={handleAddTeacher}
-        footer={
-          <>
-            <button
-              type="button"
-              onClick={() => {
-                setShowAddModal(false);
-                setShowTeacherPassword(false);
-              }}
-              className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-950 font-black rounded-xl text-sm cursor-pointer border border-slate-300"
-            >
-              إلغاء
-            </button>
-            <button
-              type="submit"
-              className="px-6 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black rounded-xl text-sm shadow-md cursor-pointer border border-[#1e4570] active:scale-95"
-            >
-              حفظ الأستاذ وتوليد البطاقة
-            </button>
-          </>
-        }
-      >
-        <div className="space-y-4 text-sm font-black">
-          {addTeacherError && (
-            <div className="p-3 bg-rose-50 border border-rose-200 text-rose-900 rounded-xl text-xs font-black flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-              <span>{addTeacherError}</span>
-            </div>
-          )}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-slate-950 mb-1.5 font-black text-sm">الاسم الكامل للأستاذ</label>
-              <input
-                type="text"
-                required
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder="د. أحمد فاضل المحمداوي"
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-slate-950 font-black text-sm placeholder:text-slate-700 focus:border-indigo-600 focus:outline-none"
-              />
-            </div>
-            <div className="relative" ref={addDeptDropdownRef}>
-              <label className="block text-slate-950 mb-1.5 font-black text-sm">القسم العلمي</label>
-              <button
-                type="button"
-                onClick={() => setIsAddDeptDropdownOpen(!isAddDeptDropdownOpen)}
-                className={`w-full px-4 py-3 bg-slate-50 hover:bg-slate-100 border-2 rounded-xl text-slate-950 font-black text-sm flex items-center justify-between transition cursor-pointer ${
-                  isAddDeptDropdownOpen ? 'border-indigo-600 ring-2 ring-indigo-500/20' : 'border-slate-300 hover:border-slate-400'
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <Building2 className="w-4 h-4 text-indigo-700 shrink-0" />
-                  <span>{departments.find((d) => d.id === selectedDeptId)?.name || 'اختر قسماً'}</span>
-                </div>
-                <ChevronDown className={`w-4 h-4 text-slate-700 transition-transform ${isAddDeptDropdownOpen ? 'rotate-180' : ''}`} />
-              </button>
+      {/* 📝 1. مودال إضافة أستاذ جديد عبر المكون المستقل */}
+      <AdminTeacherAddModal
+        showAddModal={showAddModal}
+        setShowAddModal={setShowAddModal}
+        handleAddTeacher={handleAddTeacher}
+        addTeacherError={addTeacherError}
+        setAddTeacherError={setAddTeacherError}
+        fullName={fullName}
+        setFullName={setFullName}
+        teacherGender={teacherGender}
+        setTeacherGender={setTeacherGender}
+        selectedDeptId={selectedDeptId}
+        setSelectedDeptId={setSelectedDeptId}
+        departments={departments}
+        customTeacherEmail={customTeacherEmail}
+        setCustomTeacherEmail={setCustomTeacherEmail}
+        customTeacherPassword={customTeacherPassword}
+        setCustomTeacherPassword={setCustomTeacherPassword}
+        showTeacherPassword={showTeacherPassword}
+        setShowTeacherPassword={setShowTeacherPassword}
+        isAddDeptDropdownOpen={isAddDeptDropdownOpen}
+        setIsAddDeptDropdownOpen={setIsAddDeptDropdownOpen}
+        addDeptDropdownRef={addDeptDropdownRef}
+        courses={courses}
+        selectedCourseIds={selectedCourseIds}
+        setSelectedCourseIds={setSelectedCourseIds}
+        profiles={profiles}
+      />
 
-              {isAddDeptDropdownOpen && (
-                <div className="absolute top-full left-0 right-0 mt-2 bg-white border-2 border-slate-300 rounded-xl shadow-2xl z-50 p-1.5 space-y-1 max-h-56 overflow-y-auto animate-in fade-in zoom-in-95 duration-150 text-right">
-                  {departments.map((d) => {
-                    const isSelected = selectedDeptId === d.id;
-                    return (
-                      <button
-                        key={d.id}
-                        type="button"
-                        onClick={() => {
-                          setSelectedDeptId(d.id);
-                          setIsAddDeptDropdownOpen(false);
-                        }}
-                        className={`w-full p-2.5 rounded-lg text-right font-black text-xs sm:text-sm transition flex items-center justify-between cursor-pointer ${
-                          isSelected ? 'bg-indigo-50 text-indigo-950 border border-indigo-300' : 'text-slate-900 hover:bg-slate-100'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <Building2 className="w-4 h-4 text-slate-700 shrink-0" />
-                          <span>{d.name}</span>
-                        </div>
-                        {isSelected && <Check className="w-4 h-4 text-indigo-700" />}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-slate-950 font-black text-sm">الجنس (النوع) *</label>
-                <span className={`text-[11px] font-black px-2 py-0.5 rounded-lg border flex items-center gap-1 transition-all ${
-                  teacherGender === null
-                    ? 'bg-rose-50 text-rose-800 border-rose-200'
-                    : 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                }`}>
-                  {teacherGender === null ? (
-                    <>
-                      <AlertCircle className="w-3 h-3 text-rose-600 shrink-0" />
-                      <span>غير محدد</span>
-                    </>
-                  ) : (
-                    <>
-                      <Check className="w-3 h-3 text-emerald-600 shrink-0" />
-                      <span>{teacherGender === 'male' ? 'ذكر (أستاذ)' : 'أنثى (أستاذة)'}</span>
-                    </>
-                  )}
-                </span>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setTeacherGender('male')}
-                  className={`py-2.5 px-2 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-1 cursor-pointer border ${
-                    teacherGender === 'male'
-                      ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-xs'
-                      : 'bg-slate-50 text-slate-800 border-slate-300 hover:bg-slate-100'
-                  }`}
-                >
-                  <span>ذكر (أستاذ)</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTeacherGender('female')}
-                  className={`py-2.5 px-2 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-1 cursor-pointer border ${
-                    teacherGender === 'female'
-                      ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-xs'
-                      : 'bg-slate-50 text-slate-800 border-slate-300 hover:bg-slate-100'
-                  }`}
-                >
-                  <span>أنثى (أستاذة)</span>
-                </button>
-              </div>
-              {teacherGender === null && (
-                <p className="text-xs font-bold text-rose-600 flex items-center gap-1 mt-1">
-                  <AlertCircle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
-                  <span>يرجى النقر لاختيار جنس الأستاذ (ذكر أو أنثى)</span>
-                </p>
-              )}
-            </div>
-          </div>
-
-          {/* ✉️ البريد والرمز السري مع أزرار التوليد المنفصلة */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <div className="flex items-center justify-between mb-1.5 gap-2">
-                <label className="block text-slate-950 font-black text-sm">البريد الأكاديمي (اختياري)</label>
-                <button
-                  type="button"
-                  onClick={() => setCustomTeacherEmail(generateStrongUniqueEmail('dr', profiles))}
-                  className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-950 border border-indigo-200 rounded-lg text-xs font-black flex items-center gap-1.5 transition cursor-pointer active:scale-95 shadow-2xs"
-                  title="توليد بريد أكاديمي رسمي فريد للأستاذ"
-                >
-                  <RefreshCw className="w-3.5 h-3.5 text-indigo-700" />
-                  <span>توليد بريد فريد</span>
-                </button>
-              </div>
-              <input
-                type="text"
-                value={customTeacherEmail}
-                onChange={(e) => {
-                  setCustomTeacherEmail(e.target.value);
-                  setAddTeacherError('');
-                }}
-                placeholder="اتركه فارغاً للتوليد التلقائي أو اضغط الزر"
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-slate-950 font-black text-sm placeholder:text-slate-600 focus:border-indigo-600 focus:outline-none"
-                dir="ltr"
-              />
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-1.5 gap-2">
-                <label className="block text-slate-950 font-black text-sm">الرمز السري / كلمة المرور (اختياري)</label>
-                <button
-                  type="button"
-                  onClick={() => setCustomTeacherPassword(generateStrongPassword(profiles))}
-                  className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-950 border border-emerald-200 rounded-lg text-xs font-black flex items-center gap-1.5 transition cursor-pointer active:scale-95 shadow-2xs"
-                  title="توليد رمز سري عشوائي قوي جداً وغير مكرر نهائياً"
-                >
-                  <RefreshCw className="w-3.5 h-3.5 text-emerald-700" />
-                  <span>توليد رمز عشوائي قوي</span>
-                </button>
-              </div>
-              <div className="relative">
-                {/* 🔑 حقل كلمة المرور بنجوم افتراضية للأمان وحشوة للأيقونة */}
-                <input
-                  type={showTeacherPassword ? 'text' : 'password'}
-                  value={customTeacherPassword}
-                  onChange={(e) => setCustomTeacherPassword(e.target.value)}
-                  placeholder="اتركه فارغاً للتوليد التلقائي أو اضغط الزر"
-                  className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-slate-950 font-black text-sm placeholder:text-slate-600 focus:border-indigo-600 focus:outline-none"
-                  dir="ltr"
-                />
-                {/* 👁️ زر إظهار وإخفاء الرمز السري بأيقونة SVG نقية */}
-                <button
-                  type="button"
-                  onClick={() => setShowTeacherPassword((prev) => !prev)}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-950 p-1.5 rounded-lg hover:bg-slate-200/70 transition cursor-pointer flex items-center justify-center"
-                  title={showTeacherPassword ? 'إخفاء الرمز السري' : 'إظهار الرمز السري'}
-                  aria-label={showTeacherPassword ? 'إخفاء الرمز السري' : 'إظهار الرمز السري'}
-                >
-                  {showTeacherPassword ? (
-                    <EyeOff className="w-5 h-5 text-slate-700" />
-                  ) : (
-                    <Eye className="w-5 h-5 text-slate-700" />
-                  )}
-                </button>
-              </div>
-            </div>
-
-            {/* ⚠️ شريط تنبيه فرادة البريد يمتد بكامل عرض الكارد بحجم خط متوسط وأيقونة SVG نقية */}
-            {customTeacherEmail.trim() && !checkEmailUniquenessAcrossSystem(customTeacherEmail, undefined, profiles).isUnique && (
-              <div className="col-span-1 md:col-span-2 p-3 sm:p-3.5 bg-rose-50 border-2 border-rose-300 rounded-2xl flex items-center gap-3 text-rose-950 shadow-xs animate-in fade-in duration-200">
-                <div className="p-2 bg-rose-200/70 text-rose-700 rounded-xl shrink-0">
-                  <AlertCircle className="w-5 h-5" />
-                </div>
-                <p className="text-xs sm:text-sm font-black text-rose-950 leading-relaxed">
-                  {checkEmailUniquenessAcrossSystem(customTeacherEmail, undefined, profiles).errorMessage}
-                </p>
-              </div>
-            )}
-
-            {/* 🛡️ صندوق معايير وشروط كلمة المرور الأكاديمية التفاعلي الموحد */}
-            {customTeacherPassword && (
-              <div className="col-span-1 md:col-span-2">
-                <AcademicPasswordStrengthBox password={customTeacherPassword} />
-              </div>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-slate-950 mb-2 font-black text-sm">تحديد المواد المكلف بها الأستاذ:</label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-44 overflow-y-auto p-3 bg-slate-50 rounded-xl border border-slate-300">
-              {courses.map((c) => (
-                <label key={c.id} className="p-3 bg-white rounded-lg border border-slate-300 flex items-center gap-2.5 text-slate-950 font-black cursor-pointer hover:border-slate-950 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={selectedCourseIds.includes(c.id)}
-                    onChange={(e) => {
-                      if (e.target.checked) setSelectedCourseIds([...selectedCourseIds, c.id]);
-                      else setSelectedCourseIds(selectedCourseIds.filter((id) => id !== c.id));
-                    }}
-                    className="rounded accent-slate-900 w-4 h-4"
-                  />
-                  <span>{c.name} ({c.department_name})</span>
-                </label>
-              ))}
-            </div>
-          </div>
-
-        </div>
-      </FloatingCrudModal>
-
-      {/* ✏️ 2. كارت تعديل بيانات أستاذ عائم فوق الصفحة (Floating Update Modal) */}
-      <FloatingCrudModal
-        isOpen={!!editingTeacher}
-        onClose={() => setEditingTeacher(null)}
-        title="تعديل حساب وبريد ورمز الأستاذ"
-        subtitle="تعديل البريد والرمز والقسم المعتمد وحفظ البيانات مباشرة في قاعدة البيانات"
-        icon={<Edit3 className="w-6 h-6" />}
-        onSubmit={handleSaveTeacherEdit}
-        footer={
-          <>
-            <button
-              type="button"
-              onClick={() => setEditingTeacher(null)}
-              className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-950 font-black rounded-xl text-sm cursor-pointer border border-slate-300"
-            >
-              إلغاء
-            </button>
-            <button
-              type="submit"
-              className="px-6 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black rounded-xl text-sm shadow-md cursor-pointer border border-[#1e4570] active:scale-95"
-            >
-              حفظ وتثبيت التعديلات
-            </button>
-          </>
-        }
-      >
-        <div className="space-y-4 text-sm font-black">
-          {editTeacherError && (
-            <div className="p-3 bg-rose-50 border border-rose-200 text-rose-900 rounded-xl text-xs font-black flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-              <span>{editTeacherError}</span>
-            </div>
-          )}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-slate-950 mb-1.5 font-black text-sm">الاسم الكامل للأستاذ</label>
-              <input
-                type="text"
-                required
-                value={editName}
-                onChange={(e) => setEditName(e.target.value)}
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl font-black text-slate-950 text-sm focus:border-indigo-600 focus:outline-none"
-              />
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-1.5 gap-2">
-                <label className="block text-slate-950 font-black text-sm">البريد الأكاديمي</label>
-                <button
-                  type="button"
-                  onClick={() => setEditEmail(generateStrongUniqueEmail('dr', profiles))}
-                  className="px-2 py-0.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-950 border border-indigo-200 rounded-md text-xs font-black flex items-center gap-1 transition cursor-pointer"
-                  title="توليد بريد أكاديمي جديد غير مكرر"
-                >
-                  <RefreshCw className="w-3 h-3 text-indigo-700" />
-                  <span>توليد بريد فريد</span>
-                </button>
-              </div>
-              <input
-                type="text"
-                required
-                value={editEmail}
-                onChange={(e) => {
-                  setEditEmail(e.target.value);
-                  setEditTeacherError('');
-                }}
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl font-black text-slate-950 text-sm focus:border-indigo-600 focus:outline-none"
-                dir="ltr"
-              />
-            </div>
-
-            <div>
-              <label className="block text-slate-950 mb-1.5 font-black text-sm">الجنس (النوع)</label>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setEditGender('male')}
-                  className={`py-2.5 px-2 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-1 cursor-pointer border ${
-                    editGender === 'male'
-                      ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-xs'
-                      : 'bg-slate-50 text-slate-800 border-slate-300 hover:bg-slate-100'
-                  }`}
-                >
-                  <span>ذكر (أستاذ)</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEditGender('female')}
-                  className={`py-2.5 px-2 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-1 cursor-pointer border ${
-                    editGender === 'female'
-                      ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-xs'
-                      : 'bg-slate-50 text-slate-800 border-slate-300 hover:bg-slate-100'
-                  }`}
-                >
-                  <span>أنثى (أستاذة)</span>
-                </button>
-              </div>
-            </div>
-
-            {/* ⚠️ شريط تنبيه فرادة البريد يمتد بكامل عرض الكارد بحجم خط متوسط وأيقونة SVG نقية */}
-            {editEmail.trim() && editingTeacher && !checkEmailUniquenessAcrossSystem(editEmail, editingTeacher.id, profiles).isUnique && (
-              <div className="col-span-1 md:col-span-3 p-3 sm:p-3.5 bg-rose-50 border-2 border-rose-300 rounded-2xl flex items-center gap-3 text-rose-950 shadow-xs animate-in fade-in duration-200">
-                <div className="p-2 bg-rose-200/70 text-rose-700 rounded-xl shrink-0">
-                  <AlertCircle className="w-5 h-5" />
-                </div>
-                <p className="text-xs sm:text-sm font-black text-rose-950 leading-relaxed">
-                  {checkEmailUniquenessAcrossSystem(editEmail, editingTeacher.id, profiles).errorMessage}
-                </p>
-              </div>
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <div className="flex items-center justify-between mb-1.5 gap-2">
-                <label className="block text-slate-950 font-black text-sm">رمز الدخول / كلمة المرور</label>
-                <button
-                  type="button"
-                  onClick={() => setEditPassword(generateStrongPassword(profiles))}
-                  className="px-2 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-950 border border-emerald-200 rounded-md text-xs font-black flex items-center gap-1 transition cursor-pointer"
-                  title="توليد رمز سري قوي عشوائي جديد غير مكرر"
-                >
-                  <RefreshCw className="w-3 h-3 text-emerald-700" />
-                  <span>توليد رمز عشوائي قوي</span>
-                </button>
-              </div>
-              <input
-                type="text"
-                required
-                value={editPassword}
-                onChange={(e) => setEditPassword(e.target.value)}
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl font-black text-slate-950 text-sm focus:border-indigo-600 focus:outline-none"
-                dir="ltr"
-              />
-            </div>
-
-            <div className="relative" ref={editDeptDropdownRef}>
-              <label className="block text-slate-950 mb-1.5 font-black text-sm">القسم العلمي</label>
-              <button
-                type="button"
-                onClick={() => setIsEditDeptDropdownOpen(!isEditDeptDropdownOpen)}
-                className={`w-full px-4 py-3 bg-slate-50 hover:bg-slate-100 border-2 rounded-xl text-slate-950 font-black text-sm flex items-center justify-between transition cursor-pointer ${
-                  isEditDeptDropdownOpen ? 'border-indigo-600 ring-2 ring-indigo-500/20' : 'border-slate-300 hover:border-slate-400'
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <Building2 className="w-4 h-4 text-indigo-700 shrink-0" />
-                  <span>{departments.find((d) => d.id === editDeptId)?.name || 'اختر قسماً'}</span>
-                </div>
-                <ChevronDown className={`w-4 h-4 text-slate-700 transition-transform ${isEditDeptDropdownOpen ? 'rotate-180' : ''}`} />
-              </button>
-
-              {isEditDeptDropdownOpen && (
-                <div className="absolute top-full left-0 right-0 mt-2 bg-white border-2 border-slate-300 rounded-xl shadow-2xl z-50 p-1.5 space-y-1 max-h-56 overflow-y-auto animate-in fade-in zoom-in-95 duration-150 text-right">
-                  {departments.map((d) => {
-                    const isSelected = editDeptId === d.id;
-                    return (
-                      <button
-                        key={d.id}
-                        type="button"
-                        onClick={() => {
-                          setEditDeptId(d.id);
-                          setIsEditDeptDropdownOpen(false);
-                        }}
-                        className={`w-full p-2.5 rounded-lg text-right font-black text-xs sm:text-sm transition flex items-center justify-between cursor-pointer ${
-                          isSelected ? 'bg-indigo-50 text-indigo-950 border border-indigo-300' : 'text-slate-900 hover:bg-slate-100'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <Building2 className="w-4 h-4 text-slate-700 shrink-0" />
-                          <span>{d.name}</span>
-                        </div>
-                        {isSelected && <Check className="w-4 h-4 text-indigo-700" />}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* 🛡️ صندوق معايير وشروط كلمة المرور الأكاديمية التفاعلي الموحد */}
-            {editPassword && (
-              <div className="col-span-1 md:col-span-2">
-                <AcademicPasswordStrengthBox password={editPassword} />
-              </div>
-            )}
-          </div>
-
-        </div>
-      </FloatingCrudModal>
+      {/* ✏️ 2. مودال تعديل بيانات وحساب الأستاذ عبر المكون المستقل */}
+      <AdminTeacherEditModal
+        editingTeacher={editingTeacher}
+        setEditingTeacher={setEditingTeacher}
+        handleSaveTeacherEdit={handleSaveTeacherEdit}
+        editTeacherError={editTeacherError}
+        setEditTeacherError={setEditTeacherError}
+        editName={editName}
+        setEditName={setEditName}
+        editGender={editGender}
+        setEditGender={setEditGender}
+        editEmail={editEmail}
+        setEditEmail={setEditEmail}
+        editPassword={editPassword}
+        setEditPassword={setEditPassword}
+        editDeptId={editDeptId}
+        setEditDeptId={setEditDeptId}
+        departments={departments}
+        isEditDeptDropdownOpen={isEditDeptDropdownOpen}
+        setIsEditDeptDropdownOpen={setIsEditDeptDropdownOpen}
+        editDeptDropdownRef={editDeptDropdownRef}
+        profiles={profiles}
+      />
 
       {/* 🗑️ 3. كارد تأكيد حذف أستاذ احترافي فاخر (ConfirmDeleteModal) */}
       <ConfirmDeleteModal
@@ -1326,383 +933,25 @@ export default function AdminTeachersPage() {
         onConfirm={confirmBulkDeleteTeachers}
       />
 
-      {/* 🖨️ 4. كارت الطباعة الجماعية (10 بطاقات بالورقة الواحدة A4 بنظام الشبكة 2x5) للأساتذة */}
-      {showBatchPrintModal && isMounted && typeof document !== 'undefined' && createPortal((() => {
-        const teacherProfiles = profiles.filter((p) => p.role === 'teacher');
-        let printList = singlePrintTeacher
-          ? [singlePrintTeacher]
-          : (selectedTeacherIds.length > 0
-              ? teacherProfiles.filter((t) => selectedTeacherIds.includes(t.id))
-              : [...teacherProfiles]);
+      {/* 🖨️ 4. كارت الطباعة والمعاينة لبطاقات الاعتماد عبر المكون المستقل */}
+      <AdminTeacherPrintModal
+        showBatchPrintModal={showBatchPrintModal}
+        setShowBatchPrintModal={setShowBatchPrintModal}
+        isMounted={isMounted}
+        profiles={profiles}
+        singlePrintTeacher={singlePrintTeacher}
+        setSinglePrintTeacher={setSinglePrintTeacher}
+        selectedTeacherIds={selectedTeacherIds}
+        departments={departments}
+      />
 
-        printList.sort((a, b) => a.full_name.localeCompare(b.full_name, 'ar'));
-
-        return (
-          <div 
-            id="printable-modal-portal"
-            className="fixed inset-0 top-0 left-0 right-0 bottom-0 w-screen h-screen min-h-[100dvh] z-[999999] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 overflow-hidden print:p-0 print:static print:bg-white print:backdrop-blur-none print:w-full print:h-auto print:min-h-0 print:overflow-visible print:block" 
-            dir="rtl"
-          >
-            <div className="bg-white border-2 border-slate-400 rounded-3xl w-full max-w-7xl max-h-[94vh] shadow-2xl flex flex-col relative overflow-hidden text-right print:max-h-none print:shadow-none print:border-none print:w-full print:rounded-none print:overflow-visible print:static print:block print:h-auto">
-              
-              {/* شريط الأدوات العلوي */}
-              <div className="p-4 sm:p-5 border-b-2 border-slate-300 bg-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0 z-10 print:hidden no-print">
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 bg-[#0F2942] text-cyan-300 rounded-2xl shadow-xs">
-                    <Printer className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h3 className="text-base sm:text-lg font-black text-black flex items-center gap-2">
-                      <span>معاينة وطباعة بطاقات اعتماد الأساتذة</span>
-                      <span className="px-3 py-1 rounded-full bg-slate-200 text-black text-xs font-black border border-slate-300 whitespace-nowrap shrink-0 inline-block">
-                        {printList.length} بطاقة (10 بطاقات بالورقة الواحدة A4)
-                      </span>
-                    </h3>
-                    <p className="text-xs sm:text-sm font-black text-black">
-                      شبكة ثنائية 2x5 فائقة الكفاءة ومضغوطة لتوفير استهلاك الأوراق
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-3">
-                  {singlePrintTeacher && (
-                    <button
-                      type="button"
-                      onClick={() => setSinglePrintTeacher(null)}
-                      className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-black border border-slate-300 rounded-2xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center gap-2"
-                    >
-                      <RefreshCw className="w-4 h-4 text-black" />
-                      <span>عرض كافة الأساتذة ({teacherProfiles.length})</span>
-                    </button>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={() => window.print()}
-                    disabled={printList.length === 0}
-                    className="px-5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] disabled:bg-slate-300 text-white rounded-2xl text-xs sm:text-sm font-black transition flex items-center gap-2 shadow-xs cursor-pointer border border-[#1e4570] active:scale-95"
-                  >
-                    <Printer className="w-4 h-4 text-cyan-300" />
-                    <span>طباعة الآن ({printList.length})</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowBatchPrintModal(false);
-                      setSinglePrintTeacher(null);
-                    }}
-                    className="p-2.5 bg-slate-200 hover:bg-slate-300 text-black rounded-2xl transition cursor-pointer border border-slate-300"
-                    title="إغلاق"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-
-              {/* منطقة الطباعة بنظام الشبكة 2 عمود × 4 صفوف */}
-              <div className="p-3 sm:p-5 overflow-y-auto flex-1 overscroll-contain printable-batch-area bg-slate-100 print:bg-white print:p-0 print:overflow-visible print:static print:block print:h-auto">
-                {printList.length === 0 ? (
-                  <div className="p-12 text-center bg-white rounded-3xl border-2 border-slate-300 space-y-3 my-6">
-                    <AlertCircle className="w-10 h-10 text-indigo-950 mx-auto" />
-                    <p className="text-base font-black text-black">لا يوجد أساتذة محددين للطباعة حالياً.</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 print:grid-cols-2 print:gap-1 w-full cards-grid-8 max-w-5xl mx-auto">
-                    {printList.map((teacher: UserProfile, index: number) => {
-                      const isFemale = (teacher.gender || detectArabicGender(teacher.full_name)) === 'female';
-                      const roleTitle = isFemale ? 'أستاذة جامعية' : 'أستاذ جامعي';
-                      const currentOrigin = typeof window !== 'undefined' && window.location.origin ? window.location.origin : 'http://192.168.0.185:3000';
-                      const loginPortalUrl = `${currentOrigin}/teacher`;
-                      const loginPortalCleanUrl = loginPortalUrl.replace(/^https?:\/\//, '');
-                      const deptName = teacher.department_name || departments.find((d) => d.id === teacher.department_id)?.name || 'القسم العام';
-
-                      return (
-                        <div
-                          key={teacher.id || index} // 🔑 مفتاح فريد لكل كارد أستاذ بالرندر
-                          className="bg-white border border-slate-400 rounded-xl p-2 print:p-1.5 shadow-xs break-inside-avoid print:break-inside-avoid print:border print:border-slate-500 print:rounded-lg print:shadow-none w-full flex flex-col justify-between card-item-8" // 🗂️ حاوية الكارد الأكاديمي بارتفاع 52 ملم تملأ الورقة بالكامل بدون فراغات زائدة
-                        >
-                          {/* 🏛️ 1. ترويسة الكارد الرسمية: الشعار وعنوان الجامعة وفرع ميسان وشارة التدريسي بخطوط سوداء فاحمة وواضحة */}
-                          <div className="flex items-center justify-between border-b border-slate-300 pb-1 print:pb-0.5"> {/* 📐 حاوية الترويسة مع خط فاصل داكن */}
-                            <div className="flex items-center gap-1.5 overflow-hidden"> {/* 🏢 مجمع الشعار والعناوين الرسمية */}
-                              {/* شعار الجامعة الرسمي بجودة واضحة وبحجم مدمج */}
-                              <div className="relative w-8 h-8 print:w-7 print:h-7 flex-shrink-0"> {/* 🖼️ إطار أبعاد الشعار الرسمي */}
-                                <Image // 🖼️ مكون صورة الشعار
-                                  src="/logo.webp" // 📍 مسار الشعار المعتمد
-                                  alt="شعار جامعة الصادق" // 🏷️ نص بديل لأغراض الوصولية
-                                  width={32} // 📏 العرض بالبكسل
-                                  height={32} // 📏 الارتفاع بالبكسل
-                                  className="object-contain" // 🎨 احتواء الصورة بالكامل بدون تشويه
-                                  priority // ⚡ تحميل سريع وفوري
-                                  unoptimized // 🚀 بدون تحسين إضافي للملفات المحلية
-                                />
-                              </div>
-                              {/* العناوين الرسمية لجامعة الإمام الصادق ومسار بولونيا وفرع ميسان بخط أسود بارز ومقروء */}
-                              <div className="flex flex-col justify-center leading-none min-w-0"> {/* 📝 نصوص اسم الجامعة والوزارة */}
-                                <h4 className="text-xs print:text-[11px] font-black text-black whitespace-nowrap leading-tight"> {/* 🏛️ اسم الجامعة وفرع ميسان بلون أسود عريض وواضح */}
-                                  جامعة الإمام جعفر الصادق (ع) — فرع ميسان
-                                </h4>
-                                <p className="text-[10px] print:text-[9.5px] text-black font-extrabold whitespace-nowrap leading-tight mt-0.5"> {/* 📜 اسم الوزارة والمسار بخط أسود بارز */}
-                                  وزارة التعليم العالي والبحث العلمي — مسار بولونيا
-                                </p>
-                              </div>
-                            </div>
-                            {/* شارة الهوية الرسمية للأستاذ أو الأستاذة بخط أسود بارز ومحاط بإطار أنيق */}
-                            <span className="px-2 py-0.5 rounded-md bg-white text-black text-[10px] print:text-[9.5px] font-black border border-slate-300 whitespace-nowrap shrink-0 shadow-2xs"> {/* 🏷️ باج الهوية الأكاديمية */}
-                              {roleTitle}
-                            </span>
-                          </div>
-
-                          {/* 👤 2. شريط هوية الأستاذ والقسم التابع إله بخطوط سوداء عريضة */}
-                          <div className="flex items-center justify-between gap-2 py-0.5 px-0.5"> {/* 📌 حاوية اسم التدريسي والقسم العلمي بتنسيق ممتلئ وأنيق */}
-                            <div className="flex items-center gap-1.5 overflow-hidden"> {/* 🏷️ أيقونة واسم الأستاذ */}
-                              <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center shrink-0 border border-slate-300"> {/* ⭕ دائرة أيقونة المستخدم */}
-                                <User className="w-3 h-3 text-[#0F2942]" /> {/* 👤 أيقونة الأستاذ باللون النيلي */}
-                              </div>
-                              <span className="text-sm print:text-[12px] font-black text-black truncate"> {/* ✍️ الاسم الكامل للتدريسي بخط أسود كبير وواضح */}
-                                {teacher.full_name}
-                              </span>
-                            </div>
-                            <span className="text-[10.5px] print:text-[10px] font-black text-black bg-white px-2 py-0.5 rounded-md border border-slate-300 whitespace-nowrap shrink-0 shadow-2xs"> {/* 🏢 اسم القسم العلمي بخط أسود عريض */}
-                              {deptName}
-                            </span>
-                          </div>
-
-                          {/* 🔐 3. شبكة بيانات الدخول (ألوان موحدة وخانات بيضاء نقية بخطوط سوداء فاحمة) */}
-                          <div className="grid grid-cols-2 gap-1.5 print:gap-1 my-0.5"> {/* 🔲 شبكة بعمودين متوازيين للبيانات بتصميم متوحد ونظيف */}
-                            {/* صندوق البريد الإلكتروني الأكاديمي بخانة بيضاء نقية مثل الرمز السري تماماً */}
-                            <div className="bg-slate-50 border border-slate-300 rounded-md p-1.5 flex flex-col justify-center"> {/* ✉️ بوكس الإيميل الأكاديمي الموحد بحشوة متناسقة */}
-                              <div className="flex items-center gap-1 text-[10px] print:text-[9.5px] font-black text-black mb-1"> {/* 🏷️ عنوان حقل الإيميل بخط أسود بارز */}
-                                <Mail className="w-3 h-3 text-[#0F2942] shrink-0" /> {/* ✉️ أيقونة البريد بلون نيلي موحد */}
-                                <span>البريد الأكاديمي</span>
-                              </div>
-                              <div className="font-mono text-[10.5px] print:text-[10px] font-black text-black truncate text-center select-all bg-white py-1 px-1.5 rounded border border-slate-300 shadow-2xs" dir="ltr"> {/* 🔤 خانة البريد بيضاء نقية ومحاطة بإطار أنيق مريح */}
-                                {teacher.generated_email}
-                              </div>
-                            </div>
-
-                            {/* صندوق الرمز السري المؤقت بتصميم موحد تماماً مع صندوق البريد بخط أسود */}
-                            <div className="bg-slate-50 border border-slate-300 rounded-md p-1.5 flex flex-col justify-center"> {/* 🔑 بوكس كلمة المرور موحد بلون متناسق وبدون أخضر */}
-                              <div className="flex items-center gap-1 text-[10px] print:text-[9.5px] font-black text-black mb-1"> {/* 🏷️ عنوان حقل كلمة السر بخط أسود بارز */}
-                                <KeyRound className="w-3 h-3 text-[#0F2942] shrink-0" /> {/* 🔑 أيقونة المفتاح بلون نيلي موحد */}
-                                <span>كلمة المرور المؤقتة</span>
-                              </div>
-                              <div className="font-mono text-[12px] print:text-[11px] font-black tracking-widest text-black truncate text-center select-all bg-white py-1 px-1.5 rounded border border-slate-300 shadow-2xs" dir="ltr"> {/* 🔢 خانة الباسورد بيضاء نقية بخط أسود عريض ومتباعد */}
-                                {teacher.temp_password || '********'}
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* 🌐 4. رابط المنصة المباشر بحجم خط مطابق لاسم الأستاذ بدون توقيع المستلم وبخط أسود فاحم */}
-                          <div className="flex items-center justify-center border-t border-slate-300 pt-1.5 print:pt-1"> {/* 📄 شريط رابط البوابة في المنتصف ومضغوط المساحة */}
-                            <div className="flex items-center gap-1.5 font-mono text-xs print:text-[11.5px] font-black text-black truncate select-all bg-slate-50 border border-slate-200 px-2.5 py-0.5 rounded-md" dir="ltr"> {/* 🔗 رابط الدخول بحجم مساوٍ لاسم الأستاذ مع إطار ناعم */}
-                              <Globe className="w-3.5 h-3.5 text-[#0F2942] shrink-0" /> {/* 🌐 أيقونة الكرة الأرضية بلون نيلي */}
-                              <span className="truncate">{loginPortalCleanUrl}</span> {/* 🌐 رابط البوابة النظيف والواضح */}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        );
-      })(), document.body)}
-
-      {/* 📊 نافذة تقرير نتائج استيراد Excel للأساتذة (المقبول والمكرر والمرفوض) */}
-      {importReport && (
-        <div className="fixed inset-0 top-0 left-0 right-0 bottom-0 w-screen h-screen min-h-[100dvh] bg-slate-950/80 backdrop-blur-md flex items-center justify-center z-[999999] p-4 animate-in fade-in duration-150">
-          <div className="bg-white border border-slate-300 rounded-3xl p-6 sm:p-8 max-w-3xl w-full shadow-2xl space-y-5 animate-in zoom-in-95 duration-200 text-right max-h-[90vh] overflow-y-auto">
-            
-            {/* عنوان التقرير */}
-            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-indigo-100 text-indigo-900 rounded-2xl border border-indigo-200">
-                  <FileSpreadsheet className="w-6 h-6" />
-                </div>
-                <div>
-                  <h3 className="text-lg sm:text-xl font-black text-slate-950">
-                    تقرير نتائج استيراد ملف Excel للكادر التدريسي ({importReport.totalRows} صف)
-                  </h3>
-                  <p className="text-sm font-bold text-slate-700">
-                    تم فحص كافة البيانات والتحقق الصارم من عدم التكرار
-                  </p>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setImportReport(null)}
-                className="p-2 text-slate-700 hover:text-slate-950 rounded-xl hover:bg-slate-100 transition cursor-pointer"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-
-            {/* بطاقات الإحصائيات السريعة الثلاث */}
-            <div className="grid grid-cols-3 gap-3">
-              
-              {/* المقبول */}
-              <button
-                type="button"
-                onClick={() => setActiveReportTab('accepted')}
-                className={`p-3.5 rounded-2xl border text-right transition cursor-pointer ${
-                  activeReportTab === 'accepted'
-                    ? 'bg-emerald-100 border-emerald-500 shadow-sm ring-2 ring-emerald-500/30'
-                    : 'bg-emerald-50/70 border-emerald-200 hover:bg-emerald-100'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-xs sm:text-sm font-black text-emerald-950">المقبول والمضاف</span>
-                  <CheckCircle2 className="w-4 h-4 text-emerald-700" />
-                </div>
-                <div className="text-2xl font-black text-emerald-950 mt-1">
-                  {importReport.accepted.length}
-                </div>
-              </button>
-
-              {/* المكرر */}
-              <button
-                type="button"
-                onClick={() => setActiveReportTab('duplicates')}
-                className={`p-3.5 rounded-2xl border text-right transition cursor-pointer ${
-                  activeReportTab === 'duplicates'
-                    ? 'bg-rose-100 border-rose-500 shadow-sm ring-2 ring-rose-500/30'
-                    : 'bg-rose-50/70 border-rose-200 hover:bg-rose-100'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-xs sm:text-sm font-black text-rose-950">المكرر (المستبعد)</span>
-                  <AlertTriangle className="w-4 h-4 text-rose-700" />
-                </div>
-                <div className="text-2xl font-black text-rose-950 mt-1">
-                  {importReport.duplicates.length}
-                </div>
-              </button>
-
-              {/* المرفوض */}
-              <button
-                type="button"
-                onClick={() => setActiveReportTab('rejected')}
-                className={`p-3.5 rounded-2xl border text-right transition cursor-pointer ${
-                  activeReportTab === 'rejected'
-                    ? 'bg-rose-100 border-rose-500 shadow-sm ring-2 ring-rose-500/30'
-                    : 'bg-rose-50/70 border-rose-200 hover:bg-rose-100'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-xs sm:text-sm font-black text-rose-950">المرفوض (بيانات ناقصة)</span>
-                  <AlertCircle className="w-4 h-4 text-rose-700" />
-                </div>
-                <div className="text-2xl font-black text-rose-950 mt-1">
-                  {importReport.rejected.length}
-                </div>
-              </button>
-
-            </div>
-
-            {/* تفاصيل التبويب النشط */}
-            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 max-h-60 overflow-y-auto space-y-2">
-              
-              {activeReportTab === 'accepted' && (
-                <div className="space-y-2">
-                  <h4 className="text-sm font-black text-emerald-950 flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-700" />
-                    <span>قائمة الأساتذة المقبولين والمضافين لقاعدة البيانات بنجاح:</span>
-                  </h4>
-                  {importReport.accepted.length === 0 ? (
-                    <p className="text-sm text-slate-600 font-bold py-2">لا يوجد صفوف مقبولة في هذا الملف.</p>
-                  ) : (
-                    <div className="divide-y divide-slate-200">
-                      {importReport.accepted.map((item, idx) => (
-                        <div key={idx} className="py-2 flex items-center justify-between gap-2 text-sm font-black">
-                          <div>
-                            <span className="text-slate-950 font-black">{item.name}</span>
-                            <span className="text-slate-500 font-bold mx-1.5">•</span>
-                            <span className="text-slate-700">{item.dept}</span>
-                          </div>
-                          <span className="text-blue-950 bg-blue-100 px-2 py-0.5 rounded border border-blue-200 font-mono text-xs" dir="ltr">
-                            {item.email}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {activeReportTab === 'duplicates' && (
-                <div className="space-y-2">
-                  <h4 className="text-sm font-black text-rose-950 flex items-center gap-1.5">
-                    <AlertTriangle className="w-4 h-4 text-rose-700" />
-                    <span>قائمة الحسابات المكررة التي تم استبعادها لحماية البيانات:</span>
-                  </h4>
-                  {importReport.duplicates.length === 0 ? (
-                    <p className="text-sm text-slate-600 font-bold py-2">رائع! لم يتم رصد أي حسابات مكررة في الملف.</p>
-                  ) : (
-                    <div className="divide-y divide-slate-200">
-                      {importReport.duplicates.map((item, idx) => (
-                        <div key={idx} className="py-2.5 space-y-1 text-sm font-black">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-slate-950 font-black">{item.name} ({item.dept})</span>
-                            <span className="text-rose-950 bg-rose-100 px-2 py-0.5 rounded border border-rose-300 text-xs">
-                              تم منعه منعاً للتكرار
-                            </span>
-                          </div>
-                          <p className="text-xs text-rose-900 font-bold">
-                            ⚠️ السبب: {item.reason} {item.email !== '—' && `(${item.email})`}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {activeReportTab === 'rejected' && (
-                <div className="space-y-2">
-                  <h4 className="text-sm font-black text-rose-950 flex items-center gap-1.5">
-                    <AlertCircle className="w-4 h-4 text-rose-700" />
-                    <span>قائمة الصفوف المرفوضة لعدم صلاحية أو اكتمال البيانات:</span>
-                  </h4>
-                  {importReport.rejected.length === 0 ? (
-                    <p className="text-sm text-slate-600 font-bold py-2">لا يوجد أي صفوف مرفوضة في هذا الملف.</p>
-                  ) : (
-                    <div className="divide-y divide-slate-200">
-                      {importReport.rejected.map((item, idx) => (
-                        <div key={idx} className="py-2 flex items-center justify-between gap-2 text-sm font-black">
-                          <div>
-                            <span className="text-slate-700 font-bold">الصف رقم {item.rowNumber}: </span>
-                            <span className="text-slate-950 font-black">{item.rawName}</span>
-                          </div>
-                          <span className="text-rose-950 bg-rose-100 px-2 py-0.5 rounded border border-rose-300 text-xs font-black">
-                            {item.reason}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-            </div>
-
-            {/* زر الإغلاق */}
-            <div className="flex items-center justify-end pt-3 border-t border-slate-200">
-              <button
-                type="button"
-                onClick={() => setImportReport(null)}
-                className="px-6 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black rounded-xl text-sm transition cursor-pointer shadow-xs border border-[#1e4570]"
-              >
-                إغلاق التقرير ومتابعة العمل
-              </button>
-            </div>
-
-          </div>
-        </div>
-      )}
+      {/* 📊 نافذة تقرير نتائج استيراد Excel للأساتذة عبر المكون المستقل */}
+      <AdminTeacherImportReportModal
+        importReport={importReport}
+        setImportReport={setImportReport}
+        activeReportTab={activeReportTab}
+        setActiveReportTab={setActiveReportTab}
+      />
 
       {/* 🔍 شريط البحث والتصفية والترتيب بحسب القسم والجنس */}
       {(() => {
