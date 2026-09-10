@@ -7,12 +7,13 @@ import { Grade } from '@/types'; // 🔗 الأنواع الصارمة
 
 // 📋 واجهة بيانات فروقات الدرجة المعلقة
 export interface PendingGradeDiff {
+  gradeId: string; // 🆔 معرف سجل الدرجة
   studentId: string; // 🆔 معرف الطالب
   studentName: string; // 👤 اسم الطالب
-  field: keyof Grade; // 🏷️ حقل التقييم المعدل
+  fieldName: keyof Grade; // 📝 مفتاح الحقل المعدل
   fieldLabelAr: string; // 📝 التسمية العربية للحقل
-  oldValue: number | string; // 🔢 الدرجة القديمة
-  newValue: number | string; // 🔢 الدرجة الجديدة
+  oldValue: number; // 🔢 الدرجة القديمة
+  newValue: number; // 🔢 الدرجة الجديدة
   delta: number; // ⚖️ الفارق الحسابي (+ أو -)
 }
 
