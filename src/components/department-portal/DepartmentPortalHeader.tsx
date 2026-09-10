@@ -25,7 +25,7 @@ import {
   BarChart3, // 📊 أيقونة الإحصائيات والتحليلات
 } from 'lucide-react'; // 🎨 استيراد أيقونات لوسيد
 import type { Department, UserProfile } from '@/types'; // 🏷️ استيراد الأنواع الرسمية
-import type { DepartmentAdminTab } from '@/app/admin/department-portal/page'; // 📑 استيراد نوع التبويبات المعتمدة
+import type { DepartmentAdminTab } from './types'; // 📑 استيراد نوع التبويبات المعتمدة من ملف الأنواع المحلي مباشرة
 
 // 📋 واجهة إحداثيات القائمة المنسدلة لتبديل القسم
 export interface DeptSwitcherCoords {

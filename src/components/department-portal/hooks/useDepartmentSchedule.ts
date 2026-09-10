@@ -1,0 +1,1233 @@
+// 🗓️ خطاف مخصص لإدارة جدول المحاضرات الأسبوعي، الأيام الرسمية، التضاربات، واستيراد وتصدير الإكسل
+// 🛡️ التزام نمطي صارم بدون any أو unknown مع توثيق عراقي تفصيلي لكل سطر كود
+
+import { useState, useMemo, useRef, useEffect } from 'react'; // ⚛️ استيراد خطافات رياكت الأساسية
+import type {
+  Course, // 📚 واجهة المادة الدراسية
+  UserProfile, // 👤 واجهة الحساب التعريفي
+  TeacherCourse, // 🔗 واجهة تكليف التدريسي بالمادة
+  ScheduleLecture, // 📋 واجهة المحاضرة بجدول القسم
+  DepartmentScheduleConfig, // ⚙️ واجهة إعدادات الجدول والدوام
+  DayOfWeek, // 🗓️ واجهة أيام الأسبوع
+  LectureColor, // 🎨 واجهة ألوان المحاضرات
+  LectureType, // 🔬 واجهة نوع المحاضرة (نظري أو عملي)
+  FinalExamSchedule, // 📑 واجهة جدول الامتحانات النهائية
+  FinalExamSlot, // ⏰ واجهة فترات الامتحانات النهائية
+} from '@/types'; // 🔗 استيراد الأنواع الرسمية الموحدة للمشروع
+import type { DepartmentDeleteModalConfig, ImportSummaryReport } from '../types'; // 🏷️ استيراد واجهات البوابة المشتركة
+import {
+  DAYS_OF_WEEK_LIST, // 🗓️ قائمة أيام الأسبوع بالعربي
+  DEFAULT_WORKING_DAYS, // 🏢 أيام الدوام الافتراضية
+  DEFAULT_OFF_DAYS, // 🏖️ أيام العطل الافتراضية
+  getScheduleConfigOrDefault, // ⚙️ جلب إعدادات القسم أو الافتراضي
+  checkLectureCollisions, // ⚠️ فحص تضاربات المحاضرات اللحظي
+  getAvailableRoomsForSlot, // 🏛️ جلب القاعات الشاغرة لهذا التوقيت
+  UNIVERSITY_ROOMS_CATALOG, // 🏛️ دليل القاعات والمختبرات الجامعية
+  type ScheduleConflict, // ⚠️ واجهة بيانات التضارب
+  getDayOfWeekFromDateString, // 🗓️ استخراج اليوم من تاريخ بصيغة YYYY-MM-DD
+  calculateDateForAnyDayInWeek, // 🧮 حساب التاريخ الدقيق لليوم داخل الأسبوع
+  generateAll15WeeksDates, // 🌟 توليد تواريخ كافة الأسابيع الـ 15
+  shiftLectureToAnyDay, // 🔄 تحويل المحاضرة بين أي يومين
+  getCurrentAcademicWeek, // ⚡ احتساب الأسبوع التقويمي الحالي
+} from '@/lib/schedule-utils'; // 🕒 أدوات وحسابات الجدول الأسبوعي
+import { getStageNameInArabic } from '@/lib/grade-utils'; // 🎓 اسم المرحلة بالعربية
+import {
+  getStoredData, // 📥 جلب البيانات المخزنة محلياً
+  saveStoredData, // 💾 حفظ البيانات بالتخزين المحلي
+  INITIAL_SCHEDULE_CONFIGS, // ⚙️ الإعدادات الافتراضية للجدول
+  INITIAL_SCHEDULE_LECTURES, // 📋 المحاضرات الافتراضية للجدول
+} from '@/lib/mock-data'; // 📦 مخازن البيانات والدوال المساعدة
+import {
+  saveScheduleConfigToSupabase, // ☁️ حفظ ومزامنة إعدادات الجدول في Supabase
+  saveScheduleLectureToSupabase, // ☁️ حفظ ومزامنة المحاضرة الفردية في Supabase
+  saveScheduleLecturesBulkToSupabase, // ☁️ حفظ مجموعة محاضرات بالجدول في Supabase
+  deleteScheduleLectureFromSupabase, // ☁️ حذف محاضرة من Supabase
+  deleteScheduleLecturesBulkFromSupabase, // ☁️ حذف مجموعة محاضرات من Supabase
+  saveFinalExamScheduleToSupabase, // ☁️ حفظ جدول الامتحانات الفاينل في Supabase
+  saveFinalExamSlotsToSupabase, // ☁️ حفظ بنود الامتحانات الفاينل في Supabase
+  deleteFinalExamSlotFromSupabase, // ☁️ حذف بند امتحان من Supabase
+} from '@/lib/supabase-client'; // 🔌 دوال المزامنة السحابية
+import {
+  generateDepartmentScheduleTemplate, // 📥 توليد قالب إكسل للجدول
+  parseExcelFile, // 📤 قراءة وتحليل ملف الإكسل
+  exportCustomScheduleList, // 📊 تصدير محاضرات الجدول إلى ملف إكسل
+} from '@/lib/excel-utils'; // 📊 دوال الإكسل المعتمدة
+import { sendAppNotification } from '@/lib/notification-utils'; // 🔔 مركز الإشعارات الفورية
+
+// 📋 واجهة مدخلات خطاف جدول القسم
+export interface UseDepartmentScheduleProps {
+  currentDeptId: string; // 🏛️ معرف القسم الأكاديمي الحالي
+  deptName: string; // 🏷️ اسم القسم الأكاديمي
+  courses: Course[]; // 📚 قائمة المواد الإجمالية
+  deptCourses: Course[]; // 📖 مواد القسم المصفاة
+  deptTeachers: UserProfile[]; // 👨‍🏫 أساتذة القسم المصفين
+  teacherCourses: TeacherCourse[]; // 🔗 تخصيصات المواد للأساتذة
+  scheduleLectures: ScheduleLecture[]; // 📋 قائمة محاضرات الجدول
+  setScheduleLectures: React.Dispatch<React.SetStateAction<ScheduleLecture[]>>; // 🔄 دالة تحديث المحاضرات
+  scheduleConfigs: DepartmentScheduleConfig[]; // ⚙️ إعدادات الجدول والدوام
+  setScheduleConfigs: React.Dispatch<React.SetStateAction<DepartmentScheduleConfig[]>>; // 🔄 دالة تحديث الإعدادات
+  finalExamSchedules: FinalExamSchedule[]; // 📑 جداول الامتحانات النهائية
+  setFinalExamSchedules: React.Dispatch<React.SetStateAction<FinalExamSchedule[]>>; // 🔄 تحديث جداول الامتحانات
+  finalExamSlots: FinalExamSlot[]; // ⏰ فترات الامتحانات النهائية
+  setFinalExamSlots: React.Dispatch<React.SetStateAction<FinalExamSlot[]>>; // 🔄 تحديث فترات الامتحانات
+  profiles: UserProfile[]; // 👥 حسابات المستخدمين بالنظام
+  setSuccessMessage: (msg: string) => void; // ✨ دالة إشعار النجاح
+  setErrorMessage: (msg: string) => void; // ⚠️ دالة إشعار الخطأ
+  setDeleteModalConfig: React.Dispatch<React.SetStateAction<DepartmentDeleteModalConfig>>; // 🗑️ دالة إعداد نافذة الحذف
+  isLectureInCurrentDept: (l: ScheduleLecture) => boolean; // 🏢 التحقق من تبعية المحاضرة للقسم
+}
+
+// 🎯 دالة الخطاف الرئيسية لإدارة جدول القسم الأكاديمي
+export const useDepartmentSchedule = ({
+  currentDeptId, // 🏛️ معرف القسم
+  deptName, // 🏷️ اسم القسم
+  courses, // 📚 المواد
+  deptCourses, // 📖 مواد القسم
+  deptTeachers, // 👨‍🏫 أساتذة القسم
+  teacherCourses, // 🔗 تخصيصات التدريسيين
+  scheduleLectures, // 📋 المحاضرات
+  setScheduleLectures, // 🔄 تحديث المحاضرات
+  scheduleConfigs, // ⚙️ إعدادات الجدول
+  setScheduleConfigs, // 🔄 تحديث الإعدادات
+  finalExamSchedules, // 📑 جداول الفاينل
+  setFinalExamSchedules, // 🔄 تحديث جداول الفاينل
+  finalExamSlots, // ⏰ فترات الفاينل
+  setFinalExamSlots, // 🔄 تحديث فترات الفاينل
+  profiles, // 👥 الحسابات
+  setSuccessMessage, // ✨ رسالة النجاح
+  setErrorMessage, // ⚠️ رسالة الخطأ
+  setDeleteModalConfig, // 🗑️ نافذة الحذف
+  isLectureInCurrentDept, // 🏢 فحص التبعية
+}: UseDepartmentScheduleProps) => {
+  // 🎛️ حالات تصفية وعرض الجدول الأسبوعي
+  const [selectedScheduleStage, setSelectedScheduleStage] = useState<number>(1); // 🎓 المرحلة المحددة للجدول
+  const [selectedScheduleSemester, setSelectedScheduleSemester] = useState<1 | 2>(1); // 📚 الكورس المحدد للجدول
+  const [selectedScheduleStudyType, setSelectedScheduleStudyType] = useState<'morning' | 'evening'>('morning'); // ☀️🌙 فترة الجدول (صباحي / مسائي)
+  const [selectedScheduleWeek, setSelectedScheduleWeek] = useState<number>(1); // 🗓️ الأسبوع المحدد بجدول القسم
+  const [selectedScheduleLectureIds, setSelectedScheduleLectureIds] = useState<string[]>([]); // 🔘 معرفات المحاضرات المحددة
+
+  // 📝 حالات استمارة إضافة وتعديل المحاضرة
+  const [lecDay, setLecDay] = useState<DayOfWeek | ''>(''); // 🗓️ يوم المحاضرة
+  const [lecCourseId, setLecCourseId] = useState<string>(''); // 📖 معرف المادة الدراسية
+  const [lecTeacherId, setLecTeacherId] = useState<string>(''); // 👤 معرف الأستاذ المحاضر
+  const [lecRoom, setLecRoom] = useState<string>(''); // 🏛️ القاعة أو المختبر
+  const [lecStartTime, setLecStartTime] = useState<string>(''); // ⏱️ وقت بدء المحاضرة
+  const [lecEndTime, setLecEndTime] = useState<string>(''); // ⏱️ وقت انتهاء المحاضرة
+  const [lecColor, setLecColor] = useState<LectureColor>('blue'); // 🎨 لون شريط المحاضرة
+  const [lecType, setLecType] = useState<LectureType | ''>(''); // 🏷️ طبيعة المحاضرة (نظري / عملي)
+  const [lecDate, setLecDate] = useState<string>(''); // 📅 تاريخ المحاضرة التقويمي
+  const [lecWeekNumber, setLecWeekNumber] = useState<number>(1); // 🔢 رقم الأسبوع المعتمد
+  const [lecAutoCascadeWeeks, setLecAutoCascadeWeeks] = useState<boolean>(true); // 🌟 تعاقب التواريخ التلقائي للأسابيع الـ 15
+  const [lecCascadeShiftOption, setLecCascadeShiftOption] = useState<'cascade_following' | 'this_week_only' | 'all_15_weeks'>('cascade_following'); // 🔄 خيار ترحيل التعديل
+  const [originalLecDay, setOriginalLecDay] = useState<DayOfWeek | ''>(''); // 🗓️ اليوم الأصلي لتتبع التحويل بين الأيام
+  const [lecStudyType, setLecStudyType] = useState<'morning' | 'evening'>('morning'); // ☀️🌙 فترة المحاضرة
+  const [lecNotes, setLecNotes] = useState<string>(''); // 📝 ملاحظات المحاضرة
+  const [editingLectureId, setEditingLectureId] = useState<string | null>(null); // 🆔 معرف المحاضرة قيد التعديل
+  const [isLectureModalOpen, setIsLectureModalOpen] = useState<boolean>(false); // 🗓️ حالة فتح وغلق كارت المحاضرات
+  const [lecModalSuccessMsg, setLecModalSuccessMsg] = useState<string>(''); // ✨ رسالة النجاح التفاعلية الداخلية
+  const [recentlyAddedLectureId, setRecentlyAddedLectureId] = useState<string | null>(null); // 🌟 تمييز المحاضرة المضافة حديثاً
+  const [closeModalAfterSave, setCloseModalAfterSave] = useState<boolean>(false); // 🚪 إغلاق الكارت بعد الحفظ أم البقاء
+  const [lecCourseSearchTerm, setLecCourseSearchTerm] = useState<string>(''); // 🔍 نص البحث عن المادة
+  const [lecCourseTabFilter, setLecCourseTabFilter] = useState<'all' | 'theory' | 'practical'>('all'); // 📑 فلتر نوع المادة
+  const [lecTeacherSearchTerm, setLecTeacherSearchTerm] = useState<string>(''); // 🔍 نص البحث عن الأستاذ
+
+  // 🪟 حالات النوافذ المنبثقة للجدول
+  const [pendingSemesterStartDate, setPendingSemesterStartDate] = useState<string | null>(null); // 📅 تاريخ الانطلاق المعلق
+  const [showSemesterDateConfirmModal, setShowSemesterDateConfirmModal] = useState<boolean>(false); // 🛑 نافذة تأكيد تاريخ الانطلاق
+  const [isPreviewScheduleModalOpen, setIsPreviewScheduleModalOpen] = useState<boolean>(false); // 👁️ نافذة معاينة الجدول
+  const [isSchedulePrintModalOpen, setIsSchedulePrintModalOpen] = useState<boolean>(false); // 🖨️ نافذة طباعة الجدول
+  const [isMasterMatrixModalOpen, setIsMasterMatrixModalOpen] = useState<boolean>(false); // 📊 نافذة المصفوفة الشاملة
+  const [isDurationSettingsModalOpen, setIsDurationSettingsModalOpen] = useState<boolean>(false); // ⚙️ نافذة إعدادات الساعات
+  const [showScheduleExcelInstructions, setShowScheduleExcelInstructions] = useState<boolean>(false); // ℹ️ نافذة تعليمات إكسل
+  const [isImportingScheduleExcel, setIsImportingScheduleExcel] = useState<boolean>(false); // ⏳ حالة استيراد إكسل
+  const [scheduleImportReport, setScheduleImportReport] = useState<ImportSummaryReport | null>(null); // 📊 تقرير استيراد الجدول
+  const [scheduleActiveReportTab, setScheduleActiveReportTab] = useState<'accepted' | 'duplicates' | 'rejected'>('accepted'); // 📑 تبويب تقرير الجدول
+
+  // 📍 مراجع DOM
+  const lastScheduleScrollYRef = useRef<number>(0); // 📍 مرجع حفظ موضع السكرول
+  const lecListContainerRef = useRef<HTMLDivElement | null>(null); // 📜 مرجع حاوية قائمة المحاضرات
+
+  // ⚙️ استخراج إعدادات الجدول للقسم والمرحلة والكورس الحاليين
+  const currentScheduleConfig = useMemo(() => {
+    return getScheduleConfigOrDefault(
+      scheduleConfigs,
+      currentDeptId,
+      selectedScheduleStage,
+      selectedScheduleSemester
+    );
+  }, [scheduleConfigs, currentDeptId, selectedScheduleStage, selectedScheduleSemester]);
+
+  // ⚡ احتساب الأسبوع الأكاديمي الحالي للجدول نسبة لتاريخ انطلاق الفصل
+  const scheduleCurrentAcademicWeek = useMemo(() => {
+    return getCurrentAcademicWeek(currentScheduleConfig.start_date || '2026-09-20');
+  }, [currentScheduleConfig.start_date]);
+
+  // 🔄 مزامنة الأسبوع المختار مع الأسبوع الحالي تلقائياً عند تغيير تاريخ انطلاق الفصل
+  useEffect(() => {
+    const curW = getCurrentAcademicWeek(currentScheduleConfig.start_date || '2026-09-20');
+    setSelectedScheduleWeek(curW);
+  }, [currentScheduleConfig.start_date]);
+
+  // 📡 الاستماع لحدث تحديث تاريخ انطلاق الفصل ومزامنة إعدادات ومحاضرات القسم فورياً
+  useEffect(() => {
+    const handleSemesterDateEvent = (e: Event) => {
+      const customEvent = e as CustomEvent<{ departmentId: string; startDate: string }>; // 🔍 قراءة تفاصيل الحدث
+      if (!customEvent.detail || customEvent.detail.departmentId === currentDeptId) { // 🏢 التحقق من مطابقة القسم
+        const freshConfigs = getStoredData<DepartmentScheduleConfig[]>('department_schedule_configs', INITIAL_SCHEDULE_CONFIGS); // 📥 جلب أحدث الإعدادات
+        const freshLectures = getStoredData<ScheduleLecture[]>('schedule_lectures', INITIAL_SCHEDULE_LECTURES); // 📥 جلب أحدث المحاضرات
+        if (freshConfigs && freshConfigs.length > 0) setScheduleConfigs(freshConfigs); // 🔄 تحديث الإعدادات
+        if (freshLectures && freshLectures.length > 0) setScheduleLectures(freshLectures); // 🔄 تحديث المحاضرات
+      }
+    };
+    window.addEventListener('semester-start-date-updated', handleSemesterDateEvent); // 👂 الاستماع للحدث المخصص
+    window.addEventListener('storage', handleSemesterDateEvent); // 👂 الاستماع للتخزين بين النوافذ
+    return () => {
+      window.removeEventListener('semester-start-date-updated', handleSemesterDateEvent); // 🧹 تنظيف المستمع
+      window.removeEventListener('storage', handleSemesterDateEvent); // 🧹 تنظيف المستمع
+    };
+  }, [currentDeptId, setScheduleConfigs, setScheduleLectures]);
+
+  // 🛡️ حساب التضارب الزمني اللحظي للقاعات والأساتذة أثناء إدخال المحاضرة
+  const selectedLecTeacher = useMemo(() => {
+    return profiles.find((p: UserProfile) => p.id === lecTeacherId);
+  }, [profiles, lecTeacherId]);
+
+  const currentLecConflicts = useMemo((): ScheduleConflict[] => {
+    if (!lecStartTime || !lecEndTime || !lecDay || (!lecRoom.trim() && !lecTeacherId)) return []; // 🛑 إذا الوقت أو اليوم مو محددين ما نفحص
+    return checkLectureCollisions(
+      {
+        day: lecDay as DayOfWeek, // 🗓️ اليوم الأسبوعي المؤكد
+        start_time: lecStartTime, // ⏱️ وقت بدء المحاضرة
+        end_time: lecEndTime, // ⏱️ وقت انتهاء المحاضرة
+        room: lecRoom.trim(), // 🏛️ القاعة الدراسية
+        teacher_id: lecTeacherId, // 👤 معرف الأستاذ
+        teacher_name: selectedLecTeacher?.full_name, // 👨‍🏫 اسم الأستاذ
+        stage_number: selectedScheduleStage, // 🎓 رقم المرحلة
+        department_id: currentDeptId, // 🏢 معرف القسم
+      },
+      scheduleLectures, // 📚 قائمة المحاضرات المسجلة
+      editingLectureId || undefined // ✏️ استثناء المحاضرة قيد التعديل
+    );
+  }, [lecDay, lecStartTime, lecEndTime, lecRoom, lecTeacherId, selectedLecTeacher, selectedScheduleStage, currentDeptId, scheduleLectures, editingLectureId]);
+
+  // 💡 حساب القاعات والمختبرات الشاغرة غير المحجوزة في الوقت المحدد
+  const availableRoomsForSlot = useMemo(() => {
+    if (!lecStartTime || !lecEndTime || !lecDay) return UNIVERSITY_ROOMS_CATALOG; // 🏛️ إذا ما حدد وقت أو يوم نعرض كل القاعات شاغرة
+    return getAvailableRoomsForSlot(lecDay as DayOfWeek, lecStartTime, lecEndTime, scheduleLectures, editingLectureId || undefined); // 🔍 جلب القاعات الشاغرة
+  }, [lecDay, lecStartTime, lecEndTime, scheduleLectures, editingLectureId]);
+
+  // 🗓️ تبديل حالة اليوم بين دوام وعطلة بعد أخذ موافقة وتأكيد المستخدم
+  const handleToggleWorkingDay = (dayKey: DayOfWeek) => {
+    const isCurrentlyOff = currentScheduleConfig.off_days.includes(dayKey);
+    const dayName = DAYS_OF_WEEK_LIST.find((d: { key: DayOfWeek; label_ar: string }) => d.key === dayKey)?.label_ar || dayKey;
+    const stageName = getStageNameInArabic(selectedScheduleStage);
+    const semesterName = selectedScheduleSemester === 1 ? 'الأول' : 'الثاني';
+
+    // حساب عدد المحاضرات المجدولة لهذا اليوم
+    const dayLecturesCount = scheduleLectures.filter(
+      (l: ScheduleLecture) =>
+        isLectureInCurrentDept(l) &&
+        l.stage_number === selectedScheduleStage &&
+        l.semester === selectedScheduleSemester &&
+        l.day === dayKey
+    ).length;
+
+    const actionTitle = isCurrentlyOff
+      ? `تأكيد تفعيل يوم (${dayName}) كيوم دوام رسمي`
+      : `تأكيد تحويل يوم (${dayName}) إلى عطلة رسمية`;
+
+    const actionWarning = isCurrentlyOff
+      ? `هل أنت متأكد من تفعيل يوم (${dayName}) كيوم دوام رسمي معتمد وإتاحته لجدولة المحاضرات لطلبة ${stageName} (الكورس ${semesterName})؟`
+      : dayLecturesCount > 0
+      ? `تنبيه: هذا اليوم يحتوي حالياً على (${dayLecturesCount}) محاضرة مجدولة. تحويله إلى عطلة رسمية سيؤثر على جدول المرحلة ${stageName} ولن يتم احتساب المحاضرات فيه كأيام دوام رسمي. هل ترغب بالاستمرار والموافقة؟`
+      : `هل أنت متأكد من تحويل يوم (${dayName}) إلى عطلة رسمية معتمدة لطلبة ${stageName} (الكورس ${semesterName})؟`;
+
+    const confirmBtnText = isCurrentlyOff
+      ? 'نعم، تفعيل كيوم دوام رسمي'
+      : 'نعم، تحويل إلى عطلة رسمية';
+
+    setDeleteModalConfig({
+      isOpen: true,
+      title: actionTitle,
+      itemName: `يوم ${dayName} — ${stageName} (الكورس ${semesterName})`,
+      itemDetails: isCurrentlyOff
+        ? 'الحالة الحالية: عطلة رسمية معتمدة'
+        : `الحالة الحالية: يوم دوام رسمي ${dayLecturesCount > 0 ? `(يحتوي على ${dayLecturesCount} محاضرة مجدولة)` : '(لا توجد محاضرات مجدولة)'}`,
+      warningMessage: actionWarning,
+      confirmText: confirmBtnText,
+      variant: isCurrentlyOff ? 'success' : 'warning',
+      iconType: isCurrentlyOff ? 'check' : 'alert',
+      onConfirm: () => {
+        let newWorkingDays: DayOfWeek[];
+        let newOffDays: DayOfWeek[];
+
+        if (isCurrentlyOff) {
+          // تحويله إلى يوم دوام
+          newOffDays = currentScheduleConfig.off_days.filter((d: DayOfWeek) => d !== dayKey);
+          newWorkingDays = [...currentScheduleConfig.working_days.filter((d: DayOfWeek) => d !== dayKey), dayKey];
+        } else {
+          // تحويله إلى يوم عطلة
+          newWorkingDays = currentScheduleConfig.working_days.filter((d: DayOfWeek) => d !== dayKey);
+          newOffDays = [...currentScheduleConfig.off_days.filter((d: DayOfWeek) => d !== dayKey), dayKey];
+        }
+
+        const updatedConfig: DepartmentScheduleConfig = {
+          ...currentScheduleConfig,
+          department_id: currentDeptId,
+          stage_number: selectedScheduleStage,
+          semester: selectedScheduleSemester,
+          working_days: newWorkingDays,
+          off_days: newOffDays,
+          updated_at: new Date().toISOString(),
+        };
+
+        const existingIndex = scheduleConfigs.findIndex(
+          (c: DepartmentScheduleConfig) =>
+            c.department_id === currentDeptId &&
+            c.stage_number === selectedScheduleStage &&
+            c.semester === selectedScheduleSemester
+        );
+
+        let updatedConfigsList: DepartmentScheduleConfig[];
+        if (existingIndex >= 0) {
+          updatedConfigsList = [...scheduleConfigs];
+          updatedConfigsList[existingIndex] = updatedConfig;
+        } else {
+          updatedConfigsList = [...scheduleConfigs, updatedConfig];
+        }
+
+        setScheduleConfigs(updatedConfigsList);
+        saveStoredData('department_schedule_configs', updatedConfigsList);
+        saveScheduleConfigToSupabase(updatedConfig); // ☁️ حفظ ومزامنة إعدادات الجدول مع Supabase
+
+        setSuccessMessage(`تم تعديل يوم (${dayName}) إلى ${isCurrentlyOff ? 'يوم دوام رسمي' : 'عطلة رسمية'} بنجاح!`);
+        setTimeout(() => setSuccessMessage(''), 3500);
+        setDeleteModalConfig((prev: DepartmentDeleteModalConfig) => ({ ...prev, isOpen: false }));
+      },
+    });
+  };
+
+  // 🔄 استعادة أيام الدوام والعطل الافتراضية
+  const handleResetWorkingDays = () => {
+    setDeleteModalConfig({
+      isOpen: true,
+      title: 'استعادة أيام الدوام الافتراضية',
+      itemName: `جدول دوام قسم ${deptName}`,
+      itemDetails: `المرحلة ${selectedScheduleStage} - الفصل ${selectedScheduleSemester === 1 ? 'الأول' : 'الثاني'}`,
+      warningMessage: 'هل تريد استعادة أيام الدوام الافتراضية (السبت إلى الأربعاء دوام، والخميس والجمعة عطلة رسمية)؟',
+      confirmText: 'استعادة الافتراضي',
+      variant: 'warning',
+      iconType: 'alert',
+      onConfirm: () => {
+        const resetConfig: DepartmentScheduleConfig = {
+          ...currentScheduleConfig,
+          department_id: currentDeptId,
+          stage_number: selectedScheduleStage,
+          semester: selectedScheduleSemester,
+          working_days: [...DEFAULT_WORKING_DAYS],
+          off_days: [...DEFAULT_OFF_DAYS],
+          updated_at: new Date().toISOString(),
+        };
+
+        const existingIndex = scheduleConfigs.findIndex(
+          (c: DepartmentScheduleConfig) =>
+            c.department_id === currentDeptId &&
+            c.stage_number === selectedScheduleStage &&
+            c.semester === selectedScheduleSemester
+        );
+
+        let updatedConfigsList: DepartmentScheduleConfig[];
+        if (existingIndex >= 0) {
+          updatedConfigsList = [...scheduleConfigs];
+          updatedConfigsList[existingIndex] = resetConfig;
+        } else {
+          updatedConfigsList = [...scheduleConfigs, resetConfig];
+        }
+
+        setScheduleConfigs(updatedConfigsList);
+        saveStoredData('department_schedule_configs', updatedConfigsList);
+        saveScheduleConfigToSupabase(resetConfig);
+
+        setSuccessMessage('تمت استعادة أيام الدوام والعطل الرسمية الافتراضية بنجاح!');
+        setTimeout(() => setSuccessMessage(''), 3500);
+        setDeleteModalConfig((prev: DepartmentDeleteModalConfig) => ({ ...prev, isOpen: false }));
+      },
+    });
+  };
+
+  // 📅 حفظ تاريخ انطلاق الفصل وإعادة معايرة كافة المحاضرات فورياً
+  const handleSaveSemesterStartDate = (newStartDate: string) => {
+    if (!newStartDate) return;
+
+    // 1. تحديث كافة سجلات إعدادات المراحل الـ 4 والفصلين للقسم
+    const updatedConfigsList = [...scheduleConfigs];
+    const allStages = [1, 2, 3, 4];
+    const allSemesters: (1 | 2)[] = [1, 2];
+
+    allStages.forEach((stg: number) => {
+      allSemesters.forEach((sem: 1 | 2) => {
+        const existingIdx = updatedConfigsList.findIndex(
+          (c: DepartmentScheduleConfig) => c.department_id === currentDeptId && c.stage_number === stg && c.semester === sem
+        );
+        if (existingIdx >= 0) {
+          const cfgToUpdate: DepartmentScheduleConfig = {
+            ...updatedConfigsList[existingIdx]!,
+            start_date: newStartDate,
+            updated_at: new Date().toISOString(),
+          };
+          updatedConfigsList[existingIdx] = cfgToUpdate;
+          saveScheduleConfigToSupabase(cfgToUpdate);
+        } else {
+          const newCfg: DepartmentScheduleConfig = {
+            id: `cfg-${currentDeptId}-${stg}-${sem}`,
+            department_id: currentDeptId,
+            stage_number: stg,
+            semester: sem,
+            start_date: newStartDate,
+            working_days: [...DEFAULT_WORKING_DAYS],
+            off_days: [...DEFAULT_OFF_DAYS],
+            updated_at: new Date().toISOString(),
+          };
+          updatedConfigsList.push(newCfg);
+          saveScheduleConfigToSupabase(newCfg);
+        }
+      });
+    });
+
+    setScheduleConfigs(updatedConfigsList);
+    saveStoredData('department_schedule_configs', updatedConfigsList);
+
+    try {
+      localStorage.setItem(`department_semester_start_date_${currentDeptId}`, newStartDate);
+    } catch {
+      // 🛡️ حماية من أخطاء التخزين
+    }
+
+    // 🔄 2. إعادة معايرة وتحديث تواريخ كافة محاضرات القسم المجدولة
+    const recalibratedLectures = scheduleLectures.map((l: ScheduleLecture) => {
+      if (isLectureInCurrentDept(l)) {
+        const wk = l.week_number || 1;
+        const newBaseDate = calculateDateForAnyDayInWeek(newStartDate, 1, wk, l.day);
+        const all15 = generateAll15WeeksDates(newBaseDate, l.day, wk);
+        const map15: Record<number, string> = {};
+        all15.forEach((item: { weekNumber: number; date: string }) => {
+          map15[item.weekNumber] = item.date;
+        });
+        return {
+          ...l,
+          date: newBaseDate,
+          custom_weekly_dates: map15,
+        };
+      }
+      return l;
+    });
+
+    setScheduleLectures(recalibratedLectures);
+    saveStoredData('schedule_lectures', recalibratedLectures);
+    const currentDeptLectures = recalibratedLectures.filter((l: ScheduleLecture) => isLectureInCurrentDept(l));
+    saveScheduleLecturesBulkToSupabase(currentDeptLectures);
+
+    // 📡 3. بث حدث متزامن عام بالمتصفح
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('semester-start-date-updated', {
+          detail: { departmentId: currentDeptId, startDate: newStartDate },
+        })
+      );
+    }
+  };
+
+  // 📥 تنزيل نموذج Excel معتمد لمحاضرات الجدول الأسبوعي
+  const handleDownloadScheduleTemplate = async () => {
+    await generateDepartmentScheduleTemplate(deptName, deptCourses, deptTeachers);
+    setSuccessMessage(`تم تنزيل نموذج إكسل المعتمد لجدول قسم (${deptName}) بنجاح! 📊`);
+    setTimeout(() => setSuccessMessage(''), 4000);
+  };
+
+  // 📤 استيراد ومعالجة ملف Excel لمحاضرات الجدول الأسبوعي
+  const handleScheduleExcelUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !currentDeptId) return;
+
+    try {
+      setIsImportingScheduleExcel(true);
+      const rows = await parseExcelFile(file);
+
+      const accepted: { name: string; dept: string; email: string }[] = [];
+      const duplicates: { name: string; email: string; dept: string; reason: string }[] = [];
+      const rejected: { rowNumber: number; rawName: string; reason: string }[] = [];
+
+      const newLecturesToAdd: ScheduleLecture[] = [];
+      const tempAllLectures = [...scheduleLectures];
+
+      // تحويل اليوم من نص عربي أو إنكليزي إلى DayOfWeek
+      const parseDayOfWeek = (raw: string): DayOfWeek => {
+        const cleaned = raw.trim().toLowerCase();
+        if (cleaned.includes('سبت') || cleaned === 'saturday') return 'saturday';
+        if (cleaned.includes('أحد') || cleaned.includes('احد') || cleaned === 'sunday') return 'sunday';
+        if (cleaned.includes('اثنين') || cleaned.includes('إثنين') || cleaned.includes('ثنين') || cleaned === 'monday') return 'monday';
+        if (cleaned.includes('ثلاثاء') || cleaned.includes('ثلثاء') || cleaned === 'tuesday') return 'tuesday';
+        if (cleaned.includes('أربعاء') || cleaned.includes('اربعاء') || cleaned === 'wednesday') return 'wednesday';
+        if (cleaned.includes('خميس') || cleaned === 'thursday') return 'thursday';
+        if (cleaned.includes('جمعة') || cleaned.includes('جمعه') || cleaned === 'friday') return 'friday';
+        return 'sunday';
+      };
+
+      // تحويل الوقت إلى تنسيق 24 ساعة HH:MM
+      const parseTimeString = (raw: string, defaultTime: string): string => {
+        if (!raw) return defaultTime;
+        const cleaned = raw.trim();
+        const isPM = cleaned.includes('م') || cleaned.toLowerCase().includes('pm');
+        const isAM = cleaned.includes('ص') || cleaned.toLowerCase().includes('am');
+
+        const timeMatch = cleaned.match(/(\d{1,2})[:.](\d{1,2})/);
+        if (timeMatch) {
+          let hours = parseInt(timeMatch[1] || '0', 10);
+          const minutes = parseInt(timeMatch[2] || '0', 10);
+          if (isPM && hours < 12) hours += 12;
+          if (isAM && hours === 12) hours = 0;
+          return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+        }
+        return defaultTime;
+      };
+
+      rows.forEach((row: Record<string, string | number>, index: number) => {
+        const rowNum = index + 2;
+        const rawCourseName = String(row['اسم المادة'] || row['المادة'] || row['Course Name'] || row['Course'] || '').trim();
+        const rawStage = parseInt(String(row['المرحلة'] || row['Stage'] || '1').replace(/[^\d]/g, ''), 10);
+        const rawSemester = parseInt(String(row['الكورس'] || row['الفصل'] || row['Semester'] || '1').replace(/[^\d]/g, ''), 10);
+        const rawStudyType = String(row['نوع الدراسة'] || row['الفترة'] || row['Study Type'] || 'صباحي').trim();
+        const rawDay = String(row['اليوم'] || row['Day'] || '').trim();
+        const rawStartTime = String(row['وقت البدء'] || row['من'] || row['Start Time'] || '').trim();
+        const rawEndTime = String(row['وقت الانتهاء'] || row['إلى'] || row['End Time'] || '').trim();
+        const rawRoom = String(row['القاعة'] || row['المختبر'] || row['Room'] || '').trim();
+        const rawTeacherName = String(row['اسم الأستاذ'] || row['الأستاذ'] || row['المحاضر'] || row['Teacher Name'] || '').trim();
+        const rawType = String(row['نوع المحاضرة'] || row['النوع'] || row['Type'] || '').trim();
+        const rawNotes = String(row['ملاحظات'] || row['Notes'] || '').trim();
+        const rawDate = String(row['التاريخ'] || row['Date'] || '').trim();
+        const rawWeekNumber = parseInt(String(row['الأسبوع'] || row['Week'] || '1').replace(/[^\d]/g, ''), 10);
+
+        if (!rawCourseName || rawCourseName.length < 2) {
+          rejected.push({
+            rowNumber: rowNum,
+            rawName: rawCourseName || 'اسم مادة فارغ',
+            reason: 'حقل اسم المادة الدراسية فارغ أو غير مكتمل',
+          });
+          return;
+        }
+
+        const stageNumber = [1, 2, 3, 4].includes(rawStage) ? rawStage : 1;
+        const semesterNumber = (rawSemester === 2 ? 2 : 1) as 1 | 2;
+        const isEvening = rawStudyType.includes('مسائي') || rawStudyType.toLowerCase() === 'evening';
+        const parsedStudyType: 'morning' | 'evening' = isEvening ? 'evening' : 'morning';
+        const parsedDay = parseDayOfWeek(rawDay);
+        const startTime = parseTimeString(rawStartTime, isEvening ? '14:00' : '08:30');
+        const endTime = parseTimeString(rawEndTime, isEvening ? '16:00' : '10:30');
+        const roomName = rawRoom || 'قاعة دراسية';
+
+        const isPractical = rawType.includes('عملي') || rawType.includes('مختبر') || rawType.toLowerCase() === 'practical';
+        const parsedLectureType: LectureType = isPractical ? 'practical' : 'theory';
+
+        // مطابقة المادة مع مواد القسم الحالية
+        const matchedCourse = deptCourses.find(
+          (c: Course) =>
+            c.name.trim().toLowerCase() === rawCourseName.toLowerCase() ||
+            c.code.trim().toLowerCase() === rawCourseName.toLowerCase() ||
+            c.name.includes(rawCourseName) ||
+            rawCourseName.includes(c.name)
+        );
+
+        const isMatchedCoursePractical = matchedCourse
+          ? matchedCourse.course_type === 'theory_and_practical' || Boolean(matchedCourse.has_practical)
+          : true;
+
+        const finalLectureType: LectureType = (!isMatchedCoursePractical && matchedCourse) ? 'theory' : parsedLectureType;
+        const finalLectureColor: LectureColor = finalLectureType === 'practical' ? 'emerald' : 'blue';
+
+        const courseId = matchedCourse ? matchedCourse.id : `crs-auto-${Date.now()}-${index}`;
+        const finalCourseName = matchedCourse ? matchedCourse.name : rawCourseName;
+        const finalCourseCode = matchedCourse ? matchedCourse.code : `CRS-${stageNumber}0${index + 1}`;
+
+        // مطابقة الأستاذ مع أساتذة القسم
+        const matchedTeacher = rawTeacherName
+          ? deptTeachers.find(
+              (t: UserProfile) =>
+                t.full_name.trim().toLowerCase() === rawTeacherName.toLowerCase() ||
+                t.full_name.includes(rawTeacherName) ||
+                rawTeacherName.includes(t.full_name)
+            )
+          : matchedCourse
+          ? deptTeachers.find((t: UserProfile) => t.id === (finalLectureType === 'practical' ? matchedCourse.practical_teacher_id : matchedCourse.theory_teacher_id))
+          : undefined;
+
+        const teacherId = matchedTeacher ? matchedTeacher.id : '';
+        const teacherFullName = matchedTeacher ? matchedTeacher.full_name : rawTeacherName;
+
+        // فحص التكرار الدقيق
+        const isDuplicate = tempAllLectures.some(
+          (l: ScheduleLecture) =>
+            isLectureInCurrentDept(l) &&
+            l.stage_number === stageNumber &&
+            l.semester === semesterNumber &&
+            (l.study_type || 'morning') === parsedStudyType &&
+            l.day === parsedDay &&
+            l.start_time === startTime &&
+            (l.room === roomName || l.course_name.toLowerCase() === finalCourseName.toLowerCase())
+        );
+
+        if (isDuplicate) {
+          duplicates.push({
+            name: `${finalCourseName} (${DAYS_OF_WEEK_LIST.find((d: { key: DayOfWeek; label_ar: string }) => d.key === parsedDay)?.label_ar || parsedDay})`,
+            email: `${startTime} - ${endTime} | ${roomName}`,
+            dept: `مرحلة ${stageNumber} (كورس ${semesterNumber}) - ${parsedStudyType === 'evening' ? 'مسائي' : 'صباحي'}`,
+            reason: 'محاضرة مجدولة مسبقاً في نفس التوقيت واليوم والقاعة',
+          });
+          return;
+        }
+
+        const validWeek = !isNaN(rawWeekNumber) && rawWeekNumber >= 1 && rawWeekNumber <= 15 ? rawWeekNumber : 1;
+        let cascaded15Dates: Record<number, string> | undefined = undefined;
+        if (rawDate) {
+          const generatedList = generateAll15WeeksDates(rawDate, parsedDay, 1);
+          const tempMap: Record<number, string> = {};
+          generatedList.forEach((item: { weekNumber: number; date: string }) => {
+            tempMap[item.weekNumber] = item.date;
+          });
+          cascaded15Dates = tempMap;
+        }
+
+        const newLecId = `lec-xl-${Date.now()}-${index}`;
+        const newLecture: ScheduleLecture = {
+          id: newLecId,
+          department_id: currentDeptId || 'dept-1',
+          stage_number: stageNumber,
+          semester: semesterNumber,
+          course_id: courseId,
+          course_name: finalCourseName,
+          course_code: finalCourseCode,
+          teacher_id: teacherId || undefined,
+          teacher_name: teacherFullName || undefined,
+          day: parsedDay,
+          start_time: startTime,
+          end_time: endTime,
+          room: roomName,
+          type: finalLectureType,
+          study_type: parsedStudyType,
+          color: finalLectureColor,
+          notes: rawNotes || undefined,
+          week_number: validWeek,
+          date: rawDate || undefined,
+          custom_weekly_dates: cascaded15Dates,
+          created_at: new Date().toISOString(),
+        };
+
+        newLecturesToAdd.push(newLecture);
+        tempAllLectures.push(newLecture);
+
+        accepted.push({
+          name: `${finalCourseName} — ${finalLectureType === 'practical' ? 'مختبر وعملي' : 'محاضرة نظرية'}`,
+          dept: `المرحلة ${stageNumber} (كورس ${semesterNumber}) | ${DAYS_OF_WEEK_LIST.find((d: { key: DayOfWeek; label_ar: string }) => d.key === parsedDay)?.label_ar || parsedDay} (${startTime} - ${endTime})`,
+          email: `${roomName} ${teacherFullName ? `| ${teacherFullName}` : ''}`,
+        });
+      });
+
+      if (newLecturesToAdd.length > 0) {
+        const merged = [...scheduleLectures, ...newLecturesToAdd];
+        setScheduleLectures(merged);
+        saveStoredData('schedule_lectures', merged);
+        saveScheduleLecturesBulkToSupabase(newLecturesToAdd);
+      }
+
+      setScheduleImportReport({
+        totalRows: rows.length,
+        accepted,
+        duplicates,
+        rejected,
+      });
+      setScheduleActiveReportTab(
+        accepted.length > 0 ? 'accepted' : duplicates.length > 0 ? 'duplicates' : 'rejected'
+      );
+
+      if (accepted.length > 0) {
+        setSuccessMessage(`تمت معالجة ملف الإكسل وإضافة (${accepted.length}) محاضرة دراسية للجدول بنجاح! 📊🎉`);
+        setTimeout(() => setSuccessMessage(''), 5000);
+      }
+    } catch {
+      setErrorMessage('حدث خطأ أثناء قراءة ملف Excel، يرجى التأكد من اختيار ملف Excel صالح (.xlsx)');
+      setTimeout(() => setErrorMessage(''), 4000);
+    } finally {
+      setIsImportingScheduleExcel(false);
+      e.target.value = '';
+    }
+  };
+
+  // 📤 تصدير جدول المحاضرات للقسم إلى ملف Excel
+  const handleExportScheduleToExcel = async () => {
+    const rawDeptLectures = scheduleLectures.filter((l: ScheduleLecture) => isLectureInCurrentDept(l));
+
+    if (rawDeptLectures.length === 0) {
+      setErrorMessage('لا توجد محاضرات مجدولة حالياً للتصدير في هذا القسم.');
+      setTimeout(() => setErrorMessage(''), 3500);
+      return;
+    }
+
+    const baseStart = currentScheduleConfig?.start_date || '2026-09-20';
+    const displayWeek = selectedScheduleWeek || 1;
+
+    const deptLectures = rawDeptLectures.map((l: ScheduleLecture) => {
+      const weekOverride = l.weekly_overrides?.[displayWeek];
+      const effectiveDay = weekOverride?.day || l.day;
+      const effectiveDate = weekOverride?.date
+        || l.custom_weekly_dates?.[displayWeek]
+        || calculateDateForAnyDayInWeek(baseStart, 1, displayWeek, effectiveDay);
+      return {
+        ...l,
+        week_number: displayWeek,
+        date: effectiveDate,
+        day: effectiveDay,
+        room: weekOverride?.room || l.room,
+        start_time: weekOverride?.start_time || l.start_time,
+        end_time: weekOverride?.end_time || l.end_time,
+        teacher_name: weekOverride?.teacher_name || l.teacher_name,
+      };
+    });
+
+    await exportCustomScheduleList(deptLectures, `${deptName}_الأسبوع_${displayWeek}`);
+    setSuccessMessage(`تم تصدير (${deptLectures.length}) محاضرة دراسية للأسبوع (${displayWeek}) إلى ملف Excel بنجاح! 📊`);
+    setTimeout(() => setSuccessMessage(''), 3500);
+  };
+
+  // 📑 إدارة وحفظ جدول الامتحانات النهائية الفاينل
+  const handleSaveExamSchedule = (schedule: FinalExamSchedule, newSlots: FinalExamSlot[]) => {
+    const previousScheduleSlots = finalExamSlots.filter((s: FinalExamSlot) => s.schedule_id === schedule.id);
+    const removedSlots = previousScheduleSlots.filter((s: FinalExamSlot) => !newSlots.some((ns: FinalExamSlot) => ns.id === s.id));
+    removedSlots.forEach((rs: FinalExamSlot) => {
+      deleteFinalExamSlotFromSupabase(rs.id);
+    });
+
+    const updatedSchedules = finalExamSchedules.some((s: FinalExamSchedule) => s.id === schedule.id)
+      ? finalExamSchedules.map((s: FinalExamSchedule) => (s.id === schedule.id ? schedule : s))
+      : [...finalExamSchedules, schedule];
+
+    const otherScheduleSlots = finalExamSlots.filter((s: FinalExamSlot) => s.schedule_id !== schedule.id);
+    const scheduleNewSlots = newSlots.filter((s: FinalExamSlot) => s.schedule_id === schedule.id);
+    const otherNewSlots = newSlots.filter((s: FinalExamSlot) => s.schedule_id !== schedule.id);
+
+    const slotMap = new Map<string, FinalExamSlot>();
+    otherScheduleSlots.forEach((s: FinalExamSlot) => slotMap.set(s.id, s));
+    otherNewSlots.forEach((s: FinalExamSlot) => slotMap.set(s.id, s));
+    scheduleNewSlots.forEach((s: FinalExamSlot) => slotMap.set(s.id, s));
+
+    const updatedSlots = Array.from(slotMap.values());
+
+    setFinalExamSchedules(updatedSchedules);
+    setFinalExamSlots(updatedSlots);
+
+    saveStoredData('final_exam_schedules', updatedSchedules);
+    saveStoredData('final_exam_slots', updatedSlots);
+
+    saveFinalExamScheduleToSupabase(schedule);
+    if (newSlots.length > 0) {
+      saveFinalExamSlotsToSupabase(newSlots);
+    }
+  };
+
+  // 🕒 حساب وقت نهاية المحاضرة حسب نظام الكليات بالعراق
+  const calculateEndTimeFromStart = (startTime: string, type: LectureType | ''): string => {
+    if (!startTime) return '';
+    const [hStr, mStr] = startTime.split(':');
+    const startH = parseInt(hStr || '0', 10);
+    const startM = parseInt(mStr || '0', 10);
+    const totalStartMinutes = startH * 60 + startM;
+    const durationMinutes = type === 'practical' ? 60 : 90;
+    let totalEndMinutes = totalStartMinutes + durationMinutes;
+    if (totalEndMinutes > 21 * 60 + 30) {
+      totalEndMinutes = 21 * 60 + 30;
+    }
+    const endH = Math.floor(totalEndMinutes / 60);
+    const endM = totalEndMinutes % 60;
+    return `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
+  };
+
+  // 🕒 حساب التوقيت التالي للمحاضرة القادمة تلقائياً
+  const advanceToNextTimeSlot = (currentEndTime: string, type: LectureType | '' = 'theory'): { nextStart: string; nextEnd: string } => {
+    const nextStart = currentEndTime;
+    const nextEnd = calculateEndTimeFromStart(nextStart, type);
+    return {
+      nextStart,
+      nextEnd,
+    };
+  };
+
+  // 💾 حفظ المحاضرة (إضافة أو تعديل)
+  const handleSaveLecture = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!lecDay) {
+      setErrorMessage('يرجى اختيار اليوم الأسبوعي للمحاضرة أولاً.');
+      setTimeout(() => setErrorMessage(''), 3000);
+      return;
+    }
+    if (!lecType) {
+      setErrorMessage('يرجى اختيار طبيعة المحاضرة أولاً (محاضرة نظرية أو مختبر عملي).');
+      setTimeout(() => setErrorMessage(''), 3000);
+      return;
+    }
+    if (!lecCourseId) {
+      setErrorMessage('يرجى اختيار المادة الدراسية أولاً.');
+      setTimeout(() => setErrorMessage(''), 3000);
+      return;
+    }
+    if (!lecRoom.trim()) {
+      setErrorMessage('يرجى تحديد القاعة الدراسية أو المختبر.');
+      setTimeout(() => setErrorMessage(''), 3000);
+      return;
+    }
+    if (!lecStartTime) {
+      setErrorMessage('يرجى تحديد وقت بدء المحاضرة.');
+      setTimeout(() => setErrorMessage(''), 3000);
+      return;
+    }
+    if (!lecEndTime) {
+      setErrorMessage('يرجى تحديد وقت انتهاء المحاضرة.');
+      setTimeout(() => setErrorMessage(''), 3000);
+      return;
+    }
+
+    const course = courses.find((c: Course) => c.id === lecCourseId);
+    if (!course) return;
+
+    const safeType: LectureType = lecType;
+    const safeColor = lecColor || (safeType === 'practical' ? 'emerald' : 'blue');
+    const safeDay: DayOfWeek = (lecDay as DayOfWeek) || 'saturday';
+    const teacher = deptTeachers.find((t: UserProfile) => t.id === lecTeacherId);
+
+    // فحص التضارب الزمني
+    if (currentLecConflicts.length > 0) {
+      setErrorMessage(currentLecConflicts[0]?.message || 'يوجد تعارض زمني في القاعة أو الأستاذ لهذا التوقيت!');
+      setTimeout(() => setErrorMessage(''), 4500);
+      return;
+    }
+
+    const dayLabel = DAYS_OF_WEEK_LIST.find((d: { key: DayOfWeek; label_ar: string }) => d.key === lecDay)?.label_ar || lecDay;
+    const currentEditingId = editingLectureId;
+
+    const baseStart = currentScheduleConfig?.start_date || '2026-09-20';
+    const targetWk = lecWeekNumber || 1;
+    let actualLecDate = lecDate;
+    if (!actualLecDate || getDayOfWeekFromDateString(actualLecDate) !== safeDay) {
+      actualLecDate = calculateDateForAnyDayInWeek(baseStart, 1, targetWk, safeDay);
+    }
+    const effectiveBaseDate = actualLecDate || calculateDateForAnyDayInWeek(baseStart, 1, targetWk, safeDay);
+    const all15DatesMap: Record<number, string> = {};
+    if (effectiveBaseDate) {
+      const all15 = generateAll15WeeksDates(effectiveBaseDate, safeDay, targetWk);
+      all15.forEach((item: { weekNumber: number; date: string }) => {
+        all15DatesMap[item.weekNumber] = item.date;
+      });
+    }
+
+    if (editingLectureId) {
+      // ✏️ تعديل محاضرة قائمة
+      let updatedLecToSync: ScheduleLecture | null = null;
+      const updated = scheduleLectures.map((l: ScheduleLecture) => {
+        if (l.id === editingLectureId) {
+          const updatedWeeklyOverrides: Record<number, { day?: DayOfWeek; date?: string; start_time?: string; end_time?: string; room?: string; teacher_id?: string; teacher_name?: string }> = l.weekly_overrides ? { ...l.weekly_overrides } : {};
+
+          if (originalLecDay && originalLecDay !== safeDay && (lecCascadeShiftOption === 'cascade_following' || lecCascadeShiftOption === 'all_15_weeks')) {
+            const startWeek = lecCascadeShiftOption === 'all_15_weeks' ? 1 : (lecWeekNumber || 1);
+            const shiftedMap = shiftLectureToAnyDay(originalLecDay, safeDay, startWeek, effectiveBaseDate, 15, targetWk);
+            for (let w = startWeek; w <= 15; w++) {
+              const shiftInfo = shiftedMap[w];
+              if (shiftInfo) {
+                updatedWeeklyOverrides[w] = {
+                  ...(updatedWeeklyOverrides[w] || {}),
+                  day: shiftInfo.day,
+                  date: shiftInfo.date,
+                  start_time: lecStartTime,
+                  end_time: lecEndTime,
+                  room: lecRoom.trim(),
+                  teacher_id: teacher ? teacher.id : undefined,
+                  teacher_name: teacher ? teacher.full_name : undefined,
+                };
+                all15DatesMap[w] = shiftInfo.date;
+              }
+            }
+          }
+
+          const editedLec: ScheduleLecture = {
+            ...l,
+            course_id: course.id,
+            course_name: course.name,
+            course_code: course.code,
+            teacher_id: teacher ? teacher.id : undefined,
+            teacher_name: teacher ? teacher.full_name : undefined,
+            day: safeDay,
+            start_time: lecStartTime,
+            end_time: lecEndTime,
+            room: lecRoom.trim(),
+            color: safeColor,
+            type: safeType,
+            study_type: lecStudyType,
+            date: effectiveBaseDate,
+            week_number: lecWeekNumber || 1,
+            custom_weekly_dates: Object.keys(all15DatesMap).length > 0 ? all15DatesMap : undefined,
+            weekly_overrides: Object.keys(updatedWeeklyOverrides).length > 0 ? updatedWeeklyOverrides : undefined,
+            notes: lecNotes.trim() || undefined,
+          };
+          updatedLecToSync = editedLec;
+          return editedLec;
+        }
+        return l;
+      });
+
+      setScheduleLectures(updated);
+      saveStoredData('schedule_lectures', updated);
+      if (updatedLecToSync) {
+        saveScheduleLectureToSupabase(updatedLecToSync);
+      }
+
+      sendAppNotification({
+        recipient_id: 'all',
+        recipient_role: 'student',
+        title: `تحديث في جدول المحاضرات الأسبوعي`,
+        message: `تم تحديث موعد/قاعة محاضرة مادة (${course.name}) ليوم ${dayLabel} (${lecStartTime} - ${lecEndTime}) في ${lecRoom.trim()} للمرحلة ${selectedScheduleStage}.`,
+        type: 'schedule_updated',
+        link: '/student/dashboard',
+      });
+
+      if (closeModalAfterSave) {
+        const savedY: number = lastScheduleScrollYRef.current;
+        setIsLectureModalOpen(false);
+        setSuccessMessage(`تم تحديث محاضرة (${course.name}) في جدول يوم ${dayLabel} وتوثيقها سحابياً بنجاح!`);
+        setTimeout(() => setSuccessMessage(''), 4000);
+        resetLectureModalState();
+        if (typeof window !== 'undefined' && savedY > 0) {
+          setTimeout(() => {
+            window.scrollTo({ top: savedY, behavior: 'instant' });
+          }, 20);
+        }
+      } else {
+        setRecentlyAddedLectureId(currentEditingId);
+        setTimeout(() => setRecentlyAddedLectureId(null), 5000);
+        setSuccessMessage(`تم تحديث بيانات محاضرة (${course.name}) بنجاح في جدول يوم ${dayLabel}!`);
+        setTimeout(() => setSuccessMessage(''), 4500);
+      }
+    } else {
+      // ➕ إضافة محاضرة جديدة
+      const newLecId = `lec-${Date.now()}`;
+      const newLec: ScheduleLecture = {
+        id: newLecId,
+        department_id: currentDeptId || 'dept-1',
+        stage_number: selectedScheduleStage,
+        semester: selectedScheduleSemester,
+        academic_year_id: 'year-2026',
+        course_id: course.id,
+        course_name: course.name,
+        course_code: course.code,
+        teacher_id: teacher ? teacher.id : undefined,
+        teacher_name: teacher ? teacher.full_name : undefined,
+        day: safeDay,
+        start_time: lecStartTime,
+        end_time: lecEndTime,
+        room: lecRoom.trim(),
+        color: safeColor,
+        type: safeType,
+        study_type: lecStudyType,
+        date: effectiveBaseDate,
+        week_number: lecWeekNumber || 1,
+        custom_weekly_dates: Object.keys(all15DatesMap).length > 0 ? all15DatesMap : undefined,
+        notes: lecNotes.trim() || undefined,
+        created_at: new Date().toISOString(),
+      };
+
+      const updated = [...scheduleLectures, newLec];
+      setScheduleLectures(updated);
+      saveStoredData('schedule_lectures', updated);
+      saveScheduleLectureToSupabase(newLec);
+
+      sendAppNotification({
+        recipient_id: 'all',
+        recipient_role: 'student',
+        title: `محاضرة جديدة في الجدول الأسبوعي`,
+        message: `تمت إضافة محاضرة جديدة لمادة (${course.name}) ليوم ${dayLabel} (${lecStartTime} - ${lecEndTime}) في ${lecRoom.trim()} لطلبة المرحلة ${selectedScheduleStage}.`,
+        type: 'schedule_updated',
+        link: '/student/dashboard',
+      });
+
+      if (closeModalAfterSave) {
+        const savedY: number = lastScheduleScrollYRef.current;
+        setIsLectureModalOpen(false);
+        setSuccessMessage(`تمت إضافة محاضرة (${course.name}) إلى جدول المرحلة ${selectedScheduleStage} وتوثيقها سحابياً بنجاح!`);
+        setTimeout(() => setSuccessMessage(''), 4000);
+        resetLectureModalState();
+        if (typeof window !== 'undefined' && savedY > 0) {
+          setTimeout(() => {
+            window.scrollTo({ top: savedY, behavior: 'instant' });
+          }, 20);
+        }
+      } else {
+        setRecentlyAddedLectureId(newLecId);
+        setTimeout(() => setRecentlyAddedLectureId(null), 6000);
+
+        setSuccessMessage(`تم إدراج محاضرة (${course.name}) بنجاح في جدول (${dayLabel})!`);
+        setTimeout(() => setSuccessMessage(''), 4500);
+
+        setTimeout(() => {
+          const cardEl = document.getElementById(`lec-card-${newLecId}`);
+          if (cardEl) {
+            cardEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          } else if (lecListContainerRef.current) {
+            lecListContainerRef.current.scrollTo({ top: lecListContainerRef.current.scrollHeight, behavior: 'smooth' });
+          }
+        }, 150);
+
+        setLecCourseId('');
+        setLecTeacherId('');
+        setLecRoom('');
+        setLecNotes('');
+        setLecType('');
+        setLecStartTime('');
+        setLecEndTime('');
+      }
+    }
+  };
+
+  // 🧹 تصفير استمارة المحاضرة مع الاسترداد التقويمي الذكي
+  const resetLectureModalState = (initialDay?: DayOfWeek, initialWeek?: number) => {
+    setEditingLectureId(null);
+    setOriginalLecDay('');
+    setLecType('');
+    setLecCourseId('');
+    setLecTeacherId('');
+    setLecRoom('');
+    setLecStartTime('');
+    setLecEndTime('');
+
+    const savedStartDate = currentScheduleConfig?.start_date || '2026-09-20';
+    const targetWk = initialWeek || selectedScheduleWeek || getCurrentAcademicWeek(savedStartDate) || 1;
+    setLecWeekNumber(targetWk);
+    const targetDay = initialDay || getDayOfWeekFromDateString(savedStartDate) || (lecDay as DayOfWeek) || 'sunday';
+    setLecDay(targetDay);
+    const computedDate = calculateDateForAnyDayInWeek(savedStartDate, 1, targetWk, targetDay);
+    setLecDate(computedDate || savedStartDate);
+
+    setLecAutoCascadeWeeks(true);
+    setLecNotes('');
+    setLecModalSuccessMsg('');
+  };
+
+  // ✏️ فتح استمارة تعديل المحاضرة
+  const handleEditLecture = (lec: ScheduleLecture) => {
+    if (typeof window !== 'undefined') {
+      lastScheduleScrollYRef.current = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0;
+    }
+    setEditingLectureId(lec.id);
+    setOriginalLecDay(lec.day);
+    setSelectedScheduleStage(lec.stage_number);
+    setSelectedScheduleSemester((lec.semester || 1) as 1 | 2);
+    setLecDay(lec.day);
+    setLecCourseId(lec.course_id);
+    setLecTeacherId(lec.teacher_id || '');
+    setLecRoom(lec.room);
+    setLecStartTime(lec.start_time);
+    setLecEndTime(lec.end_time);
+    setLecColor(lec.color);
+    setLecType(lec.type);
+    setLecStudyType(lec.study_type || 'morning');
+
+    const baseStart = currentScheduleConfig?.start_date || '2026-09-20';
+    const targetWeek = selectedScheduleWeek || lec.week_number || 1;
+    const weekOverride = lec.weekly_overrides?.[targetWeek];
+    if (weekOverride) {
+      if (weekOverride.room) setLecRoom(weekOverride.room);
+      if (weekOverride.start_time) setLecStartTime(weekOverride.start_time);
+      if (weekOverride.end_time) setLecEndTime(weekOverride.end_time);
+      if (weekOverride.teacher_id) setLecTeacherId(weekOverride.teacher_id);
+    }
+    const effectiveDate = weekOverride?.date
+      || lec.custom_weekly_dates?.[targetWeek]
+      || calculateDateForAnyDayInWeek(baseStart, 1, targetWeek, weekOverride?.day || lec.day);
+    setLecWeekNumber(targetWeek);
+    setLecDate(effectiveDate);
+
+    setLecAutoCascadeWeeks(true);
+    setLecCascadeShiftOption('cascade_following');
+    setLecNotes(lec.notes || '');
+    setIsLectureModalOpen(true);
+  };
+
+  // 🗑️ حذف محاضرة فردية
+  const handleDeleteLecture = (id: string) => {
+    const targetLecture = scheduleLectures.find((l: ScheduleLecture) => l.id === id);
+    setDeleteModalConfig({
+      isOpen: true,
+      title: 'تأكيد حذف المحاضرة من الجدول الأسبوعي',
+      itemName: targetLecture?.course_name || 'محاضرة',
+      itemDetails: `الأستاذ: ${targetLecture?.teacher_name || '—'} | القاعة: ${targetLecture?.room || '—'} (${targetLecture?.start_time} - ${targetLecture?.end_time})`,
+      warningMessage: 'هل أنت متأكد من حذف هذه المحاضرة الأسبوعية من جدول الطلاب؟',
+      onConfirm: () => {
+        const updated = scheduleLectures.filter((l: ScheduleLecture) => l.id !== id);
+        setScheduleLectures(updated);
+        saveStoredData('schedule_lectures', updated);
+        deleteScheduleLectureFromSupabase(id);
+        setSuccessMessage('تم حذف المحاضرة من الجدول الأسبوعي وسحابياً بنجاح.');
+        setTimeout(() => setSuccessMessage(''), 3000);
+        setDeleteModalConfig((prev: DepartmentDeleteModalConfig) => ({ ...prev, isOpen: false }));
+      },
+    });
+  };
+
+  // 🗑️ حذف جماعي لمحاضرات الجدول المحددة
+  const handleBulkDeleteScheduleLectures = () => {
+    if (selectedScheduleLectureIds.length === 0) return;
+
+    const stageLectures = scheduleLectures.filter(
+      (l: ScheduleLecture) =>
+        isLectureInCurrentDept(l) &&
+        l.stage_number === selectedScheduleStage &&
+        l.semester === selectedScheduleSemester &&
+        (l.study_type || 'morning') === selectedScheduleStudyType
+    );
+    const isAllSelected =
+      stageLectures.length > 0 &&
+      stageLectures.every((l: ScheduleLecture) => selectedScheduleLectureIds.includes(l.id));
+
+    setDeleteModalConfig({
+      isOpen: true,
+      title: isAllSelected ? 'حذف شامل لكافة محاضرات الجدول الأسبوعي' : 'حذف المحاضرات المحددة من الجدول',
+      itemName: isAllSelected
+        ? `كافة محاضرات المرحلة (${selectedScheduleLectureIds.length} محاضرة)`
+        : `${selectedScheduleLectureIds.length} محاضرة أسبوعية`,
+      itemDetails: isAllSelected
+        ? 'سيتم تفريغ وحذف جميع المحاضرات المجدولة لكافة أسابيع وأيام الفصل الدراسي لهذه المرحلة.'
+        : 'سيتم حذف المحاضرات المحددة من الجدول الأسبوعي للمرحلة.',
+      warningMessage: '⚠️ تحذير: سيتم إزالة هذه المحاضرات من جداول الطلاب والأساتذة فوراً.',
+      confirmText: `تأكيد حذف (${selectedScheduleLectureIds.length}) محاضرة`,
+      variant: 'danger',
+      iconType: 'trash',
+      onConfirm: () => {
+        deleteScheduleLecturesBulkFromSupabase(selectedScheduleLectureIds);
+
+        const remaining = scheduleLectures.filter((l: ScheduleLecture) => !selectedScheduleLectureIds.includes(l.id));
+        setScheduleLectures(remaining);
+        saveStoredData('schedule_lectures', remaining);
+        setSelectedScheduleLectureIds([]);
+        setSuccessMessage(
+          isAllSelected
+            ? `تم بنجاح تفريغ وحذف كافة محاضرات الجدول الأسبوعي (${selectedScheduleLectureIds.length} محاضرة)`
+            : `تم بنجاح حذف (${selectedScheduleLectureIds.length}) محاضرة من الجدول الأسبوعي`
+        );
+        setTimeout(() => setSuccessMessage(''), 4000);
+        setDeleteModalConfig((prev: DepartmentDeleteModalConfig) => ({ ...prev, isOpen: false }));
+      }
+    });
+  };
+
+  return {
+    // 🎛️ خيارات الفلترة والعرض
+    selectedScheduleStage,
+    setSelectedScheduleStage,
+    selectedScheduleSemester,
+    setSelectedScheduleSemester,
+    selectedScheduleStudyType,
+    setSelectedScheduleStudyType,
+    selectedScheduleWeek,
+    setSelectedScheduleWeek,
+    selectedScheduleLectureIds,
+    setSelectedScheduleLectureIds,
+
+    // ⚙️ إعدادات الجدول والأسبوع الأكاديمي
+    currentScheduleConfig,
+    scheduleCurrentAcademicWeek,
+
+    // ⚠️ التضاربات والقاعات الشاغرة
+    currentLecConflicts,
+    availableRoomsForSlot,
+
+    // 📝 حقول استمارة المحاضرة
+    lecDay,
+    setLecDay,
+    lecStartTime,
+    setLecStartTime,
+    lecEndTime,
+    setLecEndTime,
+    lecRoom,
+    setLecRoom,
+    lecCourseId,
+    setLecCourseId,
+    lecTeacherId,
+    setLecTeacherId,
+    lecType,
+    setLecType,
+    lecColor,
+    setLecColor,
+    lecNotes,
+    setLecNotes,
+    lecDate,
+    setLecDate,
+    lecWeekNumber,
+    setLecWeekNumber,
+    lecStudyType,
+    setLecStudyType,
+    lecAutoCascadeWeeks,
+    setLecAutoCascadeWeeks,
+    lecCascadeShiftOption,
+    setLecCascadeShiftOption,
+    closeModalAfterSave,
+    setCloseModalAfterSave,
+    lecCourseSearchTerm,
+    setLecCourseSearchTerm,
+    lecCourseTabFilter,
+    setLecCourseTabFilter,
+    lecTeacherSearchTerm,
+    setLecTeacherSearchTerm,
+    lecModalSuccessMsg,
+    setLecModalSuccessMsg,
+
+    // 🪟 حالات النوافذ المنبثقة
+    isLectureModalOpen,
+    setIsLectureModalOpen,
+    editingLectureId,
+    setEditingLectureId,
+    recentlyAddedLectureId,
+    pendingSemesterStartDate,
+    setPendingSemesterStartDate,
+    showSemesterDateConfirmModal,
+    setShowSemesterDateConfirmModal,
+    isPreviewScheduleModalOpen,
+    setIsPreviewScheduleModalOpen,
+    isSchedulePrintModalOpen,
+    setIsSchedulePrintModalOpen,
+    isMasterMatrixModalOpen,
+    setIsMasterMatrixModalOpen,
+    isDurationSettingsModalOpen,
+    setIsDurationSettingsModalOpen,
+    showScheduleExcelInstructions,
+    setShowScheduleExcelInstructions,
+    isImportingScheduleExcel,
+    scheduleImportReport,
+    setScheduleImportReport,
+    scheduleActiveReportTab,
+    setScheduleActiveReportTab,
+
+    // 📍 مراجع DOM
+    lastScheduleScrollYRef,
+    lecListContainerRef,
+
+    // 🛠️ معالجات الأحداث
+    handleToggleWorkingDay,
+    handleResetWorkingDays,
+    handleSaveSemesterStartDate,
+    handleDownloadScheduleTemplate,
+    handleScheduleExcelUpload,
+    handleExportScheduleToExcel,
+    handleSaveExamSchedule,
+    calculateEndTimeFromStart,
+    advanceToNextTimeSlot,
+    handleSaveLecture,
+    resetLectureModalState,
+    handleEditLecture,
+    handleDeleteLecture,
+    handleBulkDeleteScheduleLectures,
+  };
+};

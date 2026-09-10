@@ -17,8 +17,8 @@ export interface AssessmentSchemeModalProps {
   isOpen: boolean; // 📂 حالة ظهور النافذة
   onClose: () => void; // 🛑 دالة إغلاق النافذة
   course: Course | null; // 📚 المقرر الدراسي المستهدف بالتخصيص
-  tempAssessmentScheme: AssessmentScheme; // 🎛️ المخطط المؤقت الجاري تعديله
-  setTempAssessmentScheme: React.Dispatch<React.SetStateAction<AssessmentScheme>>; // 🔄 دالة تحديث المخطط
+  tempAssessmentScheme: AssessmentScheme | null; // 🎛️ المخطط المؤقت الجاري تعديله (يقبل null قبل الفتح)
+  setTempAssessmentScheme: React.Dispatch<React.SetStateAction<AssessmentScheme | null>>; // 🔄 دالة تحديث المخطط بما فيها إمكانية تفريغه
   deptName: string; // 🏛️ اسم القسم العلمي
   onSave: () => void; // 💾 دالة حفظ واعتماد التوزيع
   getStageNameInArabic: (stg: number) => string; // 🏷️ دالة تحويل رقم المرحلة لاسم عربي
