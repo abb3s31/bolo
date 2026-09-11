@@ -22,8 +22,13 @@ export function lockBodyScroll(): void {
     // 🎯 نحفظ الزر اللي انضغط عليه حتى نحافظ على الفوكس بمكانه
     lastFocusedElement = (document.activeElement as HTMLElement) || null;
 
-    // 🔒 نقفل تمرير البودي لمنع التمرير الخلفي غير المرغوب
-    document.body.style.overflow = 'hidden';
+    // 📌 نثبت جسم الصفحة بصرياً بالمليمتر بنفس موضع السكرول لمنع كروم من طفر الصفحة للبدايه
+    document.body.style.position = 'fixed'; // 📌 تثبيت البودي بالكامل لمنع أي حركة
+    document.body.style.top = `-${scrollY}px`; // 📐 إزاحة سالبة بنفس المقدار ليبقى المنظر البصري مطابقاً 100%
+    document.body.style.left = '0'; // ⬅️ تثبيت الحافة اليسرى
+    document.body.style.right = '0'; // ➡️ تثبيت الحافة اليمنى
+    document.body.style.width = '100%'; // 📏 تثبيت العرض الكامل
+    document.body.style.overflow = 'hidden'; // 🔒 منع التمرير الخلفي غير المرغوب
   }
 }
 
@@ -37,13 +42,18 @@ export function unlockBodyScroll(): void {
 
   // 🚪 إذا تسدت كل النوافذ المنبثقة وصار العداد صفر، نفتح التمرير ونرجع السكرول لمكانه
   if (activeModalCount === 0) {
-    // 🔓 نرجع التمرير الطبيعي لصفحة الويب
-    document.body.style.overflow = '';
-    document.body.style.paddingRight = '';
-
     // 📍 نأخذ نسخة من الموضع المحفوظ قبل تصفيره
     const targetY: number = savedScrollY;
     const targetElement: HTMLElement | null = lastFocusedElement;
+
+    // 🔓 نلغي التثبيت البصري ونرجع الخصائص الطبيعية لجسم الصفحة
+    document.body.style.position = ''; // 🔄 تصفير التثبيت
+    document.body.style.top = ''; // 🔄 تصفير الإزاحة العلوية
+    document.body.style.left = ''; // 🔄 تصفير الحافة اليسرى
+    document.body.style.right = ''; // 🔄 تصفير الحافة اليمنى
+    document.body.style.width = ''; // 🔄 تصفير العرض المخصص
+    document.body.style.overflow = ''; // 🔓 إعادة التمرير الطبيعي
+    document.body.style.paddingRight = ''; // 🧹 تصفير الهامش
 
     // 🧹 نصفر المتغيرات المحفوظة للدورة الجاية
     savedScrollY = 0;
@@ -88,9 +98,14 @@ export function forceUnlockBodyScroll(): void {
   savedScrollY = 0;
   lastFocusedElement = null;
 
-  // 🔓 نلغي قفل التمرير
-  document.body.style.overflow = '';
-  document.body.style.paddingRight = '';
+  // 🔓 نلغي التثبيت البصري وقفل التمرير بالكامل
+  document.body.style.position = ''; // 🔄 تصفير التثبيت
+  document.body.style.top = ''; // 🔄 تصفير الإزاحة
+  document.body.style.left = ''; // 🔄 تصفير اليسار
+  document.body.style.right = ''; // 🔄 تصفير اليمين
+  document.body.style.width = ''; // 🔄 تصفير العرض
+  document.body.style.overflow = ''; // 🔓 تصفير الإخفاء
+  document.body.style.paddingRight = ''; // 🧹 تصفير البادينغ
 
   // 🚀 إذا جان اكو سكرول مسجل نرجعه فورياً
   if (targetY > 0) {

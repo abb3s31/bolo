@@ -303,40 +303,86 @@ export function calculateTimelinePositionPercentage(
   return Math.max(0, Math.min(100, pct));
 }
 
-// ⚙️ استخراج إعدادات الدوام والعطل للقسم والمرحلة والكورس، مع استرداد ذكي لتاريخ بداية الفصل المعتمد للقسم
+// ⚙️ استخراج إعدادات الدوام والعطل للقسم والمرحلة والكورس والكروب المستقل، مع استرداد ذكي لتاريخ بداية الفصل
 export function getScheduleConfigOrDefault(
-  configs: DepartmentScheduleConfig[],
-  departmentId: string,
-  stageNumber: number,
-  semester: 1 | 2
+  configs: DepartmentScheduleConfig[], // 📋 مصفوفة كافة إعدادات الجداول المحفوظة
+  departmentId: string, // 🏢 معرف القسم الأكاديمي
+  stageNumber: number, // 🎓 رقم المرحلة الدراسية
+  semester: 1 | 2, // 🗓️ الكورس الدراسي (1 أو 2)
+  studyType?: 'morning' | 'evening', // ☀️ نوع الدراسة (صباحي أو مسائي)
+  targetGroup?: string // 👥 الكروب المستهدف المستقل (مثلاً A أو B أو C)
 ): DepartmentScheduleConfig {
   // 🔍 البحث عن تاريخ بداية الفصل المعتمد للقسم من أي إعداد مسجل لهذا القسم
   const deptStartDate =
-    configs.find((c) => c.department_id === departmentId && c.start_date && c.start_date.trim() !== '')?.start_date ||
-    configs.find((c) => c.start_date && c.start_date.trim() !== '')?.start_date;
+    configs.find((c) => c.department_id === departmentId && c.start_date && c.start_date.trim() !== '')?.start_date || // 🎯 تاريخ القسم المباشر
+    configs.find((c) => c.start_date && c.start_date.trim() !== '')?.start_date; // 🌐 أو أي تاريخ بداية معتمد بالنظام
 
-  const found = configs.find(
-    (c) => c.department_id === departmentId && c.stage_number === stageNumber && c.semester === semester
-  );
-  if (found) {
-    // 🧠 إذا وجد الإعداد ولكن بدون تاريخ بداية، نرث تاريخ القسم المعتمد تلقائياً
-    if (!found.start_date && deptStartDate) {
+  // 1️⃣ إذا كان هناك كروب محدد (مثل A أو B)، نبحث عن إعدادات هذا الكروب حصراً أولاً
+  if (targetGroup && targetGroup !== 'all') {
+    const groupMatch = configs.find(
+      (c) =>
+        c.department_id === departmentId && // 🏢 مطابقة القسم
+        c.stage_number === stageNumber && // 🎓 مطابقة المرحلة
+        c.semester === semester && // 🗓️ مطابقة الكورس
+        (!studyType || !c.study_type || c.study_type === studyType) && // ☀️ مطابقة نوع الدراسة
+        c.target_group === targetGroup // 👥 مطابقة الكروب المستقل حصراً
+    );
+    if (groupMatch) { // ✅ إذا وجدنا إعداد مخصص لهذا الكروب
       return {
-        ...found,
-        start_date: deptStartDate,
+        ...groupMatch, // 📦 استرجاع إعدادات الكروب
+        start_date: groupMatch.start_date || deptStartDate, // 📅 توريث تاريخ البداية إن لم يكن محدداً
       };
     }
-    return found;
   }
 
+  // 2️⃣ البحث عن الإعداد العام للمرحلة (بدون كروب محدد أو للكل)
+  const stageFound = configs.find(
+    (c) =>
+      c.department_id === departmentId && // 🏢 مطابقة القسم
+      c.stage_number === stageNumber && // 🎓 مطابقة المرحلة
+      c.semester === semester && // 🗓️ مطابقة الكورس
+      (!studyType || !c.study_type || c.study_type === studyType) && // ☀️ مطابقة نوع الدراسة
+      (!c.target_group || c.target_group === 'all') // 🌐 إعداد عام أو لكافة الكروبات
+  );
+
+  if (stageFound) { // ✅ إذا وجدنا إعداد المرحلة العام
+    return {
+      ...stageFound, // 📦 استرجاع إعدادات المرحلة
+      start_date: stageFound.start_date || deptStartDate, // 📅 توريث تاريخ البداية المعتمد
+      target_group: targetGroup && targetGroup !== 'all' ? targetGroup : stageFound.target_group, // 👥 تعيين الكروب إن وجد
+    };
+  }
+
+  // 3️⃣ بحث مرن بدون تقييد نوع الدراسة للمرحلة
+  const fallbackStage = configs.find(
+    (c) =>
+      c.department_id === departmentId && // 🏢 مطابقة القسم
+      c.stage_number === stageNumber && // 🎓 مطابقة المرحلة
+      c.semester === semester && // 🗓️ مطابقة الكورس
+      (!c.target_group || c.target_group === 'all') // 🌐 إعداد عام
+  );
+
+  if (fallbackStage) { // ✅ في حال وجود إعداد عام سابق
+    return {
+      ...fallbackStage, // 📦 استرجاع الإعداد
+      start_date: fallbackStage.start_date || deptStartDate, // 📅 توريث التاريخ
+      target_group: targetGroup && targetGroup !== 'all' ? targetGroup : fallbackStage.target_group, // 👥 ربط الكروب
+    };
+  }
+
+  // 4️⃣ القيمة الافتراضية الصافية في حال لم يتم ضبط أي إعداد بعد
+  const groupSuffix = targetGroup && targetGroup !== 'all' ? `-${targetGroup}` : ''; // 🏷️ لاحقة الكروب للمعرف
+  const studySuffix = studyType ? `-${studyType}` : ''; // 🏷️ لاحقة نوع الدراسة
   return {
-    id: `cfg-${departmentId}-${stageNumber}-${semester}`,
-    department_id: departmentId,
-    stage_number: stageNumber,
-    semester: semester,
+    id: `cfg-${departmentId}-${stageNumber}-${semester}${studySuffix}${groupSuffix}`, // 🆔 معرف فريد ومستقل للإعداد
+    department_id: departmentId, // 🏢 معرف القسم
+    stage_number: stageNumber, // 🎓 رقم المرحلة
+    semester: semester, // 🗓️ رقم الكورس
+    study_type: studyType, // ☀️ نوع الدراسة
+    target_group: targetGroup && targetGroup !== 'all' ? targetGroup : undefined, // 👥 الكروب المستقل
     start_date: deptStartDate, // 📅 توريث تاريخ بداية الفصل المعتمد للقسم تلقائياً
-    working_days: [...DEFAULT_WORKING_DAYS],
-    off_days: [...DEFAULT_OFF_DAYS],
+    working_days: [...DEFAULT_WORKING_DAYS], // 💼 أيام الدوام الافتراضية
+    off_days: [...DEFAULT_OFF_DAYS], // 🏖️ أيام العطل الافتراضية
   };
 }
 
@@ -381,27 +427,28 @@ export interface ScheduleConflict {
   conflictingLecture: ScheduleLecture; // 📚 المحاضرة المتضاربة
 }
 
-// 🛡️ دالة ذكية لفحص واكتشاف تضارب القاعات والأساتذة والمراحل الزمنية
+// 🛡️ دالة ذكية لفحص واكتشاف تضارب القاعات والأساتذة والمراحل والكروبات الزمنية
 export function checkLectureCollisions(
   lecture: {
-    day: DayOfWeek;
-    start_time: string;
-    end_time: string;
-    room?: string;
-    teacher_name?: string;
-    teacher_id?: string;
-    stage_number?: number;
-    department_id?: string;
+    day: DayOfWeek; // 🗓️ اليوم الأسبوعي
+    start_time: string; // ⏱️ وقت البدء
+    end_time: string; // ⏱️ وقت الانتهاء
+    room?: string; // 🏛️ القاعة أو المختبر
+    teacher_name?: string; // 👨‍🏫 اسم الأستاذ
+    teacher_id?: string; // 👤 معرف الأستاذ
+    stage_number?: number; // 🎓 رقم المرحلة
+    department_id?: string; // 🏢 معرف القسم
+    target_group?: string; // 👥 الكروب أو الشعبة المستهدفة
   },
-  allLectures: ScheduleLecture[],
-  excludeLectureId?: string
+  allLectures: ScheduleLecture[], // 📋 قائمة كافة المحاضرات
+  excludeLectureId?: string // 🆔 استثناء المحاضرة قيد التعديل
 ): ScheduleConflict[] {
-  const conflicts: ScheduleConflict[] = [];
+  const conflicts: ScheduleConflict[] = []; // ⚠️ مصفوفة حفظ التعارضات المكتشفة
 
-  const startMin = timeStringToMinutes(lecture.start_time);
-  const endMin = timeStringToMinutes(lecture.end_time);
+  const startMin = timeStringToMinutes(lecture.start_time); // ⏱️ دقائق وقت البدء
+  const endMin = timeStringToMinutes(lecture.end_time); // ⏱️ دقائق وقت الانتهاء
 
-  if (startMin >= endMin) return conflicts;
+  if (startMin >= endMin) return conflicts; // 🛡️ حماية إذا كان التوقيت غير صالح
 
   // فحص كل المحاضرات في نفس اليوم
   const dayLectures = allLectures.filter(
@@ -409,41 +456,43 @@ export function checkLectureCollisions(
   );
 
   for (const existing of dayLectures) {
-    const exStart = timeStringToMinutes(existing.start_time);
-    const exEnd = timeStringToMinutes(existing.end_time);
+    const exStart = timeStringToMinutes(existing.start_time); // ⏱️ وقت بدء المحاضرة الحالية
+    const exEnd = timeStringToMinutes(existing.end_time); // ⏱️ وقت انتهاء المحاضرة الحالية
 
     // التحقق من التداخل الزمني
     const isOverlapping = startMin < exEnd && exStart < endMin;
 
     if (isOverlapping) {
-      // 1. تضارب الأستاذ المحاضر (أولوية قصوى لأن الأستاذ مستحيل يدرس بمكانين بنفس الدقيقة)
+      // 🏛️ استخراج أسماء القاعات مع التنظيف والتوحيد للحروف
+      const lecRoomTrimmed = lecture.room ? lecture.room.trim().toLowerCase() : ''; // 🏛️ اسم قاعة المحاضرة الجديدة
+      const exRoomTrimmed = existing.room ? existing.room.trim().toLowerCase() : ''; // 🏛️ اسم قاعة المحاضرة المسجلة مسبقاً
+
+      // 🛑 شرط عراقي صارم وفق تعليمات النظام: التعارض لا يحدث إطلاقاً إلا إذا كانت المحاضرتان في نفس القاعة حصراً!
+      // إذا كانت المحاضرات في قاعات مختلفة (أو لم يتم تحديد نفس القاعة بعد)، فلا يُعتبر ذلك تعارضاً ولا يتم تعطيل الحفظ
+      const isSameRoom = Boolean(lecRoomTrimmed && exRoomTrimmed && lecRoomTrimmed === exRoomTrimmed);
+
+      if (!isSameRoom) {
+        continue; // 🚀 إذا بقاعات مختلفة ما يصير تعارض نهائياً ونعبر للمحاضرة التالية بسلام
+      }
+
+      // 👥 استخراج لاحقة الكروب لتضمينها بالنص التوضيحي إذا وجد كروب
+      const exGrp = existing.target_group || 'all'; // 🏷️ كروب المحاضرة المسجلة
+      const groupSuffix = exGrp !== 'all' ? ` (كروب ${exGrp})` : ''; // 🏷️ لاحقة اسم الكروب
+
+      // 1. تضارب الأستاذ المحاضر في نفس القاعة
       if (
         (lecture.teacher_id && existing.teacher_id && lecture.teacher_id === existing.teacher_id) || // 👨‍🏫 فحص تطابق الآيدي مال الأستاذ
         (lecture.teacher_name && existing.teacher_name && lecture.teacher_name.trim().toLowerCase() === existing.teacher_name.trim().toLowerCase()) // 🔤 فحص تطابق الاسم إذا ماكو آيدي
       ) {
         conflicts.push({
           type: 'teacher', // 🏷️ نوع التعارض للأستاذ
-          message: `الأستاذ (${existing.teacher_name}) لديه محاضرة أخرى (${existing.course_name} - المرحلة ${existing.stage_number}) في نفس التوقيت (${existing.start_time} - ${existing.end_time})!`, // 📢 نص الرسالة التوضيحية
-          conflictingLecture: existing, // 🔗 كائن المحاضرة المتعارضة
-        });
-        continue; // 🛑 نوقف الفحص لهالمحاضرة ونكتفي بأول تضارب حتى ما يتكرر ويا المرحلة
-      }
-
-      // 2. تضارب القاعة
-      if (
-        lecture.room && // 🏛️ التأكد من وجود اسم القاعة بالمدخل
-        existing.room && // 🏛️ التأكد من وجود القاعة بالمحاضرة القديمة
-        lecture.room.trim().toLowerCase() === existing.room.trim().toLowerCase() // 🔍 فحص تطابق اسم القاعة
-      ) {
-        conflicts.push({
-          type: 'room', // 🏷️ نوع التعارض للقاعة
-          message: `القاعة (${existing.room}) محجوزة بالفعل لمادة (${existing.course_name} - المرحلة ${existing.stage_number}) في نفس الوقت (${existing.start_time} - ${existing.end_time})!`, // 📢 رسالة حجز القاعة
+          message: `تعارض قاعة وأستاذ: الأستاذ (${existing.teacher_name}) لديه محاضرة أخرى (${existing.course_name} - المرحلة ${existing.stage_number}${groupSuffix}) في نفس القاعة (${existing.room}) ونفس التوقيت (${existing.start_time} - ${existing.end_time})!`, // 📢 نص الرسالة التوضيحية
           conflictingLecture: existing, // 🔗 كائن المحاضرة المتعارضة
         });
         continue; // 🛑 نوقف الفحص لهالمحاضرة ونكتفي بالتضارب الأول
       }
 
-      // 3. تضارب نفس المرحلة والقسم
+      // 2. تضارب نفس المرحلة والكروب في نفس القاعة
       if (
         lecture.department_id && // 🏢 فحص وجود آيدي القسم
         existing.department_id && // 🏢 فحص وجود آيدي قسم المحاضرة السابقة
@@ -452,13 +501,25 @@ export function checkLectureCollisions(
         existing.stage_number && // 🎓 فحص رقم مرحلة المحاضرة السابقة
         lecture.stage_number === existing.stage_number // ⚖️ التأكد من تطابق رقم المرحلة
       ) {
-        conflicts.push({
-          type: 'stage', // 🏷️ نوع التعارض للمرحلة الدراسية
-          message: `المرحلة ${existing.stage_number} لديها محاضرة أخرى مجدولة (${existing.course_name}) في نفس الوقت (${existing.start_time} - ${existing.end_time})!`, // 📢 رسالة انشغال طلاب المرحلة
-          conflictingLecture: existing, // 🔗 كائن المحاضرة المتعارضة
-        });
-        continue; // 🛑 نكتفي بهذا التضارب ونمنع أي تكرار إضافي
+        const lecGrp = lecture.target_group || 'all'; // 🏷️ كروب المحاضرة الجديدة
+        const isSameGroupOrAll = lecGrp === 'all' || exGrp === 'all' || lecGrp === exGrp; // ⚖️ فحص تطابق الكروب
+
+        if (isSameGroupOrAll) {
+          conflicts.push({
+            type: 'stage', // 🏷️ نوع التعارض للمرحلة والكروب
+            message: `المرحلة ${existing.stage_number}${groupSuffix} لديها محاضرة أخرى (${existing.course_name}) في نفس القاعة (${existing.room}) ونفس التوقيت (${existing.start_time} - ${existing.end_time})!`, // 📢 رسالة انشغال القاعة للمرحلة
+            conflictingLecture: existing, // 🔗 كائن المحاضرة المتعارضة
+          });
+          continue; // 🛑 نكتفي بهذا التضارب
+        }
       }
+
+      // 3. تضارب حجز القاعة العام (القاعة محجوزة لمادة أو مرحلة أخرى بنفس الوقت)
+      conflicts.push({
+        type: 'room', // 🏷️ نوع التعارض للقاعة المشغولة
+        message: `القاعة (${existing.room}) محجوزة بالفعل لمادة (${existing.course_name} - المرحلة ${existing.stage_number}${groupSuffix}) في نفس التوقيت (${existing.start_time} - ${existing.end_time})!`, // 📢 رسالة حجز القاعة
+        conflictingLecture: existing, // 🔗 كائن المحاضرة المتعارضة
+      });
     }
   }
 

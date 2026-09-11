@@ -34,8 +34,11 @@ export class SupabaseStudentRepository implements IStudentRepository {
             stage_number: item.stage_number,
             university_number: item.university_number,
             generated_email: item.email,
+            study_type: item.study_type || 'morning', // ☀️ نوع الدراسة
             gender: item.gender,
             temp_password: item.temp_password,
+            student_group: item.student_group, // 🏷️ كروب الطالب
+            subgroup: item.subgroup, // 🔬 كروب المختبر
             is_active: item.is_active,
             is_graduated: item.is_graduated,
             graduation_status: item.graduation_status,
@@ -84,8 +87,11 @@ export class SupabaseStudentRepository implements IStudentRepository {
           stage_number: item.stage_number,
           university_number: item.university_number,
           generated_email: item.email,
+          study_type: item.study_type || 'morning', // ☀️ نوع الدراسة
           gender: item.gender,
           temp_password: item.temp_password,
+          student_group: item.student_group, // 🏷️ كروب الطالب
+          subgroup: item.subgroup, // 🔬 كروب المختبر
           is_active: item.is_active,
           is_graduated: item.is_graduated,
           graduation_status: item.graduation_status,
@@ -130,8 +136,11 @@ export class SupabaseStudentRepository implements IStudentRepository {
           stage_number: item.stage_number,
           university_number: item.university_number,
           generated_email: item.email,
+          study_type: item.study_type || 'morning', // ☀️ نوع الدراسة
           gender: item.gender,
           temp_password: item.temp_password,
+          student_group: item.student_group, // 🏷️ كروب الطالب
+          subgroup: item.subgroup, // 🔬 كروب المختبر
           is_active: item.is_active,
           is_graduated: item.is_graduated,
           graduation_status: item.graduation_status,
@@ -176,8 +185,11 @@ export class SupabaseStudentRepository implements IStudentRepository {
           stage_number: item.stage_number,
           university_number: item.university_number,
           generated_email: item.email,
+          study_type: item.study_type || 'morning', // ☀️ نوع الدراسة
           gender: item.gender,
           temp_password: item.temp_password,
+          student_group: item.student_group, // 🏷️ كروب الطالب
+          subgroup: item.subgroup, // 🔬 كروب المختبر
           is_active: item.is_active,
           is_graduated: item.is_graduated,
           graduation_status: item.graduation_status,
@@ -225,8 +237,11 @@ export class SupabaseStudentRepository implements IStudentRepository {
             stage_number: item.stage_number,
             university_number: item.university_number,
             generated_email: item.email,
+            study_type: item.study_type || 'morning', // ☀️ نوع الدراسة
             gender: item.gender,
             temp_password: item.temp_password,
+            student_group: item.student_group, // 🏷️ كروب الطالب
+            subgroup: item.subgroup, // 🔬 كروب المختبر
             is_active: item.is_active,
             is_graduated: item.is_graduated,
             graduation_status: item.graduation_status,
@@ -261,6 +276,7 @@ export class SupabaseStudentRepository implements IStudentRepository {
       full_name: student.fullName,
       university_number: student.universityNumber.getValue(),
       email: student.email.getValue(),
+      study_type: student.shiftType, // ☀️ نوع الدراسة
       is_active: student.isActive,
       created_at: student.enrolledAt,
     };
@@ -289,6 +305,7 @@ export class SupabaseStudentRepository implements IStudentRepository {
       full_name: student.fullName,
       university_number: student.universityNumber.getValue(),
       email: student.email.getValue(),
+      study_type: student.shiftType, // ☀️ نوع الدراسة
       is_active: student.isActive,
       created_at: student.enrolledAt,
     }));

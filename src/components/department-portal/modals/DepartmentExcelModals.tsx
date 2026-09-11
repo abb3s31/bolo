@@ -371,33 +371,36 @@ export const DepartmentExcelModals: React.FC<DepartmentExcelModalsProps> = ({
         </div>
       )}
 
-      {/* ℹ️ نافذة تعليمات وضوابط استيراد ملف Excel لطلبة القسم */}
+      {/* ℹ️ نافذة تعليمات وضوابط استيراد ملف Excel لطلبة القسم بتصميم احترافي وهيدر وفوتر ثابتين */}
       {showStudentExcelInstructions && (
-        <div className="fixed inset-0 top-0 left-0 right-0 bottom-0 w-screen h-screen min-h-[100dvh] bg-slate-950/80 backdrop-blur-md flex items-center justify-center z-[999999] p-4 animate-in fade-in duration-150">
-          <div className="bg-white border border-slate-300 rounded-3xl max-w-2xl w-full shadow-2xl p-6 sm:p-8 space-y-5 text-right relative overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+        <div className="fixed inset-0 top-0 left-0 right-0 bottom-0 w-screen h-screen min-h-[100dvh] bg-slate-950/80 backdrop-blur-md flex items-center justify-center z-[999999] p-3 sm:p-4 animate-in fade-in duration-150" dir="rtl">
+          <div className="bg-white border border-slate-300 rounded-3xl max-w-2xl w-full max-h-[88vh] shadow-2xl flex flex-col text-right relative overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* 🏛️ هيدر النافذة الثابت */}
+            <div className="p-5 sm:p-6 border-b border-slate-200 bg-white shrink-0 flex items-center justify-between z-30 sticky top-0 shadow-2xs">
               <div className="flex items-center gap-3">
-                <div className="p-3 bg-indigo-100 text-indigo-900 rounded-2xl border border-indigo-200">
-                  <FileSpreadsheet className="w-6 h-6 text-indigo-700" />
+                <div className="p-3 bg-[#0F2942] text-cyan-300 rounded-2xl shadow-xs shrink-0">
+                  <FileSpreadsheet className="w-6 h-6 text-cyan-300" />
                 </div>
                 <div>
-                  <h3 className="text-xl font-black text-slate-950">تعليمات وضوابط استيراد طلبة القسم</h3>
-                  <p className="text-sm font-bold text-slate-700 mt-0.5">جامعة الإمام جعفر الصادق (ع) - قسم {deptName}</p>
+                  <h3 className="text-lg sm:text-xl font-black text-slate-950">تعليمات وضوابط استيراد طلبة القسم</h3>
+                  <p className="text-xs sm:text-sm font-bold text-slate-700 mt-0.5">جامعة الإمام جعفر الصادق (ع) - قسم {deptName}</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setShowStudentExcelInstructions(false)}
                 className="p-2 text-slate-700 hover:text-slate-950 rounded-xl hover:bg-slate-100 transition cursor-pointer"
+                title="إغلاق"
               >
                 <X className="w-6 h-6" />
               </button>
             </div>
 
-            <div className="space-y-3.5 text-base font-black text-slate-900 leading-relaxed">
+            {/* 📦 محتوى البطاقات التعليمية في المنتصف مع تمرير داخلي انسيابي */}
+            <div className="p-5 sm:p-6 overflow-y-auto flex-1 min-h-0 space-y-3.5 text-base font-black text-slate-900 leading-relaxed overscroll-contain">
               <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
-                <div className="flex items-center gap-2 text-indigo-950 font-black">
-                  <CheckCircle2 className="w-5 h-5 text-indigo-700" />
+                <div className="flex items-center gap-2 text-[#0F2942] font-black">
+                  <CheckCircle2 className="w-5 h-5 text-cyan-700" />
                   <span>1. حقل اسم الطالب:</span>
                 </div>
                 <p className="text-sm text-slate-700 font-bold mr-7">
@@ -406,8 +409,8 @@ export const DepartmentExcelModals: React.FC<DepartmentExcelModalsProps> = ({
               </div>
 
               <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
-                <div className="flex items-center gap-2 text-indigo-950 font-black">
-                  <CheckCircle2 className="w-5 h-5 text-indigo-700" />
+                <div className="flex items-center gap-2 text-[#0F2942] font-black">
+                  <CheckCircle2 className="w-5 h-5 text-cyan-700" />
                   <span>2. حقل المرحلة الدراسية:</span>
                 </div>
                 <p className="text-sm text-slate-700 font-bold mr-7">
@@ -416,8 +419,8 @@ export const DepartmentExcelModals: React.FC<DepartmentExcelModalsProps> = ({
               </div>
 
               <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
-                <div className="flex items-center gap-2 text-indigo-950 font-black">
-                  <CheckCircle2 className="w-5 h-5 text-indigo-700" />
+                <div className="flex items-center gap-2 text-[#0F2942] font-black">
+                  <CheckCircle2 className="w-5 h-5 text-cyan-700" />
                   <span>3. حقل البريد الأكاديمي وكلمة المرور:</span>
                 </div>
                 <p className="text-sm text-slate-700 font-bold mr-7">
@@ -426,22 +429,34 @@ export const DepartmentExcelModals: React.FC<DepartmentExcelModalsProps> = ({
               </div>
 
               <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
-                <div className="flex items-center gap-2 text-indigo-950 font-black">
-                  <CheckCircle2 className="w-5 h-5 text-indigo-700" />
+                <div className="flex items-center gap-2 text-[#0F2942] font-black">
+                  <CheckCircle2 className="w-5 h-5 text-cyan-700" />
                   <span>4. حقل الجنس:</span>
                 </div>
                 <p className="text-sm text-slate-700 font-bold mr-7">
                   اكتب (ذكر) أو (أنثى)، أو سيقوم النظام بالتعرف الذكي التلقائي من الاسم الثلاثي.
                 </p>
               </div>
+
+              {/* 👥 بند حقل الكروب أو الشعبة الدراسية (جديد لمسار بولونيا) */}
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+                <div className="flex items-center gap-2 text-[#0F2942] font-black">
+                  <CheckCircle2 className="w-5 h-5 text-cyan-700" />
+                  <span>5. حقل الكروب أو الشعبة (A, B, C... اختياري):</span>
+                </div>
+                <p className="text-sm text-slate-700 font-bold mr-7">
+                  اختياري. اكتب اسم الكروب مثل (A أو B أو C أو D)، أو اتركه فارغاً لتسجيل الطالب ضمن الشعبة العامة الموحدة بدون كروب، ويمكن تعيين أو تغيير كروب الطالب لاحقاً في أي وقت.
+                </p>
+              </div>
             </div>
 
-            <div className="flex items-center justify-between pt-3 border-t border-slate-200">
+            {/* 🔘 الفوتر الثابت في أسفل الكارد */}
+            <div className="p-4 sm:p-5 border-t border-slate-200 bg-slate-50 shrink-0 z-30 sticky bottom-0 flex items-center justify-between shadow-xs">
               {/* 📥 زر تنزيل النموذج المعتمد بتصميم كحلي ملكي وأيقونة سماوية فاخرة */}
               <button
                 type="button"
                 onClick={handleDownloadStudentTemplate}
-                className="px-5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black rounded-xl text-base transition flex items-center gap-2 cursor-pointer border border-[#0F2942] shadow-sm active:scale-95"
+                className="px-5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black rounded-xl text-sm sm:text-base transition flex items-center gap-2 cursor-pointer border border-[#0F2942] shadow-sm active:scale-95"
               >
                 <Download className="w-4 h-4 text-cyan-300" />
                 <span>تنزيل النموذج المعتمد</span>
@@ -450,7 +465,7 @@ export const DepartmentExcelModals: React.FC<DepartmentExcelModalsProps> = ({
               <button
                 type="button"
                 onClick={() => setShowStudentExcelInstructions(false)}
-                className="px-6 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black rounded-xl text-base transition cursor-pointer border border-[#0F2942]"
+                className="px-6 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black rounded-xl text-sm sm:text-base transition cursor-pointer border border-[#0F2942]"
               >
                 فهمت ذلك
               </button>

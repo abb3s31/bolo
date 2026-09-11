@@ -34,6 +34,23 @@ export interface Stage {
   academic_year_id?: string;  // 🗓️ معرف السنة الدراسية (اختياري)
 }
 
+// 🏷️ نوع مسمى الكروب والشعبة الأكاديمية الصارم
+export type StudentGroup = 'all' | 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | string;
+
+// ⚙️ واجهة إعدادات كروبات وشعب المرحلة الدراسية بالقسم لرئيس ومقرر القسم
+export interface StageGroupConfig {
+  id: string;                         // 🆔 المعرف الفريد للإعداد (مثال: grp_dept-1_s1_morning)
+  department_id: string;              // 🏢 معرف القسم التابع له
+  stage_number: number;               // 🎓 رقم المرحلة (1 - 6)
+  study_type: 'morning' | 'evening';  // ☀️🌙 نوع الدوام (صباحي / مسائي)
+  has_groups: boolean;                // ⚙️ هل المرحلة مقسمة إلى كروبات؟
+  group_count: number;                // 🔢 عدد الكروبات (0، 2، 3، 4، أو مخصص)
+  groups: string[];                   // 📋 قائمة أسماء الكروبات المفعلة (مثال: ['A', 'B', 'C', 'D'])
+  group_names?: string[];             // 🏷️ مسمى بديل متوافق لقائمة أسماء الكروبات
+  default_group?: string;             // 🏷️ الكروب الافتراضي إن وجد
+  updated_at?: string;                // ⏰ تاريخ آخر تحديث
+}
+
 // 🗓️ واجهة تعريف السنة الدراسية
 export interface AcademicYear {
   id: string;                 // 🆔 معرف السنة
@@ -183,6 +200,8 @@ export interface StudentRecord {
   is_active: boolean;         // 🟢 حالة الحساب
   is_graduated?: boolean;     // 🎓 هل تخرج الطالب؟
   graduation_status?: string; // 📜 وصف حالة التخرج
+  student_group?: string;     // 🏷️ كروب الطالب الأكاديمي (A, B, C, D أو فارغ للشعبة العامة)
+  subgroup?: string;          // 🔬 كروب المختبر المصغر (A1, A2...)
   created_at?: string;        // ⏰ تاريخ الإنشاء
 }
 
@@ -205,6 +224,8 @@ export interface UserProfile {
   must_change_password?: boolean; // 🔒 إجبار تغيير كلمة المرور
   is_graduated?: boolean;     // 🎓 هل تخرج الطالب بنجاح؟
   graduation_status?: string; // 📜 نص حالة التخرج (مثال: خريج مؤهل بنجاح)
+  student_group?: string;     // 🏷️ كروب الطالب المعتمد (للطالب فقط)
+  subgroup?: string;          // 🔬 كروب المختبر المصغر (للطالب فقط)
   scientific_title?: string;  // 🎖️ اللقب العلمي للتدريسي (أستاذ، أستاذ مساعد، مدرس، مدرس مساعد)
   created_at?: string;        // ⏰ تاريخ إنشاء الحساب
   order_index?: number;       // 🔢 ترتيب الحساب المخصص في القائمة
@@ -446,6 +467,7 @@ export interface ScheduleLecture {
   color: LectureColor;        // 🎨 لون المحاضرة
   type: LectureType;          // 🏷️ طبيعة المحاضرة (نظري / عملي / مناقشة)
   study_type?: 'morning' | 'evening'; // ☀️ نوع الدراسة (صباحي / مسائي)
+  target_group?: string;      // 🏷️ الكروب المستهدف بالمحاضرة ('all' لكافة الشعب أو 'A', 'B' لكروب محدد)
   date?: string;              // 📅 تاريخ المحاضرة التقويمي الفعلي أو المرجعي للأسبوع الأول (YYYY-MM-DD)
   week_number?: number;       // 🔢 رقم الأسبوع الدراسي المعتمد (من 1 إلى 15) وفق نظام بولونيا
   custom_weekly_dates?: Record<number, string>; // 📆 التواريخ التقويمية المحسوبة لكافة الأسابيع الـ 15 بالتسلسل
@@ -462,6 +484,7 @@ export interface DepartmentScheduleConfig {
   stage_number: number;       // 🎓 رقم المرحلة
   semester: 1 | 2;            // 🗓️ الكورس الدراسي
   study_type?: 'morning' | 'evening'; // ☀️ نوع الدراسة (صباحي / مسائي)
+  target_group?: string;      // 👥 الكروب المستهدف (مثلاً A أو B أو C أو D أو عام للمرحلة)
   working_days: DayOfWeek[];  // 💼 أيام الدوام الرسمي (الافتراضي: السبت إلى الأربعاء)
   off_days: DayOfWeek[];      // 🏖️ أيام العطل الرسمية (الافتراضي: الخميس والجمعة)
   start_date?: string;        // 📅 تاريخ انطلاق الفصل الدراسي المعتمد للأسبوع الأول (YYYY-MM-DD)
@@ -511,6 +534,7 @@ export interface StudentAttendanceRecord {
   course_code: string;             // 🏷️ رمز المادة
   department_id: string;           // 🏢 معرف القسم
   stage_number: number;            // 🎓 رقم المرحلة (1-4)
+  student_group?: string;          // 🏷️ كروب الطالب وقت تسجيل الحضور ('A', 'B'...)
   semester: 1 | 2;                 // 🗓️ الكورس الدراسي
   academic_year_id: string;        // 📅 العام الدراسي (مثال: '2026-2027')
   week_number: number;             // 🔢 رقم الأسبوع الدراسي (من 1 إلى 15)
@@ -623,6 +647,7 @@ export interface FinalExamSlot {
   supervisor_name?: string;        // 👤 اسم رئيس اللجنة الامتحانية / المشرف
   notes?: string;                  // 💡 ملاحظات خاصة بالمادة (مثال: يسمح بالآلة الحاسبة)
   study_type?: 'morning' | 'evening' | 'both'; // ☀️🌙 الفترة الدراسية (صباحي / مسائي / كلاهما)
+  target_group?: string;           // 🏷️ الكروب المستهدف بالقاعة الامتحانية ('all' أو 'A', 'B'...)
 }
 
 // 🏛️ واجهة جدول الامتحانات النهائية الشامل للمرحلة والقسم (Final Exam Schedule)
@@ -799,6 +824,7 @@ export interface CourseAcademicTask {
   stage_number: number;               // 🎓 رقم المرحلة (1 - 4)
   semester: 1 | 2;                    // 🗓️ الكورس الدراسي (1 أو 2)
   study_type?: 'morning' | 'evening' | 'both'; // ☀️🌙 الفترة الدراسية (صباحي / مسائي / كلاهما)
+  target_group?: string;              // 🏷️ الكروب المستهدف بالتكليف ('all' أو 'A', 'B'...)
   academic_year: string;              // 🗓️ العام الدراسي (2026-2027)
   teacher_id: string;                 //  معرف الأستاذ المسؤول
   teacher_name: string;               // 👤 اسم الأستاذ للعرض

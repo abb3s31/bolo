@@ -21,12 +21,14 @@ import { PrintFilterDropdown, PrintFilterOption } from '@/components/PrintFilter
 import { detectArabicGender } from '@/lib/demographics-utils'; // 🧮 التعرف الذكي على جنس التدريسي
 import { getStageNameInArabic } from '@/lib/grade-utils'; // 🎓 تحويل رقم المرحلة إلى اسمها العربي المعتمد
 import { getAcademicYear } from '@/lib/mock-data'; // 🗓️ دالة العام الدراسي الحالي
+import { GroupBadgeSvg } from '@/components/common/GroupSvgIcons'; // 👥 استيراد أيقونة الكروب الفيكتورية النقية SVG
 import {
   UserProfile, // 👤 واجهة الملف التعريفي للمستخدم
   Course, // 📚 واجهة بيانات المقرر الدراسي
   TeacherCourse, // 👨‍🏫 واجهة تكليف التدريسي بالمقرر
   ScheduleLecture, // 🕒 واجهة محاضرة الجدول الأسبوعي
   DepartmentScheduleConfig, // ⚙️ واجهة إعدادات الجدول للقسم
+  StageGroupConfig, // ⚙️ نوع إعدادات كروبات المراحل الدراسية
 } from '@/types'; // 🔗 استيراد الأنواع الرسمية
 
 // 📋 واجهة الخصائص الشاملة لمكون نوافذ الطباعة والمعاينة بالقسم الأكاديمي
@@ -46,6 +48,8 @@ export interface DepartmentPrintModalsProps {
   academicYear?: string; // 🗓️ العام الدراسي الحالي
   selectedScheduleSemester: number; // 🗓️ الكورس الدراسي المختار
   selectedScheduleStudyType: 'morning' | 'evening'; // ☀️🌙 نوع الدراسة
+  selectedScheduleGroup?: string; // 👥 الكروب المحدد بالجدول لفتحه بالمعاينة مباشرة
+  stageGroupConfigs?: StageGroupConfig[]; // 👥 إعدادات كروبات مراحل القسم الدراسية
 
   // 👨‍🏫 خصائص نافذة طباعة بطاقات اعتماد الأساتذة
   showTeacherPrintModal: boolean; // 🖨️ حالة فتح نافذة طباعة بطاقات الأساتذة
@@ -96,6 +100,8 @@ export const DepartmentPrintModals: React.FC<DepartmentPrintModalsProps> = ({
   academicYear,
   selectedScheduleSemester,
   selectedScheduleStudyType,
+  selectedScheduleGroup, // 👥 استلام الكروب المختار لفتحه بالمعاينة والطباعة مباشرة
+  stageGroupConfigs, // 👥 استلام إعدادات كروبات المراحل لتمريرها لجدول الطلاب
   showTeacherPrintModal,
   setShowTeacherPrintModal,
   singleTeacherPrintProfile,
@@ -134,7 +140,26 @@ export const DepartmentPrintModals: React.FC<DepartmentPrintModalsProps> = ({
                 <div className="p-2 bg-[#0F2942] text-white rounded-xl shadow-2xs">
                   <Calendar className="w-5 h-5 text-cyan-300" />
                 </div>
-                <h3 className="text-lg sm:text-xl font-black text-slate-950">معاينة جدول الطلاب</h3>
+                <div>
+                  <h3 className="text-lg sm:text-xl font-black text-slate-950 flex items-center gap-2 flex-wrap">
+                    <span>معاينة جدول الطلاب</span>
+                    <span className="px-2.5 py-0.5 rounded-full bg-slate-200 text-slate-900 text-xs font-black border border-slate-300">
+                      المرحلة {getStageNameInArabic(selectedScheduleStage)}
+                    </span>
+                    <span className="px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-950 text-xs font-black border border-blue-200">
+                      {selectedScheduleStudyType === 'morning' ? 'الصباحي' : 'المسائي'}
+                    </span>
+                    {selectedScheduleGroup && selectedScheduleGroup !== 'all' && (
+                      <span className="px-2.5 py-0.5 rounded-full bg-[#0F2942] text-cyan-300 text-xs font-black border border-[#0F2942] shadow-2xs flex items-center gap-1">
+                        <GroupBadgeSvg className="w-3.5 h-3.5 text-cyan-300 shrink-0" /> {/* 👥 أيقونة الكروب الفيكتورية SVG */}
+                        <span>كروب {selectedScheduleGroup}</span> {/* 🏷️ اسم الكروب */}
+                      </span>
+                    )}
+                  </h3>
+                  <p className="text-xs font-black text-slate-700 mt-0.5">
+                    استعراض الجدول الأكاديمي الشامل وفق نظام مسار بولونيا بدقة واكتمال
+                  </p>
+                </div>
               </div>
               <button
                 type="button"
@@ -162,7 +187,9 @@ export const DepartmentPrintModals: React.FC<DepartmentPrintModalsProps> = ({
                 academicYear={effectiveAcademicYear} // 🗓️ تمرير العام الدراسي العام المعتمد بالنظام
                 initialSemester={(selectedScheduleSemester === 2 ? 2 : 1)}
                 initialStudyType={selectedScheduleStudyType}
+                initialGroup={selectedScheduleGroup && selectedScheduleGroup !== 'all' ? selectedScheduleGroup : undefined} // 👥 فتح المعاينة على الكروب المختار مباشرة
                 showSemesterSwitcher={true}
+                stageGroupConfigs={stageGroupConfigs} // 👥 تمرير إعدادات الكروبات للمعاينة لعزل كل كروب بجدوله الخاص
               />
             </div>
           </div>
@@ -182,9 +209,11 @@ export const DepartmentPrintModals: React.FC<DepartmentPrintModalsProps> = ({
           academicYear={effectiveAcademicYear} // 🗓️ تمرير العام الدراسي العام المعتمد بالنظام
           initialSemester={(selectedScheduleSemester === 2 ? 2 : 1)}
           initialStudyType={selectedScheduleStudyType}
+          initialGroup={selectedScheduleGroup && selectedScheduleGroup !== 'all' ? selectedScheduleGroup : undefined} // 👥 طباعة الكروب المختار مباشرة
           showSemesterSwitcher={true}
           initialOpenPrintModal={true}
           onClosePrintModal={() => setIsSchedulePrintModalOpen(false)}
+          stageGroupConfigs={stageGroupConfigs} // 👥 تمرير إعدادات الكروبات لطباعة جدول الكروب المستقل
         />
       )}
 
@@ -573,8 +602,8 @@ export const DepartmentPrintModals: React.FC<DepartmentPrintModalsProps> = ({
                                 {student.full_name}
                               </span>
                             </div>
-                            <span className="text-[10.5px] print:text-[10px] font-black text-black bg-white px-2 py-0.5 rounded-md border border-slate-300 whitespace-nowrap shrink-0 shadow-2xs"> {/* 🎓 المرحلة والدراسة بخط أسود عريض */}
-                              المرحلة {stageName} ({studyName})
+                            <span className="text-[10.5px] print:text-[10px] font-black text-black bg-white px-2 py-0.5 rounded-md border border-slate-300 whitespace-nowrap shrink-0 shadow-2xs"> {/* 🎓 المرحلة والدراسة واسم الكروب بخط أسود عريض وواضح بالطباعة */}
+                              المرحلة {stageName} ({studyName}) — {student.student_group ? `كروب ${student.student_group}` : 'شعبة عامة'}
                             </span>
                           </div>
 

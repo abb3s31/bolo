@@ -18,6 +18,8 @@ import {
   Check, // ✔️ أيقونة الاختيار
   ChevronDown, // 🔽 أيقونة القائمة المنسدلة
   UserCheck, // 👤 أيقونة الأستاذ المختار
+  Search, // 🔍 أيقونة البحث في قائمة الأساتذة
+  X, // ❌ أيقونة مسح البحث
 } from 'lucide-react'; // 🎨 استيراد أيقونات لوسيد
 import type { UserProfile, CourseType } from '@/types'; // 🏷️ استيراد الأنواع
 import FloatingCrudModal from '@/components/FloatingCrudModal'; // 📦 مودال الكرود العائم
@@ -109,6 +111,84 @@ export const CourseModal: React.FC<CourseModalProps> = ({
   handleSaveCourse, // 💾 دالة حفظ المادة
   deptTeachers, // 👨‍🏫 أساتذة القسم
 }) => {
+  // 🔍 حالة نص البحث في أساتذة النظري
+  const [theorySearch, setTheorySearch] = React.useState<string>(''); // 🔤 نص البحث الخاص بأستاذ النظري
+  // 🔍 حالة نص البحث في أساتذة العملي
+  const [practicalSearch, setPracticalSearch] = React.useState<string>(''); // 🔤 نص البحث الخاص بأستاذ العملي
+
+  // 🔄 تصفير بحث النظري تلقائياً عند غلق منسدلة النظري
+  React.useEffect(() => { // ⚡ مراقبة حالة فتح أو غلق قائمة النظري
+    if (!isCourseTheoryDropdownOpen) { // 🔍 إذا انسدت القائمة
+      setTheorySearch(''); // 🧹 نصفر حقل البحث حتى يرجع نظيف
+    } // 🔚 نهاية الفحص
+  }, [isCourseTheoryDropdownOpen]); // 🎯 الاعتماد على حالة فتح قائمة النظري
+
+  // 🔄 تصفير بحث العملي تلقائياً عند غلق منسدلة العملي
+  React.useEffect(() => { // ⚡ مراقبة حالة فتح أو غلق قائمة العملي
+    if (!isCoursePracticalDropdownOpen) { // 🔍 إذا انسدت القائمة
+      setPracticalSearch(''); // 🧹 نصفر حقل البحث حتى يرجع نظيف
+    } // 🔚 نهاية الفحص
+  }, [isCoursePracticalDropdownOpen]); // 🎯 الاعتماد على حالة فتح قائمة العملي
+
+  // 🔤 دالة مساعدة لتطبيع النص العربي للبحث السلس والمرن
+  const normalizeArabic = (text?: string): string => { // 🛠️ دالة تنظيف وتوحيد الأحرف العربية
+    if (!text) return ''; // 🛑 إذا ماكو نص نرجع نص فارغ
+    return text // 🔤 نبدي بسلسلة النص
+      .trim() // ✂️ نشيل الفراغات الزايدة بالطرفين
+      .toLowerCase() // 🔤 نحول النص لحروف صغيرة
+      .replace(/[أإآ]/g, 'ا') // 🔄 نوحد كل أنواع الألفات إلى ألف مجردة
+      .replace(/ة/g, 'ه') // 🔄 نوحد التاء المربوطة والهاء
+      .replace(/ى/g, 'ي') // 🔄 نوحد الألف المقصورة والياء
+      .replace(/ئ/g, 'ي') // 🔄 نوحد الياء المهموزة
+      .replace(/ؤ/g, 'و') // 🔄 نوحد الواو المهموزة
+      .replace(/[\u064B-\u065F]/g, ''); // 🧹 نزيل التشكيل والحركات التشكيلية
+  }; // 🔚 نهاية دالة التطبيع
+
+  // 👥 إزالة التكرارات وضمان نقاوة قائمة الأساتذة بالقسم
+  const uniqueDeptTeachers = React.useMemo(() => { // 🧠 حفظ القائمة بالذاكرة لتفادي إعادة الحساب
+    const seenIds = new Set<string>(); // 🆔 سيت لتتبع المعرفات المضافة
+    const seenNames = new Set<string>(); // 👤 سيت لتتبع الأسماء المضافة
+    const list: UserProfile[] = []; // 📋 لستة الأساتذة الصافية
+
+    // 🌟 خطوة أولى: ضمان وجود الأساتذة المكلفين حالياً إذا كان أحدهم مكرراً بالاسم أو المعرف
+    for (const t of deptTeachers) { // 🔄 نفتر على كل الأساتذة
+      if (!t || !t.id) continue; // 🛑 نتخطى السجلات الفارغة
+      if (t.id === courseTheoryTeacherId || t.id === coursePracticalTeacherId) { // 🎯 إذا هو الأستاذ المختار حالياً
+        seenIds.add(t.id); // ➕ نثبت معرفه
+        if (t.full_name) seenNames.add(normalizeArabic(t.full_name)); // ➕ نثبت اسمه المطبع
+        list.push(t); // ➕ نضيفه فوراً بالقائمة
+      } // 🔚 نهاية فحص المختار
+    } // 🔚 نهاية الفتّرة الأولى
+
+    // 🌟 خطوة ثانية: إضافة باقي كادر القسم بدون أي تكرار
+    for (const t of deptTeachers) { // 🔄 نفتر على الأساتذة
+      if (!t || !t.id) continue; // 🛑 نتخطى السجلات الفارغة
+      const normName = normalizeArabic(t.full_name); // 🔤 اسم الأستاذ المطبع
+      if (seenIds.has(t.id) || (normName && seenNames.has(normName))) { // ⚠️ إذا المعرف أو الاسم مكرر نتجاوزه
+        continue; // ⏭️ نروح للأستاذ اللي بعده
+      } // 🔚 نهاية فحص التكرار
+      seenIds.add(t.id); // ➕ نسجل المعرف
+      if (normName) seenNames.add(normName); // ➕ نسجل الاسم
+      list.push(t); // ➕ نضيف الأستاذ للستة
+    } // 🔚 نهاية الفتّرة الثانية
+
+    return list; // 🎯 نرجع لستة الأساتذة النقية
+  }, [deptTeachers, courseTheoryTeacherId, coursePracticalTeacherId]); // 🔄 يتحدث عند تغير الأساتذة أو التكليف المختار
+
+  // 🔍 تصفية أساتذة النظري حسب كلمة البحث المدخلة
+  const filteredTheoryTeachers = React.useMemo(() => { // 🧠 حفظ نتيجة الفلترة بالذاكرة
+    const q = normalizeArabic(theorySearch); // 🔤 تطبيع نص البحث
+    if (!q) return uniqueDeptTeachers; // 📋 إذا ماكو بحث نرجع كافة الأساتذة
+    return uniqueDeptTeachers.filter((t) => normalizeArabic(t.full_name).includes(q)); // 🎯 نرجع فقط اللي يطابقون البحث
+  }, [uniqueDeptTeachers, theorySearch]); // 🔄 يتحدث عند كتابة حرف جديد بالبحث
+
+  // 🔍 تصفية أساتذة العملي حسب كلمة البحث المدخلة
+  const filteredPracticalTeachers = React.useMemo(() => { // 🧠 حفظ نتيجة الفلترة بالذاكرة
+    const q = normalizeArabic(practicalSearch); // 🔤 تطبيع نص البحث
+    if (!q) return uniqueDeptTeachers; // 📋 إذا ماكو بحث نرجع كافة الأساتذة
+    return uniqueDeptTeachers.filter((t) => normalizeArabic(t.full_name).includes(q)); // 🎯 نرجع فقط اللي يطابقون البحث
+  }, [uniqueDeptTeachers, practicalSearch]); // 🔄 يتحدث عند كتابة حرف جديد بالبحث
+
   return (
     <FloatingCrudModal
       isOpen={isOpen}
@@ -421,13 +501,13 @@ export const CourseModal: React.FC<CourseModalProps> = ({
                         <div className="flex items-center gap-2 truncate">
                           <UserCheck className="w-5 h-5 text-blue-700 shrink-0" />
                           <span className={courseTheoryTeacherId ? 'text-slate-950 font-black' : 'text-slate-500 font-bold'}>
-                            {deptTeachers.find((t) => t.id === courseTheoryTeacherId)?.full_name || '-- اختياري: حدد أستاذ النظري --'}
+                            {uniqueDeptTeachers.find((t) => t.id === courseTheoryTeacherId)?.full_name || '-- اختياري: حدد أستاذ النظري --'}
                           </span>
                         </div>
                         <ChevronDown className={`w-5 h-5 text-slate-500 transition-transform duration-200 shrink-0 ${isCourseTheoryDropdownOpen ? 'rotate-180 text-blue-700' : ''}`} />
                       </button>
 
-                      {/* القائمة المنبثقة الذكية لأستاذ النظري عبر Portal لضمان عدم خروجها خارج حدود الشاشة */}
+                      {/* القائمة المنبثقة الذكية لأستاذ النظري عبر Portal مع حقل بحث بالاسم مدمج */}
                       {isCourseTheoryDropdownOpen && theoryTeacherCoords && typeof document !== 'undefined' && createPortal(
                         <>
                           {/* خلفية شفافة لإغلاق القائمة عند النقر خارجها */}
@@ -444,48 +524,90 @@ export const CourseModal: React.FC<CourseModalProps> = ({
                                 : { top: `${theoryTeacherCoords.top}px` }),
                               left: `${theoryTeacherCoords.left}px`,
                               width: `${theoryTeacherCoords.width}px`,
-                              maxHeight: `${theoryTeacherCoords.maxHeight || 220}px`,
+                              maxHeight: `${Math.max(theoryTeacherCoords.maxHeight || 280, 280)}px`,
                             }}
-                            className="bg-white border-2 border-slate-300 rounded-2xl shadow-2xl z-[999999] overflow-y-auto p-2 space-y-1 animate-in fade-in zoom-in-95 duration-150"
+                            className="bg-white border-2 border-[#0F2942] rounded-2xl shadow-2xl z-[999999] flex flex-col overflow-hidden p-2 space-y-2 animate-in fade-in zoom-in-95 duration-150"
                             dir="rtl"
+                            onClick={(e) => e.stopPropagation()}
                           >
-                            {/* خيار إلغاء التحديد */}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setCourseTheoryTeacherId('');
-                                setIsCourseTheoryDropdownOpen(false);
-                              }}
-                              className={`w-full p-2.5 rounded-xl text-right font-black text-sm transition flex items-center justify-between cursor-pointer ${
-                                !courseTheoryTeacherId ? 'bg-[#0F2942] text-white font-black' : 'text-slate-700 hover:bg-slate-50'
-                              }`}
-                            >
-                              <span className={!courseTheoryTeacherId ? 'text-white' : 'text-slate-500'}>-- بدون تحديد أستاذ --</span>
-                              {!courseTheoryTeacherId && <Check className="w-4 h-4 text-emerald-400 stroke-[3]" />}
-                            </button>
+                            {/* 🔍 حقل البحث السريع بالاسم في قائمة أساتذة النظري */}
+                            <div className="relative shrink-0">
+                              <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                              <input
+                                type="text"
+                                value={theorySearch}
+                                onChange={(e) => setTheorySearch(e.target.value)}
+                                placeholder="ابحث عن اسم الأستاذ..."
+                                className="w-full pr-9 pl-8 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm font-black text-slate-950 placeholder:text-slate-400 placeholder:font-bold focus:border-[#0F2942] focus:ring-2 focus:ring-[#0F2942]/20 focus:bg-white outline-none transition"
+                                autoFocus
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                              {theorySearch && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setTheorySearch('');
+                                  }}
+                                  className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 p-1 rounded-full hover:bg-slate-200 transition cursor-pointer"
+                                  title="مسح البحث"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
 
-                            {/* قائمة الأساتذة في القسم */}
-                            {deptTeachers.map((t) => (
-                              <button
-                                key={t.id}
-                                type="button"
-                                onClick={() => {
-                                  setCourseTheoryTeacherId(t.id);
-                                  setIsCourseTheoryDropdownOpen(false);
-                                }}
-                                className={`w-full p-2.5 rounded-xl text-right font-black text-sm transition flex items-center justify-between cursor-pointer ${
-                                  courseTheoryTeacherId === t.id
-                                    ? 'bg-[#0F2942] text-white shadow-xs'
-                                    : 'text-slate-900 hover:bg-slate-100'
-                                }`}
-                              >
-                                <div className="flex items-center gap-2">
-                                  <UserCheck className={`w-4 h-4 ${courseTheoryTeacherId === t.id ? 'text-cyan-300' : 'text-blue-700'}`} />
-                                  <span>{t.full_name}</span>
+                            {/* 📜 لستة خيارات الأساتذة القابلة للتمرير */}
+                            <div className="overflow-y-auto space-y-1 flex-1 min-h-0 pr-0.5">
+                              {/* خيار إلغاء التحديد - يظهر عند عدم البحث أو تطابق اسم الخيار */}
+                              {(!theorySearch || normalizeArabic('-- بدون تحديد أستاذ --').includes(normalizeArabic(theorySearch))) && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setCourseTheoryTeacherId('');
+                                    setIsCourseTheoryDropdownOpen(false);
+                                    setTheorySearch('');
+                                  }}
+                                  className={`w-full p-2.5 rounded-xl text-right font-black text-sm transition flex items-center justify-between cursor-pointer border ${
+                                    !courseTheoryTeacherId ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-xs' : 'text-slate-700 hover:bg-slate-50 border-transparent'
+                                  }`}
+                                >
+                                  <span className={!courseTheoryTeacherId ? 'text-white' : 'text-slate-500'}>-- بدون تحديد أستاذ --</span>
+                                  {!courseTheoryTeacherId && <Check className="w-4 h-4 text-emerald-400 stroke-[3]" />}
+                                </button>
+                              )}
+
+                              {/* قائمة الأساتذة المطابقين للبحث في القسم */}
+                              {filteredTheoryTeachers.map((t) => (
+                                <button
+                                  key={t.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setCourseTheoryTeacherId(t.id);
+                                    setIsCourseTheoryDropdownOpen(false);
+                                    setTheorySearch('');
+                                  }}
+                                  className={`w-full p-2.5 rounded-xl text-right font-black text-sm transition flex items-center justify-between cursor-pointer border ${
+                                    courseTheoryTeacherId === t.id
+                                      ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-xs'
+                                      : 'text-slate-900 hover:bg-slate-100 border-transparent'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2 truncate">
+                                    <UserCheck className={`w-4 h-4 shrink-0 ${courseTheoryTeacherId === t.id ? 'text-cyan-300' : 'text-blue-700'}`} />
+                                    <span className="truncate">{t.full_name}</span>
+                                  </div>
+                                  {courseTheoryTeacherId === t.id && <Check className="w-4 h-4 text-emerald-400 stroke-[3] shrink-0" />}
+                                </button>
+                              ))}
+
+                              {/* في حال عدم العثور على أستاذ مطابق */}
+                              {filteredTheoryTeachers.length === 0 && (
+                                <div className="text-center py-4 text-xs font-bold text-slate-500">
+                                  لم يتم العثور على أستاذ يطابق "{theorySearch}"
                                 </div>
-                                {courseTheoryTeacherId === t.id && <Check className="w-4 h-4 text-emerald-400 stroke-[3]" />}
-                              </button>
-                            ))}
+                              )}
+                            </div>
                           </div>
                         </>,
                         document.body
@@ -493,7 +615,7 @@ export const CourseModal: React.FC<CourseModalProps> = ({
                     </div>
                   </div>
 
-                  {/* أستاذ العملي بقائمة تفاعلية ذكية عبر البورتال تضمن البقاء داخل الشاشة 100% */}
+                  {/* أستاذ العملي بقائمة تفاعلية ذكية عبر البورتال تضمن البقاء داخل الشاشة 100% مع حقل بحث */}
                   {courseType === 'theory_and_practical' && (
                     <div className="space-y-2 relative z-[999999] animate-in fade-in duration-150">
                       <label className="block text-slate-950 font-black text-base">أستاذ المختبر (التطبيقات والعملي)</label>
@@ -507,13 +629,13 @@ export const CourseModal: React.FC<CourseModalProps> = ({
                           <div className="flex items-center gap-2 truncate">
                             <FlaskConical className="w-5 h-5 text-emerald-700 shrink-0" />
                             <span className={coursePracticalTeacherId ? 'text-slate-950 font-black' : 'text-slate-500 font-bold'}>
-                              {deptTeachers.find((t) => t.id === coursePracticalTeacherId)?.full_name || '-- اختياري: حدد أستاذ العملي --'}
+                              {uniqueDeptTeachers.find((t) => t.id === coursePracticalTeacherId)?.full_name || '-- اختياري: حدد أستاذ العملي --'}
                             </span>
                           </div>
                           <ChevronDown className={`w-5 h-5 text-slate-500 transition-transform duration-200 shrink-0 ${isCoursePracticalDropdownOpen ? 'rotate-180 text-emerald-700' : ''}`} />
                         </button>
 
-                        {/* القائمة المنبثقة الذكية لأستاذ العملي عبر Portal لضمان عدم خروجها خارج حدود الشاشة */}
+                        {/* القائمة المنبثقة الذكية لأستاذ العملي عبر Portal مع حقل بحث مدمج */}
                         {isCoursePracticalDropdownOpen && practicalTeacherCoords && typeof document !== 'undefined' && createPortal(
                           <>
                             {/* خلفية شفافة لإغلاق القائمة عند النقر خارجها */}
@@ -530,48 +652,90 @@ export const CourseModal: React.FC<CourseModalProps> = ({
                                   : { top: `${practicalTeacherCoords.top}px` }),
                                 left: `${practicalTeacherCoords.left}px`,
                                 width: `${practicalTeacherCoords.width}px`,
-                                maxHeight: `${practicalTeacherCoords.maxHeight || 220}px`,
+                                maxHeight: `${Math.max(practicalTeacherCoords.maxHeight || 280, 280)}px`,
                               }}
-                              className="bg-white border-2 border-slate-300 rounded-2xl shadow-2xl z-[999999] overflow-y-auto p-2 space-y-1 animate-in fade-in zoom-in-95 duration-150"
+                              className="bg-white border-2 border-[#0F2942] rounded-2xl shadow-2xl z-[999999] flex flex-col overflow-hidden p-2 space-y-2 animate-in fade-in zoom-in-95 duration-150"
                               dir="rtl"
+                              onClick={(e) => e.stopPropagation()}
                             >
-                              {/* خيار إلغاء التحديد */}
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setCoursePracticalTeacherId('');
-                                  setIsCoursePracticalDropdownOpen(false);
-                                }}
-                                className={`w-full p-2.5 rounded-xl text-right font-black text-sm transition flex items-center justify-between cursor-pointer ${
-                                  !coursePracticalTeacherId ? 'bg-[#0F2942] text-white font-black' : 'text-slate-700 hover:bg-slate-50'
-                                }`}
-                              >
-                                <span className={!coursePracticalTeacherId ? 'text-white' : 'text-slate-500'}>-- بدون تحديد أستاذ --</span>
-                                {!coursePracticalTeacherId && <Check className="w-4 h-4 text-emerald-400 stroke-[3]" />}
-                              </button>
+                              {/* 🔍 حقل البحث السريع بالاسم في قائمة أساتذة العملي */}
+                              <div className="relative shrink-0">
+                                <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                                <input
+                                  type="text"
+                                  value={practicalSearch}
+                                  onChange={(e) => setPracticalSearch(e.target.value)}
+                                  placeholder="ابحث عن اسم الأستاذ..."
+                                  className="w-full pr-9 pl-8 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm font-black text-slate-950 placeholder:text-slate-400 placeholder:font-bold focus:border-[#0F2942] focus:ring-2 focus:ring-[#0F2942]/20 focus:bg-white outline-none transition"
+                                  autoFocus
+                                  onClick={(e) => e.stopPropagation()}
+                                />
+                                {practicalSearch && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setPracticalSearch('');
+                                    }}
+                                    className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 p-1 rounded-full hover:bg-slate-200 transition cursor-pointer"
+                                    title="مسح البحث"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              </div>
 
-                              {/* قائمة الأساتذة في القسم */}
-                              {deptTeachers.map((t) => (
-                                <button
-                                  key={t.id}
-                                  type="button"
-                                  onClick={() => {
-                                    setCoursePracticalTeacherId(t.id);
-                                    setIsCoursePracticalDropdownOpen(false);
-                                  }}
-                                  className={`w-full p-2.5 rounded-xl text-right font-black text-sm transition flex items-center justify-between cursor-pointer ${
-                                    coursePracticalTeacherId === t.id
-                                      ? 'bg-[#0F2942] text-white shadow-xs'
-                                      : 'text-slate-900 hover:bg-slate-100'
-                                  }`}
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <FlaskConical className={`w-4 h-4 ${coursePracticalTeacherId === t.id ? 'text-emerald-300' : 'text-emerald-700'}`} />
-                                    <span>{t.full_name}</span>
+                              {/* 📜 لستة خيارات الأساتذة القابلة للتمرير */}
+                              <div className="overflow-y-auto space-y-1 flex-1 min-h-0 pr-0.5">
+                                {/* خيار إلغاء التحديد */}
+                                {(!practicalSearch || normalizeArabic('-- بدون تحديد أستاذ --').includes(normalizeArabic(practicalSearch))) && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setCoursePracticalTeacherId('');
+                                      setIsCoursePracticalDropdownOpen(false);
+                                      setPracticalSearch('');
+                                    }}
+                                    className={`w-full p-2.5 rounded-xl text-right font-black text-sm transition flex items-center justify-between cursor-pointer border ${
+                                      !coursePracticalTeacherId ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-xs' : 'text-slate-700 hover:bg-slate-50 border-transparent'
+                                    }`}
+                                  >
+                                    <span className={!coursePracticalTeacherId ? 'text-white' : 'text-slate-500'}>-- بدون تحديد أستاذ --</span>
+                                    {!coursePracticalTeacherId && <Check className="w-4 h-4 text-emerald-400 stroke-[3]" />}
+                                  </button>
+                                )}
+
+                                {/* قائمة الأساتذة المطابقين للبحث في القسم */}
+                                {filteredPracticalTeachers.map((t) => (
+                                  <button
+                                    key={t.id}
+                                    type="button"
+                                    onClick={() => {
+                                      setCoursePracticalTeacherId(t.id);
+                                      setIsCoursePracticalDropdownOpen(false);
+                                      setPracticalSearch('');
+                                    }}
+                                    className={`w-full p-2.5 rounded-xl text-right font-black text-sm transition flex items-center justify-between cursor-pointer border ${
+                                      coursePracticalTeacherId === t.id
+                                        ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-xs'
+                                        : 'text-slate-900 hover:bg-slate-100 border-transparent'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-2 truncate">
+                                      <FlaskConical className={`w-4 h-4 shrink-0 ${coursePracticalTeacherId === t.id ? 'text-emerald-300' : 'text-emerald-700'}`} />
+                                      <span className="truncate">{t.full_name}</span>
+                                    </div>
+                                    {coursePracticalTeacherId === t.id && <Check className="w-4 h-4 text-emerald-400 stroke-[3] shrink-0" />}
+                                  </button>
+                                ))}
+
+                                {/* في حال عدم العثور على أستاذ مطابق */}
+                                {filteredPracticalTeachers.length === 0 && (
+                                  <div className="text-center py-4 text-xs font-bold text-slate-500">
+                                    لم يتم العثور على أستاذ يطابق "{practicalSearch}"
                                   </div>
-                                  {coursePracticalTeacherId === t.id && <Check className="w-4 h-4 text-emerald-400 stroke-[3]" />}
-                                </button>
-                              ))}
+                                )}
+                              </div>
                             </div>
                           </>,
                           document.body

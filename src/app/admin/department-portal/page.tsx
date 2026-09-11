@@ -34,6 +34,8 @@ import {
   subscribeToAcademicYearChanges,
   syncAttendanceRecordsFromSupabase,
   saveMultipleAttendanceRecordsToSupabase, // ☁️ حفظ ومزامنة سجلات الحضور المتعددة في السحابة
+  deleteTeacherCourseFromSupabase, // ☁️ حذف التكليفات الزائدة والمكررة سحابياً
+  saveTeacherCourseToSupabase, // ☁️ حفظ ومزامنة التكليفات المدمجة في السحابة
 } from '@/lib/supabase-client'; // 🔌 الجلسة الحالية ومزامنة السحابة
 import type {
   UserProfile,
@@ -149,192 +151,220 @@ function normalizeArabicText(s?: string): string {
 
 
 export function reconcileCoursesWithTeacherCourses(
-  currentCourses: Course[], // 📋 قائمة المواد الحالية
-  currentTCs: TeacherCourse[], // 📝 قائمة التكليفات الحالية
-  allProfiles: UserProfile[] // 👤 قائمة ملفات الأساتذة
+  currentCourses: Course[], // 📋 لستة المواد الحالية مالت القسم
+  currentTCs: TeacherCourse[], // 📝 لستة سجلات التكليفات الحالية
+  allProfiles: UserProfile[] // 👤 لستة بروفايلات الأساتذة بالجامعة
 ): { reconciledCourses: Course[]; reconciledTCs: TeacherCourse[]; hasChanges: boolean } {
-  let hasChanges: boolean = false; // 🚩 مؤشر حدوث أي تغييرات تستوجب الحفظ
-  const tcMap: Map<string, TeacherCourse> = new Map<string, TeacherCourse>(); // 🗺️ خريطة لتجميع التكليفات دون تكرار
-  currentTCs.forEach((tc: TeacherCourse) => tcMap.set(tc.id, tc)); // ➕ إدراج التكليفات الحالية
+  let hasChanges: boolean = false; // 🚩 علم يوضح إذا صار أي تغيير يستوجب الحفظ
+  const tcMap: Map<string, TeacherCourse> = new Map<string, TeacherCourse>(); // 🗺️ خريطة نجمع بيها التكليفات حسب المعرف الفريد
+  currentTCs.forEach((tc: TeacherCourse) => tcMap.set(tc.id, tc)); // ➕ ننزل التكليفات الحالية بالخريطة
 
   // 1️⃣ تحديث وإثراء المواد وتوفيق صفة التكليف (نظري فقط / عملي فقط / نظري وعملي)
   const updatedCourses: Course[] = currentCourses.map((c: Course): Course => {
-    let thId: string | undefined = c.theory_teacher_id; // 🔑 معرف أستاذ النظري
+    let thId: string | undefined = c.theory_teacher_id; // 🔑 أيدي أستاذ النظري المسجل بالمادة
     let thName: string | undefined = c.theory_teacher_name; // 👤 اسم أستاذ النظري
-    let prId: string | undefined = c.practical_teacher_id; // 🔑 معرف أستاذ العملي
+    let prId: string | undefined = c.practical_teacher_id; // 🔑 أيدي أستاذ العملي
     let prName: string | undefined = c.practical_teacher_name; // 🧪 اسم أستاذ العملي
-    const isPracticalCourse = c.course_type === 'theory_and_practical' || Boolean(c.has_practical); // 🔬 هل المادة بها جانب عملي ومختبر؟
+    const isPracticalCourse = c.course_type === 'theory_and_practical' || Boolean(c.has_practical); // 🔬 هل المادة بيها مختبر وجانب عملي؟
 
-    // مطابقة الأسماء من البروفايلات أولاً إذا كانت المعرفات متوفرة والأسماء فارغة
-    if (thId && !thName) { // 🔍 إذا المعرف موجود والاسم فارغ
-      const p: UserProfile | undefined = allProfiles.find((prof: UserProfile): boolean => prof.id === thId); // 👤 البحث عن البروفايل
-      if (p) { // ✅ وجدنا البروفايل
-        thName = p.full_name; // 📝 تثبيت الاسم
-        hasChanges = true; // 🚩 تم التعديل
+    // مطابقة الأسماء من البروفايلات إذا المعرفات متوفرة بس الأسماء فارغة
+    if (thId && !thName) { // 🔍 إذا أيدي النظري موجود والاسم فارغ
+      const p: UserProfile | undefined = allProfiles.find((prof: UserProfile): boolean => prof.id === thId); // 👤 ندور على بروفايل الأستاذ
+      if (p) { // ✅ لكينا البروفايل مالته
+        thName = p.full_name; // 📝 نثبت اسمه الكامل
+        hasChanges = true; // 🚩 نسجل اكو تعديل صار
       }
     }
-    if (prId && !prName) { // 🔍 إذا معرف العملي موجود والاسم فارغ
-      const p: UserProfile | undefined = allProfiles.find((prof: UserProfile): boolean => prof.id === prId); // 👤 البحث عن البروفايل
-      if (p) { // ✅ وجدنا البروفايل
-        prName = p.full_name; // 📝 تثبيت الاسم
-        hasChanges = true; // 🚩 تم التعديل
+    if (prId && !prName) { // 🔍 إذا أيدي العملي موجود والاسم فارغ
+      const p: UserProfile | undefined = allProfiles.find((prof: UserProfile): boolean => prof.id === prId); // 👤 ندور على بروفايل أستاذ العملي
+      if (p) { // ✅ لكينا البروفايل مالته
+        prName = p.full_name; // 📝 نثبت اسمه الكامل
+        hasChanges = true; // 🚩 نسجل اكو تعديل صار
       }
     }
 
-    // البحث في سجل التكليفات الخاص بهذه المادة لمطابقة وتحديث أي نقص
-    const courseAssignments: TeacherCourse[] = currentTCs.filter((tc: TeacherCourse): boolean => tc.course_id === c.id); // 📋 جلب تكليفات المادة
-    if (courseAssignments.length > 0) { // 🎯 إذا اكو تكليفات مسجلة
-      // فحص تكليف النظري الصريح
-      const thTC: TeacherCourse | undefined = courseAssignments.find(
-        (tc: TeacherCourse): boolean => tc.role_in_course === 'theory' || tc.role_in_course === 'both'
+    // إذا المادة ما بيها عملي (نظري فقط)، نفرغ خانات العملي حتى لا تسوي خربطة
+    if (!isPracticalCourse && (prId || prName)) { // 🚫 مادة نظري بس مسجل بيها عملي
+      prId = undefined; // 🧹 نفرغ أيدي العملي
+      prName = undefined; // 🧹 نفرغ اسم أستاذ العملي
+      hasChanges = true; // 🚩 نسجل اكو تعديل صار
+    }
+
+    // جلب التكليفات المسجلة حالياً لهالمادة من الخريطة
+    const courseAssignments: TeacherCourse[] = Array.from(tcMap.values()).filter(
+      (tc: TeacherCourse): boolean => tc.course_id === c.id
+    ); // 📋 نجيب كل تكليفات هالمادة الموجودة بالخريطة
+
+    // 🌟 دمج وحذف التكرار لنفس الأستاذ في نفس المادة (إذا عنده تكليفين نظري وعملي ندمجهم بواحد)
+    const teacherAssignmentsMap = new Map<string, TeacherCourse[]>(); // 🗂️ خريطة نجمع بيها تكليفات كل أستاذ بهالمادة
+    courseAssignments.forEach((tc: TeacherCourse) => { // 🔄 نفتر على كل تكليف للمادة
+      const list = teacherAssignmentsMap.get(tc.teacher_id) || []; // 📑 نجيب لستة تكليفات هالأستاذ
+      list.push(tc); // ➕ نضيف التكليف للقائمة
+      teacherAssignmentsMap.set(tc.teacher_id, list); // 💾 نخزن القائمة بالخريطة
+    });
+
+    teacherAssignmentsMap.forEach((assignments: TeacherCourse[]) => { // 🔄 نفحص سجلات كل أستاذ
+      if (assignments.length > 1) { // ⚠️ إذا الأستاذ مسجل بأكثر من تكليف لنفس المادة
+        const primaryTC = assignments[0]; // 🥇 نعتمد أول سجل كأساس ندمج بيه
+        const redundantTCs = assignments.slice(1); // 🗑️ السجلات الزايدة المكررة حتى نحذفها
+
+        redundantTCs.forEach((redundant: TeacherCourse) => { // 🔄 نفتر على السجلات الزايدة
+          tcMap.delete(redundant.id); // 🧹 نحذف السجل المكرر من الخريطة
+          deleteTeacherCourseFromSupabase(redundant.id); // ☁️ نحذفه من قاعدة بيانات سوبابيس فوراً
+        });
+
+        // تحويل السجل الأساسي إلى 'both' (مكلف نظري وعملي) إذا المادة عملية
+        const unifiedRole: 'theory' | 'practical' | 'both' = isPracticalCourse ? 'both' : 'theory'; // 🏷️ نحدد الدور الموحد
+        const consolidatedTC: TeacherCourse = { // 📦 نبني السجل الموحد النظيف
+          ...primaryTC, // 📋 نحافظ على البيانات الأساسية
+          role_in_course: unifiedRole, // 🌟 نخليه مكلف نظري وعملي سوية
+          course_name: c.name, // 📖 اسم المادة المحدث
+          department_id: c.department_id, // 🏢 معرف القسم
+          semester: c.semester || 1, // 🗓️ الفصل الدراسي
+        };
+        tcMap.set(consolidatedTC.id, consolidatedTC); // 💾 نحفظ السجل الموحد بالخريطة
+        saveTeacherCourseToSupabase(consolidatedTC); // ☁️ نحدثه بسوبابيس
+        hasChanges = true; // 🚩 نسجل اكو تعديل صار
+      }
+    });
+
+    // 🌟 جلب التكليفات بعد التنظيف والدمج
+    const freshCourseAssignments: TeacherCourse[] = Array.from(tcMap.values()).filter(
+      (tc: TeacherCourse): boolean => tc.course_id === c.id
+    ); // 📋 نجيب التكليفات النظيفة بعد الدمج
+
+    // إذا المادة ما محدد بيها أستاذ نظري، نستعين بالتكليفات المسجلة لملئها
+    if (!thId && freshCourseAssignments.length > 0) { // 🔍 إذا أستاذ النظري مجهول واكو تكليف مسجل
+      const bothOrTheory = freshCourseAssignments.find( // 🔎 ندور على تكليف نظري أو مشترك
+        (tc: TeacherCourse): boolean => tc.role_in_course === 'both' || tc.role_in_course === 'theory'
       );
-      if (thTC) { // ✅ وجدنا تكليف نظري
-        if (!thId || thId !== thTC.teacher_id) { // 🔍 إذا المعرف مو نفسه
-          thId = thTC.teacher_id; // 🔗 تثبيت المعرف
-          hasChanges = true; // 🚩 تم التعديل
-        }
-        const expectedName: string = thTC.teacher_name || allProfiles.find((p: UserProfile): boolean => p.id === thTC.teacher_id)?.full_name || 'أستاذ المادة'; // 👤 الاسم المتوقع
-        if (!thName || thName !== expectedName) { // 🔍 إذا الاسم فارغ أو مختلف
-          thName = expectedName; // 📝 تثبيت الاسم
-          hasChanges = true; // 🚩 تم التعديل
-        }
+      if (bothOrTheory) { // ✅ لكينا تكليف
+        thId = bothOrTheory.teacher_id; // 🔑 نعتمد أيدي هالأستاذ للنظري
+        thName = bothOrTheory.teacher_name || allProfiles.find((p: UserProfile): boolean => p.id === bothOrTheory.teacher_id)?.full_name || 'أستاذ المادة'; // 👤 نعتمد اسمه
+        hasChanges = true; // 🚩 نسجل تعديل
       }
-
-      // فحص تكليف العملي الصريح
-      const prTC: TeacherCourse | undefined = courseAssignments.find(
-        (tc: TeacherCourse): boolean => tc.role_in_course === 'practical' || (tc.role_in_course === 'both' && isPracticalCourse)
-      );
-      if (prTC && isPracticalCourse) { // ✅ وجدنا تكليف عملي لمادة بها عملي
-        if (!prId || prId !== prTC.teacher_id) { // 🔍 إذا المعرف مو نفسه
-          prId = prTC.teacher_id; // 🔗 تثبيت المعرف
-          hasChanges = true; // 🚩 تم التعديل
-        }
-        const expectedPrName: string = prTC.teacher_name || allProfiles.find((p: UserProfile): boolean => p.id === prTC.teacher_id)?.full_name || 'أستاذ العملي'; // 🧪 الاسم المتوقع
-        if (!prName || prName !== expectedPrName) { // 🔍 إذا الاسم فارغ أو مختلف
-          prName = expectedPrName; // 📝 تثبيت الاسم
-          hasChanges = true; // 🚩 تم التعديل
-        }
-      }
-
-      // 🎯 ذكاء التوفيق الأكاديمي: إذا كانت المادة تحوي عملي ومسجل لها تكليفان، والتكليف الثاني لم يُسجل كعملي
-      if (isPracticalCourse && courseAssignments.length >= 2 && (!prId || prId === thId)) {
-        const secondTC = courseAssignments.find((tc: TeacherCourse): boolean => tc.teacher_id !== thId);
-        if (secondTC) {
-          prId = secondTC.teacher_id;
-          prName = secondTC.teacher_name || allProfiles.find((p: UserProfile): boolean => p.id === secondTC.teacher_id)?.full_name || prName;
-          hasChanges = true;
-        }
-      }
-
-      // 🎯 تصحيح وتحديث صفة التكليف (role_in_course) في الخريطة tcMap لكل تكليف في هذه المادة
-      courseAssignments.forEach((tc: TeacherCourse) => {
-        let correctRole: 'theory' | 'practical' | 'both' = tc.role_in_course || 'theory';
-
-        const isTh = Boolean(
-          (thId && tc.teacher_id === thId) ||
-          (thName && tc.teacher_name && normalizeArabicText(thName) === normalizeArabicText(tc.teacher_name))
-        );
-        const isPr = Boolean(
-          isPracticalCourse && (
-            (prId && tc.teacher_id === prId) ||
-            (prName && tc.teacher_name && normalizeArabicText(prName) === normalizeArabicText(tc.teacher_name))
-          )
-        );
-
-        if (!isPracticalCourse) {
-          // 📘 مادة نظري فقط ⬅️ مكلف نظري فقط حتماً
-          correctRole = 'theory';
-        } else if (isTh && isPr) {
-          // 🌟 أستاذ المادة مكلف بالنظري والعملي معاً
-          correctRole = 'both';
-        } else if (isPr && !isTh) {
-          // 🔬 مكلف بالعملي فقط
-          correctRole = 'practical';
-        } else if (isTh && !isPr) {
-          // 📘 مكلف بالنظري فقط
-          correctRole = 'theory';
-        } else if (courseAssignments.length === 2 && isPracticalCourse) {
-          // 👥 إذا كان هناك تكليفان في مادة عملية ولم يتطابق أحدهما مع الحقول
-          if (tc.id === courseAssignments[0].id) {
-            correctRole = 'theory';
-          } else {
-            correctRole = 'practical';
-          }
-        }
-
-        // 🔄 إذا كانت صفة التكليف الحالية مختلفة عن الصفة الصحيحة
-        if (tc.role_in_course !== correctRole) {
-          const updatedRecord: TeacherCourse = {
-            ...tc,
-            role_in_course: correctRole,
-            course_name: c.name,
-            department_id: c.department_id,
-            semester: c.semester || 1,
-          };
-          tcMap.set(tc.id, updatedRecord);
-          hasChanges = true;
-        }
-      });
     }
 
-    // 2️⃣ الاتجاه العكسي: إذا كانت المادة محدد بها أستاذ في c.theory_teacher_id وليس له سجل تكليف
-    if (thId) { // 🔍 إذا المادة تملك أستاذ نظري
-      const existsInTC: boolean = currentTCs.some((tc: TeacherCourse): boolean => tc.course_id === c.id && tc.teacher_id === thId); // 📋 فحص وجود التكليف
-      if (!existsInTC) { // ❌ إذا التكليف غير مسجل بسجل التكليفات
-        const teacherProf: UserProfile | undefined = allProfiles.find((p: UserProfile): boolean => p.id === thId); // 👤 جلب البروفايل
-        const newTC: TeacherCourse = { // 📝 بناء سجل التكليف الجديد تلقائياً
-          id: `tc-th-${c.id}-${thId}`, // 🆔 توليد معرف فريد
-          teacher_id: thId, // 🔗 معرف الأستاذ
+    // إذا المادة عملية وما محدد أستاذ عملي، نستعين بالتكليفات
+    if (isPracticalCourse && !prId && freshCourseAssignments.length > 0) { // 🔍 إذا أستاذ العملي مجهول واكو تكليفات
+      const bothTC = freshCourseAssignments.find((tc: TeacherCourse): boolean => tc.role_in_course === 'both'); // 🔎 فحص تكليف مشترك
+      if (bothTC) { // ✅ لكينا تكليف مشترك
+        prId = bothTC.teacher_id; // 🔑 نعتمد نفس الأستاذ للعملي
+        prName = bothTC.teacher_name || allProfiles.find((p: UserProfile): boolean => p.id === bothTC.teacher_id)?.full_name || 'أستاذ العملي'; // 🧪 نعتمد اسمه
+        hasChanges = true; // 🚩 نسجل تعديل
+      } else { // 🔍 ماكو مشترك ندور على عملي مخصص
+        const practicalTC = freshCourseAssignments.find((tc: TeacherCourse): boolean => tc.role_in_course === 'practical'); // 🔎 تكليف عملي
+        if (practicalTC) { // ✅ لكينا أستاذ عملي
+          prId = practicalTC.teacher_id; // 🔑 نعتمد أيديه للعملي
+          prName = practicalTC.teacher_name || allProfiles.find((p: UserProfile): boolean => p.id === practicalTC.teacher_id)?.full_name || 'أستاذ العملي'; // 🧪 نعتمد اسمه
+          hasChanges = true; // 🚩 نسجل تعديل
+        }
+      }
+    }
+
+    // 🌟 توفيق ومطابقة أدوار التكليفات في tcMap مع أساتذة المادة الحاليين ومسح التكليفات القديمة المعلقة
+    freshCourseAssignments.forEach((tc: TeacherCourse) => { // 🔄 نفتر على التكليفات الحالية للمادة
+      const isTh = Boolean(thId && tc.teacher_id === thId); // 🔍 هل التكليف لأستاذ النظري؟
+      const isPr = Boolean(isPracticalCourse && prId && tc.teacher_id === prId); // 🔍 هل التكليف لأستاذ العملي؟
+
+      if (!isTh && !isPr) { // ⚠️ تكليف مال أستاذ قديم تم استبداله بالمادة
+        tcMap.delete(tc.id); // 🧹 نشيله من الخريطة حتى لا يرجع يظهر
+        deleteTeacherCourseFromSupabase(tc.id); // ☁️ نحذفه من سوبابيس
+        hasChanges = true; // 🚩 نسجل تعديل
+        return; // ⏭️ نروح للتكليف الوراه
+      }
+
+      let expectedRole: 'theory' | 'practical' | 'both' = 'theory'; // 🏷️ نحدد الدور اللي لازم يكون عليه
+      if (!isPracticalCourse) { // 📘 مادة نظري فقط
+        expectedRole = 'theory'; // 📖 نظري فقط حتماً
+      } else if (isTh && isPr) { // 🌟 الأستاذ نفسه للنظري والعملي
+        expectedRole = 'both'; // ✨ مكلف نظري وعملي معاً
+      } else if (isPr) { // 🔬 مكلف عملي فقط
+        expectedRole = 'practical'; // 🧪 عملي
+      } else { // 📘 مكلف نظري فقط
+        expectedRole = 'theory'; // 📖 نظري
+      }
+
+      if (tc.role_in_course !== expectedRole || tc.course_name !== c.name) { // 🔄 إذا الدور مو مطابق للواقع الأكاديمي
+        const updatedRecord: TeacherCourse = { // 📦 نسوي سجل تكليف مصحح
+          ...tc, // 📋 بيانات السجل
+          role_in_course: expectedRole, // 🏷️ الدور الموحد الصح
+          course_name: c.name, // 📖 اسم المادة المحدث
+          department_id: c.department_id, // 🏢 معرف القسم
+          semester: c.semester || 1, // 🗓️ الفصل
+        };
+        tcMap.set(tc.id, updatedRecord); // 💾 نحدث الخريطة
+        saveTeacherCourseToSupabase(updatedRecord); // ☁️ نحدث سوبابيس
+        hasChanges = true; // 🚩 نسجل تعديل
+      }
+    });
+
+    // 🌟 إنشاء تكليفات للأساتذة المعينين بالمادة إذا ما عدهم سجل تكليف أصلاً
+    if (thId) { // 🔍 إذا المادة بيها أستاذ نظري
+      const hasThAssignment = Array.from(tcMap.values()).some( // 📋 نفحص إذا عنده تكليف بهالمادة
+        (tc: TeacherCourse): boolean => tc.course_id === c.id && tc.teacher_id === thId
+      );
+      if (!hasThAssignment) { // ❌ ما عنده تكليف مسجل
+        const teacherProf: UserProfile | undefined = allProfiles.find((p: UserProfile): boolean => p.id === thId); // 👤 نجيب بروفايله
+        const role: 'theory' | 'both' = (prId === thId && isPracticalCourse) ? 'both' : 'theory'; // 🏷️ نظري وعملي أو نظري فقط
+        const newTC: TeacherCourse = { // 📝 نبني سجل تكليف جديد
+          id: `tc-th-${c.id}-${thId}`, // 🆔 معرف فريد
+          teacher_id: thId, // 🔑 معرف الأستاذ
           teacher_name: thName || teacherProf?.full_name || 'أستاذ المادة', // 👤 اسم الأستاذ
-          course_id: c.id, // 🔗 معرف المادة
+          course_id: c.id, // 📖 معرف المادة
           course_name: c.name, // 📖 اسم المادة
           department_id: c.department_id, // 🏢 معرف القسم
-          semester: c.semester || 1, // 🗓️ الكورس
-          role_in_course: (prId === thId && isPracticalCourse) ? 'both' : 'theory', // 🏷️ صفة التكليف
+          semester: c.semester || 1, // 🗓️ الفصل
+          role_in_course: role, // 🏷️ صفة التكليف
           created_at: new Date().toISOString(), // ⏰ تاريخ التكليف
         };
-        tcMap.set(newTC.id, newTC); // 💾 حفظ التكليف بالخريطة
-        hasChanges = true; // 🚩 تم التعديل
+        tcMap.set(newTC.id, newTC); // 💾 نضيفه للخريطة
+        saveTeacherCourseToSupabase(newTC); // ☁️ نحفظه بسوبابيس
+        hasChanges = true; // 🚩 نسجل تعديل
       }
     }
 
-    if (prId && isPracticalCourse && prId !== thId) { // 🔍 فحص أستاذ العملي
-      const existsInPrTC: boolean = currentTCs.some((tc: TeacherCourse): boolean => tc.course_id === c.id && tc.teacher_id === prId); // 📋 فحص التكليف
-      if (!existsInPrTC) { // ❌ إذا غير موجود
-        const teacherPrProf: UserProfile | undefined = allProfiles.find((p: UserProfile): boolean => p.id === prId); // 👤 جلب البروفايل
-        const newPrTC: TeacherCourse = { // 📝 بناء سجل تكليف العملي
+    if (isPracticalCourse && prId && prId !== thId) { // 🔍 إذا اكو أستاذ عملي مختلف عن النظري
+      const hasPrAssignment = Array.from(tcMap.values()).some( // 📋 نفحص إذا عنده تكليف بهالمادة
+        (tc: TeacherCourse): boolean => tc.course_id === c.id && tc.teacher_id === prId
+      );
+      if (!hasPrAssignment) { // ❌ ما عنده تكليف عملي مسجل
+        const teacherProf: UserProfile | undefined = allProfiles.find((p: UserProfile): boolean => p.id === prId); // 👤 نجيب بروفايله
+        const newTC: TeacherCourse = { // 📝 نبني سجل تكليف عملي
           id: `tc-pr-${c.id}-${prId}`, // 🆔 معرف فريد
-          teacher_id: prId, // 🔗 معرف الأستاذ
-          teacher_name: prName || teacherPrProf?.full_name || 'أستاذ العملي والمختبر', // 🧪 اسم الأستاذ
-          course_id: c.id, // 🔗 معرف المادة
+          teacher_id: prId, // 🔑 معرف أستاذ العملي
+          teacher_name: prName || teacherProf?.full_name || 'أستاذ العملي', // 🧪 اسم أستاذ العملي
+          course_id: c.id, // 📖 معرف المادة
           course_name: c.name, // 📖 اسم المادة
           department_id: c.department_id, // 🏢 معرف القسم
-          semester: c.semester || 1, // 🗓️ الكورس
-          role_in_course: 'practical', // 🏷️ صفة التكليف
+          semester: c.semester || 1, // 🗓️ الفصل
+          role_in_course: 'practical', // 🏷️ عملي فقط
           created_at: new Date().toISOString(), // ⏰ تاريخ التكليف
         };
-        tcMap.set(newPrTC.id, newPrTC); // 💾 حفظ بالخريطة
-        hasChanges = true; // 🚩 تم التعديل
+        tcMap.set(newTC.id, newTC); // 💾 نضيفه للخريطة
+        saveTeacherCourseToSupabase(newTC); // ☁️ نحفظه بسوبابيس
+        hasChanges = true; // 🚩 نسجل تعديل
       }
     }
 
-    if (thId !== c.theory_teacher_id || thName !== c.theory_teacher_name || prId !== c.practical_teacher_id || prName !== c.practical_teacher_name) { // 🔍 فحص حدوث تغيير بالمادة
-      return { // 📦 إرجاع المادة المحدثة بالكامل
-        ...c,
-        theory_teacher_id: thId,
-        theory_teacher_name: thName,
-        practical_teacher_id: prId,
-        practical_teacher_name: prName,
+    // إرجاع كائن المادة المحدث إذا صار تغيير بالأسماء أو المعرفات
+    if (thId !== c.theory_teacher_id || thName !== c.theory_teacher_name || prId !== c.practical_teacher_id || prName !== c.practical_teacher_name) { // 🔍 هل صار أي تعديل؟
+      return { // 📦 نرجع المادة محدثة
+        ...c, // 📋 بيانات المادة
+        theory_teacher_id: thId, // 🔑 أيدي النظري المحدث
+        theory_teacher_name: thName, // 👤 اسم النظري المحدث
+        practical_teacher_id: prId, // 🔑 أيدي العملي المحدث
+        practical_teacher_name: prName, // 🧪 اسم العملي المحدث
       };
     }
-    return c; // 📋 إبقاء المادة كما هي إذا لم تتغير
+    return c; // 📋 نخلي المادة مثل ما هي إذا ما بيها تغيير
   });
 
-  const reconciledTCs: TeacherCourse[] = Array.from(tcMap.values()); // 📋 تحويل التكليفات لمصفوفة
-  return { // 🚀 إرجاع النتائج المتوافقة 100%
-    reconciledCourses: updatedCourses,
-    reconciledTCs,
-    hasChanges,
+  const reconciledTCs: TeacherCourse[] = Array.from(tcMap.values()); // 📋 نحول الخريطة إلى مصفوفة تكليفات
+  return { // 🚀 نرجع النتيجة المحدثة والمتوافقة 100%
+    reconciledCourses: updatedCourses, // 📚 المواد بعد التوفيق
+    reconciledTCs, // 👥 التكليفات الموحدة والنظيفة
+    hasChanges, // 🚩 علم التغييرات
   };
 }
 
@@ -374,6 +404,86 @@ export default function DepartmentPortalPage() {
   }, [departments, currentDeptId]);
 
   const deptName = currentDepartment?.name || 'القسم الأكاديمي';
+
+  // 👤 استخراج بروفايل أو اسم رئيس القسم الحالي بدقة فائقة مع دعم كافة المصادر المتاحة
+  const currentHead: UserProfile | undefined = useMemo(() => {
+    if (!currentDeptId) return undefined; // 🛑 إذا ماكو معرف قسم نرجع غير معرف
+    // 1️⃣ البحث المباشر في البروفايلات بدور رئيس القسم ومعرف القسم الحالي
+    const byRole = profiles.find((p: UserProfile): boolean => p.role === 'department_head' && p.department_id === currentDeptId);
+    if (byRole) return byRole; // ✅ وجدنا رئيس القسم بالدور الصريح
+
+    // 2️⃣ البحث بالمعرف الصريح head_id في البروفايلات
+    if (currentDepartment?.head_id) {
+      const byId = profiles.find((p: UserProfile): boolean => p.id === currentDepartment.head_id);
+      if (byId) return byId; // ✅ وجدنا رئيس القسم بالمعرف
+    }
+
+    // 3️⃣ البحث بالبريد الأكاديمي head_email في البروفايلات
+    if (currentDepartment?.head_email) {
+      const cleanEmail = currentDepartment.head_email.trim().toLowerCase();
+      const byEmail = profiles.find((p: UserProfile): boolean => (p.generated_email || '').trim().toLowerCase() === cleanEmail);
+      if (byEmail) return byEmail; // ✅ وجدنا رئيس القسم بالإيميل
+    }
+
+    // 4️⃣ مطابقة المستخدم الحالي المسجل إذا كان رئيساً للقسم
+    if (currentUser?.role === 'department_head' && (!currentUser.department_id || currentUser.department_id === currentDeptId)) {
+      return currentUser; // ✅ المستخدم الحالي هو رئيس القسم
+    }
+
+    // 5️⃣ استخدام الاسم المسجل في بيانات القسم مباشرة إذا وجد
+    if (currentDepartment?.head_name && currentDepartment.head_name.trim() !== '') {
+      return {
+        id: currentDepartment.head_id || `head-${currentDeptId}`, // 🆔 معرف الحساب
+        full_name: currentDepartment.head_name.trim(), // 👤 الاسم الثلاثي الصريح
+        role: 'department_head', // 🎭 الدور الأكاديمي
+        university_number: `HOD-${currentDepartment.code || '01'}`, // 🔢 الرقم الوظيفي
+        generated_email: currentDepartment.head_email || '', // 📧 البريد الإلكتروني
+        is_active: true, // 🟢 الحساب نشط
+      };
+    }
+
+    return undefined; // 🛡️ إذا لم نجد شيئاً
+  }, [profiles, currentDeptId, currentDepartment, currentUser]);
+
+  // 👤 استخراج بروفايل أو اسم مقرر القسم الحالي بدقة فائقة مع دعم كافة المصادر المتاحة
+  const currentRap: UserProfile | undefined = useMemo(() => {
+    if (!currentDeptId) return undefined; // 🛑 إذا ماكو معرف قسم نرجع غير معرف
+    // 1️⃣ البحث المباشر في البروفايلات بدور مقرر القسم ومعرف القسم الحالي
+    const byRole = profiles.find((p: UserProfile): boolean => p.role === 'rapporteur' && p.department_id === currentDeptId);
+    if (byRole) return byRole; // ✅ وجدنا مقرر القسم بالدور الصريح
+
+    // 2️⃣ البحث بالمعرف الصريح rapporteur_id في البروفايلات
+    if (currentDepartment?.rapporteur_id) {
+      const byId = profiles.find((p: UserProfile): boolean => p.id === currentDepartment.rapporteur_id);
+      if (byId) return byId; // ✅ وجدنا مقرر القسم بالمعرف
+    }
+
+    // 3️⃣ البحث بالبريد الأكاديمي rapporteur_email في البروفايلات
+    if (currentDepartment?.rapporteur_email) {
+      const cleanEmail = currentDepartment.rapporteur_email.trim().toLowerCase();
+      const byEmail = profiles.find((p: UserProfile): boolean => (p.generated_email || '').trim().toLowerCase() === cleanEmail);
+      if (byEmail) return byEmail; // ✅ وجدنا مقرر القسم بالإيميل
+    }
+
+    // 4️⃣ مطابقة المستخدم الحالي المسجل إذا كان مقرراً للقسم
+    if (currentUser?.role === 'rapporteur' && (!currentUser.department_id || currentUser.department_id === currentDeptId)) {
+      return currentUser; // ✅ المستخدم الحالي هو مقرر القسم
+    }
+
+    // 5️⃣ استخدام الاسم المسجل في بيانات القسم مباشرة إذا وجد
+    if (currentDepartment?.rapporteur_name && currentDepartment.rapporteur_name.trim() !== '') {
+      return {
+        id: currentDepartment.rapporteur_id || `rap-${currentDeptId}`, // 🆔 معرف الحساب
+        full_name: currentDepartment.rapporteur_name.trim(), // 👤 الاسم الثلاثي الصريح
+        role: 'rapporteur', // 🎭 الدور الأكاديمي
+        university_number: `RAP-${currentDepartment.code || '01'}`, // 🔢 الرقم الوظيفي
+        generated_email: currentDepartment.rapporteur_email || '', // 📧 البريد الإلكتروني
+        is_active: true, // 🟢 الحساب نشط
+      };
+    }
+
+    return undefined; // 🛡️ إذا لم نجد شيئاً
+  }, [profiles, currentDeptId, currentDepartment, currentUser]);
 
   // 🏢 دالة فحص مطابقة المحاضرة للقسم المدار حالياً بعزل تام وصارم 100%
   const isLectureInCurrentDept = useCallback((l: ScheduleLecture): boolean => {
@@ -453,6 +563,9 @@ export default function DepartmentPortalPage() {
     deptTeachers: teachersHook.deptTeachers, // 👨‍🏫 أساتذة القسم
     teacherCourses, // 🔗 تكليفات المواد
     setTeacherCourses, // 🔄 دالة تحديث التكليفات
+    currentHead, // 👤 رئيس القسم الأكاديمي
+    currentRap, // 👤 مقرر القسم الأكاديمي
+    currentDepartment, // 🏢 بيانات القسم الأكاديمي بالكامل
     setSuccessMessage, // ✨ إشعار النجاح
     setErrorMessage, // ⚠️ إشعار الخطأ
     setDeleteModalConfig, // 🗑️ نافذة الحذف الموحدة
@@ -494,6 +607,7 @@ export default function DepartmentPortalPage() {
     setErrorMessage,
     setDeleteModalConfig,
     isLectureInCurrentDept,
+    stageGroupConfigs: studentsHook.stageGroupConfigs, // 👥 تمرير إعدادات كروبات المراحل لمزامنة الكروب الأول افتراضياً
   });
 
   // 📦 تفكيك خصائص ومخرجات خطاف الأساتذة
@@ -538,6 +652,13 @@ export default function DepartmentPortalPage() {
     studentStage, setStudentStage,
     studentGender, setStudentGender,
     studentStudyType, setStudentStudyType,
+    studentGroup, setStudentGroup,
+    filterStudentGroup, setFilterStudentGroup,
+    stageGroupConfigs,
+    isStageGroupModalOpen, setIsStageGroupModalOpen,
+    handleSaveStageGroupConfig,
+    handleUpdateStudentsGroupBatch,
+    handleBulkAssignGroup,
     customStudentEmail, setCustomStudentEmail,
     customStudentPassword, setCustomStudentPassword,
     showStudentPassword, setShowStudentPassword,
@@ -685,6 +806,7 @@ export default function DepartmentPortalPage() {
     selectedScheduleStage, setSelectedScheduleStage,
     selectedScheduleSemester, setSelectedScheduleSemester,
     selectedScheduleStudyType, setSelectedScheduleStudyType,
+    selectedScheduleGroup, setSelectedScheduleGroup, // 👥 استخراج الكروب المحدد ودالة تغييره من خطاف الجدول
     selectedScheduleWeek, setSelectedScheduleWeek,
     selectedScheduleLectureIds, setSelectedScheduleLectureIds,
     currentScheduleConfig, scheduleCurrentAcademicWeek,
@@ -707,6 +829,7 @@ export default function DepartmentPortalPage() {
     lecCourseSearchTerm, setLecCourseSearchTerm,
     lecCourseTabFilter, setLecCourseTabFilter,
     lecTeacherSearchTerm, setLecTeacherSearchTerm,
+    lecTargetGroup, setLecTargetGroup,
     lecModalSuccessMsg, setLecModalSuccessMsg,
     isLectureModalOpen, setIsLectureModalOpen,
     editingLectureId, setEditingLectureId,
@@ -871,6 +994,7 @@ export default function DepartmentPortalPage() {
   // 📋 حالات تبويب الحضور والغيابات والإنذارات لبولونيا
   const [attendanceSearch, setAttendanceSearch] = useState<string>(''); // 🔍 بحث الحضور
   const [filterAttendanceStage, setFilterAttendanceStage] = useState<number | 'all'>('all'); // 🎓 تصفية مرحلة الحضور
+  const [filterAttendanceGroup, setFilterAttendanceGroup] = useState<string>('all'); // 👥 تصفية كروب الحضور
   const [filterAttendanceSemester, setFilterAttendanceSemester] = useState<1 | 2 | 'all'>('all'); // 🗓️ تصفية كورس الحضور
   const [filterAttendanceStudyType, setFilterAttendanceStudyType] = useState<'all' | 'morning' | 'evening'>('all'); // ☀️🌙 فترة الحضور
   const [filterAttendanceCourse, setFilterAttendanceCourse] = useState<string | 'all'>('all'); // 📘 تصفية مادة الحضور
@@ -896,9 +1020,17 @@ export default function DepartmentPortalPage() {
       setIsExportingAttendanceExcel(true);
       const targetStudents = selectedAttendanceStudentIds && selectedAttendanceStudentIds.length > 0
         ? deptStudents.filter((s: UserProfile): boolean => selectedAttendanceStudentIds.includes(s.id))
-        : (filterAttendanceStage !== 'all'
-            ? deptStudents.filter((s: UserProfile): boolean => (s.stage_number || 1) === filterAttendanceStage)
-            : deptStudents);
+        : deptStudents.filter((s: UserProfile): boolean => {
+            if (filterAttendanceStage !== 'all' && (s.stage_number || 1) !== filterAttendanceStage) return false;
+            if (filterAttendanceGroup !== 'all') {
+              if (filterAttendanceGroup === 'unassigned') {
+                if (s.student_group) return false;
+              } else if (s.student_group !== filterAttendanceGroup) {
+                return false;
+              }
+            }
+            return true;
+          });
 
       if (targetStudents.length === 0) {
         setErrorMessage('لا يوجد طلاب في القسم لتصدير سجلات حضورهم حالياً.');
@@ -1025,7 +1157,7 @@ export default function DepartmentPortalPage() {
 
   useEffect(() => {
     setAttendancePage(1);
-  }, [attendanceSearch, filterAttendanceStage, filterAttendanceStudyType, filterAttendanceStatus, filterAttendanceCourse, filterAttendanceSemester, filterAttendanceWeek]);
+  }, [attendanceSearch, filterAttendanceStage, filterAttendanceGroup, filterAttendanceStudyType, filterAttendanceStatus, filterAttendanceCourse, filterAttendanceSemester, filterAttendanceWeek]);
 
   // 🚪 إغلاق القائمة المنسدلة لمواد الدرجات عند النقر خارجها
   useEffect(() => {
@@ -1267,18 +1399,12 @@ export default function DepartmentPortalPage() {
     }
   };
 
-  // 🔍 استخراج رئيس ومقرر القسم الحالي
-  const currentHead = profiles.find((p: UserProfile) => p.role === 'department_head' && p.department_id === currentDeptId) ||
-                      (currentDepartment?.head_name ? { full_name: currentDepartment.head_name, generated_email: currentDepartment.head_email } : null);
-  const currentRap = profiles.find((p: UserProfile) => p.role === 'rapporteur' && p.department_id === currentDeptId) ||
-                     (currentDepartment?.rapporteur_name ? { full_name: currentDepartment.rapporteur_name, generated_email: currentDepartment.rapporteur_email } : null);
-
-  // 📊 إحصائيات سريعة للقسم
-  const deptTeachersCount = deptTeachers.length;
-  const deptStudentsCount = deptStudents.length;
-  const deptCoursesCount = deptCourses.length;
-  const deptTeacherCoursesCount = deptTeacherCourses.length;
-  const deptGradesCount = deptGrades.length;
+  // 📊 إحصائيات سريعة للقسم للأستاذ والطلبة والمواد والتكليفات والدرجات
+  const deptTeachersCount = deptTeachers.length; // 👨‍🏫 عدد أساتذة القسم
+  const deptStudentsCount = deptStudents.length; // 🎓 عدد طلبة القسم
+  const deptCoursesCount = deptCourses.length; // 📖 عدد مواد ومناهج القسم
+  const deptTeacherCoursesCount = deptTeacherCourses.length; // 🔗 عدد تكليفات الأساتذة
+  const deptGradesCount = deptGrades.length; // 📊 عدد سجلات الدرجات والسعي
 
 
   return (
@@ -1391,6 +1517,16 @@ export default function DepartmentPortalPage() {
           setFilterStudentStage={setFilterStudentStage}
           filterStudentStudyType={filterStudentStudyType}
           setFilterStudentStudyType={setFilterStudentStudyType}
+          studentGroup={studentGroup}
+          setStudentGroup={setStudentGroup}
+          filterStudentGroup={filterStudentGroup}
+          setFilterStudentGroup={setFilterStudentGroup}
+          stageGroupConfigs={stageGroupConfigs}
+          isStageGroupModalOpen={isStageGroupModalOpen}
+          setIsStageGroupModalOpen={setIsStageGroupModalOpen}
+          handleSaveStageGroupConfig={handleSaveStageGroupConfig}
+          handleUpdateStudentsGroupBatch={handleUpdateStudentsGroupBatch}
+          handleBulkAssignGroup={handleBulkAssignGroup}
           studentPage={studentPage}
           setStudentPage={setStudentPage}
           studentPageSize={studentPageSize}
@@ -1742,6 +1878,11 @@ export default function DepartmentPortalPage() {
           setLecCourseTabFilter={setLecCourseTabFilter}
           lecTeacherSearchTerm={lecTeacherSearchTerm}
           setLecTeacherSearchTerm={setLecTeacherSearchTerm}
+          lecTargetGroup={lecTargetGroup}
+          setLecTargetGroup={setLecTargetGroup}
+          selectedScheduleGroup={selectedScheduleGroup} // 👥 تمرير الكروب الأكاديمي المختار للتبويب
+          setSelectedScheduleGroup={setSelectedScheduleGroup} // 🔄 تمرير دالة تغيير الكروب الأكاديمي المختار
+          stageGroupConfigs={stageGroupConfigs}
           lecModalSuccessMsg={lecModalSuccessMsg}
           setLecModalSuccessMsg={setLecModalSuccessMsg}
         />
@@ -1802,6 +1943,9 @@ export default function DepartmentPortalPage() {
           setAttendanceNoticeDefaultCategory={setAttendanceNoticeDefaultCategory}
           setSuccessMessage={setSuccessMessage}
           syncAttendanceRecordsFromSupabase={syncAttendanceRecordsFromSupabase}
+          filterAttendanceGroup={filterAttendanceGroup}
+          setFilterAttendanceGroup={setFilterAttendanceGroup}
+          stageGroupConfigs={stageGroupConfigs}
         />
       )}
 
@@ -2027,6 +2171,8 @@ export default function DepartmentPortalPage() {
         academicYear={academicYear}
         selectedScheduleSemester={selectedScheduleSemester}
         selectedScheduleStudyType={selectedScheduleStudyType}
+        selectedScheduleGroup={selectedScheduleGroup} // 👥 تمرير الكروب المحدد لفتح المعاينة والطباعة عليه مباشرة
+        stageGroupConfigs={stageGroupConfigs} // 👥 تمرير إعدادات الكروبات للطباعة والمعاينة
         showTeacherPrintModal={showTeacherPrintModal}
         setShowTeacherPrintModal={setShowTeacherPrintModal}
         singleTeacherPrintProfile={singleTeacherPrintProfile}

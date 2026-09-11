@@ -1,6 +1,6 @@
 'use client'; // ⚡ واجهة تفاعلية تعمل بمتصفح العميل
 
-import React from 'react'; // ⚛️ استيراد مكتبة ريآكت الأساسية
+import React, { useState, useEffect, useMemo } from 'react'; // ⚛️ استيراد مكتبة ريآكت مع خطافات الحالة والتأثير والحساب useState و useEffect و useMemo
 import {
   Clock, // ⏰ أيقونة الساعة
   Plus, // ➕ أيقونة الإضافة
@@ -39,7 +39,9 @@ import type {
   LectureColor, // 🎨 نوع لون المحاضرة
   LectureType, // 🔬 نوع المحاضرة (نظري أو عملي)
   TeacherCourse, // 🔗 نوع ربط الأستاذ بالمادة
+  StageGroupConfig, // ⚙️ واجهة إعدادات كروبات المراحل
 } from '@/types'; // 🏷️ استيراد الأنواع
+import { GroupScheduleSvg, GroupUsersSvg, GroupBadgeSvg } from '@/components/common/GroupSvgIcons'; // 👥 استيراد أيقونات الكروبات والشعب الفيكتورية النقية
 import ArabicDatePicker from '@/components/schedule/ArabicDatePicker'; // 📅 تقويم التاريخ العربي
 import {
   DAYS_OF_WEEK_LIST, // 🗓️ قائمة أيام الأسبوع
@@ -75,8 +77,10 @@ export interface DepartmentScheduleTabProps {
   setSelectedScheduleSemester: React.Dispatch<React.SetStateAction<1 | 2>>; // 🔄 تحديث الكورس
   selectedScheduleStudyType: 'morning' | 'evening'; // ☀️🌙 نوع الدراسة
   setSelectedScheduleStudyType: React.Dispatch<React.SetStateAction<'morning' | 'evening'>>; // 🔄 تحديث نوع الدراسة
-  selectedScheduleWeek: number; // 🔢 الأسبوع المحدد
+  selectedScheduleWeek: number; // 🔢 الأسبوع المحدد للكروب
   setSelectedScheduleWeek: React.Dispatch<React.SetStateAction<number>>; // 🔄 تحديث الأسبوع
+  selectedScheduleGroup?: string; // 👥 الكروب المحدد لجدول القسم
+  setSelectedScheduleGroup?: React.Dispatch<React.SetStateAction<string>>; // 🔄 تحديث الكروب المحدد
   selectedScheduleLectureIds: string[]; // 🔘 المحاضرات المحددة
   setSelectedScheduleLectureIds: React.Dispatch<React.SetStateAction<string[]>>; // 🔄 تحديث التحديد
 
@@ -150,6 +154,9 @@ export interface DepartmentScheduleTabProps {
   setLecCourseTabFilter: React.Dispatch<React.SetStateAction<'all' | 'theory' | 'practical'>>; // 🔄 تحديث تصفية المادة
   lecTeacherSearchTerm: string; // 🔍 بحث الأستاذ
   setLecTeacherSearchTerm: React.Dispatch<React.SetStateAction<string>>; // 🔄 تحديث بحث الأستاذ
+  lecTargetGroup: string; // 👥 الكروب أو الشعبة المستهدفة للمحاضرة
+  setLecTargetGroup: React.Dispatch<React.SetStateAction<string>>; // 🔄 تحديث الكروب المستهدف
+  stageGroupConfigs?: StageGroupConfig[]; // ⚙️ إعدادات كروبات المراحل الأكاديمية
   lecModalSuccessMsg: string; // 💬 رسالة نجاح الحفظ بالمودال
   setLecModalSuccessMsg: React.Dispatch<React.SetStateAction<string>>; // 🔄 تحديث رسالة النجاح
 }
@@ -174,6 +181,8 @@ export const DepartmentScheduleTab: React.FC<DepartmentScheduleTabProps> = ({
   setSelectedScheduleStudyType,
   selectedScheduleWeek,
   setSelectedScheduleWeek,
+  selectedScheduleGroup: selectedScheduleGroupProp,
+  setSelectedScheduleGroup: setSelectedScheduleGroupProp,
   selectedScheduleLectureIds,
   setSelectedScheduleLectureIds,
 
@@ -242,11 +251,51 @@ export const DepartmentScheduleTab: React.FC<DepartmentScheduleTabProps> = ({
   setLecCourseTabFilter,
   lecTeacherSearchTerm,
   setLecTeacherSearchTerm,
+  lecTargetGroup,
+  setLecTargetGroup,
+  stageGroupConfigs,
   lecModalSuccessMsg,
   setLecModalSuccessMsg,
 }) => {
+  // 👥 حالة الكروب المختار مع دعم التمرير من الهوك الخارجي أو الحالة المحلية
+  const [localScheduleGroup, setLocalScheduleGroup] = useState<string>('all');
+  const selectedScheduleGroup = selectedScheduleGroupProp !== undefined ? selectedScheduleGroupProp : localScheduleGroup;
+  const setSelectedScheduleGroup = setSelectedScheduleGroupProp || setLocalScheduleGroup;
+
+  // 🔄 مزامنة الكروب الافتراضي داخل التبويب لضمان عدم البقاء على 'all' عند وجود كروبات بالمرحلة
+  useEffect(() => {
+    const currentCfg = stageGroupConfigs?.find(
+      (c) => c.stage_number === selectedScheduleStage && c.study_type === selectedScheduleStudyType
+    );
+    if (currentCfg && currentCfg.has_groups && currentCfg.groups && currentCfg.groups.length > 0) {
+      if (selectedScheduleGroup === 'all' || !currentCfg.groups.includes(selectedScheduleGroup)) {
+        setSelectedScheduleGroup(currentCfg.groups[0]); // 🥇 تعيين الكروب الأول افتراضياً
+      }
+    }
+  }, [stageGroupConfigs, selectedScheduleStage, selectedScheduleStudyType, selectedScheduleGroup, setSelectedScheduleGroup]);
+
+  // 🔍 استخراج إعدادات الكروبات للمرحلة والدوام المحددين مركزياً للتبويب
+  const currentStageConfig = useMemo(() => {
+    return stageGroupConfigs?.find(
+      (c) => c.stage_number === selectedScheduleStage && (c.study_type || 'morning') === (selectedScheduleStudyType || 'morning')
+    );
+  }, [stageGroupConfigs, selectedScheduleStage, selectedScheduleStudyType]);
+
+  // ⚙️ استخراج قائمة الكروبات المعتمدة للمرحلة الحالية
+  const stageGroupsList: string[] = useMemo(() => {
+    const rawGroups = currentStageConfig?.groups || currentStageConfig?.group_names || [];
+    return currentStageConfig && currentStageConfig.has_groups && currentStageConfig.group_count > 0 && rawGroups.length > 0
+      ? rawGroups
+      : [];
+  }, [currentStageConfig]);
+
+  // 👥 الكروب الفعال للعرض والعزل الصارم
+  const activeScheduleGroup = stageGroupsList.length > 0
+    ? (selectedScheduleGroup !== 'all' ? selectedScheduleGroup : stageGroupsList[0])
+    : 'all';
+
   return (
-        <div className="space-y-6 animate-in fade-in duration-150">
+    <div className="space-y-6 animate-in fade-in duration-150">
           
           {/* 🧭 الرأس والشريط العلوي لإدارة الجدول الأسبوعي بتوزيع هندسي متناسق وأزرار مرتبة */}
           <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-7 shadow-xs space-y-5">
@@ -281,6 +330,11 @@ export const DepartmentScheduleTab: React.FC<DepartmentScheduleTabProps> = ({
                     lastScheduleScrollYRef.current = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0; // 📌 تثبيت موضع الصفحة
                   }
                   resetLectureModalState(); // 🧹 تصفير كافة الحقول والتواريخ والأوقات لتبدأ غير محددة
+                  if (stageGroupsList.length > 0) {
+                    setLecTargetGroup(activeScheduleGroup); // 👥 تعيين الكروب المختار تلقائياً
+                  } else {
+                    setLecTargetGroup('all'); // 👥 تعيين شعبة موحدة
+                  }
                   setIsLectureModalOpen(true); // 🚀 فتح نافذة المودال فورياً
                 }}
                 className="px-5 py-3 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-2xl font-black text-base flex items-center gap-2.5 shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer border border-[#0F2942] shrink-0" // 🎨 تصميم كحلي ملكي موحد
@@ -577,6 +631,94 @@ export const DepartmentScheduleTab: React.FC<DepartmentScheduleTabProps> = ({
           </div>
 
           {/* ========================================================================= */}
+          {/* ========================================================================= */}
+          {/* 👥 شريط اختيار جدول الكروب الأسبوعي الخاص لكل مرحلة (جداول مستقلة وخاصة 100%) */}
+          {/* ========================================================================= */}
+          {(() => {
+            // 🔍 استخراج إعدادات الكروبات للمرحلة والدوام المحددين بدقة عالية
+            const currentStageConfig = stageGroupConfigs?.find(
+              (c) => c.stage_number === selectedScheduleStage && (c.study_type || 'morning') === (selectedScheduleStudyType || 'morning')
+            );
+            const rawGroups: string[] = currentStageConfig?.groups || currentStageConfig?.group_names || []; // 📋 استخراج أسماء الكروبات
+            // ⚙️ فحص هل المرحلة مقسمة لكروبات وفيها كروبات معتمدة
+            const stageGroupsList: string[] = currentStageConfig && currentStageConfig.has_groups && currentStageConfig.group_count > 0 && rawGroups.length > 0
+              ? rawGroups // ✨ استخدام كروبات المرحلة المعتمدة فقط
+              : []; // 🛑 مصفوفة فارغة إذا كانت المرحلة شعبة موحدة
+
+            // 🛑 في حال كانت المرحلة غير مقسمة لكروبات (شعبة موحدة) نعرض تنبيهاً واضحاً
+            if (stageGroupsList.length === 0) {
+              return (
+                <div className="p-4 bg-white border border-slate-300 rounded-3xl shadow-2xs flex items-center justify-between gap-3 flex-wrap">
+                  <div className="flex items-center gap-2 text-sm sm:text-base font-black text-slate-950">
+                    <GroupScheduleSvg className="w-5 h-5 text-[#0F2942]" /> {/* 👥 أيقونة الشعبة الموحدة */}
+                    <span>لا يوجد كروبات لهذه المرحلة — جدول دراسي لشعبة موحدة</span> {/* 📢 توضيح عدم وجود كروبات */}
+                  </div>
+                  <span className="px-3.5 py-1.5 bg-blue-50 text-[#0F2942] border border-blue-200 rounded-xl text-xs sm:text-sm font-black shadow-2xs">
+                    شعبة موحدة {/* 🏷️ باج الشعبة الموحدة */}
+                  </span>
+                </div>
+              );
+            }
+
+            // 🎯 في حال كانت المرحلة مقسمة لكروبات، نعرض تبويبات الجداول المستقلة لكل كروب
+            return (
+              <div className="p-4 bg-white border border-slate-300 rounded-3xl shadow-2xs flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <span className="text-sm sm:text-base font-black text-slate-950 flex items-center gap-1.5 shrink-0">
+                    <GroupScheduleSvg className="w-5 h-5 text-[#0F2942]" /> {/* 👥 أيقونة الجداول الفيكتورية بالكحلي الملكي */}
+                    <span>عرض جدول الكروب الأسبوعي:</span> {/* 🏷️ عنوان التصفية */}
+                  </span>
+
+                  {/* 👥 أزرار جداول الكروبات الخاصة والمستقلة حصراً A, B, C... بتصميم كحلي ملكي راقٍ وأيقونات SVG نقية */}
+                  {stageGroupsList.map((grpName: string) => {
+                    const isSel = (selectedScheduleGroup === 'all' ? stageGroupsList[0] : selectedScheduleGroup) === grpName; // 🔍 فحص هل تم اختيار هذا الكروب
+                    // 🔢 احتساب محاضرات هذا الكروب حصراً بعزل تام وبدون أي دمج
+                    const grpLecsCount = scheduleLectures.filter(
+                      (l) =>
+                        isLectureInCurrentDept(l) &&
+                        l.stage_number === selectedScheduleStage &&
+                        l.semester === selectedScheduleSemester &&
+                        (l.study_type || 'morning') === selectedScheduleStudyType &&
+                        l.target_group === grpName // 🎯 فحص تطابق الكروب حصراً
+                    ).length;
+
+                    return (
+                      <button
+                        key={grpName} // 🔑 معرف فريد للكروب
+                        type="button" // 🔘 نوع الزر
+                        onClick={() => setSelectedScheduleGroup(grpName)} // ⚡ تفعيل جدول هذا الكروب فقط
+                        className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer flex items-center gap-2 ${
+                          isSel
+                            ? 'bg-[#0F2942] hover:bg-[#163a5f] text-white shadow-md ring-2 ring-blue-400/30' // 🎨 تمييز زر الكروب المحدد بالكحلي الملكي الفاخر
+                            : 'bg-slate-50 hover:bg-slate-100 text-[#0F2942] border border-slate-300 shadow-2xs' // ⚪ مظهر الكروب غير المحدد بألوان كحلية راقية
+                        }`}
+                      >
+                        <GroupBadgeSvg className={`w-4 h-4 shrink-0 ${isSel ? 'text-cyan-300' : 'text-[#0F2942]'}`} /> {/* 🏷️ أيقونة الكروب الفيكتورية SVG */}
+                        <span>جدول كروب {grpName}</span> {/* 🔤 اسم جدول الكروب */}
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-xs font-mono font-black ${
+                            isSel
+                              ? 'bg-white/20 text-cyan-200 border border-white/20' // 🔢 عداد الكروب المحدد بلون سماوي مبهج
+                              : 'bg-white text-[#0F2942] border border-slate-300' // 🔢 عداد الكروب غير المحدد
+                          }`}
+                        >
+                          {grpLecsCount}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* 💬 إشعار تعريفي يوضح استقلالية جدول الكروب المعروض بتصميم احترافي */}
+                <div className="text-xs font-black text-slate-700 bg-slate-50 px-3.5 py-2 rounded-xl border border-slate-200 flex items-center gap-2">
+                  <GroupBadgeSvg className="w-4 h-4 text-[#0F2942] shrink-0" /> {/* 👥 أيقونة الكروب الفيكتورية */}
+                  <span>يتم استعراض جدول محاضرات (كروب {selectedScheduleGroup !== 'all' ? selectedScheduleGroup : stageGroupsList[0]}) حصراً بشكل مستقل</span> {/* 📢 إشعار جدول الكروب المنفصل */}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* ========================================================================= */}
           {/* 📅 شريط التقويم الأكاديمي الذكي (15 أسبوعاً) وتاريخ انطلاق الفصل الدراسي */}
           {/* ========================================================================= */}
           <div className="bg-white border border-slate-300 rounded-3xl p-5 sm:p-6 shadow-sm space-y-4">
@@ -593,9 +735,16 @@ export const DepartmentScheduleTab: React.FC<DepartmentScheduleTabProps> = ({
                     <span className="px-3 py-1 bg-emerald-50 text-emerald-950 border border-emerald-400 font-black text-xs sm:text-sm rounded-full flex items-center shadow-2xs">
                       <span>الأسبوع الحالي: {scheduleCurrentAcademicWeek} من 15</span>
                     </span>
+                    {selectedScheduleGroup !== 'all' && (
+                      <span className="px-3 py-1 bg-[#0F2942] text-cyan-300 border border-[#0F2942] font-black text-xs sm:text-sm rounded-full flex items-center gap-1 shadow-2xs">
+                        <GroupBadgeSvg className="w-3.5 h-3.5 text-cyan-300 shrink-0" /> {/* 👥 أيقونة الكروب الفيكتورية SVG */}
+                        <span>جدول كروب {selectedScheduleGroup}</span>
+                      </span>
+                    )}
                   </div>
                   <p className="text-sm font-black text-slate-700 mt-1">
-                    حساب ذكي وتلقائي للتواريخ وفق الفارق الزمني (+7 أيام لكل أسبوع) مع حفظ سحابي ومحلي فوري
+                    {/* 🗓️ توضيح عراقي: نص يبين حساب التواريخ التلقائي لكل أسبوع بدون سالفة الحفظ السحابي والمحلي */}
+                    حساب ذكي وتلقائي للتواريخ وفق الفارق الزمني (+7 أيام لكل أسبوع)
                   </p>
                 </div>
               </div>
@@ -705,7 +854,11 @@ export const DepartmentScheduleTab: React.FC<DepartmentScheduleTabProps> = ({
               </div>
               <div>
                 <h3 className="text-lg sm:text-xl font-black text-slate-950 flex items-center gap-2">
-                  <span>تحديد أيام الدوام والعطل الأسبوعية للمرحلة {getStageNameInArabic(selectedScheduleStage)} (الكورس {selectedScheduleSemester === 1 ? 'الأول' : 'الثاني'})</span>
+                  <span>
+                    تحديد أيام الدوام والعطل الأسبوعية للمرحلة {getStageNameInArabic(selectedScheduleStage)}
+                    {selectedScheduleGroup !== 'all' ? ` (جدول كروب ${selectedScheduleGroup})` : ' (شعبة موحدة)'}
+                    {' '}(الكورس {selectedScheduleSemester === 1 ? 'الأول' : 'الثاني'})
+                  </span>
                 </h3>
                 <p className="text-sm sm:text-base font-black text-slate-800 mt-1">
                   اضغط على أي يوم لطلب تعديل حالته بين دوام رسمي أو عطلة رسمية مع نافذة تأكيد وموافقة مسبقة
@@ -717,13 +870,14 @@ export const DepartmentScheduleTab: React.FC<DepartmentScheduleTabProps> = ({
             <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3.5">
               {DAYS_OF_WEEK_LIST.map((d) => {
                 const isOff = currentScheduleConfig.off_days.includes(d.key);
-                // 📅 حساب عدد محاضرات هذا اليوم بدقة ومرونة للقسم
+                // 📅 حساب عدد محاضرات هذا اليوم بدقة ومرونة للقسم والكروب المختار حصراً
                 const dayLecCount = scheduleLectures.filter(
                   (l) =>
                     isLectureInCurrentDept(l) &&
                     l.stage_number === selectedScheduleStage &&
                     l.semester === selectedScheduleSemester &&
                     (l.study_type || 'morning') === selectedScheduleStudyType &&
+                    (stageGroupsList.length > 0 ? l.target_group === activeScheduleGroup : true) &&
                     l.day === d.key
                 ).length;
 
@@ -852,6 +1006,9 @@ export const DepartmentScheduleTab: React.FC<DepartmentScheduleTabProps> = ({
           setLecCourseTabFilter={setLecCourseTabFilter}
           lecTeacherSearchTerm={lecTeacherSearchTerm}
           setLecTeacherSearchTerm={setLecTeacherSearchTerm}
+          lecTargetGroup={lecTargetGroup}
+          setLecTargetGroup={setLecTargetGroup}
+          stageGroupConfigs={stageGroupConfigs}
           lecModalSuccessMsg={lecModalSuccessMsg}
           setLecModalSuccessMsg={setLecModalSuccessMsg}
         />
@@ -861,11 +1018,16 @@ export const DepartmentScheduleTab: React.FC<DepartmentScheduleTabProps> = ({
           {(() => {
             // 📚 جلب وفلترة كافة محاضرات المرحلة الحالية المحددة (للقسم والمرحلة والكورس ونوع الدراسة) لكافة الأسابيع والأيام
             const currentStageScheduleLectures = scheduleLectures.filter(
-              (l) =>
-                isLectureInCurrentDept(l) &&
-                l.stage_number === selectedScheduleStage &&
-                l.semester === selectedScheduleSemester &&
-                (l.study_type || 'morning') === selectedScheduleStudyType
+              (l) => {
+                if (!isLectureInCurrentDept(l)) return false;
+                if (l.stage_number !== selectedScheduleStage) return false;
+                if (l.semester !== selectedScheduleSemester) return false;
+                if ((l.study_type || 'morning') !== selectedScheduleStudyType) return false; // ☀️ فحص الصباحي والمسائي
+                if (stageGroupsList.length > 0) {
+                  return l.target_group === activeScheduleGroup; // 🎯 عزل صارم: إظهار محاضرات هذا الكروب حصراً بدون دمج
+                }
+                return true; // 🌐 في حالة المرحلة بدون كروبات (شعبة موحدة) نعرض الكل
+              }
             );
 
             // 🆔 مصفوفة المعرفات الفريدة لكافة محاضرات المرحلة الحالية
@@ -1166,12 +1328,17 @@ export const DepartmentScheduleTab: React.FC<DepartmentScheduleTabProps> = ({
                 // 📚 جلب وترتيب محاضرات هذا اليوم للقسم المحدد
                 const dayLecs = scheduleLectures
                   .filter(
-                    (l) =>
-                      isLectureInCurrentDept(l) &&
-                      l.stage_number === selectedScheduleStage &&
-                      l.semester === selectedScheduleSemester &&
-                      (l.study_type || 'morning') === selectedScheduleStudyType &&
-                      l.day === d.key
+                    (l) => {
+                      if (!isLectureInCurrentDept(l)) return false;
+                      if (l.stage_number !== selectedScheduleStage) return false;
+                      if (l.semester !== selectedScheduleSemester) return false;
+                      if ((l.study_type || 'morning') !== selectedScheduleStudyType) return false; // ☀️ مطابقة الدوام الصباحي أو المسائي
+                      if (l.day !== d.key) return false; // 🗓️ مطابقة يوم المحاضرة
+                      if (stageGroupsList.length > 0) {
+                        return l.target_group === activeScheduleGroup; // 🎯 عزل صارم: إظهار محاضرات هذا الكروب فقط
+                      }
+                      return true; // 🌐 شعبة موحدة
+                    }
                   )
                   .sort((a, b) => timeStringToMinutes(a.start_time) - timeStringToMinutes(b.start_time));
 
@@ -1238,6 +1405,11 @@ export const DepartmentScheduleTab: React.FC<DepartmentScheduleTabProps> = ({
                             // 🧹 تصفير المودال مع تعيين اليوم الأسبوعي وتاريخه التقويمي المطابق فورياً
                             resetLectureModalState(d.key, selectedScheduleWeek);
                             setLecStudyType(selectedScheduleStudyType); // ☀️🌙 مزامنة الفترة الصباحية/المسائية الحالية
+                            if (stageGroupsList.length > 0) {
+                              setLecTargetGroup(activeScheduleGroup); // 👥 تعيين الكروب المختار تلقائياً
+                            } else {
+                              setLecTargetGroup('all'); // 👥 تعيين شعبة موحدة
+                            }
                             setIsLectureModalOpen(true); // 🚀 فتح كارت CRUD المخصص للمحاضرات فورياً
                           }}
                           className="px-4 py-2 bg-[#0F2942] hover:bg-[#163a5f] text-white border border-[#0F2942] text-sm sm:text-base font-black rounded-xl transition cursor-pointer shadow-2xs flex items-center gap-2 active:scale-95"
@@ -1361,6 +1533,12 @@ export const DepartmentScheduleTab: React.FC<DepartmentScheduleTabProps> = ({
                                       <BookOpen className="w-3.5 h-3.5 text-blue-900 shrink-0" />
                                     )}
                                     <span>{typeArabic}</span>
+                                  </span>
+
+                                  {/* 👥 شارة الكروب أو الشعبة المستهدفة */}
+                                  <span className={unifiedBadgeClass}>
+                                    <GroupBadgeSvg className="w-3.5 h-3.5 text-blue-900 shrink-0" /> {/* 🏷️ أيقونة الكروب أو الشعبة */}
+                                    <span>{lec.target_group && lec.target_group !== 'all' ? `كروب ${lec.target_group}` : 'شعبة موحدة'}</span> {/* 🔤 اسم الكروب أو شعبة موحدة */}
                                   </span>
                                 </div>
                               </div>

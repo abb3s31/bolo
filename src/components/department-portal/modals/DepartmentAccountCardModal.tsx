@@ -44,7 +44,7 @@ export const DepartmentAccountCardModal: React.FC<DepartmentAccountCardModalProp
   const currentOrigin = typeof window !== 'undefined' ? window.location.origin : '';
 
   // 📝 صياغة نص البطاقة الكاملة للنسخ السريع والمشاركة
-  const cardSummaryText = `جامعة الإمام جعفر الصادق (ع) - فرع ميسان | قسم ${deptName}\nالاسم: ${profile.full_name}\nالصفة: ${profile.role === 'teacher' ? 'تدريسي' : `طالب - المرحلة ${getStageNameInArabic(profile.stage_number || 1)}`}\nالبريد الأكاديمي: ${profile.generated_email}\n${profile.temp_password ? `الرمز: ${profile.temp_password}\n` : ''}رابط المنصة: ${currentOrigin}`;
+  const cardSummaryText = `جامعة الإمام جعفر الصادق (ع) - فرع ميسان | قسم ${deptName}\nالاسم: ${profile.full_name}\nالصفة: ${profile.role === 'teacher' ? 'تدريسي' : `طالب - المرحلة ${getStageNameInArabic(profile.stage_number || 1)}${profile.student_group ? ` (كروب ${profile.student_group})` : ''}`}\nالبريد الأكاديمي: ${profile.generated_email}\n${profile.temp_password ? `الرمز: ${profile.temp_password}\n` : ''}رابط المنصة: ${currentOrigin}`;
 
   return (
     <div 
@@ -98,7 +98,7 @@ export const DepartmentAccountCardModal: React.FC<DepartmentAccountCardModalProp
               ) : (
                 <>
                   <GraduationCap className="w-4 h-4 text-emerald-700 shrink-0" />
-                  <span>طالب — المرحلة {getStageNameInArabic(profile.stage_number || 1)} ({profile.study_type === 'evening' ? 'الدراسة المسائية' : 'الدراسة الصباحية'})</span>
+                  <span>طالب — المرحلة {getStageNameInArabic(profile.stage_number || 1)} ({profile.study_type === 'evening' ? 'الدراسة المسائية' : 'الدراسة الصباحية'}){profile.student_group ? ` — كروب ${profile.student_group}` : ' — شعبة عامة'}</span>
                 </>
               )}
             </p>

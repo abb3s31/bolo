@@ -419,11 +419,11 @@ export default function TeacherDashboard() {
               id="teacher-tab-schedule"
               onClick={() => handleTeacherTabSwitch('schedule')}
               className={`py-4 px-4 rounded-2xl text-center transition-all cursor-pointer flex items-center justify-center gap-2.5 select-none active:scale-[0.98] ${activeDashboardView === 'schedule'
-                  ? 'bg-indigo-700 text-white shadow-md font-black ring-2 ring-indigo-400'
-                  : 'bg-slate-50 text-black hover:bg-slate-100 font-black border border-slate-300'
+                  ? 'bg-[#0F2942] text-white shadow-md font-black ring-2 ring-blue-400/30' // 🎨 تلوين التبويب بالكحلي الملكي
+                  : 'bg-slate-50 text-black hover:bg-slate-100 font-black border border-slate-300' // ⚪ المظهر العادي
                 }`}
             >
-              <Clock className="w-6 h-6 text-indigo-200" />
+              <Clock className="w-6 h-6 text-cyan-300" /> {/* 🕒 أيقونة التوقيت كحلي مع سيان SVG */}
               <span className="text-lg font-black">جدولي التدريسي</span>
             </button>
 
@@ -600,8 +600,9 @@ export default function TeacherDashboard() {
                             const role = myTC?.role_in_course || (course.has_practical ? 'both' : 'theory');
                             if (role === 'both') {
                               return (
-                                <span className="px-3.5 py-1.5 bg-purple-50 text-purple-950 border-2 border-purple-300 rounded-xl text-sm sm:text-base font-black flex items-center gap-1.5 shadow-2xs">
-                                  <Layers className="w-4 h-4 text-purple-700" />
+                                // 🏷️ شارة مكلف نظري وعملي بتصميم سيان أنيق بدون أي بنفسجي
+                                <span className="px-3.5 py-1.5 bg-cyan-50 text-cyan-950 border-2 border-cyan-300 rounded-xl text-sm sm:text-base font-black flex items-center gap-1.5 shadow-2xs">
+                                  <Layers className="w-4 h-4 text-cyan-700" />
                                   <span>مكلف نظري وعملي</span>
                                 </span>
                               );

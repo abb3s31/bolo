@@ -36,7 +36,12 @@ import type {
   DepartmentScheduleConfig, // ⚙️ نوع إعدادات جدول القسم
   AttendanceExcuseRequest, // 📑 نوع طلب الإجازة
   AttendanceWarningStatus, // 🛡️ نوع حالة الإنذار الأكاديمي
+  StageGroupConfig, // ⚙️ نوع إعدادات كروبات المرحلة
 } from '@/types'; // 🏷️ استيراد الأنواع الصارمة
+import {
+  GroupAttendanceSvg, // 📋 أيقونة سجل الحضور والغياب الخاص بالكروب
+  GroupBadgeSvg, // 🏷️ أيقونة بادج الكروب
+} from '@/components/common/GroupSvgIcons'; // 🎨 أيقونات الكروبات النقية SVG
 import { AttendanceNoticeCategory } from '@/components/attendance/AttendanceNoticeModal'; // 📢 تصنيف التبليغات
 import AttendanceAnalyticsCharts from '@/components/attendance/AttendanceAnalyticsCharts'; // 📊 لوحة التحليلات
 import AdminPagination from '@/components/AdminPagination'; // 📄 مكون الترقيم الموحد
@@ -102,6 +107,9 @@ export interface DepartmentAttendanceTabProps {
   setAttendanceNoticeDefaultCategory: (cat: AttendanceNoticeCategory) => void; // 🏷️ تحديد تصنيف التبليغ
   setSuccessMessage: (msg: string) => void; // 💬 رسالة النجاح
   syncAttendanceRecordsFromSupabase: () => Promise<StudentAttendanceRecord[]>; // ☁️ مزامنة السجلات من السحابة
+  filterAttendanceGroup?: string; // 👥 تصفية كروب الحضور المختار
+  setFilterAttendanceGroup?: (grp: string) => void; // 🔄 دالة تحديث تصفية كروب الحضور
+  stageGroupConfigs?: StageGroupConfig[]; // ⚙️ قائمة إعدادات كروبات المراحل
 }
 
 // 🏛️ مكون تبويب الحضور والغيابات والإنذارات الأكاديمية لمسار بولونيا
@@ -156,7 +164,43 @@ export const DepartmentAttendanceTab: React.FC<DepartmentAttendanceTabProps> = (
   setAttendanceNoticeDefaultCategory, // 🏷️ تصنيف التبليغ
   setSuccessMessage, // 💬 تعيين رسالة النجاح
   syncAttendanceRecordsFromSupabase, // ☁️ دالة المزامنة السحابية
+  filterAttendanceGroup, // 👥 تصفية كروب الحضور
+  setFilterAttendanceGroup, // 🔄 تحديث تصفية كروب الحضور
+  stageGroupConfigs, // ⚙️ إعدادات كروبات المراحل
 }) => {
+  // 👥 حالة محلية احتياطية لتصفية الكروب إذا لم تُمرر من المكون الأب
+  const [internalGroupFilter, setInternalGroupFilter] = React.useState<string>('all'); // 🎯 فلتر الكروب الداخلي
+  // 🎯 تحديد الفلتر الفعال سواء كان ممرراً أو داخلياً
+  const currentGroupFilter = filterAttendanceGroup !== undefined ? filterAttendanceGroup : internalGroupFilter; // 📌 الكروب النشط
+  // 🔄 دالة تغيير فلتر الكروب المتوافقة
+  const handleGroupFilterChange = setFilterAttendanceGroup || setInternalGroupFilter; // ⚡ دالة التغيير
+
+  // 👥 استخراج الكروبات المتوفرة للمرحلة أو القسم ككل
+  const availableGroups = React.useMemo<string[]>(() => {
+    const grpSet = new Set<string>(); // 📦 مجموعة لتفادي التكرار
+    if (filterAttendanceStage !== 'all') { // 🎓 في حال اختيار مرحلة محددة
+      const cfg = stageGroupConfigs?.find((c) => c.stage_number === filterAttendanceStage); // 🔍 جلب إعداد المرحلة
+      const grpList: string[] = cfg?.groups || cfg?.group_names || []; // 📋 استخراج قائمة الكروبات
+      if (cfg && cfg.group_count > 0 && grpList.length > 0) { // ✅ التحقق من وجود أسماء كروبات
+        grpList.forEach((g: string) => grpSet.add(g)); // ➕ إضافة أسماء الكروبات من الإعداد
+      }
+      deptStudents // 🎓 فحص طلبة المرحلة الحالية
+        .filter((s) => (s.stage_number || 1) === filterAttendanceStage) // 🔍 تصفية طلاب المرحلة
+        .forEach((s) => {
+          if (s.student_group) grpSet.add(s.student_group); // ➕ إضافة كروب الطالب
+        });
+    } else { // 🌐 في حال كافة المراحل
+      stageGroupConfigs?.forEach((cfg) => { // 🔄 المرور على إعدادات المراحل
+        const grpList: string[] = cfg.groups || cfg.group_names || []; // 📋 استخراج الكروبات
+        grpList.forEach((g: string) => grpSet.add(g)); // ➕ إضافة أسماء الكروبات
+      });
+      deptStudents.forEach((s) => { // 🔄 فحص كافة طلاب القسم
+        if (s.student_group) grpSet.add(s.student_group); // ➕ إضافة كروب الطالب
+      });
+    }
+    return Array.from(grpSet).sort(); // 🔠 ترتيب أبجدي أنيق
+  }, [filterAttendanceStage, stageGroupConfigs, deptStudents]);
+
   return (
         <div className="space-y-6 animate-in fade-in duration-150">
           
@@ -519,6 +563,82 @@ export const DepartmentAttendanceTab: React.FC<DepartmentAttendanceTabProps> = (
                 </div>
               </div>
 
+              {/* 👥 شريط فلترة وتحديد سجل غياب الكروب المخصص لمسار بولونيا */}
+              {availableGroups.length > 0 && (
+                <div className="flex items-center gap-2.5 shrink-0 pt-2 border-t border-slate-200/80 w-full flex-wrap">
+                  <span className="text-sm sm:text-base font-black text-slate-950 flex items-center gap-1.5 shrink-0">
+                    <GroupAttendanceSvg className="w-5 h-5 text-[#0F2942]" /> {/* 📋 أيقونة سجل غياب الكروب */}
+                    <span>سجل كروب:</span> {/* 🏷️ عنوان التصفية */}
+                  </span>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {/* 🌐 زر كافة الكروبات */}
+                    <button
+                      type="button" // 🔘 نوع الزر
+                      onClick={() => handleGroupFilterChange('all')} // ⚡ تفعيل كافة الكروبات
+                      className={`px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                        currentGroupFilter === 'all'
+                          ? 'bg-[#0F2942] text-white shadow-xs' // 🎨 مظهر نشط كحلي ملكي
+                          : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300' // 🎨 مظهر هادئ
+                      }`}
+                    >
+                      <span>كافة الكروبات</span> {/* 📝 النص */}
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-mono font-black border transition-all ${
+                        currentGroupFilter === 'all' ? 'bg-white/20 text-white border-white/30' : 'bg-slate-200 text-slate-900 border-slate-300'
+                      }`}>
+                        {deptStudents.filter((s) => filterAttendanceStage === 'all' || (s.stage_number || 1) === filterAttendanceStage).length}
+                      </span>
+                    </button>
+
+                    {/* 🏛️ زر شعبة موحدة (بدون تقسيم كروبات) */}
+                    <button
+                      type="button" // 🔘 نوع الزر
+                      onClick={() => handleGroupFilterChange('unassigned')} // ⚡ تفعيل بدون كروب
+                      className={`px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                        currentGroupFilter === 'unassigned'
+                          ? 'bg-[#0F2942] text-white shadow-xs' // 🎨 مظهر نشط كحلي ملكي
+                          : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300' // 🎨 مظهر هادئ
+                      }`}
+                    >
+                      <span>شعبة موحدة</span> {/* 📝 استبدال مشتركة بـ شعبة موحدة */}
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-mono font-black border transition-all ${
+                        currentGroupFilter === 'unassigned' ? 'bg-white/20 text-white border-white/30' : 'bg-slate-200 text-slate-900 border-slate-300'
+                      }`}>
+                        {deptStudents.filter((s) => (filterAttendanceStage === 'all' || (s.stage_number || 1) === filterAttendanceStage) && !s.student_group).length}
+                      </span>
+                    </button>
+
+                    {/* 🔠 أزرار الكروبات المخصصة (كروب A, كروب B, كروب C, كروب D...) */}
+                    {availableGroups.map((grpName) => {
+                      const grpCount = deptStudents.filter((s) => (filterAttendanceStage === 'all' || (s.stage_number || 1) === filterAttendanceStage) && s.student_group === grpName).length; // 🔢 عدد طلبة الكروب
+                      return (
+                        <button
+                          key={grpName} // 🔑 مفتاح الكروب الفريد
+                          type="button" // 🔘 نوع الزر
+                          onClick={() => handleGroupFilterChange(grpName)} // ⚡ تفعيل هذا الكروب
+                          className={`px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                            currentGroupFilter === grpName
+                              ? 'bg-[#0F2942] text-white shadow-xs ring-2 ring-cyan-400/40' // 🎨 مظهر نشط كحلي ملكي مع حلقة سماوية
+                              : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300' // 🎨 مظهر غير نشط
+                          }`}
+                        >
+                          <GroupBadgeSvg className="w-3.5 h-3.5 text-cyan-300" /> {/* 🏷️ بادج الكروب النقي */}
+                          <span>سجل كروب {grpName}</span> {/* 📝 نص الزر */}
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-mono font-black border transition-all ${
+                            currentGroupFilter === grpName
+                              ? 'bg-white/20 text-white border-white/30' // 🎨 كحلي نشط
+                              : grpCount > 0
+                              ? 'bg-blue-100 text-blue-950 border-blue-300' // 🎨 أزرق معتدل
+                              : 'bg-slate-200 text-slate-600 border-slate-300' // 🎨 رمادي فارغ
+                          }`}>
+                            {grpCount}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
             </div>
 
             {/* السطر الثاني: تصفية المادة + حالة الإنذار + البحث اللحظي + زر المزامنة */}
@@ -731,6 +851,13 @@ export const DepartmentAttendanceTab: React.FC<DepartmentAttendanceTabProps> = (
             const activeStudentsForStats = deptStudents.filter((st) => {
               if (filterAttendanceStage !== 'all' && (st.stage_number || 1) !== filterAttendanceStage) return false;
               if (filterAttendanceStudyType !== 'all' && (st.study_type || 'morning') !== filterAttendanceStudyType) return false;
+              if (currentGroupFilter !== 'all') { // 👥 فحص شرط الكروب للإحصائيات
+                if (currentGroupFilter === 'unassigned') { // 🏛️ إذا كانت شعبة عامة
+                  if (st.student_group) return false; // 🚫 استبعاد من له كروب
+                } else if (st.student_group !== currentGroupFilter) { // 🔠 إذا كان كروب محدد
+                  return false; // 🚫 استبعاد من لا يطابق الكروب
+                }
+              }
               if (attendanceSearch.trim()) {
                 const q = attendanceSearch.trim().toLowerCase();
                 const matchName = st.full_name.toLowerCase().includes(q);
@@ -827,6 +954,13 @@ export const DepartmentAttendanceTab: React.FC<DepartmentAttendanceTabProps> = (
                 .filter((st) => {
                   if (filterAttendanceStage !== 'all' && (st.stage_number || 1) !== filterAttendanceStage) return false;
                   if (filterAttendanceStudyType !== 'all' && (st.study_type || 'morning') !== filterAttendanceStudyType) return false;
+                  if (currentGroupFilter !== 'all') { // 👥 تصفية جدول الطلاب حسب الكروب المحدد
+                    if (currentGroupFilter === 'unassigned') { // 🏛️ شعبة عامة فقط
+                      if (st.student_group) return false; // 🚫 استبعاد من يمتلك كروب
+                    } else if (st.student_group !== currentGroupFilter) { // 🔠 كروب مخصص مثل A أو B
+                      return false; // 🚫 استبعاد من لا ينتمي لهذا الكروب
+                    }
+                  }
                   if (attendanceSearch.trim()) {
                     const q = attendanceSearch.trim().toLowerCase();
                     const matchName = st.full_name.toLowerCase().includes(q);
@@ -990,11 +1124,21 @@ export const DepartmentAttendanceTab: React.FC<DepartmentAttendanceTabProps> = (
                               <h4 className="font-black text-slate-950 text-base leading-tight truncate">{st.full_name}</h4>
                             </div>
 
-                            {/* 🎓 المرحلة الدراسية بأسماء عربية صريحة */}
-                            <div className="col-span-2 text-center">
-                              <span className="px-2.5 py-1 bg-slate-100 text-slate-950 border border-slate-300 rounded-xl text-xs sm:text-sm font-black inline-block">
+                            {/* 🎓 المرحلة الدراسية مع بادج الكروب المخصص */}
+                            <div className="col-span-2 text-center flex flex-col items-center justify-center gap-1">
+                              <span className="px-2.5 py-0.5 bg-slate-100 text-slate-950 border border-slate-300 rounded-xl text-xs sm:text-sm font-black inline-block">
                                 المرحلة {getStageNameInArabic(st.stage_number || 1)}
                               </span>
+                              {st.student_group ? (
+                                <span className="px-2 py-0.5 bg-blue-50 text-blue-950 border border-blue-300 rounded-lg text-xs font-black inline-flex items-center gap-1 shadow-2xs">
+                                  <GroupBadgeSvg className="w-3 h-3 text-blue-700" />
+                                  <span>كروب {st.student_group}</span>
+                                </span>
+                              ) : (
+                                <span className="px-1.5 py-0.5 bg-slate-50 text-slate-600 border border-slate-200 rounded-lg text-[10px] font-medium">
+                                  شعبة عامة
+                                </span>
+                              )}
                             </div>
 
                             {/* 📚 الكورس الدراسي المسجل به الغياب */}
@@ -1171,11 +1315,22 @@ export const DepartmentAttendanceTab: React.FC<DepartmentAttendanceTabProps> = (
           </div>
           )}
 
-          {/* عرض الرسوم البيانية عند اختيار التبويب */}
+          {/* عرض الرسوم البيانية عند اختيار التبويب مع تمرير الطلبة المفلترين بالكروب */}
           {attendanceViewMode === 'analytics' && (
             <AttendanceAnalyticsCharts
               courses={deptCourses}
-              students={deptStudents}
+              students={deptStudents.filter((st) => {
+                if (filterAttendanceStage !== 'all' && (st.stage_number || 1) !== filterAttendanceStage) return false;
+                if (filterAttendanceStudyType !== 'all' && (st.study_type || 'morning') !== filterAttendanceStudyType) return false;
+                if (currentGroupFilter !== 'all') {
+                  if (currentGroupFilter === 'unassigned') {
+                    if (st.student_group) return false;
+                  } else if (st.student_group !== currentGroupFilter) {
+                    return false;
+                  }
+                }
+                return true;
+              })}
               records={attendanceRecords}
               departmentName={deptName}
               startDate={currentScheduleConfig.start_date || '2026-09-20'}

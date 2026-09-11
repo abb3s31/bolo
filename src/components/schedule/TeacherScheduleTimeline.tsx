@@ -6,6 +6,7 @@ import Image from 'next/image'; // 🖼️ استيراد مكون الصور م
 import { createPortal } from 'react-dom'; // 🚪 بورتال لعرض نافذة الطباعة مباشرة على جذر الصفحة
 import { DayOfWeek, ScheduleLecture, DepartmentScheduleConfig, LectureColor, UserProfile, Department, Course, TeacherCourse } from '@/types'; // 🔗 استيراد الأنواع
 import { getStoredData, INITIAL_PROFILES, INITIAL_DEPARTMENTS, INITIAL_COURSES, INITIAL_TEACHER_COURSES, getAcademicYear, formatAcademicYearDisplay } from '@/lib/mock-data'; // 💾 دوال وسجلات التخزين المحلي والعام الدراسي المعتمد
+import { GroupBadgeSvg, GroupUsersSvg } from '@/components/common/GroupSvgIcons'; // 👥 استيراد أيقونات الكروبات الفيكتورية النقية SVG
 import {
   DAYS_OF_WEEK_LIST,
   LECTURE_COLOR_THEMES,
@@ -268,12 +269,14 @@ export default function TeacherScheduleTimeline({
       // 📋 تحويل المحاضرات إلى الشكل الدقيق المطلوب
       const formattedLectures = sortedLectures.map((l, idx) => {
         const dayObj = DAYS_OF_WEEK_LIST.find((d) => d.key === l.day);
-        const dayArabic = dayObj?.label_ar || l.day;
-        const timeSlot = formatArabicScheduleTime(`${l.start_time} - ${l.end_time}`);
-        const room = formatAcademicRoomName(l.room || '', l.type || 'theory');
-        const stageLabel = `المرحلة ${getStageNameInArabic(l.stage_number || 1)}`;
-        const studyLabel = (l.study_type || 'morning') === 'evening' ? 'مسائي' : 'صباحي';
-        const orderLabel = `محاضرة ${idx + 1}`;
+        const dayArabic = dayObj?.label_ar || l.day; // 🗓️ اسم اليوم بالعربي
+        const timeSlot = formatArabicScheduleTime(`${l.start_time} - ${l.end_time}`); // ⏰ توقيت المحاضرة
+        const room = formatAcademicRoomName(l.room || '', l.type || 'theory'); // 🏛️ القاعة أو المختبر
+        // 👥 توضيح المرحلة والكروب المستقل بدقة لمنع أي لبس
+        const groupSuffix = l.target_group && l.target_group !== 'all' ? ` (كروب ${l.target_group})` : ''; // 🏷️ إضافة اسم الكروب إن وجد
+        const stageLabel = `المرحلة ${getStageNameInArabic(l.stage_number || 1)}${groupSuffix}`; // 🎓 المرحلة والكروب
+        const studyLabel = (l.study_type || 'morning') === 'evening' ? 'مسائي' : 'صباحي'; // ☀️🌙 نوع الدراسة
+        const orderLabel = `محاضرة ${idx + 1}`; // 🥇 تسلسل المحاضرة
 
         return {
           day_arabic: dayArabic, // 🗓️ اليوم بالعربية
@@ -469,34 +472,36 @@ export default function TeacherScheduleTimeline({
               </button>
             </div>
 
-            {/* 📄 📊 أزرار المعاينة والطباعة والتصدير لإكسل */}
+            {/* 📄 📊 أزرار المعاينة والطباعة والتصدير لإكسل بتصميم كحلي ملكي راقٍ وفاخر #0F2942 */}
             <div className="flex items-center gap-2">
+              {/* 🖨️ زر طباعة الجدول الأسبوعي للأستاذ بتصميم كحلي ملكي جذاب وثابت */}
               <button
-                type="button"
-                onClick={() => setIsPrintModalOpen(true)}
-                className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 rounded-2xl font-black text-sm transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                title="معاينة وطباعة جدول الأستاذ الأسبوعي بصيغة رسمية"
+                type="button" // 🔘 نوع الزر للنموذج لمنع أي إرسال عرضي
+                onClick={() => setIsPrintModalOpen(true)} // ⚡ فتح نافذة معاينة وطباعة جدول الأستاذ
+                className="px-4 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white border border-[#0F2942] rounded-2xl font-black text-sm transition flex items-center gap-2 cursor-pointer shadow-xs active:scale-95" // 🎨 تصميم كحلي ملكي ناصع وأنيق
+                title="معاينة وطباعة جدول الأستاذ الأسبوعي بصيغة رسمية" // 💬 تلميح زر الطباعة
               >
-                <Printer className="w-4 h-4 text-slate-700" />
-                <span className="hidden sm:inline">طباعة الجدول</span>
+                <Printer className="w-4 h-4 text-cyan-300" /> {/* 🖨️ أيقونة الطابعة بلون سماوي مبهج يبرز على الكحلي */}
+                <span className="hidden sm:inline">طباعة الجدول</span> {/* 📝 نص زر طباعة الجدول */}
               </button>
 
+              {/* 📊 زر تصدير جدول الأستاذ لإكسل بتصميم كحلي ملكي متناسق وفخم */}
               <button
-                type="button"
-                onClick={handleExportExcel}
-                disabled={isExportingExcel || myLectures.length === 0}
-                className="px-3.5 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-2xl font-black text-sm transition flex items-center gap-1.5 cursor-pointer shadow-2xs border border-emerald-600 disabled:opacity-50"
-                title="تصدير جدول الأستاذ الأسبوعي بصيغة Excel الفاخرة"
+                type="button" // 🔘 نوع الزر كزر عادي
+                onClick={handleExportExcel} // ⚡ استدعاء دالة تصدير ملف الإكسل للأستاذ
+                disabled={isExportingExcel || myLectures.length === 0} // 🚫 تعطيل الزر إذا التصدير شغال أو ماكو محاضرات
+                className="px-4 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-2xl font-black text-sm transition flex items-center gap-2 cursor-pointer shadow-xs border border-[#0F2942] active:scale-95 disabled:opacity-50" // 🎨 كحلي ملكي فاخر مطابق لأعلى معايير التصميم
+                title="تصدير جدول الأستاذ الأسبوعي بصيغة Excel الفاخرة" // 💬 تلميح زر الإكسل
               >
-                {isExportingExcel ? (
+                {isExportingExcel ? ( // ⏳ فحص حالة توليد ملف الإكسل
                   <>
-                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                    <span>جاري التصدير...</span>
+                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span> {/* 🔄 سبينر دوار أثناء تجهيز الإكسل */}
+                    <span>جاري التصدير...</span> {/* 💬 نص الانتظار */}
                   </>
-                ) : (
+                ) : ( // ✨ الحالة الاعتيادية لزر تصدير الإكسل
                   <>
-                    <FileSpreadsheet className="w-4 h-4 text-emerald-200" />
-                    <span>تصدير Excel</span>
+                    <FileSpreadsheet className="w-4 h-4 text-emerald-400" /> {/* 📊 أيقونة الإكسل بلون زمردي فاقع ومتناسق مع الكحلي */}
+                    <span>تصدير Excel</span> {/* 📝 نص زر تصدير الإكسل */}
                   </>
                 )}
               </button>
@@ -584,11 +589,11 @@ export default function TeacherScheduleTimeline({
                 onClick={() => setSelectedStudyType('evening')}
                 className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer border flex items-center gap-1.5 ${
                   selectedStudyType === 'evening'
-                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
-                    : 'bg-slate-50 text-slate-700 border-slate-300 hover:bg-slate-100'
+                    ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-xs ring-2 ring-blue-400/30' // 🎨 تلوين الكحلي الملكي
+                    : 'bg-slate-50 text-slate-700 border-slate-300 hover:bg-slate-100' // ⚪ المظهر العادي
                 }`}
               >
-                <Moon className="w-3.5 h-3.5" />
+                <Moon className="w-3.5 h-3.5 text-cyan-300" /> {/* 🌙 أيقونة المسائي سيان متناسقة */}
                 <span>المسائي</span>
               </button>
             </div>
@@ -872,9 +877,16 @@ export default function TeacherScheduleTimeline({
                           <span className="font-sans font-black whitespace-nowrap">{formatArabicScheduleTime(`${lecture.start_time} - ${lecture.end_time}`)}</span>
                         </span>
                         <span className="px-3 py-1 bg-blue-100 text-blue-950 border border-blue-200 font-black text-xs sm:text-sm rounded-xl shrink-0">
-                          المرحلة {getStageNameInArabic(lecture.stage_number)}
+                          المرحلة {getStageNameInArabic(lecture.stage_number)} {/* 🎓 اسم المرحلة الدراسية */}
                         </span>
-                        {/* 📅 التاريخ التقويمي ورقم الأسبوع المحسوب ديناميكياً لليوم والأسبوع المختار */}
+                        {/* 👥 شارة الكروب المستقل الخاص بهذه المحاضرة مدعومة بأيقونة SVG وكحلي ملكي */}
+                        {lecture.target_group && lecture.target_group !== 'all' && (
+                          <span className="px-3 py-1 bg-[#0F2942] text-white border border-blue-400/30 font-black text-xs sm:text-sm rounded-xl shrink-0 flex items-center gap-1.5 shadow-2xs">
+                            <GroupBadgeSvg className="w-3.5 h-3.5 text-cyan-300" /> {/* 👥 أيقونة الكروب الفيكتورية النقية SVG */}
+                            <span>كروب {lecture.target_group}</span> {/* 🏷️ اسم الكروب المستهدف بالمحاضرة */}
+                          </span>
+                        )}
+                        {/* 📅 التاريخ التقويمي ورقم الأسبوع المحسوب ديناميكياً لليوم والأسبوع المختار بدون أي بنفسجي */}
                         {(() => {
                           const dynamicLecDate = lecture.weekly_overrides?.[selectedAcademicWeek]?.date
                             || lecture.custom_weekly_dates?.[selectedAcademicWeek]
@@ -885,10 +897,10 @@ export default function TeacherScheduleTimeline({
                               lecture.day
                             );
                           return (
-                            <span className="px-3 py-1 bg-indigo-50 text-indigo-950 border border-indigo-200 font-black text-xs sm:text-sm rounded-xl flex items-center gap-1.5 shrink-0">
-                              <Calendar className="w-3.5 h-3.5 text-indigo-700 shrink-0" />
+                            <span className="px-3 py-1 bg-blue-50 text-blue-950 border border-blue-200 font-black text-xs sm:text-sm rounded-xl flex items-center gap-1.5 shrink-0">
+                              <Calendar className="w-3.5 h-3.5 text-blue-700 shrink-0" />
                               <span>الأسبوع {selectedAcademicWeek}</span>
-                              <span className="text-indigo-400">•</span>
+                              <span className="text-blue-400">•</span>
                               <span className="font-mono">{dynamicLecDate}</span>
                             </span>
                           );
@@ -906,11 +918,11 @@ export default function TeacherScheduleTimeline({
 
                         <span className={`px-2.5 py-1 rounded-xl text-xs sm:text-sm font-black border flex items-center gap-1.5 shrink-0 ${
                           (lecture.study_type || 'morning') === 'evening'
-                            ? 'bg-indigo-50 text-indigo-950 border-indigo-200'
+                            ? 'bg-slate-100 text-slate-900 border-slate-300'
                             : 'bg-sky-50 text-sky-950 border-sky-300'
                         }`}>
                           {(lecture.study_type || 'morning') === 'evening' ? (
-                            <Moon className="w-3.5 h-3.5 text-indigo-600" />
+                            <Moon className="w-3.5 h-3.5 text-slate-700" />
                           ) : (
                             <Sun className="w-3.5 h-3.5 text-sky-600" />
                           )}
@@ -1067,8 +1079,15 @@ export default function TeacherScheduleTimeline({
                                 <Clock className="w-3.5 h-3.5 text-slate-700 shrink-0" />
                                 <span>{lec.start_time} - {lec.end_time}</span>
                               </span>
-                              <span className="px-1.5 py-0.5 rounded-md bg-blue-100 text-blue-950 border border-blue-200 text-[10px] font-black shrink-0">
-                                مرحلة {lec.stage_number}
+                              {/* 🏷️ إظهار المرحلة والكروب المستهدف للمحاضرة في العرض الأسبوعي بأيقونة SVG */}
+                              <span className="px-1.5 py-0.5 rounded-md bg-blue-100 text-blue-950 border border-blue-200 text-[10px] font-black shrink-0 inline-flex items-center gap-1">
+                                <span>مرحلة {lec.stage_number}</span>
+                                {lec.target_group && lec.target_group !== 'all' && (
+                                  <span className="inline-flex items-center gap-0.5 text-[#0F2942] font-black">
+                                    <GroupBadgeSvg className="w-2.5 h-2.5 text-[#0F2942]" /> {/* 👥 أيقونة الكروب الفيكتورية النقية SVG */}
+                                    <span>({lec.target_group})</span>
+                                  </span>
+                                )}
                               </span>
                             </div>
 
@@ -1383,7 +1402,10 @@ export default function TeacherScheduleTimeline({
                                       <div className="bg-slate-50 border-t border-black/25 pt-1 pb-0.5 px-1.5 print:py-1 print:px-1 rounded text-[10px] sm:text-[11px] print:text-[9px] font-black text-black print:flex print:items-center print:justify-between print:gap-1 shrink-0">
                                         <div className="flex items-center gap-1 print:gap-0.5 text-black font-black leading-tight truncate">
                                           <span className="text-black font-black shrink-0">المرحلة:</span>
-                                          <span className="text-black font-black truncate print:text-[9px]">المرحلة {getStageNameInArabic(lec.stage_number || 1)} ({lec.study_type === 'evening' ? 'مسائي' : 'صباحي'})</span>
+                                          {/* 🎓 كتابة المرحلة والدراسة والكروب المستقل بشكل دقيق حتى يعرف التدريسي يا كروب يدرّس */}
+                                          <span className="text-black font-black truncate print:text-[9px]">
+                                            المرحلة {getStageNameInArabic(lec.stage_number || 1)} ({lec.study_type === 'evening' ? 'مسائي' : 'صباحي'}){lec.target_group && lec.target_group !== 'all' ? ` — كروب ${lec.target_group}` : ''}
+                                          </span>
                                         </div>
                                         <div className="flex items-center gap-1 print:gap-0.5 text-black font-black leading-tight shrink-0">
                                           <span className="text-black font-black shrink-0">المكان:</span>

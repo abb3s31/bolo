@@ -719,6 +719,7 @@ export async function downloadDepartmentStudentsTemplate(deptName: string): Prom
       name: '', // 📝 فارغ ليكتبه المستخدم
       dept: deptName,
       stage: ((i - 1) % 4) + 1, // تدرج المراحل من 1 إلى 4
+      group: '', // 👥 الكروب أو الشعبة الدراسية (اختياري، مثل: A أو B أو فارغ للشعبة العامة)
       study_type: i % 4 === 0 ? 'مسائي' : 'صباحي', // ☀️🌙 نوع الدراسة الافتراضي
       gender: '',
       email: stdEmail,
@@ -748,6 +749,10 @@ export async function downloadDepartmentStudentsTemplate(deptName: string): Prom
       details: 'اكتب رقم المرحلة من (1) إلى (4).',
     },
     {
+      item: 'الكروب أو الشعبة الدراسية (اختياري)',
+      details: 'حقل اختياري. اكتب اسم الكروب للمرحلة مثل (A أو B أو C أو D)، أو اتركه فارغاً ليكون الطالب ضمن الشعبة العامة الموحدة.',
+    },
+    {
       item: 'الفترة الدراسية (صباحي / مسائي)',
       details: 'اكتب (صباحي) أو (مسائي). في حال ترك الحقل فارغاً سيعتمده النظام كـ (صباحي) تلقائياً.',
     },
@@ -774,6 +779,7 @@ export async function downloadDepartmentStudentsTemplate(deptName: string): Prom
           { header: 'اسم الطالب الثلاثي / الرباعي', key: 'name', width: 35 },
           { header: 'القسم العلمي', key: 'dept', width: 30 },
           { header: 'المرحلة الدراسية (1-4)', key: 'stage', width: 22 },
+          { header: 'الكروب / الشعبة (A, B, C... اختياري)', key: 'group', width: 26 },
           { header: 'الفترة الدراسية (صباحي / مسائي)', key: 'study_type', width: 26 },
           { header: 'الجنس (ذكر / أنثى)', key: 'gender', width: 20 },
           { header: 'البريد الأكاديمي (اختياري)', key: 'email', width: 32 },
@@ -1393,14 +1399,27 @@ export async function exportCustomTeachersList(teachers: { full_name: string; ge
   );
 }
 
-// 📤 دالة تصدير كشف طلبة القسم إلى Excel مع الرقم الجامعي، المرحلة، الفترة، البريد، والرمز السري
-export async function exportCustomStudentsList(students: { full_name: string; university_number: string; stage_number?: number; study_type?: string; gender?: string; generated_email: string; temp_password?: string }[], deptName: string): Promise<void> {
+// 📤 دالة تصدير كشف طلبة القسم إلى Excel مع الرقم الجامعي، المرحلة، الكروب، الفترة، البريد، والرمز السري
+export async function exportCustomStudentsList(
+  students: {
+    full_name: string; // 👤 اسم الطالب الثلاثي
+    university_number: string; // 🆔 الرقم الجامعي
+    stage_number?: number; // 🎓 رقم المرحلة الدراسية
+    student_group?: string; // 👥 اسم الكروب أو الشعبة الدراسية
+    study_type?: string; // ☀️🌙 نوع الدراسة صباحي أو مسائي
+    gender?: string; // 🚻 الجنس
+    generated_email: string; // ✉️ البريد الأكاديمي الرسمي
+    temp_password?: string; // 🔑 كلمة المرور المؤقتة
+  }[],
+  deptName: string // 🏢 اسم القسم الأكاديمي
+): Promise<void> {
   // 📝 تحويل مصفوفة الطلبة إلى صفوف إكسل كاملة الحقول
   const data = students.map((s, idx) => ({
     seq: idx + 1, // 🔢 التسلسل
     name: s.full_name, // 👤 اسم الطالب الثلاثي
     uniNum: s.university_number, // 🆔 الرقم الجامعي
     stage: `المرحلة ${s.stage_number || 1}`, // 🎓 المرحلة الدراسية
+    group: s.student_group ? `كروب ${s.student_group}` : 'عامة / موحدة', // 👥 الكروب أو الشعبة الدراسية
     studyType: s.study_type === 'evening' ? 'مسائي' : 'صباحي', // ☀️🌙 الفترة الدراسية
     gender: s.gender === 'female' ? 'أنثى' : 'ذكر', // 🚻 الجنس
     email: s.generated_email, // ✉️ البريد الأكاديمي
@@ -1418,6 +1437,7 @@ export async function exportCustomStudentsList(students: { full_name: string; un
           { header: 'اسم الطالب الثلاثي', key: 'name', width: 34 }, // 👤 اسم الطالب
           { header: 'الرقم الجامعي', key: 'uniNum', width: 18 }, // 🆔 الرقم الجامعي
           { header: 'المرحلة الدراسية', key: 'stage', width: 16 }, // 🎓 المرحلة
+          { header: 'الكروب / الشعبة', key: 'group', width: 18 }, // 👥 الكروب أو الشعبة الدراسية
           { header: 'الفترة الدراسية', key: 'studyType', width: 18 }, // ☀️ نوع الدراسة
           { header: 'الجنس', key: 'gender', width: 14 }, // 🚻 الجنس
           { header: 'البريد الأكاديمي الرسمي', key: 'email', width: 34 }, // ✉️ البريد الرسمي
@@ -1629,6 +1649,7 @@ export async function generateDepartmentScheduleTemplate(
       stage: coursesList[0]?.stage_number || 1,
       semester: coursesList[0]?.semester || 1,
       study_type: 'صباحي',
+      target_group: 'A', // 👥 كروب A مستقل
       week_number: 1,
       date: '2026-09-13',
       day: 'الأحد',
@@ -1637,7 +1658,7 @@ export async function generateDepartmentScheduleTemplate(
       room: 'قاعة 101',
       lecture_type: 'محاضرة نظرية',
       teacher_name: teachersList[0]?.full_name || '',
-      notes: 'محاضرة أسبوعية منتظمة',
+      notes: 'محاضرة أسبوعية منتظمة لكروب A',
     },
     {
       seq: 2,
@@ -1645,6 +1666,7 @@ export async function generateDepartmentScheduleTemplate(
       stage: coursesList[1]?.stage_number || 1,
       semester: coursesList[1]?.semester || 1,
       study_type: 'صباحي',
+      target_group: 'B', // 👥 كروب B مستقل
       week_number: 1,
       date: '2026-09-14',
       day: 'الإثنين',
@@ -1653,7 +1675,7 @@ export async function generateDepartmentScheduleTemplate(
       room: 'مختبر الحاسوب 1',
       lecture_type: 'مختبر وتطبيق عملي',
       teacher_name: teachersList[1]?.full_name || teachersList[0]?.full_name || '',
-      notes: 'جلسة تطبيق عملي معملية',
+      notes: 'جلسة تطبيق عملي معملية لكروب B',
     },
     {
       seq: 3,
@@ -1661,6 +1683,7 @@ export async function generateDepartmentScheduleTemplate(
       stage: coursesList[2]?.stage_number || 2,
       semester: coursesList[2]?.semester || 1,
       study_type: 'مسائي',
+      target_group: '', // 🛑 فارغ للشعبة الموحدة
       week_number: 1,
       date: '2026-09-15',
       day: 'الثلاثاء',
@@ -1669,7 +1692,7 @@ export async function generateDepartmentScheduleTemplate(
       room: 'قاعة 202',
       lecture_type: 'محاضرة نظرية',
       teacher_name: teachersList[2]?.full_name || teachersList[0]?.full_name || '',
-      notes: 'دراسة مسائية',
+      notes: 'دراسة مسائية لشعبة موحدة',
     },
   ];
 
@@ -1681,6 +1704,7 @@ export async function generateDepartmentScheduleTemplate(
       stage: Math.min(4, Math.floor((i - 1) / 6) + 1),
       semester: 1,
       study_type: 'صباحي',
+      target_group: '', // 👥 حقل الكروب فارغ افتراضياً
       week_number: 1,
       date: '',
       day: 'الأحد',
@@ -1721,6 +1745,10 @@ export async function generateDepartmentScheduleTemplate(
     {
       item: 'الفترة الدراسية *',
       details: 'اكتب (صباحي) للدراسة الصباحية أو (مسائي) للدراسة المسائية.',
+    },
+    {
+      item: 'الكروب المستهدف (اختياري)',
+      details: 'اكتب رمز الكروب مثل (A أو B أو C أو D) إذا كانت المرحلة مقسمة لكروبات مستقلة، أو اتركه فارغاً إذا كانت المرحلة شعبة موحدة.',
     },
     {
       item: 'اليوم الأسبوعي *',
@@ -1765,6 +1793,7 @@ export async function generateDepartmentScheduleTemplate(
         { header: 'المرحلة (1-4) *', key: 'stage', width: 16 },
         { header: 'الكورس (1 أو 2) *', key: 'semester', width: 16 }, // 📊 تعديل رأس العمود ليكون الكورس بدلاً من الفصل
         { header: 'الفترة (صباحي / مسائي) *', key: 'study_type', width: 24 },
+        { header: 'الكروب (A, B... أو فارغ للشعبة الموحدة)', key: 'target_group', width: 26 }, // 👥 عمود الكروب المستقل
         { header: 'الأسبوع (1-15)', key: 'week_number', width: 16 },
         { header: 'تاريخ المحاضرة', key: 'date', width: 16 },
         { header: 'اليوم الأسبوعي *', key: 'day', width: 18 },
@@ -1840,6 +1869,7 @@ export async function exportCustomScheduleList(
     stage_number?: number;
     semester?: number;
     study_type?: string;
+    target_group?: string; // 👥 الكروب الأكاديمي المستهدف بالمحاضرة
     day: string;
     start_time: string;
     end_time: string;
@@ -1869,6 +1899,7 @@ export async function exportCustomScheduleList(
     stage: `المرحلة ${l.stage_number || 1}`,
     semester: `الكورس ${(l.semester || 1) === 2 ? 'الثاني' : 'الأول'}`,
     study_type: (l.study_type || 'morning') === 'evening' ? 'مسائي' : 'صباحي',
+    group: l.target_group && l.target_group !== 'all' ? `كروب ${l.target_group}` : 'شعبة موحدة', // 👥 توضيح الكروب أو الشعبة الموحدة
     week_number: l.week_number ? `الأسبوع ${l.week_number}` : '—',
     date: l.date || '—',
     day: dayNameMap[l.day] || l.day,
@@ -1892,6 +1923,7 @@ export async function exportCustomScheduleList(
           { header: 'المرحلة', key: 'stage', width: 14 },
           { header: 'الكورس', key: 'semester', width: 14 },
           { header: 'الفترة', key: 'study_type', width: 14 },
+          { header: 'الكروب / الشعبة', key: 'group', width: 18 }, // 👥 عمود الكروب المعتمد
           { header: 'الأسبوع الدراسي', key: 'week_number', width: 16 },
           { header: 'تاريخ المحاضرة', key: 'date', width: 16 },
           { header: 'اليوم الأسبوعي', key: 'day', width: 16 },

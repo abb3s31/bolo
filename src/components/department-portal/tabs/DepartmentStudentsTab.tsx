@@ -1,6 +1,6 @@
 'use client'; // ⚡ واجهة تفاعلية على متصفح العميل في Next.js
 
-import React from 'react'; // ⚛️ استيراد مكتبة ريآكت الأساسية
+import React, { useMemo } from 'react'; // ⚛️ استيراد مكتبة ريآكت الأساسية مع useMemo
 import {
   GraduationCap, // 🎓 أيقونة شؤون الطلاب والشهادات
   Plus, // ➕ أيقونة تسجيل طالب جديد
@@ -14,15 +14,17 @@ import {
   ArrowUpRight, // ↗️ أيقونة ترحيل النجاح للمرحلة القادمة
   QrCode, // 🪪 أيقونة بطاقة الطالب والـ QR
   Edit3, // ✏️ أيقونة التعديل
-  Sparkles, // ✨ أيقونة الترحيل الجماعي
   Sun, // ☀️ أيقونة الدراسة الصباحية
   Moon, // 🌙 أيقونة الدراسة المسائية
 } from 'lucide-react'; // 🎨 استيراد أيقونات لوسيد
-import type { UserProfile } from '@/types'; // 🏷️ استيراد الأنواع الصارمة
+import type { UserProfile, StageGroupConfig } from '@/types'; // 🏷️ استيراد الأنواع الصارمة المحدثة
 import { detectArabicGender } from '@/lib/demographics-utils'; // 🧮 التعرف الذكي على الجنس العربي
 import AdminPagination from '@/components/AdminPagination'; // 📄 مكون نظام الصفحات الموحد والفاخر
 import StudentModal from '../modals/StudentModal'; // 🪟 مودال تسجيل وتعديل الطالب
 import BulkPromotionModal from '../modals/BulkPromotionModal'; // 🪟 مودال الترحيل الجماعي للمرحلة
+import StageGroupSettingsModal from '../modals/StageGroupSettingsModal'; // 🪟 مودال إدارة وتوزيع كروبات المراحل الأكاديمية
+import { GroupSettingsSvg, GroupBadgeSvg, GroupUsersSvg, GeneralCohortSvg } from '@/components/common/GroupSvgIcons'; // 🎨 أيقونات SVG النقية لإدارة الكروبات والشعب
+import { getGroupsForStage } from '@/lib/groups-service'; // 🏷️ دوال مساعدة لاستخراج كروبات المرحلة
 
 // 📋 واجهة خصائص تبويب إدارة طلبة القسم
 export interface DepartmentStudentsTabProps {
@@ -36,10 +38,20 @@ export interface DepartmentStudentsTabProps {
   setFilterStudentStage: (stage: number | 'all') => void; // 🔄 دالة تصفية المرحلة
   filterStudentStudyType: 'all' | 'morning' | 'evening'; // ☀️🌙 نوع الدوام المفلتر
   setFilterStudentStudyType: (type: 'all' | 'morning' | 'evening') => void; // 🔄 دالة تصفية الدوام
+  studentGroup: string; // 🏷️ كروب الطالب الحالي قيد التسجيل أو التعديل
+  setStudentGroup: React.Dispatch<React.SetStateAction<string>>; // 🔄 دالة تحديث كروب الطالب
+  filterStudentGroup: string; // 🏷️ الكروب المفلتر لعرض طلابه فقط
+  setFilterStudentGroup: (group: string) => void; // 🔄 دالة تحديث تصفية الكروب
+  stageGroupConfigs: StageGroupConfig[]; // 📋 إعدادات كروبات مراحل القسم الأكاديمي
+  isStageGroupModalOpen: boolean; // 📂 حالة فتح مودال إعدادات الكروبات
+  setIsStageGroupModalOpen: React.Dispatch<React.SetStateAction<boolean>>; // 🔄 فتح/إغلاق مودال الكروبات
+  handleSaveStageGroupConfig: (config: StageGroupConfig) => Promise<boolean>; // 💾 حفظ إعدادات كروبات المرحلة
+  handleUpdateStudentsGroupBatch: (assignments: Record<string, string>) => void; // 👥 توزيع أو نقل مجموعة طلبة بين الكروبات
+  handleBulkAssignGroup: (targetGroup: string) => void; // 🔀 تعيين كروب جماعي للطلبة المحددين
   studentPage: number; // 🔢 الصفحة الحالية
-  setStudentPage: (page: number) => void; // 🔄 دالة تغيير الصفحة
   studentPageSize: number; // 📏 حجم الصفحة
   setStudentPageSize: (size: number) => void; // 🔄 دالة تغيير حجم الصفحة
+  setStudentPage: (page: number) => void; // 🔄 دالة تغيير الصفحة
   selectedStudentIds: string[]; // 🔘 معرفات الطلبة المحددين
   setSelectedStudentIds: React.Dispatch<React.SetStateAction<string[]>>; // 🔄 دالة تحديث التحديد
   isStudentModalOpen: boolean; // 📂 حالة فتح مودال الطالب
@@ -107,6 +119,16 @@ export const DepartmentStudentsTab: React.FC<DepartmentStudentsTabProps> = ({
   setFilterStudentStage, // 🔄 تحديث مرحلة التصفية
   filterStudentStudyType, // ☀️🌙 دوام التصفية
   setFilterStudentStudyType, // 🔄 تحديث دوام التصفية
+  studentGroup, // 🏷️ كروب الطالب الحالي
+  setStudentGroup, // 🔄 تحديد كروب الطالب
+  filterStudentGroup, // 🏷️ فلترة الكروب
+  setFilterStudentGroup, // 🔄 تحديث فلترة الكروب
+  stageGroupConfigs, // 📋 إعدادات الكروبات للمراحل
+  isStageGroupModalOpen, // 📂 حالة فتح نافذة الكروبات
+  setIsStageGroupModalOpen, // 🔄 فتح/إغلاق نافذة الكروبات
+  handleSaveStageGroupConfig, // 💾 دالة حفظ إعدادات الكروبات
+  handleUpdateStudentsGroupBatch, // 👥 التوزيع الجماعي للكروبات
+  handleBulkAssignGroup, // 🔀 تعيين كروب جماعي للمحددين
   studentPage, // 🔢 الصفحة الحالية
   setStudentPage, // 🔄 تحديث الصفحة
   studentPageSize, // 📏 حجم الصفحة
@@ -174,6 +196,29 @@ export const DepartmentStudentsTab: React.FC<DepartmentStudentsTabProps> = ({
   const stdMalePct = totalDeptStds > 0 ? Math.round((totalStdMales / totalDeptStds) * 100) : 0;
   const stdFemalePct = totalDeptStds > 0 ? Math.round((totalStdFemales / totalDeptStds) * 100) : 0;
 
+  // 🏷️ استخراج قائمة الكروبات المتاحة للمرحلة والفترة المحددة
+  const activeStageGroups = useMemo<string[]>(() => {
+    if (filterStudentStage !== 'all') {
+      const study = filterStudentStudyType === 'all' ? 'morning' : filterStudentStudyType;
+      const groups = getGroupsForStage(stageGroupConfigs, filterStudentStage, study);
+      return groups;
+    }
+    const allGroups = new Set<string>();
+    deptStudents.forEach((s) => {
+      if (s.student_group) allGroups.add(s.student_group);
+    });
+    return Array.from(allGroups).sort();
+  }, [stageGroupConfigs, filterStudentStage, filterStudentStudyType, deptStudents]);
+
+  // 🧮 استخراج قائمة الطلاب بحسب المرحلة والدوام لتحديث عدادات الكروبات بدقة متطابقة
+  const groupContextStudents = useMemo<UserProfile[]>(() => {
+    return deptStudents.filter((s) => {
+      const matchStage = filterStudentStage === 'all' || (Number(s.stage_number) || 1) === filterStudentStage;
+      const matchStudy = filterStudentStudyType === 'all' || (s.study_type || 'morning') === filterStudentStudyType;
+      return matchStage && matchStudy;
+    });
+  }, [deptStudents, filterStudentStage, filterStudentStudyType]);
+
   return (
     <div className="space-y-4" dir="rtl">
       {/* 📊 شريط إحصائيات طلاب القسم وشريط الأزرار الأربعة بسطر واحد احترافي */}
@@ -228,6 +273,7 @@ export const DepartmentStudentsTab: React.FC<DepartmentStudentsTabProps> = ({
               setStudentGender(null);
               setShowStudentPassword(false);
               setStudentStudyType(null);
+              setStudentGroup(''); // 🏷️ تصفير حقل الكروب للطالب الجديد
               setStudentNameError('');
               setIsStudentModalOpen(true);
             }}
@@ -235,6 +281,17 @@ export const DepartmentStudentsTab: React.FC<DepartmentStudentsTabProps> = ({
           >
             <Plus className="w-5 h-5 text-cyan-300" />
             <span>تسجيل طالب جديد</span>
+          </button>
+
+          {/* 👥 زر إدارة الكروبات والشعب الأكاديمية لرئيس القسم والمقرر */}
+          <button
+            type="button"
+            onClick={() => setIsStageGroupModalOpen(true)}
+            className="px-5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-2xl font-black text-base flex items-center gap-2 shadow-sm transition-all active:scale-95 cursor-pointer border border-[#163a5f] shrink-0 whitespace-nowrap"
+            title="تحديد عدد الكروبات لكل مرحلة (بدون كروب، A B، A B C، A B C D أو أكثر) مع التوزيع المتوازن"
+          >
+            <GroupSettingsSvg className="w-5 h-5 text-emerald-300" />
+            <span>إدارة الكروبات والشعب</span>
           </button>
 
           {/* 🖨️ زر طباعة وتصدير بطاقات اعتماد الطلبة بصيغة PDF */}
@@ -313,6 +370,7 @@ export const DepartmentStudentsTab: React.FC<DepartmentStudentsTabProps> = ({
           setStudentStage(null);
           setStudentGender(null);
           setStudentStudyType(null);
+          setStudentGroup(''); // 🏷️ تصفير الكروب
           setStudentNameError('');
         }}
         editingStudentId={editingStudentId}
@@ -332,6 +390,9 @@ export const DepartmentStudentsTab: React.FC<DepartmentStudentsTabProps> = ({
         setStudentGender={setStudentGender}
         studentStudyType={studentStudyType}
         setStudentStudyType={setStudentStudyType}
+        studentGroup={studentGroup}
+        setStudentGroup={setStudentGroup}
+        stageGroupConfigs={stageGroupConfigs}
         customStudentEmail={customStudentEmail}
         setCustomStudentEmail={setCustomStudentEmail}
         customStudentPassword={customStudentPassword}
@@ -375,7 +436,7 @@ export const DepartmentStudentsTab: React.FC<DepartmentStudentsTabProps> = ({
               className="px-5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-2xl text-base font-black shadow-xs transition flex items-center gap-2 cursor-pointer border border-[#163a5f] active:scale-95"
               title="ترحيل طلاب مرحلة دراسية كاملة إلى المرحلة التالية"
             >
-              <Sparkles className="w-5 h-5 text-cyan-300" />
+              <ArrowUpRight className="w-5 h-5 text-cyan-300" />
               <span>ترحيل مرحلة دراسية (جماعي)</span>
             </button>
 
@@ -398,7 +459,10 @@ export const DepartmentStudentsTab: React.FC<DepartmentStudentsTabProps> = ({
           <div className="flex-1 flex items-center bg-slate-100 p-1 rounded-2xl border border-slate-300 gap-1 overflow-x-auto">
             <button
               type="button"
-              onClick={() => setFilterStudentStage('all')}
+              onClick={() => {
+                setFilterStudentStage('all');
+                setFilterStudentGroup('all');
+              }}
               className={`flex-1 py-1.5 px-2 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${ filterStudentStage === 'all' ? 'bg-[#0F2942] text-white shadow-2xs' : 'text-slate-700 hover:bg-white' }`}
             >
               <span>كافة المراحل</span>
@@ -420,7 +484,10 @@ export const DepartmentStudentsTab: React.FC<DepartmentStudentsTabProps> = ({
                 <button
                   key={st.num}
                   type="button"
-                  onClick={() => setFilterStudentStage(st.num)}
+                  onClick={() => {
+                    setFilterStudentStage(st.num);
+                    setFilterStudentGroup('all');
+                  }}
                   className={`flex-1 py-1.5 px-2 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${ filterStudentStage === st.num ? 'bg-[#0F2942] text-white shadow-2xs' : 'text-slate-700 hover:bg-white' }`}
                 >
                   <span>المرحلة {st.name}</span>
@@ -439,14 +506,20 @@ export const DepartmentStudentsTab: React.FC<DepartmentStudentsTabProps> = ({
             <span className="text-base font-black text-slate-950 ml-1">الفترة:</span>
             <button
               type="button"
-              onClick={() => setFilterStudentStudyType('all')}
+              onClick={() => {
+                setFilterStudentStudyType('all');
+                setFilterStudentGroup('all');
+              }}
               className={`px-3 py-1.5 rounded-xl text-sm sm:text-base font-black transition cursor-pointer ${ filterStudentStudyType === 'all' ? 'bg-[#0F2942] text-white shadow-2xs' : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300' }`}
             >
               الكل
             </button>
             <button
               type="button"
-              onClick={() => setFilterStudentStudyType('morning')}
+              onClick={() => {
+                setFilterStudentStudyType('morning');
+                setFilterStudentGroup('all');
+              }}
               className={`px-3 py-1.5 rounded-xl text-sm sm:text-base font-black transition cursor-pointer flex items-center gap-1.5 ${ filterStudentStudyType === 'morning' ? 'bg-[#0F2942] text-white shadow-2xs border border-[#163a5f]' : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300' }`}
             >
               <Sun className="w-4 h-4" />
@@ -454,7 +527,10 @@ export const DepartmentStudentsTab: React.FC<DepartmentStudentsTabProps> = ({
             </button>
             <button
               type="button"
-              onClick={() => setFilterStudentStudyType('evening')}
+              onClick={() => {
+                setFilterStudentStudyType('evening');
+                setFilterStudentGroup('all');
+              }}
               className={`px-3 py-1.5 rounded-xl text-sm sm:text-base font-black transition cursor-pointer flex items-center gap-1.5 ${ filterStudentStudyType === 'evening' ? 'bg-[#0F2942] text-white shadow-2xs border border-[#163a5f]' : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300' }`}
             >
               <Moon className="w-4 h-4" />
@@ -462,6 +538,82 @@ export const DepartmentStudentsTab: React.FC<DepartmentStudentsTabProps> = ({
             </button>
           </div>
         </div>
+
+        {/* 🏷️ شريط تبويبات تصفية الكروبات والشعب الأكاديمية */}
+        {/* 🏷️ شريط تبويبات تصفية الكروبات والشعب الأكاديمية بتصميم كبسولات عصري فاخر */}
+        {activeStageGroups.length > 0 && (
+          <div className="bg-slate-100/80 p-1.5 rounded-2xl border border-slate-200/90 flex flex-wrap items-center gap-1.5 shadow-2xs">
+            {/* 🏷️ شارة تصنيف الكروب */}
+            <span className="text-xs sm:text-sm font-black text-slate-700 bg-white/80 px-3 py-1.5 rounded-xl border border-slate-200/60 flex items-center gap-1.5 shadow-2xs select-none">
+              <GroupBadgeSvg className="w-4 h-4 text-[#0F2942]" />
+              <span>الكروب:</span>
+            </span>
+
+            {/* 🌐 تبويب كافة الكروبات */}
+            <button
+              type="button"
+              onClick={() => setFilterStudentGroup('all')}
+              className={`px-3.5 py-1.5 rounded-xl text-sm font-black transition cursor-pointer flex items-center gap-2 select-none active:scale-95 whitespace-nowrap ${
+                filterStudentGroup === 'all'
+                  ? 'bg-[#0F2942] text-white shadow-xs border border-[#0F2942]'
+                  : 'bg-white text-slate-800 hover:bg-slate-50 hover:text-slate-950 border border-slate-200/90 shadow-2xs'
+              }`}
+            >
+              <GroupUsersSvg className={`w-4 h-4 ${filterStudentGroup === 'all' ? 'text-cyan-300' : 'text-slate-600'}`} />
+              <span>كافة الكروبات</span>
+              <span className={`px-2 py-0.5 rounded-full text-xs font-mono font-black border transition-all ${
+                filterStudentGroup === 'all' ? 'bg-white/20 text-white border-white/30' : 'bg-slate-100 text-slate-700 border-slate-200'
+              }`}>
+                {groupContextStudents.length}
+              </span>
+            </button>
+
+            {/* 🏛️ تبويب عامة (بدون كروب) */}
+            <button
+              type="button"
+              onClick={() => setFilterStudentGroup('none')}
+              className={`px-3.5 py-1.5 rounded-xl text-sm font-black transition cursor-pointer flex items-center gap-2 select-none active:scale-95 whitespace-nowrap ${
+                filterStudentGroup === 'none'
+                  ? 'bg-[#0F2942] text-white shadow-xs border border-[#0F2942]'
+                  : 'bg-white text-slate-800 hover:bg-slate-50 hover:text-slate-950 border border-slate-200/90 shadow-2xs'
+              }`}
+            >
+              <GeneralCohortSvg className={`w-4 h-4 ${filterStudentGroup === 'none' ? 'text-emerald-300' : 'text-slate-600'}`} />
+              <span>عامة (بدون كروب)</span>
+              <span className={`px-2 py-0.5 rounded-full text-xs font-mono font-black border transition-all ${
+                filterStudentGroup === 'none' ? 'bg-white/20 text-white border-white/30' : 'bg-slate-100 text-slate-700 border-slate-200'
+              }`}>
+                {groupContextStudents.filter((s) => !s.student_group).length}
+              </span>
+            </button>
+
+            {/* 🔠 تبويبات الكروبات الفردية المعتمدة (مثل كروب C، كروب A...) */}
+            {activeStageGroups.map((grp) => {
+              const grpCount = groupContextStudents.filter((s) => s.student_group === grp).length;
+              const isSelected = filterStudentGroup === grp;
+              return (
+                <button
+                  key={grp}
+                  type="button"
+                  onClick={() => setFilterStudentGroup(grp)}
+                  className={`px-3.5 py-1.5 rounded-xl text-sm font-black transition cursor-pointer flex items-center gap-2 select-none active:scale-95 whitespace-nowrap ${
+                    isSelected
+                      ? 'bg-[#0F2942] text-white shadow-xs border border-[#0F2942]'
+                      : 'bg-white text-slate-800 hover:bg-slate-50 hover:text-slate-950 border border-slate-200/90 shadow-2xs'
+                  }`}
+                >
+                  <GroupBadgeSvg className={`w-3.5 h-3.5 ${isSelected ? 'text-cyan-300' : 'text-slate-600'}`} />
+                  <span>كروب {grp}</span>
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-mono font-black border transition-all ${
+                    isSelected ? 'bg-white/20 text-white border-white/30' : 'bg-slate-100 text-slate-700 border-slate-200'
+                  }`}>
+                    {grpCount}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* 🎛️ شريط الإجراءات الجماعية الفاخر عند تحديد الطلاب */}
         {selectedStudentIds.length > 0 && (
@@ -478,6 +630,32 @@ export const DepartmentStudentsTab: React.FC<DepartmentStudentsTabProps> = ({
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
+              {/* 🏷️ أزرار تعيين الكروب السريع للمحددين */}
+              {activeStageGroups.length > 0 && (
+                <div className="flex items-center gap-1.5 bg-slate-800/90 p-1.5 rounded-xl border border-slate-700">
+                  <span className="text-xs font-black text-cyan-300 px-1">تعيين كروب:</span>
+                  {activeStageGroups.map((grp) => (
+                    <button
+                      key={grp}
+                      type="button"
+                      onClick={() => handleBulkAssignGroup(grp)}
+                      className="px-2.5 py-1 bg-[#163a5f] hover:bg-cyan-700 text-white rounded-lg text-xs font-black transition cursor-pointer shadow-2xs active:scale-95"
+                      title={`نقل الطلاب المحددين إلى كروب ${grp}`}
+                    >
+                      كروب {grp}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => handleBulkAssignGroup('')}
+                    className="px-2 py-1 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg text-xs font-black transition cursor-pointer"
+                    title="إلغاء الكروب وجعلهم في الشعبة العامة"
+                  >
+                    عامة
+                  </button>
+                </div>
+              )}
+
               <button
                 type="button"
                 onClick={handleBulkDeleteStudents}
@@ -516,10 +694,10 @@ export const DepartmentStudentsTab: React.FC<DepartmentStudentsTabProps> = ({
         ) : (
           <>
           <div className="overflow-x-auto rounded-2xl border border-slate-200">
-            <table className="w-full text-right border-collapse text-base font-black">
+            <table className="min-w-full text-right border-collapse text-base font-black whitespace-nowrap">
               <thead>
-                <tr className="bg-slate-100 border-b border-slate-200 text-slate-950 font-black text-base">
-                  <th className="p-4 text-center text-base w-12">
+                <tr className="bg-slate-100 border-b border-slate-200 text-slate-950 font-black text-base whitespace-nowrap">
+                  <th className="p-4 text-center text-base w-12 whitespace-nowrap">
                     <input
                       type="checkbox"
                       aria-label="تحديد جميع الطلاب المعروضين"
@@ -528,14 +706,15 @@ export const DepartmentStudentsTab: React.FC<DepartmentStudentsTabProps> = ({
                       className="w-5 h-5 rounded-md border-2 border-slate-400 text-[#0F2942] focus:ring-2 focus:ring-[#0F2942] cursor-pointer accent-[#0F2942]"
                     />
                   </th>
-                  <th className="p-4 text-center text-base w-14">ت</th>
-                  <th className="p-4 text-base">اسم الطالب الثلاثي</th>
-                  <th className="p-4 text-base">الجنس</th>
-                  <th className="p-4 text-base">الفترة</th>
-                  <th className="p-4 text-base">المرحلة الدراسية</th>
-                  <th className="p-4 text-base">البريد الأكاديمي</th>
-                  <th className="p-4 text-center text-base">ترحيل النجاح</th>
-                  <th className="p-4 text-center text-base">الإجراءات</th>
+                  <th className="p-4 text-center text-base w-14 whitespace-nowrap">ت</th>
+                  <th className="p-4 text-base whitespace-nowrap">اسم الطالب الثلاثي</th>
+                  <th className="p-4 text-base whitespace-nowrap">الجنس</th>
+                  <th className="p-4 text-base whitespace-nowrap">الفترة</th>
+                  <th className="p-4 text-base whitespace-nowrap">المرحلة الدراسية</th>
+                  <th className="p-4 text-center text-base whitespace-nowrap">الكروب / الشعبة</th>
+                  <th className="p-4 text-base whitespace-nowrap">البريد الأكاديمي</th>
+                  <th className="p-4 text-center text-base whitespace-nowrap">ترحيل النجاح</th>
+                  <th className="p-4 text-center text-base whitespace-nowrap">الإجراءات</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 font-black text-slate-950 text-base">
@@ -553,7 +732,7 @@ export const DepartmentStudentsTab: React.FC<DepartmentStudentsTabProps> = ({
                     const isSelected = selectedStudentIds.includes(s.id);
 
                     return (
-                      <tr key={s.id} className={`transition ${isSelected ? 'bg-blue-50/70 font-black' : 'hover:bg-slate-50'}`}>
+                      <tr key={s.id} className={`transition whitespace-nowrap ${isSelected ? 'bg-blue-50/70 font-black' : 'hover:bg-slate-50'}`}>
                         {/* 🔘 مربع التحديد الفردي */}
                         <td className="p-4 text-center whitespace-nowrap w-12" onClick={(e) => e.stopPropagation()}>
                           <input
@@ -574,83 +753,97 @@ export const DepartmentStudentsTab: React.FC<DepartmentStudentsTabProps> = ({
 
                         {/* 👤 اسم الطالب الثلاثي */}
                         <td className="p-4 font-black text-slate-950 text-lg whitespace-nowrap">
-                          <div className="flex items-center gap-2">
-                            {s.is_graduated && <GraduationCap className="w-5 h-5 text-emerald-600 inline flex-shrink-0" />}
-                            <span>{s.full_name}</span>
+                          <div className="flex items-center gap-2 whitespace-nowrap">
+                            {s.is_graduated && <GraduationCap className="w-5 h-5 text-emerald-600 inline shrink-0" />}
+                            <span className="whitespace-nowrap">{s.full_name}</span>
                           </div>
                         </td>
 
                         {/* 🚻 جنس الطالب */}
-                        <td className="p-4">
-                          <span className={`px-3 py-1 rounded-xl text-base font-black border ${ stdGender === 'female' ? 'bg-rose-100 text-rose-950 border-rose-300' : 'bg-blue-100 text-blue-950 border-blue-300' }`}>
+                        <td className="p-4 whitespace-nowrap">
+                          <span className={`inline-flex items-center whitespace-nowrap px-3 py-1 rounded-xl text-base font-black border ${ stdGender === 'female' ? 'bg-rose-100 text-rose-950 border-rose-300' : 'bg-blue-100 text-blue-950 border-blue-300' }`}>
                             {stdGender === 'female' ? 'أنثى' : 'ذكر'}
                           </span>
                         </td>
 
                         {/* ☀️🌙 الفترة الدراسية */}
                         <td className="p-4 whitespace-nowrap">
-                          <span className={`px-3 py-1 rounded-xl text-base font-black border flex items-center gap-1.5 w-fit ${
+                          <span className={`px-3 py-1 rounded-xl text-base font-black border inline-flex items-center gap-1.5 whitespace-nowrap w-fit ${
                             (s.study_type || 'morning') === 'evening'
                               ? 'bg-indigo-50 text-indigo-950 border-indigo-200'
                               : 'bg-emerald-50 text-emerald-950 border-emerald-200'
                           }`}>
                             {(s.study_type || 'morning') === 'evening' ? (
-                              <Moon className="w-4 h-4 text-indigo-600" />
+                              <Moon className="w-4 h-4 text-indigo-600 shrink-0" />
                             ) : (
-                              <Sun className="w-4 h-4 text-emerald-700" />
+                              <Sun className="w-4 h-4 text-emerald-700 shrink-0" />
                             )}
-                            <span>{(s.study_type || 'morning') === 'evening' ? 'مسائي' : 'صباحي'}</span>
+                            <span className="whitespace-nowrap">{(s.study_type || 'morning') === 'evening' ? 'مسائي' : 'صباحي'}</span>
                           </span>
                         </td>
 
                         {/* 📚 المرحلة الدراسية */}
-                        <td className="p-4">
-                          <span className={`px-3 py-1 rounded-xl text-base font-black border ${ curStage === 1 ? 'bg-sky-50 text-sky-950 border-sky-200' : curStage === 2 ? 'bg-blue-50 text-blue-950 border-blue-200' : curStage === 3 ? 'bg-indigo-50 text-indigo-950 border-indigo-200' : 'bg-emerald-50 text-emerald-950 border-emerald-300' }`}>
+                        <td className="p-4 whitespace-nowrap">
+                          <span className={`inline-flex items-center whitespace-nowrap px-3 py-1 rounded-xl text-base font-black border ${ curStage === 1 ? 'bg-sky-50 text-sky-950 border-sky-200' : curStage === 2 ? 'bg-blue-50 text-blue-950 border-blue-200' : curStage === 3 ? 'bg-indigo-50 text-indigo-950 border-indigo-200' : 'bg-emerald-50 text-emerald-950 border-emerald-300' }`}>
                             المرحلة {getStageNameInArabic(curStage)} {curStage === 4 ? '(النهائية)' : ''}
                           </span>
                         </td>
 
+                        {/* 🏷️ الكروب أو الشعبة */}
+                        <td className="p-4 text-center whitespace-nowrap">
+                          {s.student_group ? (
+                            <span className="inline-flex items-center whitespace-nowrap gap-1.5 px-3 py-1 rounded-xl text-sm font-black bg-cyan-50 text-[#0F2942] border border-cyan-300 shadow-2xs">
+                              <GroupBadgeSvg className="w-3.5 h-3.5 text-[#0F2942] shrink-0" />
+                              <span>كروب {s.student_group}</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center whitespace-nowrap gap-1 px-2.5 py-1 rounded-xl text-xs font-black bg-slate-100 text-slate-700 border border-slate-300 shadow-2xs">
+                              <span>عامة / موحدة</span>
+                            </span>
+                          )}
+                        </td>
+
                         {/* ✉️ البريد الأكاديمي */}
-                        <td className="p-4 text-slate-950 text-base font-black select-all" dir="ltr">
+                        <td className="p-4 text-slate-950 text-base font-black select-all whitespace-nowrap" dir="ltr">
                           {s.generated_email}
                         </td>
                         
                         {/* 🚀 زر الترحيل الأكاديمي الفردي */}
-                        <td className="p-4 text-center">
+                        <td className="p-4 text-center whitespace-nowrap">
                           {curStage < 4 ? (
                             <button
                               type="button"
                               onClick={(e) => handlePromoteStudent(s, e)}
-                              className="px-3.5 py-2 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-xl text-base font-black transition shadow-2xs flex items-center justify-center gap-1.5 mx-auto cursor-pointer border border-[#163a5f] active:scale-95"
+                              className="px-3.5 py-2 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-xl text-base font-black transition shadow-2xs inline-flex items-center justify-center gap-1.5 mx-auto cursor-pointer border border-[#163a5f] active:scale-95 whitespace-nowrap flex-nowrap"
                               title={`ترحيل الطالب إلى المرحلة ${getStageNameInArabic(curStage + 1)}`}
                             >
-                              <ArrowUpRight className="w-4 h-4 text-cyan-300" />
-                              <span>ترحيل للمرحلة {getStageNameInArabic(curStage + 1)}</span>
+                              <ArrowUpRight className="w-4 h-4 text-cyan-300 shrink-0" />
+                              <span className="whitespace-nowrap">ترحيل للمرحلة {getStageNameInArabic(curStage + 1)}</span>
                             </button>
                           ) : s.is_graduated ? (
                             <span
-                              className="px-3.5 py-2 rounded-xl text-base font-black flex items-center justify-center gap-1.5 mx-auto bg-slate-100 text-slate-800 border border-slate-300 shadow-2xs select-none"
+                              className="px-3.5 py-2 rounded-xl text-base font-black inline-flex items-center justify-center gap-1.5 mx-auto bg-slate-100 text-slate-800 border border-slate-300 shadow-2xs select-none whitespace-nowrap flex-nowrap"
                               title="تم تثبيت واعتماد تخرج الطالب رسمياً"
                             >
-                              <GraduationCap className="w-5 h-5 text-[#0F2942]" />
-                              <span>خريج معتمد</span>
+                              <GraduationCap className="w-5 h-5 text-[#0F2942] shrink-0" />
+                              <span className="whitespace-nowrap">خريج معتمد</span>
                             </span>
                           ) : (
                             <button
                               type="button"
                               onClick={(e) => handlePromoteStudent(s, e)}
-                              className="px-3.5 py-2 rounded-xl text-base font-black transition flex items-center justify-center gap-1.5 mx-auto cursor-pointer bg-[#0F2942] hover:bg-[#163a5f] text-white border border-[#163a5f] shadow-2xs active:scale-95"
+                              className="px-3.5 py-2 rounded-xl text-base font-black transition inline-flex items-center justify-center gap-1.5 mx-auto cursor-pointer bg-[#0F2942] hover:bg-[#163a5f] text-white border border-[#163a5f] shadow-2xs active:scale-95 whitespace-nowrap flex-nowrap"
                               title="اعتماد وتثبيت تخرج الطالب"
                             >
-                              <GraduationCap className="w-5 h-5 text-white" />
-                              <span>تثبيت التخرج</span>
+                              <GraduationCap className="w-5 h-5 text-white shrink-0" />
+                              <span className="whitespace-nowrap">تثبيت التخرج</span>
                             </button>
                           )}
                         </td>
 
                         {/* 🛠️ الإجراءات الأساسية */}
-                        <td className="p-4">
-                          <div className="flex items-center justify-center gap-2">
+                        <td className="p-4 whitespace-nowrap">
+                          <div className="flex items-center justify-center gap-2 whitespace-nowrap flex-nowrap">
                             {/* 🖨️ زر طباعة بطاقة الطالب الفردية كـ PDF */}
                             <button
                               type="button"
@@ -686,6 +879,7 @@ export const DepartmentStudentsTab: React.FC<DepartmentStudentsTabProps> = ({
                                 setStudentGender((s.gender || detectArabicGender(s.full_name)) as 'male' | 'female');
                                 const currentStudyType: 'morning' | 'evening' = (s.study_type === 'evening' || String(s.study_type) === 'مسائي') ? 'evening' : 'morning';
                                 setStudentStudyType(currentStudyType);
+                                setStudentGroup(s.student_group || ''); // 🏷️ تعبئة كروب الطالب للتعديل
                                 setStudentNameError('');
                                 setIsStudentModalOpen(true);
                               }}
@@ -702,7 +896,7 @@ export const DepartmentStudentsTab: React.FC<DepartmentStudentsTabProps> = ({
                               className="p-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl transition cursor-pointer border border-rose-500 shadow-2xs hover:shadow-md active:scale-95"
                               title="حذف الطالب"
                             >
-                              <Trash2 className="w-5 h-5 text-white" />
+                              <Trash2 className="w-4 h-4 text-white" />
                             </button>
                           </div>
                         </td>
@@ -742,6 +936,17 @@ export const DepartmentStudentsTab: React.FC<DepartmentStudentsTabProps> = ({
         bulkPromoteSourceStage={bulkPromoteSourceStage}
         setBulkPromoteSourceStage={setBulkPromoteSourceStage}
         onConfirmPromote={handleBulkPromoteStage}
+      />
+
+      {/* 🪟 مودال إدارة وتوزيع كروبات المراحل الأكاديمية لرئيس القسم والمقرر */}
+      <StageGroupSettingsModal
+        isOpen={isStageGroupModalOpen}
+        onClose={() => setIsStageGroupModalOpen(false)}
+        deptName={deptName}
+        deptStudents={deptStudents}
+        initialConfigs={stageGroupConfigs}
+        onSaveConfig={handleSaveStageGroupConfig}
+        onUpdateStudentsBatch={handleUpdateStudentsGroupBatch}
       />
     </div>
   );

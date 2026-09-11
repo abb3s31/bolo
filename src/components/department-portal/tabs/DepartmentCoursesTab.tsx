@@ -1169,13 +1169,13 @@ export const DepartmentCoursesTab: React.FC<DepartmentCoursesTabProps> = ({
                               }
                               return (
                                 <button
-                                  type="button"
-                                  onClick={() => handleOpenQuickAssign(c, 'theory')}
-                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 font-black text-xs transition cursor-pointer active:scale-95 shadow-2xs hover:border-amber-400"
-                                  title={`انقر لتعيين وتكليف أستاذ النظري لمادة (${c.name}) فورياً`}
+                                  type="button" // 🛑 نوع الزر بدون إرسال
+                                  onClick={() => handleOpenQuickAssign(c, 'theory')} // ⚡ فتح مودال التعيين السريع للنظري
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-slate-200/80 border border-dashed border-slate-300 hover:border-slate-400 text-slate-800 font-black text-xs transition cursor-pointer active:scale-95 shadow-2xs" // 🎨 تصميم أنيق بدون برتقالي وبإطار متقطع فخم
+                                  title={`انقر لتعيين وتكليف أستاذ النظري لمادة (${c.name}) فورياً`} // 🏷️ تلميح الزر
                                 >
-                                  <UserPlus className="w-3.5 h-3.5 text-amber-700" />
-                                  <span>غير معيّن (تعيين أستاذ)</span>
+                                  <UserPlus className="w-3.5 h-3.5 text-[#0F2942]" /> {/* 👤 أيقونة التعيين بلون كحلي كلاسيكي */}
+                                  <span>غير معيّن (تعيين أستاذ)</span> {/* 📝 نص الزر */}
                                 </button>
                               );
                             })()}
@@ -1206,13 +1206,13 @@ export const DepartmentCoursesTab: React.FC<DepartmentCoursesTabProps> = ({
                                 }
                                 return (
                                   <button
-                                    type="button"
-                                    onClick={() => handleOpenQuickAssign(c, 'practical')}
-                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-300 text-rose-900 font-black text-xs transition cursor-pointer active:scale-95 shadow-2xs hover:border-rose-400"
-                                    title={`انقر لتعيين وتكليف أستاذ العملي لمادة (${c.name}) فورياً`}
+                                    type="button" // 🛑 نوع الزر بدون إرسال
+                                    onClick={() => handleOpenQuickAssign(c, 'practical')} // ⚡ فتح مودال التعيين السريع للعملي
+                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-slate-200/80 border border-dashed border-slate-300 hover:border-slate-400 text-slate-800 font-black text-xs transition cursor-pointer active:scale-95 shadow-2xs" // 🎨 تصميم هادئ ومتناسق بدون ألوان فاقعة
+                                    title={`انقر لتعيين وتكليف أستاذ العملي لمادة (${c.name}) فورياً`} // 🏷️ تلميح الزر
                                   >
-                                    <UserPlus className="w-3.5 h-3.5 text-rose-700" />
-                                    <span>غير معيّن (تعيين أستاذ)</span>
+                                    <UserPlus className="w-3.5 h-3.5 text-[#0F2942]" /> {/* 👤 أيقونة الإضافة بلون كحلي رسمي */}
+                                    <span>غير معيّن (تعيين أستاذ)</span> {/* 📝 نص الزر */}
                                   </button>
                                 );
                               })()

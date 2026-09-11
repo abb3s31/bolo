@@ -25,8 +25,9 @@ import { calculateCourseworkTotal, calculateFinalTotal, getLetterGrade, getStage
 import { detectArabicGender } from '@/lib/demographics-utils'; // 🧮 التعرف الذكي على جنس الطالب
 import { exportStudentTranscriptPDF } from '@/lib/pdf-export'; // 📄 مولد وثيقة السعي PDF
 import { exportStudentTranscriptExcel } from '@/lib/excel-utils'; // 📊 مولد وثيقة السعي والدرجات الفاخرة Excel
-import { getTodayDayOfWeek, timeStringToMinutes } from '@/lib/schedule-utils'; // 🕒 أدوات الجدول واليوم
-import { BookOpen, Layers, FileText, Target, Activity, FileSpreadsheet, ChevronDown, ChevronUp, Calendar, Download, FlaskConical, Clock, UserCheck, ShieldCheck, Award, Radio, ArrowLeft, CheckSquare, ClipboardList, CreditCard, AlertTriangle, GraduationCap, Sun, Moon, Megaphone, Lock } from 'lucide-react'; // 🎨 الأيقونات
+import { getTodayDayOfWeek, timeStringToMinutes } from '@/lib/schedule-utils'; // 🕒 أدوات الجدول واليوم لحساب المحاضرات الحالية والقادمة
+import { BookOpen, Layers, FileText, Target, Activity, FileSpreadsheet, ChevronDown, ChevronUp, Calendar, Download, FlaskConical, Clock, UserCheck, ShieldCheck, Award, Radio, ArrowLeft, CheckSquare, ClipboardList, CreditCard, AlertTriangle, GraduationCap, Sun, Moon, Megaphone, Lock, Users } from 'lucide-react'; // 🎨 الأيقونات مع أيقونة المجموعات
+import { GroupBadgeSvg, GroupUsersSvg } from '@/components/common/GroupSvgIcons'; // 👥 استيراد أيقونات الكروبات الفيكتورية النقية SVG
 import ZeroTrustGuard from '@/components/security/ZeroTrustGuard'; // 🛡️ حارس أمان Zero Trust
 import StudentScheduleTimeline from '@/components/schedule/StudentScheduleTimeline'; // 🗓️ مكون الـ Timeline والجدول التفاعلي
 import StudentAttendanceView from '@/components/attendance/StudentAttendanceView'; // 📋 مكون سجل الحضور والغيابات للطالب
@@ -428,22 +429,33 @@ export default function StudentDashboard() {
     }, 0);
   }, [filteredGrades, courses]);
 
-  // 🕒 حساب المحاضرات المجدولة لليوم الحالي للطالب
-  const todayDay = getTodayDayOfWeek();
-  const now = new Date();
-  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  // 🕒 حساب المحاضرات المجدولة لليوم الحالي للطالب بعزل تام حسب دراسته وكروبه
+  const todayDay = getTodayDayOfWeek(); // 🗓️ جلب اليوم الفعلي الحالي
+  const now = new Date(); // ⏰ الوقت الحالي
+  const currentMinutes = now.getHours() * 60 + now.getMinutes(); // 🔢 احتساب الدقائق الإجمالية الحالية
 
+  // 📚 استخراج محاضرات اليوم المخصصة لهذا الطالب تحديداً
   const studentTodayLectures = useMemo(() => {
-    if (!currentUser) return [];
+    if (!currentUser) return []; // 🛡️ حماية لو جان المستخدم غير متوفر
     return scheduleLectures
-      .filter(
-        (l) =>
-          l.department_id === currentUser.department_id &&
-          l.stage_number === (currentUser.stage_number || 1) &&
-          l.semester === activeSemester &&
-          l.day === todayDay
-      )
-      .sort((a, b) => timeStringToMinutes(a.start_time) - timeStringToMinutes(b.start_time));
+      .filter((l) => {
+        // 🏢 نشيك هل المحاضرة تابعة لنفس قسم الطالب
+        if (l.department_id !== currentUser.department_id) return false;
+        // 🎓 نشيك مطابقة المرحلة الدراسية للطالب
+        if (l.stage_number !== (currentUser.stage_number || 1)) return false;
+        // 📚 نشيك مطابقة الكورس الدراسي النشط
+        if (l.semester !== activeSemester) return false;
+        // 🗓️ نشيك اليوم الدراسي الحالي
+        if (l.day !== todayDay) return false;
+        // ☀️🌙 نشيك نوع الدوام هل هو صباحي لو مسائي متطابق ويا دوام الطالب
+        if ((l.study_type || 'morning') !== (currentUser.study_type || 'morning')) return false;
+        // 👥 عزل الكروبات المستقلة: إذا الطالب مسجل بكروب معين تظهرله بس محاضرات كروبه الخاص
+        if (currentUser.student_group) {
+          return l.target_group === currentUser.student_group; // 🎯 الكروب لازم يطابق كروب الطالب حصراً
+        }
+        return true; // ✨ إذا الطالب ما عنده كروب (شعبة موحدة) تظهر المحاضرات
+      })
+      .sort((a, b) => timeStringToMinutes(a.start_time) - timeStringToMinutes(b.start_time)); // 🕒 ترتيب المحاضرات تصاعدياً حسب وقت البدء
   }, [scheduleLectures, currentUser, activeSemester, todayDay]);
 
   const currentLiveLecture = useMemo(() => {
@@ -494,19 +506,27 @@ export default function StudentDashboard() {
                   );
                 })()}
 
-                {/* ☀️ / 🌙 شارة الفترة الدراسية الرسمية للطالب (صباحي / مسائي) */}
+                {/* ☀️ / 🌙 شارة الفترة الدراسية الرسمية للطالب (صباحي / مسائي) بدون أي بنفسجي */}
                 <span className={`px-2.5 py-1 rounded-xl font-black text-sm border flex items-center gap-1.5 ${
                   (currentUser?.study_type || 'morning') === 'evening'
-                    ? 'bg-indigo-100 text-indigo-950 border-indigo-300'
-                    : 'bg-emerald-100 text-emerald-950 border-emerald-300'
+                    ? 'bg-slate-100 text-slate-900 border-slate-300' // 🌙 مسائي بلون هادئ ونظيف
+                    : 'bg-emerald-100 text-emerald-950 border-emerald-300' // ☀️ صباحي بلون زمردي
                 }`}>
                   {(currentUser?.study_type || 'morning') === 'evening' ? (
-                    <Moon className="w-4 h-4 text-indigo-700" />
+                    <Moon className="w-4 h-4 text-slate-700" /> // 🌙 أيقونة المسائي
                   ) : (
-                    <Sun className="w-4 h-4 text-emerald-700" />
+                    <Sun className="w-4 h-4 text-emerald-700" /> // ☀️ أيقونة الصباحي
                   )}
                   <span>{(currentUser?.study_type || 'morning') === 'evening' ? 'الدراسة المسائية' : 'الدراسة الصباحية'}</span>
                 </span>
+
+                {/* 👥 شارة الكروب الأكاديمي المستقل الخاص بالطالب بكحلي ملكي وأيقونة SVG */}
+                {currentUser?.student_group && (
+                  <span className="px-2.5 py-1 bg-[#0F2942] text-white border border-blue-400/30 font-black text-sm rounded-xl flex items-center gap-1.5 shadow-2xs">
+                    <GroupBadgeSvg className="w-4 h-4 text-cyan-300" /> {/* 👥 أيقونة الكروب الفيكتورية النقية SVG */}
+                    <span>كروب {currentUser.student_group}</span> {/* 🏷️ اسم الكروب */}
+                  </span>
+                )}
               </div>
               <h1 className="text-xl sm:text-2xl font-black text-slate-950 mt-1.5">
                 <span>أهلاً بك، {currentUser?.full_name}</span>
@@ -653,11 +673,11 @@ export default function StudentDashboard() {
             onClick={() => handleStudentTabSwitch('schedule')}
             className={`py-3.5 px-3 rounded-2xl text-center transition-all cursor-pointer flex items-center justify-center gap-2 select-none active:scale-[0.98] ${
               activeDashboardView === 'schedule'
-                ? 'bg-indigo-700 text-white shadow-md font-black ring-2 ring-indigo-400/40'
-                : 'bg-slate-50 text-slate-950 hover:bg-slate-100 font-black border border-slate-300'
+                ? 'bg-[#0F2942] text-white shadow-md font-black ring-2 ring-blue-400/30' // 🎨 تلوين الكحلي الملكي
+                : 'bg-slate-50 text-slate-950 hover:bg-slate-100 font-black border border-slate-300' // ⚪ المظهر العادي
             }`}
           >
-            <Clock className="w-5 h-5 text-indigo-200" />
+            <Clock className="w-5 h-5 text-cyan-300" /> {/* 🕒 أيقونة التوقيت سيان متناسقة */}
             <span className="text-base font-black">الجدول الدراسي</span>
           </button>
 
@@ -795,7 +815,7 @@ export default function StudentDashboard() {
       )}
 
       {/* 🗓️ 1. عرض شاشة الجدول الأسبوعي والـ Timeline الحركي */}
-      {/* 🗓️ 1. عرض شاشة جدول المحاضرات والـ Timeline التفاعلي */}
+      {/* 🗓️ 1. عرض شاشة جدول المحاضرات والـ Timeline التفاعلي بعزل تام للكروب والدراسة */}
       {activeDashboardView === 'schedule' && (
         <StudentScheduleTimeline
           departmentId={currentUser?.department_id || 'dept-1'}
@@ -805,6 +825,8 @@ export default function StudentDashboard() {
           configs={scheduleConfigs}
           academicYear={academicYear} // 🗓️ تمرير العام الدراسي المعتمد المتزامن
           initialSemester={activeSemester}
+          initialStudyType={currentUser?.study_type || 'morning'} // ☀️🌙 تحديد الدراسة صباحي أو مسائي للطالب
+          studentGroup={currentUser?.student_group || undefined} // 👥 قفل وعزل جدول الطالب على كروبه الخاص حصراً
         />
       )}
 

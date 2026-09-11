@@ -1,6 +1,6 @@
 'use client'; // ⚡ واجهة تفاعلية تعمل بمتصفح العميل
 
-import React, { useState, useRef, useEffect } from 'react'; // ⚛️ استيراد مكتبة ريآكت الأساسية
+import React, { useState, useRef, useEffect, useMemo } from 'react'; // ⚛️ استيراد مكتبة ريآكت الأساسية مع useMemo
 import { createPortal } from 'react-dom'; // 🌐 بورتال لعرض القوائم المنسدلة فوق المودال
 import {
   GraduationCap, // 🎓 أيقونة المرحلة
@@ -39,7 +39,9 @@ import type {
   LectureColor, // 🎨 نوع لون المحاضرة
   LectureType, // 🔬 نوع المحاضرة (نظري أو عملي)
   TeacherCourse, // 🔗 نوع ربط الأستاذ بالمادة
+  StageGroupConfig, // ⚙️ واجهة إعدادات كروبات المراحل
 } from '@/types'; // 🏷️ استيراد الأنواع
+import { GroupUsersSvg, GroupBadgeSvg } from '@/components/common/GroupSvgIcons'; // 👥 استيراد أيقونات الكروبات والشعب الفيكتورية النقية
 import FloatingCrudModal from '@/components/FloatingCrudModal'; // 📦 مودال الكرود العائم
 import ArabicDatePicker from '@/components/schedule/ArabicDatePicker'; // 📅 تقويم التاريخ العربي
 import {
@@ -123,6 +125,9 @@ export interface LectureModalProps {
   setLecCourseTabFilter: React.Dispatch<React.SetStateAction<'all' | 'theory' | 'practical'>>; // 🔄 تحديث تصفية المادة
   lecTeacherSearchTerm: string; // 🔍 بحث الأستاذ
   setLecTeacherSearchTerm: React.Dispatch<React.SetStateAction<string>>; // 🔄 تحديث بحث الأستاذ
+  lecTargetGroup: string; // 👥 الكروب أو الشعبة المستهدفة للمحاضرة
+  setLecTargetGroup: React.Dispatch<React.SetStateAction<string>>; // 🔄 تحديث الكروب المستهدف
+  stageGroupConfigs?: StageGroupConfig[]; // ⚙️ إعدادات كروبات المراحل الأكاديمية
   lecModalSuccessMsg: string; // 💬 رسالة نجاح الحفظ بالمودال
   setLecModalSuccessMsg: React.Dispatch<React.SetStateAction<string>>; // 🔄 تحديث رسالة النجاح
 }
@@ -194,6 +199,9 @@ export const LectureModal: React.FC<LectureModalProps> = ({
   setLecCourseTabFilter, // 🔄 تحديث تصفية المادة
   lecTeacherSearchTerm, // 🔍 بحث الأستاذ
   setLecTeacherSearchTerm, // 🔄 تحديث بحث الأستاذ
+  lecTargetGroup, // 👥 الكروب المستهدف للمحاضرة
+  setLecTargetGroup, // 🔄 تحديث الكروب المستهدف
+  stageGroupConfigs, // ⚙️ إعدادات كروبات المراحل
   lecModalSuccessMsg, // 💬 رسالة نجاح الحفظ بالمودال
   setLecModalSuccessMsg, // 🔄 تحديث رسالة النجاح
 }) => {
@@ -221,6 +229,34 @@ export const LectureModal: React.FC<LectureModalProps> = ({
   // 📍 تدار مراجع أزرار التوقيت الآن داخل LectureTimeSlotPicker
   const lecWeekButtonRef = useRef<HTMLButtonElement | null>(null);
   const lecListContainerRef = useRef<HTMLDivElement | null>(null);
+
+  // 👥 استخراج الكروبات المعتمدة للمرحلة الحالية ونوع الدوام المحدد بدقة من الإعدادات
+  const currentStageGroupConfig = stageGroupConfigs?.find(
+    (c) => c.stage_number === selectedScheduleStage && (c.study_type || 'morning') === (lecStudyType || 'morning')
+  ); // 🔍 مطابقة المرحلة الحالية ونوع الدوام (صباحي / مسائي) لضمان دقة الكروبات
+  const availableStageGroups: string[] = useMemo(() => {
+    const list = currentStageGroupConfig?.groups || currentStageGroupConfig?.group_names || []; // 📋 جلب مصفوفة الكروبات
+    // ⚙️ فحص هل المرحلة مقسمة لكروبات وفيها كروبات فعلية مسجلة
+    if (currentStageGroupConfig?.has_groups && currentStageGroupConfig.group_count > 0 && list.length > 0) {
+      return list; // ✨ إرجاع الكروبات الفعلية الخاصة بهذه المرحلة حصراً
+    }
+    return []; // 🛑 إذا المرحلة بدون كروبات نرجع مصفوفة فارغة بدون فرض أي كروبات وهمية
+  }, [currentStageGroupConfig]); // 🔄 إعادة الحساب فور تغير إعداد المرحلة أو نوع الدوام
+
+  // 🔄 مزامنة الكروب المستهدف تلقائياً مع الكروبات الفعلية المتاحة للمرحلة
+  useEffect(() => {
+    if (availableStageGroups.length > 0) {
+      // 🎯 إذا المرحلة بيها كروبات وكان الكروب المختار 'all' أو مو ضمن القائمة نضبطه على أول كروب
+      if (!lecTargetGroup || lecTargetGroup === 'all' || !availableStageGroups.includes(lecTargetGroup)) {
+        setLecTargetGroup(availableStageGroups[0] || 'A'); // 🥇 تعيين الكروب الأول كافتراضي للمرحلة المقسمة
+      }
+    } else {
+      // 🏛️ إذا المرحلة ما بيها كروبات (شعبة موحدة) نضبط الكروب على 'all' بالخفاء
+      if (lecTargetGroup !== 'all') {
+        setLecTargetGroup('all'); // 🏷️ تعيين الشعبة الموحدة تلقائياً
+      }
+    }
+  }, [availableStageGroups, lecTargetGroup, setLecTargetGroup]);
 
   // 📐 يتم الآن استيراد calculateSmartDropdownPosition من dropdownUtils مباشرة
   // 🕒 حساب وقت نهاية المحاضرة حسب نظام الكليات بالعراق
@@ -351,12 +387,18 @@ export const LectureModal: React.FC<LectureModalProps> = ({
                 <span className="text-xs sm:text-sm font-bold text-slate-700">
                   {editingLectureId ? 'تعديل تفاصيل المحاضرة للمرحلة المحددة:' : 'حدد اليوم والمادة والقاعة والتوقيت والأستاذ:'}
                 </span>
-                {/* 🌟 باجات كبيرة وواضحة جداً للمرحلة والكورس ونوع الدراسة بهيدر الكارد بلون موحد */}
+                {/* 🌟 باجات كبيرة وواضحة جداً للمرحلة والكروب والكورس ونوع الدراسة بهيدر الكارد بلون موحد */}
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <span className="text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-blue-50 text-blue-950 border border-blue-200 shadow-2xs flex items-center gap-1.5">
                     <GraduationCap className="w-4 h-4 text-[#0F2942]" />
                     <span>المرحلة {getStageNameInArabic(selectedScheduleStage)}</span>
                   </span>
+                  {availableStageGroups.length > 0 && (
+                    <span className="text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-[#0F2942] text-cyan-300 border border-[#0F2942] shadow-2xs flex items-center gap-1.5">
+                      <GroupBadgeSvg className="w-4 h-4 text-cyan-300 shrink-0" /> {/* 👥 أيقونة الكروب الفيكتورية */}
+                      <span>كروب {lecTargetGroup && lecTargetGroup !== 'all' ? lecTargetGroup : availableStageGroups[0]}</span> {/* 🏷️ اسم الكروب المستهدف */}
+                    </span>
+                  )}
                   <span className="text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-blue-50 text-blue-950 border border-blue-200 shadow-2xs flex items-center gap-1.5">
                     <Layers className="w-4 h-4 text-[#0F2942]" />
                     <span>الكورس {selectedScheduleSemester === 1 ? 'الأول' : 'الثاني'}</span>
@@ -1802,6 +1844,56 @@ export const LectureModal: React.FC<LectureModalProps> = ({
 
 
                     </div>
+                  </div>
+
+                  {/* 👥 3.5 تحديد الكروب المستهدف للمحاضرة (خاص حصراً بكروبات المرحلة أو شعبة موحدة دون أي دمج أو اشتراك) */}
+                  <div className="space-y-2.5 p-3.5 bg-slate-50 border-2 border-slate-200 rounded-2xl shadow-2xs">
+                    {availableStageGroups.length > 0 ? ( // ⚙️ فحص هل المرحلة الحالية مقسمة لكروبات معتمدة
+                      <>
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                          <label className="text-xs sm:text-sm font-black text-slate-950 flex items-center gap-1.5">
+                            <GroupUsersSvg className="w-4 h-4 text-[#0F2942] shrink-0" /> {/* 👥 أيقونة الكروب الأكاديمي */}
+                            <span>الكروب المستهدف للمحاضرة:</span> {/* 🏷️ عنوان الحقل الصريح */}
+                          </label>
+                          <span className="text-xs font-black text-[#0F2942] bg-blue-50 px-3 py-1 rounded-xl border border-blue-200 shadow-2xs">
+                            خاصة بطلبة (كروب {lecTargetGroup || availableStageGroups[0]}) {/* 📌 توضيح استقلالية المحاضرة للكروب المختار */}
+                          </span>
+                        </div>
+
+                        {/* 🎯 أزرار اختيار الكروب المعتمد حصراً بدون زر شعبة عامة أو كلمة مشتركة */}
+                        <div className="flex flex-wrap items-center gap-2 pt-1">
+                          {availableStageGroups.map((grpName) => {
+                            const isSelected = lecTargetGroup === grpName; // 🔍 فحص هل هذا الكروب هو المحدد
+                            return (
+                              <button
+                                key={grpName} // 🔑 مفتاح فريد لكل كروب
+                                type="button" // 🔘 نوع الزر للنموذج لمنع الإرسال
+                                onClick={() => setLecTargetGroup(grpName)} // ⚡ تحديد الكروب المستهدف حصراً
+                                className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer flex items-center gap-2 border-2 ${
+                                  isSelected
+                                    ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-xs ring-2 ring-[#0F2942]/20 scale-[1.02]' // 🎨 كحلي ملكي جذاب للكروب المحدد
+                                    : 'bg-white hover:bg-slate-100 text-slate-800 border-slate-300' // ⚪ مظهر أنيق هادئ للكروب غير المحدد
+                                }`}
+                              >
+                                <GroupBadgeSvg className="w-4 h-4 shrink-0" /> {/* 🏷️ أيقونة شارة الكروب */}
+                                <span>كروب {grpName}</span> {/* 🔤 اسم الكروب المستقل */}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </>
+                    ) : (
+                      // 🛑 في حال كانت المرحلة غير مقسمة لكروبات (شعبة موحدة)
+                      <div className="flex items-center justify-between p-3 bg-blue-50/70 border border-blue-200 rounded-xl text-xs sm:text-sm font-black text-blue-950">
+                        <div className="flex items-center gap-2">
+                          <GroupUsersSvg className="w-4 h-4 text-[#0F2942] shrink-0" /> {/* 👥 أيقونة الشعبة الموحدة */}
+                          <span>لا يوجد كروبات لهذه المرحلة (شعبة موحدة)</span> {/* 📢 تنبيه صريح بعدم وجود كروبات */}
+                        </div>
+                        <span className="px-2.5 py-1 bg-white text-[#0F2942] border border-blue-200 rounded-lg text-xs font-black shadow-2xs">
+                          شعبة موحدة {/* 🏷️ شارة الدفعة الكاملة بدون أي ذكر لكلمة مشتركة */}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   {/* 4. وقت البدء + وقت الانتهاء عبر المكون المستقل LectureTimeSlotPicker */}

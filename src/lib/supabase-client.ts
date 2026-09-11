@@ -302,8 +302,11 @@ export async function findProfileLive(email: string, passwordCandidate?: string)
           stage_number: s.stage_number,
           university_number: s.university_number,
           generated_email: s.email,
+          study_type: s.study_type || 'morning', // ☀️ نوع الدراسة (صباحي / مسائي)
           temp_password: s.temp_password,
           gender: s.gender,
+          student_group: s.student_group, // 🏷️ كروب الطالب الأكاديمي
+          subgroup: s.subgroup, // 🔬 كروب المختبر
           is_active: s.is_active ?? true,
           is_graduated: s.is_graduated ?? false,
           graduation_status: s.graduation_status,
@@ -1319,6 +1322,8 @@ export async function syncProfilesFromSupabase(): Promise<UserProfile[]> {
               study_type: s.study_type || 'morning',
               gender: s.gender,
               temp_password: s.temp_password,
+              student_group: s.student_group, // 🏷️ كروب الطالب الأكاديمي
+              subgroup: s.subgroup, // 🔬 كروب المختبر
               is_active: s.is_active,
               is_graduated: s.is_graduated,
               graduation_status: s.graduation_status,
@@ -1459,6 +1464,8 @@ export async function saveProfileToSupabase(profile: UserProfile): Promise<boole
         gender: profile.gender || 'male', // 🚻 الجنس
         temp_password: profile.temp_password, // 🔑 الرمز المؤقت
         is_active: profile.is_active ?? true, // 🟢 حالة النشاط
+        student_group: profile.student_group || null, // 🏷️ كروب الطالب الأكاديمي المعتمد
+        subgroup: profile.subgroup || null, // 🔬 كروب المختبر المصغر
         created_at: profile.created_at || new Date().toISOString(), // ⏰ تاريخ الإنشاء
       };
       await supabase.from('students').upsert(s); // ⚡ رفع سجل الطالب لسوبابيز
@@ -2093,13 +2100,14 @@ async function ensureLectureDependenciesInSupabase(lec: ScheduleLecture): Promis
   }
 }
 
-// 📦 دالة مساعدة لتضمين وحفظ بيانات التقويم والأسابيع الـ 15 داخل حقل notes لحمايتها سحابياً
+// 📦 دالة مساعدة لتضمين وحفظ بيانات التقويم والأسابيع والكروبات داخل حقل notes لحمايتها سحابياً
 function encodeLectureMetaIntoNotes(lec: ScheduleLecture): string | undefined {
   const meta: Record<string, unknown> = {};
   if (lec.date) meta.date = lec.date;
   if (lec.week_number) meta.week_number = lec.week_number;
   if (lec.custom_weekly_dates) meta.custom_weekly_dates = lec.custom_weekly_dates;
   if (lec.weekly_overrides) meta.weekly_overrides = lec.weekly_overrides;
+  if (lec.target_group) meta.target_group = lec.target_group; // 🏷️ حفظ كروب المحاضرة داخل الحقل المشفر
 
   const rawNotes = lec.notes ? lec.notes.replace(/<!--\s*LEC_DATA:[\s\S]*?-->/g, '').trim() : '';
   if (Object.keys(meta).length === 0) return rawNotes || undefined;
@@ -2107,7 +2115,7 @@ function encodeLectureMetaIntoNotes(lec: ScheduleLecture): string | undefined {
   return rawNotes ? `${rawNotes}\n${metaTag}` : metaTag;
 }
 
-// 📦 دالة مساعدة لاستخراج وفك تشفير بيانات التقويم والأسابيع الـ 15 من حقل notes السحابي
+// 📦 دالة مساعدة لاستخراج وفك تشفير بيانات التقويم والأسابيع والكروبات من حقل notes السحابي
 function decodeLectureMetaFromNotes(lec: ScheduleLecture): ScheduleLecture {
   if (!lec.notes || !lec.notes.includes('<!-- LEC_DATA:')) return lec;
   try {
@@ -2118,6 +2126,7 @@ function decodeLectureMetaFromNotes(lec: ScheduleLecture): ScheduleLecture {
         week_number?: number;
         custom_weekly_dates?: Record<number, string>;
         weekly_overrides?: Record<number, { day?: DayOfWeek; date?: string; start_time?: string; end_time?: string; room?: string; teacher_id?: string; teacher_name?: string }>;
+        target_group?: string; // 🏷️ كروب المحاضرة المستهدف
       };
       const cleanNotes = lec.notes.replace(/<!--\s*LEC_DATA:[\s\S]*?-->/g, '').trim();
       return {
@@ -2126,11 +2135,12 @@ function decodeLectureMetaFromNotes(lec: ScheduleLecture): ScheduleLecture {
         week_number: lec.week_number || meta.week_number || 1,
         custom_weekly_dates: lec.custom_weekly_dates || meta.custom_weekly_dates,
         weekly_overrides: lec.weekly_overrides || meta.weekly_overrides,
+        target_group: lec.target_group || meta.target_group || 'all', // 🏷️ استرجاع كروب المحاضرة المعزول
         notes: cleanNotes || undefined,
       };
     }
   } catch (parseErr) {
-    console.warn('تنبيه أثناء فك بيانات التقويم:', parseErr);
+    console.warn('تنبيه أثناء فك بيانات التقويم والكروبات:', parseErr);
   }
   return lec;
 }
@@ -2201,6 +2211,7 @@ export async function saveScheduleLectureToSupabase(lec: ScheduleLecture): Promi
         color: lec.color,
         type: lec.type,
         study_type: lec.study_type || 'morning',
+        target_group: lec.target_group || 'all', // 🏷️ الكروب المستهدف
         notes: encodeLectureMetaIntoNotes(lec) || null,
         created_at: lec.created_at || new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -2254,6 +2265,7 @@ export async function saveScheduleLecturesBulkToSupabase(lecs: ScheduleLecture[]
         color: lec.color,
         type: lec.type,
         study_type: lec.study_type || 'morning',
+        target_group: lec.target_group || 'all', // 🏷️ الكروب المستهدف
         notes: encodeLectureMetaIntoNotes(lec) || null,
         created_at: lec.created_at || new Date().toISOString(),
         updated_at: new Date().toISOString(),

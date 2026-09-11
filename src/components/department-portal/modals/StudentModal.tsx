@@ -6,7 +6,6 @@ import {
   Edit3, // ✏️ أيقونة تعديل الحساب
   UserPlus, // 👤 أيقونة إضافة طالب جديد
   Plus, // ➕ أيقونة الحفظ والإضافة
-  Sparkles, // ✨ أيقونة التوليد التلقائي للبيانات
   Building2, // 🏢 أيقونة القسم العلمي
   AlertTriangle, // ⚠️ أيقونة التنبيه
   Key, // 🔑 أيقونة كلمة المرور
@@ -20,10 +19,11 @@ import {
   Sun, // ☀️ أيقونة الدراسة الصباحية
   Moon, // 🌙 أيقونة الدراسة المسائية
 } from 'lucide-react'; // 🎨 استيراد أيقونات لوسيد
-import type { UserProfile } from '@/types'; // 🏷️ استيراد الأنواع الصارمة
+import type { UserProfile, StageGroupConfig } from '@/types'; // 🏷️ استيراد الأنواع الصارمة
 import FloatingCrudModal from '@/components/FloatingCrudModal'; // 📦 المودال العائم الفاخر
 import { generateStrongUniqueEmail, generateStrongPassword } from '@/lib/mock-data'; // 💾 مولدات البيانات الأكاديمية
 import { checkEmailUniquenessAcrossSystem } from '@/lib/validation-utils'; // 🛡️ فحص فرادة البريد
+import { GroupUsersSvg, GroupBadgeSvg } from '@/components/common/GroupSvgIcons'; // 🎨 استيراد أيقونات الكروبات والشعب النقية
 
 // 📋 واجهة خصائص مودال إضافة وتعديل بيانات وحساب الطالب
 export interface StudentModalProps {
@@ -46,6 +46,9 @@ export interface StudentModalProps {
   setStudentGender: (gender: 'male' | 'female' | null) => void; // 🔄 دالة تحديد الجنس
   studentStudyType: 'morning' | 'evening' | null; // ☀️🌙 نوع الدوام
   setStudentStudyType: (studyType: 'morning' | 'evening' | null) => void; // 🔄 دالة تحديد نوع الدوام
+  studentGroup?: string; // 🏷️ كروب الطالب (A, B, C, D أو فارغ للشعبة العامة)
+  setStudentGroup?: (group: string) => void; // 🔄 دالة تحديث كروب الطالب
+  stageGroupConfigs?: StageGroupConfig[]; // 📋 قائمة إعدادات الكروبات للمراحل
   customStudentEmail: string; // ✉️ البريد الأكاديمي المخصص أو المولد
   setCustomStudentEmail: (email: string) => void; // 🔄 دالة تحديث البريد
   customStudentPassword: string; // 🔑 كلمة المرور المخصصة أو المولدة
@@ -81,6 +84,9 @@ export const StudentModal: React.FC<StudentModalProps> = ({
   setStudentGender, // 🔄 تحديد الجنس
   studentStudyType, // ☀️🌙 نوع الدوام
   setStudentStudyType, // 🔄 تحديد نوع الدوام
+  studentGroup, // 🏷️ كروب الطالب
+  setStudentGroup, // 🔄 تحديد كروب الطالب
+  stageGroupConfigs, // 📋 قائمة إعدادات الكروبات للمراحل
   customStudentEmail, // ✉️ البريد
   setCustomStudentEmail, // 🔄 تحديث البريد
   customStudentPassword, // 🔑 الرمز
@@ -94,6 +100,15 @@ export const StudentModal: React.FC<StudentModalProps> = ({
   onAutoGenerateCredentials, // ⚡ توليد البيانات
   getStageNameInArabic, // 🏷️ اسم المرحلة بالعربية
 }) => {
+  // 🔍 فحص إعداد الكروبات للمرحلة والدوام المحددين
+  const currentStageConfig = stageGroupConfigs?.find(
+    (c) => c.stage_number === studentStage && c.study_type === (studentStudyType || 'morning')
+  );
+  // ⚙️ هل المرحلة المحددة مقسمة إلى كروبات؟
+  const stageHasGroups = Boolean(currentStageConfig?.has_groups && currentStageConfig.groups.length > 0);
+  // 📋 قائمة الكروبات المتاحة للمرحلة والدوام
+  const availableGroups = currentStageConfig?.groups || ['A', 'B'];
+
   // 🛑 إذا كانت النافذة مغلقة لا يتم رسم شيء
   if (!isOpen) return null;
 
@@ -137,9 +152,8 @@ export const StudentModal: React.FC<StudentModalProps> = ({
           <button
             type="button"
             onClick={onAutoGenerateCredentials}
-            className="px-4 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black text-sm rounded-xl transition flex items-center gap-2 shadow-xs cursor-pointer whitespace-nowrap border border-[#0F2942] active:scale-95"
+            className="px-4 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white font-black text-sm rounded-xl transition flex items-center justify-center gap-2 shadow-xs cursor-pointer whitespace-nowrap border border-[#0F2942] active:scale-95"
           >
-            <Sparkles className="w-4 h-4 text-cyan-300" />
             <span>توليد بريد ورمز معقد تلقائياً</span>
           </button>
         </div>
@@ -325,6 +339,82 @@ export const StudentModal: React.FC<StudentModalProps> = ({
           </div>
         </div>
 
+        {/* 👥 محدد المجموعة والشعبة (الكروب) الأكاديمي لمسار بولونيا */}
+        <div className="space-y-2.5 bg-slate-50 border border-slate-300 p-4 rounded-3xl shadow-2xs">
+          <div className="flex items-center justify-between">
+            <label className="block text-slate-950 font-black text-base flex items-center gap-2">
+              <GroupUsersSvg className="w-5 h-5 text-slate-800" />
+              <span>المجموعة والشعبة الأكاديمية (الكروب):</span>
+            </label>
+            {studentStage && (
+              <span className={`text-xs px-3 py-1 rounded-xl font-black ${
+                stageHasGroups 
+                  ? 'bg-blue-100 text-blue-950 border border-blue-300' 
+                  : 'bg-slate-200 text-slate-800 border border-slate-300'
+              }`}>
+                {stageHasGroups ? `المرحلة ${getStageNameInArabic(studentStage)} بها ${availableGroups.length} كروبات` : 'شعبة عامة موحدة'}
+              </span>
+            )}
+          </div>
+
+          {!studentStage ? (
+            <p className="text-xs font-bold text-slate-500 py-1">
+              يرجى اختيار المرحلة الدراسية أعلاه لتحديد الكروبات المتاحة لها.
+            </p>
+          ) : !stageHasGroups ? (
+            <div className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-2xl">
+              <span className="text-sm font-black text-slate-800 flex items-center gap-2">
+                <GroupBadgeSvg className="w-4 h-4 text-slate-600" />
+                <span>المرحلة {getStageNameInArabic(studentStage)} شعبة عامة موحدة (لا توجد كروبات منفصلة)</span>
+              </span>
+              <span className="text-xs bg-slate-100 text-slate-700 px-2.5 py-1 rounded-xl font-black">
+                عامة (بدون كروب)
+              </span>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                {/* خيار: بدون كروب / عامة */}
+                <button
+                  type="button"
+                  onClick={() => setStudentGroup && setStudentGroup('')}
+                  className={`py-2.5 px-3.5 rounded-xl font-black text-sm transition-all flex items-center gap-1.5 cursor-pointer border ${
+                    !studentGroup
+                      ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-sm ring-2 ring-[#0F2942]/20'
+                      : 'bg-white text-slate-800 border-slate-300 hover:bg-slate-100'
+                  }`}
+                >
+                  <span>عامة (بدون كروب)</span>
+                </button>
+
+                {/* أزرار الكروبات المتاحة A, B, C, D... */}
+                {availableGroups.map((grp) => {
+                  const isSel = studentGroup === grp;
+                  return (
+                    <button
+                      key={grp}
+                      type="button"
+                      onClick={() => setStudentGroup && setStudentGroup(grp)}
+                      className={`py-2.5 px-4 rounded-xl font-black text-sm transition-all flex items-center gap-2 cursor-pointer border ${
+                        isSel
+                          ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-sm ring-2 ring-[#0F2942]/20'
+                          : 'bg-white text-slate-800 border-slate-300 hover:bg-slate-100'
+                      }`}
+                    >
+                      <span className={`w-5 h-5 rounded-lg flex items-center justify-center text-xs font-mono font-black ${
+                        isSel ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-900'
+                      }`}>
+                        {grp}
+                      </span>
+                      <span>كروب {grp}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* ✉️ البريد الأكاديمي المخصص و 🔑 كلمة المرور */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           
@@ -340,7 +430,6 @@ export const StudentModal: React.FC<StudentModalProps> = ({
                 className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-950 border border-blue-200 rounded-lg text-xs font-black flex items-center gap-1.5 transition cursor-pointer active:scale-95 shadow-2xs"
                 title="توليد بريد أكاديمي رسمي فريد للطالب"
               >
-                <Sparkles className="w-3.5 h-3.5 text-blue-700" />
                 <span>توليد بريد فريد</span>
               </button>
             </div>

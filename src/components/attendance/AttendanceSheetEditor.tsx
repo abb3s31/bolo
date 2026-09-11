@@ -87,6 +87,7 @@ import { exportBolognaAttendanceReportPDF } from '@/lib/pdf-export'; // 📄 م�
 import { exportCustomAttendanceList } from '@/lib/excel-utils'; // 📊 مولد كشف الحضور والإنذارات الأكاديمية الرسمي الفاخر Excel
 import ExcuseRequestsReviewModal from '@/components/attendance/ExcuseRequestsReviewModal'; // 📑 نافذة تدقيق ومراجعة طلبات الإجازات
 import AttendanceNoticeModal, { AttendanceNoticeCategory } from '@/components/attendance/AttendanceNoticeModal'; // 📢 نافذة التبليغات والتنبيهات الذكية
+import { GroupUsersSvg, GroupBadgeSvg } from '@/components/common/GroupSvgIcons'; // 👥 استيراد أيقونات الكروبات والشعب الفيكتورية النقية
 
 // 🌟 واجهة بيانات التنبيه العائم التفاعلي الفاخر
 export interface AttendanceFloatingToast {
@@ -242,6 +243,7 @@ export default function AttendanceSheetEditor({
   // 🔍 6. حالات البحث والتصفية
   const [searchQuery, setSearchQuery] = useState<string>(''); // 🔍 نص البحث عن طالب
   const [studyTypeFilter, setStudyTypeFilter] = useState<'all' | 'morning' | 'evening'>('all'); // ☀️🌙 تصفية الفترة الدراسية
+  const [attendanceGroupFilter, setAttendanceGroupFilter] = useState<string>('all'); // 👥 تصفية الكروب لسجل الحضور ('all' | 'unassigned' | 'A' | 'B'...)
 
   // 📑 7. حالات النوافذ المنبثقة للإجازات والتبليغات
   const [isReviewModalOpen, setIsReviewModalOpen] = useState<boolean>(false); // 📑 نافذة مراجعة الإجازات
@@ -857,7 +859,7 @@ export default function AttendanceSheetEditor({
     setSelectedStudentIds([]);
   };
 
-  // ⚡ 16. تعيين حالة موحدة لجميع الطلاب (مثل الكل حاضرين أو غائبين أو إجازة أو عطلة)
+  // ⚡ 16. تعيين حالة موحدة لجميع الطلاب أو لطلاب الكروب المختار
   const handleMarkAll = (status: AttendanceStatus) => {
     const updated: Record<
       string,
@@ -870,7 +872,12 @@ export default function AttendanceSheetEditor({
       }
     > = { ...currentSessionMap };
 
-    students.forEach((st) => {
+    // 👥 تحديد الطلاب المستهدفين (إذا محدد كروب أو دراسة معينة يطبق عليهم فقط)
+    const targetStudents = (attendanceGroupFilter !== 'all' || studyTypeFilter !== 'all')
+      ? filteredStudents
+      : students;
+
+    targetStudents.forEach((st) => {
       updated[st.id] = {
         ...(updated[st.id] || {
           excuse_reason: '',
@@ -883,35 +890,38 @@ export default function AttendanceSheetEditor({
     });
     setCurrentSessionMap(updated);
 
-    const count = students.length;
+    const count = targetStudents.length;
+    const groupNameDesc = attendanceGroupFilter !== 'all'
+      ? (attendanceGroupFilter === 'unassigned' ? 'الشعبة العامة' : `كروب ${attendanceGroupFilter}`)
+      : 'كافة الطلبة';
     const duration = selectedDurationHours === 1 ? '1 س' : selectedDurationHours === 1.5 ? '1.5 س' : `${selectedDurationHours} س`;
     if (status === 'present') {
       showFloatingToast({
-        title: `تم تعيين جميع الطلبة (${count} طالب) حاضرين بنجاح`,
-        subtitle: `إجراء سريع للجلسة • احتساب ${duration} للمحاضرة للجميع`,
+        title: `تم تعيين (${count} طالب في ${groupNameDesc}) حاضرين بنجاح`,
+        subtitle: `إجراء سريع للجلسة • احتساب ${duration} للمحاضرة للكروب`,
         type: 'present',
       });
     } else if (status === 'absent_unexcused') {
       showFloatingToast({
-        title: `تم تعيين جميع الطلبة (${count} طالب) غائبين`,
-        subtitle: `إجراء سريع للجلسة • رصد غياب غير مبرر للجميع`,
+        title: `تم تعيين (${count} طالب في ${groupNameDesc}) غائبين`,
+        subtitle: `إجراء سريع للجلسة • رصد غياب غير مبرر للكروب`,
         type: 'absent_unexcused',
       });
     } else if (status === 'absent_excused') {
       showFloatingToast({
-        title: `تم تعيين جميع الطلبة (${count} طالب) مجازين 📄`,
-        subtitle: `إجراء سريع للجلسة • تسجيل إجازة رسمية للجميع`,
+        title: `تم تعيين (${count} طالب في ${groupNameDesc}) مجازين 📄`,
+        subtitle: `إجراء سريع للجلسة • تسجيل إجازة رسمية للكروب`,
         type: 'absent_excused',
       });
     } else if (status === 'holiday') {
       showFloatingToast({
-        title: `تم تسجيل الجلسة بالكامل عطلة رسمية لكافة الطلبة (${count} طالب) 🏖️`,
+        title: `تم تسجيل الجلسة عطلة لـ (${count} طالب في ${groupNameDesc}) 🏖️`,
         subtitle: `استثناء عام للجلسة الحالية بدون غيابات`,
         type: 'holiday',
       });
     } else if (status === 'unset') {
       showFloatingToast({
-        title: `تمت إعادة تعيين حالة الحضور إلى (غير محدد) لكافة الطلبة (${count} طالب) ⚪`,
+        title: `تمت إعادة تعيين حالة الحضور إلى (غير محدد) لـ (${count} طالب في ${groupNameDesc}) ⚪`,
         subtitle: `إلغاء التحديد وتصفير الكشف للجلسة`,
         type: 'unset',
       });
@@ -1090,9 +1100,10 @@ export default function AttendanceSheetEditor({
       type: 'pdf',
     });
 
-    // إعداد قائمة الطلاب مع ملخصات الغياب لمسار بولونيا
+    // إعداد قائمة الطلاب مع ملخصات الغياب لمسار بولونيا بحسب الكروب المفلتر
     const customTotal = getCourseTotalScheduledHours(durationConfig, course.id, course.credit_hours);
-    const pdfStudentsData = students.map((st) => {
+    const targetStudentsForExport = attendanceGroupFilter !== 'all' ? filteredStudents : students;
+    const pdfStudentsData = targetStudentsForExport.map((st) => {
       const summary = calculateStudentCourseAttendance(
         st.id,
         course.id,
@@ -1152,7 +1163,8 @@ export default function AttendanceSheetEditor({
 
     try {
       const customTotal = getCourseTotalScheduledHours(durationConfig, course.id, course.credit_hours);
-      const excelRecords = students.map((st) => {
+      const targetStudentsForExcel = attendanceGroupFilter !== 'all' ? filteredStudents : students;
+      const excelRecords = targetStudentsForExcel.map((st) => {
         const summary = calculateStudentCourseAttendance(
           st.id,
           course.id,
@@ -1196,12 +1208,27 @@ export default function AttendanceSheetEditor({
     }
   };
 
-  // 🔍 19. تصفية الطلاب بحسب البحث والفترة الدراسية (صباحي / مسائي)
+  // 👥 استخراج الكروبات المتاحة بين طلاب المادة
+  const availableStudentGroups = useMemo(() => {
+    const groupsSet = new Set<string>();
+    students.forEach((st) => {
+      if (st.student_group && st.student_group !== 'unassigned') {
+        groupsSet.add(st.student_group);
+      }
+    });
+    return Array.from(groupsSet).sort();
+  }, [students]);
+
+  // 🔍 19. تصفية الطلاب بحسب البحث والفترة الدراسية والكروب المحدد
   const filteredStudents = useMemo(() => {
     return students.filter((st) => {
       if (studyTypeFilter !== 'all') {
         const stdStudy = st.study_type || 'morning';
         if (stdStudy !== studyTypeFilter) return false;
+      }
+      if (attendanceGroupFilter !== 'all') {
+        const stdGrp = st.student_group || 'unassigned';
+        if (stdGrp !== attendanceGroupFilter) return false;
       }
       if (!searchQuery.trim()) return true;
       const q = searchQuery.toLowerCase().trim();
@@ -1210,7 +1237,7 @@ export default function AttendanceSheetEditor({
         (st.university_number && st.university_number.includes(q))
       );
     });
-  }, [students, searchQuery, studyTypeFilter]);
+  }, [students, searchQuery, studyTypeFilter, attendanceGroupFilter]);
 
   // 📊 19. إحصائيات الجلسة الحالية
   const sessionStats = useMemo(() => {
@@ -2210,6 +2237,64 @@ export default function AttendanceSheetEditor({
               <span>المسائي</span>
               <span className="font-mono text-sm font-black opacity-90">({students.filter((s) => s.study_type === 'evening').length})</span>
             </button>
+          </div>
+
+          {/* 👥 شريط فلترة وتخصيص سجل حضور الكروبات والشعب */}
+          <div className="p-1 bg-white border-2 border-slate-300 rounded-2xl flex items-center gap-1 shadow-2xs flex-wrap">
+            <button
+              type="button"
+              onClick={() => setAttendanceGroupFilter('all')}
+              className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer select-none active:scale-95 flex items-center gap-1.5 ${
+                attendanceGroupFilter === 'all'
+                  ? 'bg-[#0F2942] text-white shadow-md'
+                  : 'text-slate-800 hover:text-slate-950 hover:bg-slate-100'
+              }`}
+            >
+              <GroupUsersSvg className="w-3.5 h-3.5 shrink-0" />
+              <span>كافة الكروبات</span>
+              <span className="font-mono text-xs font-black opacity-90">({students.length})</span>
+            </button>
+
+            {/* شعبة عامة (غير مخصص لكروب) */}
+            {students.some((s) => !s.student_group || s.student_group === 'unassigned') && (
+              <button
+                type="button"
+                onClick={() => setAttendanceGroupFilter('unassigned')}
+                className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer select-none active:scale-95 flex items-center gap-1.5 ${
+                  attendanceGroupFilter === 'unassigned'
+                    ? 'bg-[#0F2942] text-white shadow-md'
+                    : 'text-slate-800 hover:text-slate-950 hover:bg-slate-100'
+                }`}
+              >
+                <GroupBadgeSvg className="w-3.5 h-3.5 shrink-0" />
+                <span>شعبة عامة</span>
+                <span className="font-mono text-xs font-black opacity-90">
+                  ({students.filter((s) => !s.student_group || s.student_group === 'unassigned').length})
+                </span>
+              </button>
+            )}
+
+            {/* أزرار الكروبات المتاحة */}
+            {availableStudentGroups.map((grp) => {
+              const grpCount = students.filter((s) => s.student_group === grp).length;
+              const isSel = attendanceGroupFilter === grp;
+              return (
+                <button
+                  key={grp}
+                  type="button"
+                  onClick={() => setAttendanceGroupFilter(grp)}
+                  className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer select-none active:scale-95 flex items-center gap-1.5 ${
+                    isSel
+                      ? 'bg-blue-700 text-white shadow-md'
+                      : 'text-blue-950 hover:bg-blue-50'
+                  }`}
+                >
+                  <GroupBadgeSvg className="w-3.5 h-3.5 shrink-0" />
+                  <span>سجل كروب {grp}</span>
+                  <span className="font-mono text-xs font-black opacity-90">({grpCount})</span>
+                </button>
+              );
+            })}
           </div>
 
           {/* 🔍 حقل البحث بالاسم فقط (بدون الرقم الجامعي) */}

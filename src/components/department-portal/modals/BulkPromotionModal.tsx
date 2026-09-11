@@ -2,7 +2,7 @@
 
 import React from 'react'; // ⚛️ استيراد مكتبة ريآكت الأساسية
 import {
-  Sparkles, // ✨ أيقونة الترحيل الذكي
+  GraduationCap, // 🎓 أيقونة شؤون الطلاب والترحيل الأكاديمي
   X, // ✖️ أيقونة الإغلاق
   Check, // ✔️ أيقونة الاختيار
   CheckCircle2, // ✅ أيقونة التأكيد
@@ -57,7 +57,7 @@ export const BulkPromotionModal: React.FC<BulkPromotionModalProps> = ({
         <div className="p-5 sm:p-6 flex items-center justify-between border-b border-slate-200 bg-white shrink-0 z-10">
           <div className="flex items-center gap-2.5">
             <div className="p-2.5 bg-emerald-50 text-emerald-950 rounded-2xl border border-emerald-100">
-              <Sparkles className="w-5 h-5 text-emerald-700" />
+              <GraduationCap className="w-5 h-5 text-emerald-700" />
             </div>
             <div>
               <h3 className="text-base font-black text-slate-950">الترحيل الجماعي لطلاب المرحلة</h3>

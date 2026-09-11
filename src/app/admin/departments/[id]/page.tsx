@@ -1294,13 +1294,14 @@ export default function AdminDepartmentDetailsPage({ params }: { params: Promise
                     setIsExportingStudentsExcel(true);
                     try {
                       const formatted = filteredStudents.map((st) => ({
-                        full_name: st.full_name,
-                        university_number: st.university_number || '—',
-                        stage_number: st.stage_number,
-                        study_type: st.study_type,
-                        gender: st.gender || detectArabicGender(st.full_name),
-                        generated_email: st.generated_email || '—',
-                        temp_password: st.temp_password,
+                        full_name: st.full_name, // 👤 اسم الطالب الثلاثي
+                        university_number: st.university_number || '—', // 🆔 الرقم الجامعي
+                        stage_number: st.stage_number, // 🎓 رقم المرحلة الدراسية
+                        student_group: st.student_group, // 👥 الكروب أو الشعبة الدراسية
+                        study_type: st.study_type, // ☀️🌙 نوع الدراسة
+                        gender: st.gender || detectArabicGender(st.full_name), // 🚻 الجنس
+                        generated_email: st.generated_email || '—', // ✉️ البريد الأكاديمي
+                        temp_password: st.temp_password, // 🔑 كلمة المرور
                       }));
                       await exportCustomStudentsList(formatted, `${department?.name || 'القسم'}_المرحلة_${activeStageNum}`);
                     } finally {

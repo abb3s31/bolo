@@ -1,11 +1,13 @@
 'use client'; // ⚡ ينفذ بالعميل على متصفح المستخدم
 
 // 🗓️ المكون التفاعلي الحركي الموحد للجدول الأسبوعي والـ Timeline المباشر - جامعة الإمام جعفر الصادق (ع) - فرع ميسان
-import { useState, useEffect, useMemo } from 'react'; // 🔗 خطافات رياكت لإدارة الحالة والوقت اللحظي
+import { useState, useEffect, useMemo, useCallback } from 'react'; // 🔗 خطافات رياكت لإدارة الحالة والوقت اللحظي
 import Image from 'next/image'; // 🖼️ استيراد مكون الصور من نكست لطباعة شعار الجامعة الرسمي
 import { createPortal } from 'react-dom'; // 🚪 بورتال لعرض نافذة الطباعة مباشرة على جذر الصفحة
-import { DayOfWeek, ScheduleLecture, DepartmentScheduleConfig, LectureColor, UserProfile, Department, Course, TeacherCourse } from '@/types'; // 🔗 استيراد الأنواع الرسمية
+import { DayOfWeek, ScheduleLecture, DepartmentScheduleConfig, LectureColor, UserProfile, Department, Course, TeacherCourse, StageGroupConfig } from '@/types'; // 🔗 استيراد الأنواع الرسمية وإعدادات الكروبات
 import { getStoredData, INITIAL_PROFILES, INITIAL_DEPARTMENTS, INITIAL_COURSES, INITIAL_TEACHER_COURSES, getAcademicYear, formatAcademicYearDisplay } from '@/lib/mock-data'; // 💾 قراءة بيانات المستخدمين والأقسام والعام الدراسي المعتمد
+import { INITIAL_STAGE_GROUP_CONFIGS } from '@/lib/groups-service'; // 🏛️ استيراد التكوينات الافتراضية لكروبات المراحل
+import { GroupBadgeSvg, GroupUsersSvg } from '@/components/common/GroupSvgIcons'; // 👥 استيراد أيقونات الكروبات الفيكتورية النقية SVG
 import {
   DAYS_OF_WEEK_LIST,
   LECTURE_COLOR_THEMES,
@@ -155,6 +157,9 @@ interface StudentScheduleTimelineProps {
   rapporteurName?: string;        // 👤 اسم مقرر القسم الفعلي (اختياري)
   initialOpenPrintModal?: boolean; // 🖨️ فتح نافذة الطباعة فور تحميل المكون
   onClosePrintModal?: () => void;  // 🚪 حدث عند إغلاق نافذة الطباعة
+  studentGroup?: string;          // 🏷️ كروب الطالب المسجل بحسابه (إن وجد)
+  initialGroup?: string;          // 👥 الكروب المبدئي الممرر من شاشة القسم أو المعاينة
+  stageGroupConfigs?: StageGroupConfig[]; // ⚙️ إعدادات كروبات المراحل الأكاديمية
 }
 
 export default function StudentScheduleTimeline({
@@ -171,6 +176,9 @@ export default function StudentScheduleTimeline({
   rapporteurName,
   initialOpenPrintModal = false,
   onClosePrintModal,
+  studentGroup,
+  initialGroup,
+  stageGroupConfigs,
 }: StudentScheduleTimelineProps) {
   // 📌 الحالات
   const [selectedSemester, setSelectedSemester] = useState<1 | 2>(initialSemester);
@@ -182,6 +190,46 @@ export default function StudentScheduleTimeline({
   const [currentClockString, setCurrentClockString] = useState<string>('');
   const [isMounted, setIsMounted] = useState<boolean>(false); // ⚡ حالة التأكد من تحميل المكون على متصفح العميل
   const [isPrintModalOpen, setIsPrintModalOpen] = useState<boolean>(initialOpenPrintModal); // 🖨️ حالة فتح وإغلاق نافذة المعاينة والطباعة الرسمية
+
+  // 👥 استخراج إعدادات الكروبات للمرحلة المحددة والدوام المعتمد بدقة عالية
+  const currentStageGroupConfig = useMemo(() => {
+    // 🔍 جلب الإعدادات من الخصائص الممررة أو من الكاش المعتمد
+    const cfgs = stageGroupConfigs || getStoredData<StageGroupConfig[]>('department_stage_groups', INITIAL_STAGE_GROUP_CONFIGS);
+    return cfgs.find((c) => c.stage_number === stageNumber && (c.study_type || 'morning') === selectedStudyType);
+  }, [stageGroupConfigs, stageNumber, selectedStudyType]);
+
+  // 📋 قائمة الكروبات المعتمدة للمرحلة (مصفوفة فارغة إذا كانت شعبة موحدة)
+  const stageGroupsList = useMemo((): string[] => {
+    if (currentStageGroupConfig?.has_groups && Array.isArray(currentStageGroupConfig.groups) && currentStageGroupConfig.groups.length > 0) {
+      return currentStageGroupConfig.groups;
+    }
+    return [];
+  }, [currentStageGroupConfig]);
+
+  // 🎯 الكروب الأكاديمي المختار للعرض مع استيعاب الكروب الأولي الممرر
+  const [selectedGroup, setSelectedGroup] = useState<string>(() => {
+    if (studentGroup) return studentGroup;
+    if (initialGroup && initialGroup !== 'all') return initialGroup;
+    if (currentStageGroupConfig?.has_groups && currentStageGroupConfig.groups.length > 0) {
+      return currentStageGroupConfig.groups[0] || 'all';
+    }
+    return 'all';
+  });
+
+  // 🔄 مزامنة الكروب النشط عند تغير المرحلة أو نوع الدوام أو كروب الطالب أو الكروب الأولي الممرر
+  useEffect(() => {
+    if (studentGroup) {
+      setSelectedGroup(studentGroup);
+    } else if (initialGroup && initialGroup !== 'all' && stageGroupsList.includes(initialGroup)) {
+      setSelectedGroup(initialGroup);
+    } else if (stageGroupsList.length > 0) {
+      if (!selectedGroup || selectedGroup === 'all' || !stageGroupsList.includes(selectedGroup)) {
+        setSelectedGroup(stageGroupsList[0] || 'all');
+      }
+    } else {
+      setSelectedGroup('all');
+    }
+  }, [studentGroup, initialGroup, stageGroupsList, stageNumber, selectedStudyType]);
   const [isExportingExcel, setIsExportingExcel] = useState<boolean>(false); // ⏳ حالة تصدير الجدول الأسبوعي لإكسل الفاخر
   const [activeTimelineTooltipId, setActiveTimelineTooltipId] = useState<string | null>(null); // 🕒 تتبع معرف المحاضرة التي تم النقر على خط التايم لاين الخاص بها لعرض تفاصيل الوقت بدقة
 
@@ -228,7 +276,10 @@ export default function StudentScheduleTimeline({
         };
       });
 
-      const titleName = `المرحلة ${getStageNameInArabic(stageNumber)}`;
+      // 🏷️ صياغة اسم المرحلة والكروب المستقل لعنوان ملف الإكسل
+      const isGroupSeparated = stageGroupsList.length > 0 && selectedGroup && selectedGroup !== 'all'; // 🔍 فحص هل الجدول مخصص لكروب
+      const groupSuffix = isGroupSeparated ? ` — كروب ${selectedGroup}` : ''; // 🔤 إضافة اسم الكروب لاسم الملف
+      const titleName = `المرحلة ${getStageNameInArabic(stageNumber)}${groupSuffix}`; // 📄 العنوان الرسمي المتكامل للملف
       await exportPersonalWeeklyScheduleExcel(
         titleName, // 👤 اسم المرحلة
         'طالب', // 🏷️ صفة المستخدم
@@ -313,12 +364,22 @@ export default function StudentScheduleTimeline({
     return () => clearInterval(timer);
   }, []);
 
-  // ⚙️ استخراج إعدادات الدوام والعطل للمرحلة والكورس المختارين
-  const activeConfig = useMemo(() => {
-    return getScheduleConfigOrDefault(configs, departmentId, stageNumber, selectedSemester);
-  }, [configs, departmentId, stageNumber, selectedSemester]);
+  // 👥 تحديد الكروب الفعلي النشط لاستخراج الإعدادات والمحاضرات
+  const activeGrp = studentGroup || selectedGroup;
 
-  // 📆 استخراج تاريخ انطلاق الفصل الدراسي المعتمد للمرحلة والقسم (مسار بولونيا)
+  // ⚙️ استخراج إعدادات الدوام والعطل للمرحلة والكورس والكروب المختارين بدقة واستقلال
+  const activeConfig = useMemo(() => {
+    return getScheduleConfigOrDefault(
+      configs, // 📋 الإعدادات
+      departmentId, // 🏢 معرف القسم
+      stageNumber, // 🎓 المرحلة
+      selectedSemester, // 🗓️ الكورس
+      selectedStudyType, // ☀️ نوع الدراسة
+      activeGrp !== 'all' ? activeGrp : undefined // 👥 الكروب المستقل
+    );
+  }, [configs, departmentId, stageNumber, selectedSemester, selectedStudyType, activeGrp]);
+
+  // 📆 استخراج تاريخ انطلاق الفصل الدراسي المعتمد للمرحلة والقسم والكروب (مسار بولونيا)
   const effectiveStartDate = useMemo(() => {
     return activeConfig?.start_date || configs.find((c) => c.start_date && c.start_date.trim() !== '')?.start_date || '2026-09-20'; // 📅 تاريخ الانطلاق المعتمد
   }, [activeConfig, configs]);
@@ -328,26 +389,62 @@ export default function StudentScheduleTimeline({
     return getCurrentAcademicWeek(effectiveStartDate); // 🧮 حساب الأسبوع الحالي الذكي
   }, [effectiveStartDate]);
 
-  // 📌 حالة الأسبوع المختار للعرض من 1 إلى 15 (افتراضياً الأسبوع الحالي)
-  const [selectedAcademicWeek, setSelectedAcademicWeek] = useState<number>(() => {
-    return getCurrentAcademicWeek(effectiveStartDate); // 🎯 البدء من الأسبوع الحالي الذكي
-  });
+  // 📌 قاموس لحفظ الأسبوع المختار لكل كروب مستقلاً تماماً
+  const [selectedWeekByGroup, setSelectedWeekByGroup] = useState<Record<string, number>>({});
 
-  // 🔄 مزامنة الأسبوع المختار مع الأسبوع الحالي تلقائياً فور تعديل تاريخ انطلاق الفصل
+  // 🗓️ استخراج الأسبوع المعتمد للكروب المعروض حالياً مع الرجوع للأسبوع الأكاديمي الحالي
+  const selectedAcademicWeek = useMemo(() => {
+    const grpKey = activeGrp || 'all';
+    return selectedWeekByGroup[grpKey] || currentAcademicWeek;
+  }, [selectedWeekByGroup, activeGrp, currentAcademicWeek]);
+
+  // 🔄 دالة تحديث الأسبوع للكروب المعروض فقط دون التأثير على الكروبات الأخرى
+  const setSelectedAcademicWeek: React.Dispatch<React.SetStateAction<number>> = useCallback((action: React.SetStateAction<number>) => {
+    const grpKey = activeGrp || 'all';
+    setSelectedWeekByGroup((prev) => {
+      const currentVal = prev[grpKey] || currentAcademicWeek;
+      const nextVal = typeof action === 'function' ? action(currentVal) : action;
+      return {
+        ...prev,
+        [grpKey]: nextVal,
+      };
+    });
+  }, [activeGrp, currentAcademicWeek]);
+
+  // 🔄 مزامنة الأسبوع المختار مع الأسبوع الحالي تلقائياً فور تعديل تاريخ انطلاق الفصل للكروب
   useEffect(() => {
-    setSelectedAcademicWeek(getCurrentAcademicWeek(effectiveStartDate)); // 🎯 إعادة ضبط الأسبوع النشط
-  }, [effectiveStartDate]); // ⚡ تفعيل المزامنة كلما تغير تاريخ بداية الفصل المعتمد
+    const grpKey = activeGrp || 'all';
+    const curW = getCurrentAcademicWeek(effectiveStartDate);
+    setSelectedWeekByGroup((prev) => {
+      if (!prev[grpKey]) {
+        return { ...prev, [grpKey]: curW };
+      }
+      return prev;
+    });
+  }, [effectiveStartDate, activeGrp]);
 
-  // 📚 تصفية المحاضرات الخاصة بالقسم والمرحلة والكورس والفترة المختارين بعزل صارم
+  // 📚 تصفية المحاضرات الخاصة بالقسم والمرحلة والكورس والفترة والكروب المختار بعزل صارم
   const stageLectures = useMemo(() => {
-    return lectures.filter(
-      (l) =>
-        l.department_id === departmentId && // 🏢 عزل صارم 100%: مطابقة معرف القسم حصراً
-        l.stage_number === stageNumber && // 🎓 مطابقة المرحلة
-        (l.semester || 1) === selectedSemester && // 🗓️ مطابقة الكورس
-        (l.study_type || 'morning') === selectedStudyType // ☀️ مطابقة الصباحي أو المسائي
-    );
-  }, [lectures, departmentId, stageNumber, selectedSemester, selectedStudyType]);
+    return lectures.filter((l) => {
+      if (l.department_id !== departmentId) return false; // 🏢 عزل صارم 100%: مطابقة معرف القسم حصراً
+      if (l.stage_number !== stageNumber) return false; // 🎓 مطابقة المرحلة الدراسية
+      if ((l.semester || 1) !== selectedSemester) return false; // 🗓️ مطابقة الكورس الدراسي
+      if ((l.study_type || 'morning') !== selectedStudyType) return false; // ☀️ مطابقة الفترة (صباحي / مسائي)
+
+      // 👥 عزل الكروبات الصارم 100%: لكل كروب جدول ومحاضرات خاصة بيه غير مشتركة
+      if (stageGroupsList.length > 0) {
+        // 🎯 استخراج الكروب الفعلي المعتمد (سواء من بروفايل الطالب أو اختيار الواجهة)
+        const activeGrp = studentGroup || selectedGroup || stageGroupsList[0];
+        if (activeGrp && activeGrp !== 'all') {
+          return l.target_group === activeGrp; // 🎯 مطابقة محاضرات هذا الكروب حصراً بدون دمج
+        }
+        return l.target_group === stageGroupsList[0]; // 🥇 في حال عدم التحديد نأخذ الكروب الأول
+      }
+
+      // 🏛️ إذا كانت المرحلة بدون كروبات (شعبة موحدة) نعرض كافة محاضراتها بشكل طبيعي
+      return true;
+    });
+  }, [lectures, departmentId, stageNumber, selectedSemester, selectedStudyType, stageGroupsList, selectedGroup, studentGroup]);
 
   // 🖨️ الأيام المعتمدة لطباعة الجدول الأسبوعي (السبت للخميس، وإذا الجمعة بيها محاضرات تنضاف أوتوماتيك)
   const printScheduleDays = useMemo(() => {
@@ -587,16 +684,27 @@ export default function StudentScheduleTimeline({
               </span>
               <span className={`px-3 py-1 rounded-xl text-sm font-black border flex items-center gap-1.5 ${
                 selectedStudyType === 'evening'
-                  ? 'bg-indigo-50 text-indigo-950 border-indigo-200'
+                  ? 'bg-slate-900 text-cyan-200 border-slate-700'
                   : 'bg-sky-50 text-sky-950 border-sky-300'
               }`}>
                 {selectedStudyType === 'evening' ? (
-                  <Moon className="w-4 h-4 text-indigo-600" />
+                  <Moon className="w-4 h-4 text-cyan-300" />
                 ) : (
                   <Sun className="w-4 h-4 text-sky-600" />
                 )}
                 <span>{selectedStudyType === 'evening' ? 'الدراسة المسائية' : 'الدراسة الصباحية'}</span>
               </span>
+              {/* 👥 شارة الكروب المستقل الخاص أو الشعبة الموحدة بتصميم كحلي ملكي راقٍ */}
+              {stageGroupsList.length > 0 && selectedGroup && selectedGroup !== 'all' ? (
+                <span className="px-3 py-1 bg-[#0F2942] text-cyan-300 border border-[#0F2942] font-black text-sm rounded-xl flex items-center gap-1.5 shadow-2xs">
+                  <GroupBadgeSvg className="w-3.5 h-3.5 text-cyan-300 shrink-0" />
+                  <span>جدول كروب {selectedGroup}</span> {/* 🏷️ توضيح الكروب المختار حصراً */}
+                </span>
+              ) : (
+                <span className="px-3 py-1 bg-blue-50 text-blue-950 border border-blue-200 font-black text-sm rounded-xl flex items-center gap-1.5 shadow-2xs">
+                  <span>شعبة موحدة</span> {/* 🏛️ توضيح الشعبة الموحدة إذا ماكو كروبات */}
+                </span>
+              )}
             </div>
             <h2 className="text-xl sm:text-2xl font-black text-slate-950 flex items-center gap-2.5">
               <Calendar className="w-6 h-6 text-[#0F2942]" />
@@ -646,34 +754,36 @@ export default function StudentScheduleTimeline({
               </button>
             </div>
 
-            {/* 📄 📊 أزرار المعاينة والطباعة والتصدير لإكسل */}
+            {/* 📄 📊 أزرار المعاينة والطباعة والتصدير لإكسل بتصميم كحلي ملكي راقٍ وفاخر #0F2942 */}
             <div className="flex items-center gap-2">
+              {/* 🖨️ زر طباعة الجدول الأسبوعي بتصميم كحلي ملكي جذاب وثابت */}
               <button
-                type="button"
-                onClick={() => setIsPrintModalOpen(true)}
-                className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 rounded-2xl font-black text-sm transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                title="معاينة وطباعة الجدول الأسبوعي بصيغة رسمية"
+                type="button" // 🔘 نوع الزر للنموذج لمنع أي إرسال عرضي
+                onClick={() => setIsPrintModalOpen(true)} // ⚡ فتح نافذة معاينة وطباعة الجدول الأسبوعي
+                className="px-4 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white border border-[#0F2942] rounded-2xl font-black text-sm transition flex items-center gap-2 cursor-pointer shadow-xs active:scale-95" // 🎨 تصميم كحلي ملكي ناصع وأنيق
+                title="معاينة وطباعة الجدول الأسبوعي بصيغة رسمية" // 💬 تلميح زر الطباعة
               >
-                <Printer className="w-4 h-4 text-slate-700" />
-                <span className="hidden sm:inline">طباعة الجدول</span>
+                <Printer className="w-4 h-4 text-cyan-300" /> {/* 🖨️ أيقونة الطابعة بلون سماوي مبهج يبرز على الكحلي */}
+                <span className="hidden sm:inline">طباعة الجدول</span> {/* 📝 نص زر طباعة الجدول */}
               </button>
 
+              {/* 📊 زر تصدير الجدول لإكسل بتصميم كحلي ملكي متناسق وفخم */}
               <button
-                type="button"
-                onClick={handleExportExcel}
-                disabled={isExportingExcel || stageLectures.length === 0}
-                className="px-3.5 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-2xl font-black text-sm transition flex items-center gap-1.5 cursor-pointer shadow-2xs border border-emerald-600 disabled:opacity-50"
-                title="تصدير الجدول الأسبوعي المعتمد للمرحلة بصيغة Excel الفاخرة"
+                type="button" // 🔘 نوع الزر كزر عادي
+                onClick={handleExportExcel} // ⚡ استدعاء دالة تصدير ملف الإكسل الملكي
+                disabled={isExportingExcel || stageLectures.length === 0} // 🚫 تعطيل الزر إذا التصدير شغال أو ماكو محاضرات
+                className="px-4 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-2xl font-black text-sm transition flex items-center gap-2 cursor-pointer shadow-xs border border-[#0F2942] active:scale-95 disabled:opacity-50" // 🎨 كحلي ملكي فاخر مطابق لأعلى معايير التصميم
+                title="تصدير الجدول الأسبوعي المعتمد للمرحلة بصيغة Excel الفاخرة" // 💬 تلميح زر الإكسل
               >
-                {isExportingExcel ? (
+                {isExportingExcel ? ( // ⏳ فحص حالة معالجة وتوليد ملف الإكسل
                   <>
-                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                    <span>جاري التصدير...</span>
+                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span> {/* 🔄 سبينر دوار أثناء تجهيز الإكسل */}
+                    <span>جاري التصدير...</span> {/* 💬 نص الانتظار */}
                   </>
-                ) : (
+                ) : ( // ✨ الحالة الاعتيادية لزر تصدير الإكسل
                   <>
-                    <FileSpreadsheet className="w-4 h-4 text-emerald-200" />
-                    <span>تصدير Excel</span>
+                    <FileSpreadsheet className="w-4 h-4 text-emerald-400" /> {/* 📊 أيقونة الإكسل بلون زمردي فاقع ومتناسق مع الكحلي */}
+                    <span>تصدير Excel</span> {/* 📝 نص زر تصدير الإكسل */}
                   </>
                 )}
               </button>
@@ -775,6 +885,56 @@ export default function StudentScheduleTimeline({
               </button>
             </div>
           </div>
+
+          {/* 👥 أزرار تبديل الكروبات للمراحل المقسمة لكروبات (جدول خاص ومستقل لكل كروب) */}
+          {stageGroupsList.length > 0 && !studentGroup ? (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm sm:text-base font-black text-slate-800">الكروب:</span> {/* 🏷️ عنوان محدد الكروب */}
+              <div className="flex items-center bg-slate-100 p-1 border border-slate-300 rounded-2xl gap-1">
+                {stageGroupsList.map((grp) => {
+                  const isSel = selectedGroup === grp; // 🔍 فحص هل هذا الكروب هو المعروض حالياً
+                  const grpCount = lectures.filter(
+                    (l) =>
+                      l.department_id === departmentId &&
+                      l.stage_number === stageNumber &&
+                      (l.semester || 1) === selectedSemester &&
+                      (l.study_type || 'morning') === selectedStudyType &&
+                      l.target_group === grp
+                  ).length; // 🔢 احتساب محاضرات هذا الكروب حصراً
+
+                  return (
+                    <button
+                      key={grp} // 🔑 معرف فريد للكروب
+                      type="button" // 🔘 نوع الزر للنموذج
+                      onClick={() => setSelectedGroup(grp)} // ⚡ تحديد الكروب المستقل
+                      className={`px-3.5 py-1.5 rounded-xl text-sm sm:text-base font-black cursor-pointer flex items-center gap-1.5 transition-all ${
+                        isSel
+                          ? 'bg-[#0F2942] text-white shadow-xs ring-2 ring-blue-400/30' // 🎨 تمييز الكروب المختار بالكحلي الملكي
+                          : 'text-slate-700 hover:bg-white hover:text-black' // ⚪ المظهر العادي
+                      }`}
+                    >
+                      <GroupBadgeSvg className={`w-3.5 h-3.5 ${isSel ? 'text-white' : 'text-[#0F2942]'}`} /> {/* 👥 أيقونة الكروب الفيكتورية النقية SVG */}
+                      <span>كروب {grp}</span> {/* 🔤 اسم الكروب المستقل */}
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-xs font-mono font-black border ${
+                          isSel
+                            ? 'bg-white/20 text-white border-white/30' // 🔢 لون عداد الكروب النشط
+                            : 'bg-slate-200 text-slate-700 border-slate-300' // 🔢 لون عداد الكروب العادي
+                        }`}
+                      >
+                        {grpCount}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : !studentGroup ? (
+            /* 📢 تنبيه واضح عند عدم وجود كروبات للمرحلة في وضع المعاينة العامة */
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs sm:text-sm font-black text-slate-700">
+              <span>لا يوجد كروبات لهذه المرحلة (شعبة موحدة)</span>
+            </div>
+          ) : null}
         </div>
       </div> {/* 🔒 إغلاق قسم أدوات التحكم العلوية space-y-4 */}
 
@@ -788,6 +948,12 @@ export default function StudentScheduleTimeline({
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="text-sm sm:text-base font-black text-slate-950">التقويم الأكاديمي للفصل (15 أسبوعاً)</h3>
+                  {activeGrp && activeGrp !== 'all' && (
+                    <span className="px-2.5 py-0.5 bg-[#0F2942] text-white font-black text-xs rounded-full shadow-2xs flex items-center gap-1">
+                      <GroupBadgeSvg className="w-3.5 h-3.5 text-cyan-300" /> {/* 👥 أيقونة SVG للكروب بالتقويم */}
+                      <span>جدول كروب {activeGrp}</span> {/* 🏷️ اسم الكروب بالتقويم */}
+                    </span>
+                  )}
                   <span className="px-2.5 py-0.5 bg-emerald-50 text-emerald-950 border border-emerald-400 font-black text-xs rounded-full shadow-2xs">
                     <span>الأسبوع الحالي: {currentAcademicWeek}</span>
                   </span>
@@ -1073,8 +1239,9 @@ export default function StudentScheduleTimeline({
                       </span>
                     )}
                     {dayStats.tutorialCount > 0 && (
-                      <span className="flex items-center gap-1.5 text-purple-950 bg-purple-50 border-2 border-purple-200 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-black shadow-2xs">
-                        <Users className="w-4 h-4 text-purple-900" />
+                      // 👥 شارة الحلقات النقاشية بتصميم سيان أنيق متناسق بدون أي بنفسجي
+                      <span className="flex items-center gap-1.5 text-cyan-950 bg-cyan-50 border-2 border-cyan-200 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-black shadow-2xs">
+                        <Users className="w-4 h-4 text-cyan-800" />
                         <span>{dayStats.tutorialCount} حلقة نقاشية</span>
                       </span>
                     )}
@@ -1862,16 +2029,22 @@ export default function StudentScheduleTimeline({
                         />
                       </div>
                       <h1 className="text-base sm:text-lg print:text-[12.5px] font-black text-black tracking-tight leading-tight">
-                        جدول المحاضرات الأسبوعي المعتمد
+                        جدول المحاضرات الأسبوعي المعتمد{stageGroupsList.length > 0 && selectedGroup && selectedGroup !== 'all' ? ` — كروب ${selectedGroup}` : ''} {/* 🏷️ تضمين اسم الكروب في العنوان الرسمي المطبوع */}
                       </h1>
                       <div className="text-xs print:text-[9.5px] font-black text-black mt-0.5 print:mt-0">
-                        العام الدراسي {resolvedAcademicYear}
+                        العام الدراسي {resolvedAcademicYear} {/* 🗓️ العام الدراسي المعتمد */}
                       </div>
                     </div>
 
                     {/* بيانات الجدول - يسار */}
                     <div className="text-left space-y-1 print:space-y-0.5 text-xs print:text-[9px] font-black text-black font-sans leading-tight">
-                      <div><span>المرحلة:</span> <strong className="text-black font-black">المرحلة {getStageNameInArabic(stageNumber)}</strong></div>
+                      <div>
+                        <span>المرحلة:</span>{' '}
+                        <strong className="text-black font-black">
+                          المرحلة {getStageNameInArabic(stageNumber)}
+                          {stageGroupsList.length > 0 && selectedGroup && selectedGroup !== 'all' ? ` (كروب ${selectedGroup})` : ' (شعبة موحدة)'} {/* 📌 إبراز الكروب أو الشعبة الموحدة */}
+                        </strong>
+                      </div>
                       <div><span>الكورس:</span> <strong className="text-black font-black">الكورس {selectedSemester === 1 ? 'الأول' : 'الثاني'}</strong></div>
                       <div><span>الدراسة:</span> <strong className="text-black font-black">{selectedStudyType === 'morning' ? 'الصباحية' : 'المسائية'}</strong></div>
                       <div className="flex items-center gap-1.5 print:gap-1">

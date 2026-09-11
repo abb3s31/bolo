@@ -780,32 +780,34 @@ export const DepartmentAssignmentsTab: React.FC<DepartmentAssignmentsTabProps> =
 
                         <td className="p-4 font-black text-slate-950 text-base sm:text-lg whitespace-nowrap">
                           <span className="inline-flex items-center gap-2.5">
-                            <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-900 flex items-center justify-center shrink-0 border border-indigo-200">
-                              <BookOpen className="w-4.5 h-4.5 text-indigo-700" />
+                            {/* 📖 أيقونة المادة الدراسية بلون أزرق بحري متناسق بدون أي بنفسجي */}
+                            <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-900 flex items-center justify-center shrink-0 border border-blue-200">
+                              <BookOpen className="w-4.5 h-4.5 text-blue-700" />
                             </div>
                             <span className="text-slate-950 font-black text-base sm:text-lg">{tc.course_name}</span>
                           </span>
                         </td>
 
                         <td className="p-4 text-center whitespace-nowrap">
+                          {/* 🏷️ شارة طبيعة التكليف بتصميم متناسق وخالي من اللون البنفسجي */}
                           <span className={`px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-black border shadow-2xs whitespace-nowrap inline-flex items-center gap-1.5 ${
-                            tc.role_in_course === 'practical'
-                              ? 'bg-emerald-100 text-emerald-950 border-emerald-300'
-                              : tc.role_in_course === 'both'
-                              ? 'bg-purple-100 text-purple-950 border-purple-300'
-                              : 'bg-blue-100 text-blue-950 border-blue-300'
+                            tc.role_in_course === 'practical' // 🧪 فحص إذا كان التكليف عملي فقط
+                              ? 'bg-emerald-100 text-emerald-950 border-emerald-300' // 🟢 أخضر زمردي للعملي
+                              : tc.role_in_course === 'both' // 📚 فحص إذا كان مكلف بالنظري والعملي معاً
+                              ? 'bg-cyan-100 text-cyan-950 border-cyan-300' // 🌊 سيان سماوي أنيق وفاخر بديل البنفسجي
+                              : 'bg-blue-100 text-blue-950 border-blue-300' // 🔵 أزرق للنظري فقط
                           }`}>
-                            {tc.role_in_course === 'practical' ? (
+                            {tc.role_in_course === 'practical' ? ( // 🔍 إذا كان عملي
                               <>
                                 <FlaskConical className="w-3.5 h-3.5 text-emerald-800 shrink-0" />
                                 <span>مكلف عملي فقط</span>
                               </>
-                            ) : tc.role_in_course === 'both' ? (
+                            ) : tc.role_in_course === 'both' ? ( // 🔍 إذا كان نظري وعملي معاً
                               <>
-                                <Layers className="w-3.5 h-3.5 text-purple-800 shrink-0" />
+                                <Layers className="w-3.5 h-3.5 text-cyan-800 shrink-0" />
                                 <span>مكلف نظري وعملي</span>
                               </>
-                            ) : (
+                            ) : ( // 🔍 إذا كان نظري فقط
                               <>
                                 <BookOpen className="w-3.5 h-3.5 text-blue-800 shrink-0" />
                                 <span>مكلف نظري فقط</span>

@@ -2,7 +2,7 @@
 // 🛡️ التزام نمطي صارم بدون any أو unknown مع توثيق عراقي تفصيلي لكل سطر
 
 import { useState, useMemo, useRef, useCallback } from 'react'; // ⚛️ استيراد خطافات رياكت
-import type { Course, CourseType, AssessmentScheme, UserProfile, TeacherCourse } from '@/types'; // 📚 استيراد واجهات المواد والأساتذة
+import type { Course, CourseType, AssessmentScheme, UserProfile, TeacherCourse, Department } from '@/types'; // 📚 استيراد واجهات المواد والأساتذة والأقسام
 import type { DepartmentDeleteModalConfig, ImportSummaryReport, QuickAssignState, RoundActionConfirmation } from '../types'; // 🏷️ استيراد واجهات البوابة المشتركة
 import { calculateSmartDropdownPosition, type SmartDropdownPosition } from '../dropdownUtils'; // 📐 حساب الموضع الذكي للقائمة
 import { saveStoredData, getAcademicYear } from '@/lib/mock-data'; // 💾 حفظ البيانات محلياً والحصول على السنة
@@ -24,6 +24,7 @@ export interface UseDepartmentCoursesProps {
   setTeacherCourses: React.Dispatch<React.SetStateAction<TeacherCourse[]>>; // 🔄 دالة تحديث التكليفات
   currentHead?: UserProfile; // 👤 رئيس القسم
   currentRap?: UserProfile; // 👤 مقرر القسم
+  currentDepartment?: Department; // 🏢 بيانات القسم الأكاديمي الحالي
   setSuccessMessage: (msg: string) => void; // ✨ دالة إشعار النجاح
   setErrorMessage: (msg: string) => void; // ⚠️ دالة إشعار الخطأ
   setDeleteModalConfig: React.Dispatch<React.SetStateAction<DepartmentDeleteModalConfig>>; // 🗑️ دالة إعداد نافذة الحذف
@@ -41,6 +42,7 @@ export const useDepartmentCourses = ({
   setTeacherCourses, // 🔄 تحديث التكليفات
   currentHead, // 👤 رئيس القسم
   currentRap, // 👤 مقرر القسم
+  currentDepartment, // 🏢 بيانات القسم الأكاديمي الحالي
   setSuccessMessage, // ✨ رسالة النجاح
   setErrorMessage, // ⚠️ رسالة الخطأ
   setDeleteModalConfig, // 🗑️ نافذة الحذف
@@ -171,27 +173,27 @@ export const useDepartmentCourses = ({
   const isBulkSupOpen = activeTargetRoundCourses.length > 0 && supOpenCount === activeTargetRoundCourses.length;
   const isBulkSupPartial = supOpenCount > 0 && supOpenCount < activeTargetRoundCourses.length;
 
-  // 👨‍🏫 فتح وإغلاق قائمة أستاذ النظري بحساب ذكي
-  const handleToggleCourseTheoryDropdown = () => {
-    if (!isCourseTheoryDropdownOpen && theoryTeacherBtnRef.current) {
-      setTheoryTeacherCoords(calculateSmartDropdownPosition(theoryTeacherBtnRef.current, 220));
-      setIsCourseTheoryDropdownOpen(true);
-      setIsCoursePracticalDropdownOpen(false);
-    } else {
-      setIsCourseTheoryDropdownOpen(false);
-    }
-  };
+  // 👨‍🏫 فتح وإغلاق قائمة أستاذ النظري بحساب ذكي يستوعب حقل البحث
+  const handleToggleCourseTheoryDropdown = () => { // 🔄 دالة فتح وغلق منسدلة أستاذ النظري
+    if (!isCourseTheoryDropdownOpen && theoryTeacherBtnRef.current) { // 🔍 إذا القائمة مسدودة وعندنا مرجع الزر
+      setTheoryTeacherCoords(calculateSmartDropdownPosition(theoryTeacherBtnRef.current, 280)); // 📐 نحسب موضع المنسدلة الذكي بارتفاع 280 بكسل للبحث واللستة
+      setIsCourseTheoryDropdownOpen(true); // 📂 نفتح قائمة النظري
+      setIsCoursePracticalDropdownOpen(false); // ❌ نسد قائمة العملي حتى ما يتداخلن
+    } else { // ⬅️ إذا جانت مفتوحة أصلاً
+      setIsCourseTheoryDropdownOpen(false); // 🔒 نسد قائمة النظري
+    } // 🔚 نهاية شرط التبديل
+  }; // 🔚 نهاية دالة فتح النظري
 
-  // 🧪 فتح وإغلاق قائمة أستاذ العملي بحساب ذكي
-  const handleToggleCoursePracticalDropdown = () => {
-    if (!isCoursePracticalDropdownOpen && practicalTeacherBtnRef.current) {
-      setPracticalTeacherCoords(calculateSmartDropdownPosition(practicalTeacherBtnRef.current, 220));
-      setIsCoursePracticalDropdownOpen(true);
-      setIsCourseTheoryDropdownOpen(false);
-    } else {
-      setIsCoursePracticalDropdownOpen(false);
-    }
-  };
+  // 🧪 فتح وإغلاق قائمة أستاذ العملي بحساب ذكي يستوعب حقل البحث
+  const handleToggleCoursePracticalDropdown = () => { // 🔄 دالة فتح وغلق منسدلة أستاذ العملي
+    if (!isCoursePracticalDropdownOpen && practicalTeacherBtnRef.current) { // 🔍 إذا القائمة مسدودة وعندنا مرجع الزر
+      setPracticalTeacherCoords(calculateSmartDropdownPosition(practicalTeacherBtnRef.current, 280)); // 📐 نحسب موضع المنسدلة الذكي بارتفاع 280 بكسل للبحث واللستة
+      setIsCoursePracticalDropdownOpen(true); // 📂 نفتح قائمة العملي
+      setIsCourseTheoryDropdownOpen(false); // ❌ نسد قائمة النظري حتى ما تتداخل
+    } else { // ⬅️ إذا جانت مفتوحة أصلاً
+      setIsCoursePracticalDropdownOpen(false); // 🔒 نسد قائمة العملي
+    } // 🔚 نهاية شرط التبديل
+  }; // 🔚 نهاية دالة فتح العملي
 
   // ⚡ تنفيذ تأكيد فتح أو إغلاق الامتحان بعد موافقة المستخدم بكارد المادة
   const handleConfirmExamToggle = () => {
@@ -311,48 +313,83 @@ export const useDepartmentCourses = ({
       return c;
     });
 
-    let updatedTCs = [...teacherCourses];
-    let newOrUpdatedTC: TeacherCourse | null = null;
+    let updatedTCs: TeacherCourse[] = [...teacherCourses]; // 📋 استنساخ لستة التكليفات الحالية للتعديل عليها
+    let newOrUpdatedTC: TeacherCourse | null = null; // 📦 السجل الجديد أو المحدث لحفظه سحابياً
 
-    if (!teacherIdToAssign) {
-      const removedTCs = updatedTCs.filter(
-        (tc) => tc.course_id === targetCourse.id && (tc.role_in_course === role || tc.role_in_course === 'both')
+    if (!teacherIdToAssign) { // 🚫 إذا المقرر يريد يلغي تكليف هالدور (نظري أو عملي)
+      const removedTCs: TeacherCourse[] = updatedTCs.filter( // 🔍 نجيب التكليفات المتأثرة بالإلغاء
+        (tc: TeacherCourse): boolean => tc.course_id === targetCourse.id && (tc.role_in_course === role || tc.role_in_course === 'both')
       );
-      removedTCs.forEach((tc) => {
-        deleteTeacherCourseFromSupabase(tc.id);
+      removedTCs.forEach((tc: TeacherCourse) => { // 🔄 نفتر على التكليفات الملغية
+        if (tc.role_in_course === 'both') { // 🌟 إذا الأستاذ كان مكلف نظري وعملي ولغينا واحد منهم بس
+          const otherRole: 'theory' | 'practical' = role === 'theory' ? 'practical' : 'theory'; // 🏷️ نحوله للدور الثاني الباقي
+          const downgradedTC: TeacherCourse = { ...tc, role_in_course: otherRole }; // 📝 تعديل السجل
+          saveTeacherCourseToSupabase(downgradedTC); // ☁️ حفظ التعديل بسوبابيس
+        } else { // 🗑️ إذا كان بس بهالدور نحذفه نهائياً
+          deleteTeacherCourseFromSupabase(tc.id); // ☁️ حذفه من سوبابيس
+        }
       });
-      updatedTCs = updatedTCs.filter(
-        (tc) => !(tc.course_id === targetCourse.id && (tc.role_in_course === role || tc.role_in_course === 'both'))
-      );
-    } else {
-      const existingAssignmentIndex = updatedTCs.findIndex(
-        (tc) => tc.course_id === targetCourse.id && tc.teacher_id === teacherIdToAssign
+      updatedTCs = updatedTCs.map((tc: TeacherCourse): TeacherCourse => { // 🔄 تحديث الخريطة المحلية
+        if (tc.course_id === targetCourse.id && tc.role_in_course === 'both') { // 🌟 تحويل المشترك للمتبقي
+          const otherRole: 'theory' | 'practical' = role === 'theory' ? 'practical' : 'theory'; // 🏷️ الدور المتبقي
+          return { ...tc, role_in_course: otherRole }; // 📦 إرجاع السجل المعدل
+        }
+        return tc; // 📋 إبقاء البقية كما هي
+      }).filter((tc: TeacherCourse): boolean => !(tc.course_id === targetCourse.id && tc.role_in_course === role)); // 🧹 فلترة المحذوف
+    } else { // ✅ تم اختيار أستاذ جديد لتكليفه
+      // فحص إذا اكو أستاذ قديم كان مكلف بهالدور ومختلف عن الجديد لنفس المادة
+      const prevTeacherId: string | undefined = role === 'theory' ? targetCourse.theory_teacher_id : targetCourse.practical_teacher_id; // 🔑 أيدي الأستاذ السابق
+      if (prevTeacherId && prevTeacherId !== teacherIdToAssign) { // 🔍 إذا اكو أستاذ قديم وتم استبداله
+        const prevAssignments: TeacherCourse[] = updatedTCs.filter( // 📑 نجيب تكليفات الأستاذ القديم
+          (tc: TeacherCourse): boolean => tc.course_id === targetCourse.id && tc.teacher_id === prevTeacherId
+        );
+        prevAssignments.forEach((prevTC: TeacherCourse) => { // 🔄 معالجة تكليف الأستاذ القديم
+          if (prevTC.role_in_course === 'both') { // 🌟 إذا كان مكلف بالاثنين سوية
+            const otherRole: 'theory' | 'practical' = role === 'theory' ? 'practical' : 'theory'; // 🏷️ يبقى مكلف بالدور الثاني
+            const downgradedTC: TeacherCourse = { ...prevTC, role_in_course: otherRole }; // 📝 تحديث دوره
+            saveTeacherCourseToSupabase(downgradedTC); // ☁️ حفظ التحديث بسوبابيس
+          } else { // 🗑️ إذا كان مكلف بس بهذا الدور نحذفه
+            deleteTeacherCourseFromSupabase(prevTC.id); // ☁️ حذف من سوبابيس
+          }
+        });
+        updatedTCs = updatedTCs.map((tc: TeacherCourse): TeacherCourse => { // 🔄 تحديث القائمة المحلية للأستاذ القديم
+          if (tc.course_id === targetCourse.id && tc.teacher_id === prevTeacherId && tc.role_in_course === 'both') {
+            const otherRole: 'theory' | 'practical' = role === 'theory' ? 'practical' : 'theory';
+            return { ...tc, role_in_course: otherRole };
+          }
+          return tc;
+        }).filter((tc: TeacherCourse): boolean => !(tc.course_id === targetCourse.id && tc.teacher_id === prevTeacherId && tc.role_in_course === role));
+      }
+
+      // هسه نعالج الأستاذ الجديد المختار
+      const existingAssignmentIndex: number = updatedTCs.findIndex( // 🔍 فحص إذا الأستاذ الجديد مسجل مسبقاً بهالمادة
+        (tc: TeacherCourse): boolean => tc.course_id === targetCourse.id && tc.teacher_id === teacherIdToAssign
       );
 
-      if (existingAssignmentIndex >= 0) {
-        const cur = updatedTCs[existingAssignmentIndex];
-        const mergedRole: 'theory' | 'practical' | 'both' = (cur.role_in_course && cur.role_in_course !== role) ? 'both' : role;
-        const editedTC: TeacherCourse = {
+      if (existingAssignmentIndex >= 0) { // ✅ إذا الأستاذ عنده تكليف موجود مسبقاً
+        const cur: TeacherCourse = updatedTCs[existingAssignmentIndex]; // 📋 جلب السجل الحالي
+        const mergedRole: 'theory' | 'practical' | 'both' = (cur.role_in_course && cur.role_in_course !== role) ? 'both' : role; // 🌟 دمج الدور ليصير نظري وعملي إذا مختلف
+        const editedTC: TeacherCourse = { // 📦 بناء السجل المحدث
           ...cur,
-          role_in_course: mergedRole,
-          teacher_name: selectedTeacher?.full_name || cur.teacher_name,
+          role_in_course: mergedRole, // 🏷️ الدور المدمج
+          teacher_name: selectedTeacher?.full_name || cur.teacher_name, // 👤 اسم الأستاذ المحدث
         };
-        updatedTCs[existingAssignmentIndex] = editedTC;
-        newOrUpdatedTC = editedTC;
-      } else {
-        const newTC: TeacherCourse = {
-          id: `tc-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-          teacher_id: teacherIdToAssign,
-          teacher_name: selectedTeacher?.full_name || 'أستاذ المادة',
-          course_id: targetCourse.id,
-          course_name: targetCourse.name,
-          department_id: targetCourse.department_id || currentDeptId,
-          role_in_course: role,
-          semester: targetCourse.semester || 1,
-          created_at: new Date().toISOString(),
+        updatedTCs[existingAssignmentIndex] = editedTC; // 💾 تحديثه بالقائمة
+        newOrUpdatedTC = editedTC; // 🚀 حفظه ككائن محدث
+      } else { // ➕ إذا الأستاذ أول مرة يتكلف بهالمادة نسويله سجل جديد
+        const newTC: TeacherCourse = { // 📝 بناء سجل التكليف الجديد
+          id: `tc-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`, // 🆔 معرف فريد
+          teacher_id: teacherIdToAssign, // 🔑 معرف الأستاذ
+          teacher_name: selectedTeacher?.full_name || 'أستاذ المادة', // 👤 اسمه الكامل
+          course_id: targetCourse.id, // 📖 معرف المادة
+          course_name: targetCourse.name, // 📖 اسم المادة
+          department_id: targetCourse.department_id || currentDeptId, // 🏢 معرف القسم
+          role_in_course: role, // 🏷️ صفة التكليف
+          semester: targetCourse.semester || 1, // 🗓️ الفصل
+          created_at: new Date().toISOString(), // ⏰ تاريخ الإنشاء
         };
-        updatedTCs.push(newTC);
-        newOrUpdatedTC = newTC;
+        updatedTCs.push(newTC); // ➕ إضافته للقائمة
+        newOrUpdatedTC = newTC; // 🚀 حفظه للحفظ السحابي
       }
     }
 
@@ -514,9 +551,11 @@ export const useDepartmentCourses = ({
         };
       });
 
-      const collegeName = 'كلية تكنولوجيا المعلومات';
-      const headName = currentHead?.full_name || 'رئاسة القسم العلمي';
-      const rappName = currentRap?.full_name || 'مقررية القسم العلمي';
+      const collegeName = 'كلية تكنولوجيا المعلومات'; // 🏛️ اسم الكلية الرسمي
+      // 👤 جلب الاسم الفعلي لرئيس القسم العلمي مع فحص كل المصادر المتاحة
+      const headName = currentHead?.full_name?.trim() || currentDepartment?.head_name?.trim() || profiles.find((p: UserProfile): boolean => p.role === 'department_head' && p.department_id === currentDeptId)?.full_name?.trim() || 'رئيس القسم العلمي';
+      // 👤 جلب الاسم الفعلي لمقرر القسم العلمي مع فحص كل المصادر المتاحة
+      const rappName = currentRap?.full_name?.trim() || currentDepartment?.rapporteur_name?.trim() || profiles.find((p: UserProfile): boolean => p.role === 'rapporteur' && p.department_id === currentDeptId)?.full_name?.trim() || 'مقرر القسم العلمي';
 
       await exportDepartmentCoursesPDF({
         departmentName: deptName,
@@ -828,53 +867,96 @@ export const useDepartmentCourses = ({
       setSuccessMessage('تمت إضافة المادة الدراسية في بداية قائمة القسم وتوثيقها سحابياً بنجاح!');
     }
 
-    if (targetCourseId) {
-      const otherCourseTCs = teacherCourses.filter((tc: TeacherCourse): boolean => tc.course_id !== targetCourseId);
-      const thisCourseTCs = teacherCourses.filter((tc: TeacherCourse): boolean => tc.course_id === targetCourseId);
-      const updatedThisCourseMap = new Map<string, TeacherCourse>();
+    if (targetCourseId) { // 🔍 فحص إذا المادة تملك معرف صالح للتكليفات
+      const isPractical: boolean = courseType === 'theory_and_practical'; // 🔬 هل المادة تحتوي على جانب عملي ومختبر؟
+      const activeTheoryId: string | null = theoryTeacher ? theoryTeacher.id : null; // 🔑 أيدي أستاذ النظري المختار
+      const activePracticalId: string | null = (isPractical && practicalTeacher) ? practicalTeacher.id : null; // 🔑 أيدي أستاذ العملي المختار
 
-      thisCourseTCs.forEach((tc: TeacherCourse) => {
-        updatedThisCourseMap.set(tc.teacher_id, tc);
+      const otherCourseTCs: TeacherCourse[] = teacherCourses.filter((tc: TeacherCourse): boolean => tc.course_id !== targetCourseId); // 📋 استثناء تكليفات المواد الأخرى
+      const thisCourseTCs: TeacherCourse[] = teacherCourses.filter((tc: TeacherCourse): boolean => tc.course_id === targetCourseId); // 📋 جلب تكليفات هذه المادة الحالية
+
+      // 🧹 حذف التكليفات المعلقة لأساتذة تم تغييرهم واستبدالهم ولم يعودوا يدرسون هذه المادة
+      const orphanAssignments: TeacherCourse[] = thisCourseTCs.filter( // 🔍 استخراج التكليفات الزائدة
+        (tc: TeacherCourse): boolean => tc.teacher_id !== activeTheoryId && tc.teacher_id !== activePracticalId
+      );
+      orphanAssignments.forEach((tc: TeacherCourse) => { // 🔄 المرور على التكليفات القديمة
+        deleteTeacherCourseFromSupabase(tc.id); // ☁️ حذف التكليف القديم سحابياً لمنع رجوعه
       });
 
-      if (theoryTeacher) {
-        const existingTh = updatedThisCourseMap.get(theoryTeacher.id);
-        const role: 'theory' | 'both' = (practicalTeacher && practicalTeacher.id === theoryTeacher.id) ? 'both' : (existingTh?.role_in_course === 'practical' ? 'both' : 'theory');
-        const thRecord: TeacherCourse = {
-          id: existingTh ? existingTh.id : `tc-th-${targetCourseId}-${theoryTeacher.id}`,
-          teacher_id: theoryTeacher.id,
-          teacher_name: theoryTeacher.full_name,
-          course_id: targetCourseId,
-          course_name: courseName.trim(),
-          department_id: currentDeptId,
-          role_in_course: role,
-          semester: courseSemester,
-          created_at: new Date().toISOString(),
+      const updatedCourseTCs: TeacherCourse[] = []; // 📦 قائمة التكليفات الجديدة النظيفة لهذه المادة
+
+      // 🌟 الحالة الأولى: الأستاذ نفسه مكلف بالنظري والعملي معاً في مادة عملية
+      if (theoryTeacher && practicalTeacher && activeTheoryId === activePracticalId && isPractical) { // 🎯 تطابق أستاذ النظري والعملي
+        const existingForTeacher: TeacherCourse[] = thisCourseTCs.filter((tc: TeacherCourse): boolean => tc.teacher_id === activeTheoryId); // 🔍 جلب سجلات الأستاذ السابقة
+        if (existingForTeacher.length > 1) { // ⚠️ إذا كان عنده أكثر من سجل قديم (نظري منفصل وعملي منفصل)
+          existingForTeacher.slice(1).forEach((extra: TeacherCourse) => { // 🔄 المرور على السجلات الزائدة
+            deleteTeacherCourseFromSupabase(extra.id); // ☁️ حذف السجلات الزائدة من السحابة
+          });
+        }
+        const consolidatedTC: TeacherCourse = { // 📦 بناء السجل الموحد الشامل للنظري والعملي
+          id: existingForTeacher[0] ? existingForTeacher[0].id : `tc-both-${targetCourseId}-${activeTheoryId}`, // 🆔 اعتماد معرف السجل الأول أو توليد معرف جديد
+          teacher_id: theoryTeacher.id, // 🔑 معرف الأستاذ
+          teacher_name: theoryTeacher.full_name, // 👤 اسم الأستاذ
+          course_id: targetCourseId, // 📖 معرف المادة
+          course_name: courseName.trim(), // 📖 اسم المادة
+          department_id: currentDeptId, // 🏢 معرف القسم
+          role_in_course: 'both', // 🌟 صفة التكليف: نظري وعملي معاً
+          semester: courseSemester || 1, // 🗓️ الفصل الدراسي
+          created_at: existingForTeacher[0]?.created_at || new Date().toISOString(), // ⏰ تاريخ التكليف
         };
-        updatedThisCourseMap.set(theoryTeacher.id, thRecord);
-        saveTeacherCourseToSupabase(thRecord);
+        saveTeacherCourseToSupabase(consolidatedTC); // ☁️ حفظ السجل الموحد في السحابة
+        updatedCourseTCs.push(consolidatedTC); // ➕ إضافته لقائمة تكليفات المادة
+      } else { // 🌟 الحالة الثانية: أساتذة مختلفون أو مادة نظري فقط
+        // أستاذ النظري
+        if (theoryTeacher) { // 📘 إذا تم اختيار أستاذ نظري
+          const existingTh: TeacherCourse[] = thisCourseTCs.filter((tc: TeacherCourse): boolean => tc.teacher_id === theoryTeacher.id); // 🔍 فحص سجلات الأستاذ السابقة
+          if (existingTh.length > 1) { // ⚠️ تنظيف أي تكرار
+            existingTh.slice(1).forEach((extra: TeacherCourse) => { // 🔄 المرور على الزائد
+              deleteTeacherCourseFromSupabase(extra.id); // ☁️ حذف من السحابة
+            });
+          }
+          const thRecord: TeacherCourse = { // 📝 بناء سجل تكليف النظري
+            id: existingTh[0] ? existingTh[0].id : `tc-th-${targetCourseId}-${theoryTeacher.id}`, // 🆔 معرف التكليف
+            teacher_id: theoryTeacher.id, // 🔑 معرف الأستاذ
+            teacher_name: theoryTeacher.full_name, // 👤 اسم الأستاذ
+            course_id: targetCourseId, // 📖 معرف المادة
+            course_name: courseName.trim(), // 📖 اسم المادة
+            department_id: currentDeptId, // 🏢 معرف القسم
+            role_in_course: 'theory', // 🏷️ صفة التكليف: نظري فقط
+            semester: courseSemester || 1, // 🗓️ الفصل الدراسي
+            created_at: existingTh[0]?.created_at || new Date().toISOString(), // ⏰ تاريخ التكليف
+          };
+          saveTeacherCourseToSupabase(thRecord); // ☁️ حفظ التكليف بالسحابة
+          updatedCourseTCs.push(thRecord); // ➕ إضافة التكليف
+        }
+
+        // أستاذ العملي
+        if (isPractical && practicalTeacher) { // 🔬 إذا تم اختيار أستاذ عملي
+          const existingPr: TeacherCourse[] = thisCourseTCs.filter((tc: TeacherCourse): boolean => tc.teacher_id === practicalTeacher.id); // 🔍 فحص سجلات الأستاذ السابقة
+          if (existingPr.length > 1) { // ⚠️ تنظيف أي تكرار
+            existingPr.slice(1).forEach((extra: TeacherCourse) => { // 🔄 المرور على الزائد
+              deleteTeacherCourseFromSupabase(extra.id); // ☁️ حذف من السحابة
+            });
+          }
+          const prRecord: TeacherCourse = { // 📝 بناء سجل تكليف العملي
+            id: existingPr[0] ? existingPr[0].id : `tc-pr-${targetCourseId}-${practicalTeacher.id}`, // 🆔 معرف التكليف
+            teacher_id: practicalTeacher.id, // 🔑 معرف الأستاذ
+            teacher_name: practicalTeacher.full_name, // 🧪 اسم الأستاذ
+            course_id: targetCourseId, // 📖 معرف المادة
+            course_name: courseName.trim(), // 📖 اسم المادة
+            department_id: currentDeptId, // 🏢 معرف القسم
+            role_in_course: 'practical', // 🏷️ صفة التكليف: عملي فقط
+            semester: courseSemester || 1, // 🗓️ الفصل الدراسي
+            created_at: existingPr[0]?.created_at || new Date().toISOString(), // ⏰ تاريخ التكليف
+          };
+          saveTeacherCourseToSupabase(prRecord); // ☁️ حفظ التكليف بالسحابة
+          updatedCourseTCs.push(prRecord); // ➕ إضافة التكليف
+        }
       }
 
-      if (practicalTeacher && practicalTeacher.id !== theoryTeacher?.id) {
-        const existingPr = updatedThisCourseMap.get(practicalTeacher.id);
-        const prRecord: TeacherCourse = {
-          id: existingPr ? existingPr.id : `tc-pr-${targetCourseId}-${practicalTeacher.id}`,
-          teacher_id: practicalTeacher.id,
-          teacher_name: practicalTeacher.full_name,
-          course_id: targetCourseId,
-          course_name: courseName.trim(),
-          department_id: currentDeptId,
-          role_in_course: 'practical',
-          semester: courseSemester,
-          created_at: new Date().toISOString(),
-        };
-        updatedThisCourseMap.set(practicalTeacher.id, prRecord);
-        saveTeacherCourseToSupabase(prRecord);
-      }
-
-      const mergedTCs = [...otherCourseTCs, ...Array.from(updatedThisCourseMap.values())];
-      setTeacherCourses(mergedTCs);
-      saveStoredData('teacher_courses', mergedTCs);
+      const mergedTCs: TeacherCourse[] = [...otherCourseTCs, ...updatedCourseTCs]; // 📑 دمج تكليفات المواد الأخرى مع تكليفات هالمادة المحدثة
+      setTeacherCourses(mergedTCs); // 💾 تحديث الحالة في واجهة React
+      saveStoredData('teacher_courses', mergedTCs); // 💾 حفظ التكليفات في التخزين المحلي
     }
 
     if (typeof window !== 'undefined') {

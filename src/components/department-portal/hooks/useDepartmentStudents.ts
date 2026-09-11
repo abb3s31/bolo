@@ -1,8 +1,8 @@
 // 🎓 خطاف مخصص لإدارة شؤون طلبة القسم (إضافة، تعديل، حذف، ترقية، استيراد وتصدير إكسل، معالجة تكرار البريد)
 // 🛡️ التزام نمطي صارم بدون any أو unknown مع توثيق عراقي تفصيلي لكل سطر
 
-import { useState, useMemo, useRef } from 'react'; // ⚛️ استيراد خطافات رياكت الأساسية
-import type { UserProfile } from '@/types'; // 📚 استيراد واجهة المستخدم الأكاديمي
+import { useState, useMemo, useRef, useEffect } from 'react'; // ⚛️ استيراد خطافات رياكت الأساسية
+import type { UserProfile, StageGroupConfig } from '@/types'; // 📚 استيراد واجهة المستخدم الأكاديمي وإعدادات الكروبات
 import type { DepartmentDeleteModalConfig, ImportSummaryReport } from '../types'; // 🏷️ استيراد واجهات البوابة المشتركة
 import { calculateSmartDropdownPosition, type SmartDropdownPosition } from '../dropdownUtils'; // 📐 حساب الموضع الذكي للقائمة
 import { saveStoredData, generateStrongUniqueEmail, generateStrongPassword } from '@/lib/mock-data'; // 💾 حفظ البيانات ومولدات الحسابات
@@ -11,6 +11,7 @@ import { saveProfileToSupabase, deleteProfileFromSupabase } from '@/lib/supabase
 import { detectArabicGender } from '@/lib/demographics-utils'; // 🚻 خوارزمية كشف الجنس من الاسم العربي
 import { downloadDepartmentStudentsTemplate, parseExcelFile, exportCustomStudentsList } from '@/lib/excel-utils'; // 📊 دوال التعامل مع الإكسل
 import { sendAppNotification } from '@/lib/notification-utils'; // 🔔 مركز الإشعارات
+import { fetchStageGroupConfigs, saveStageGroupConfig, INITIAL_STAGE_GROUP_CONFIGS } from '@/lib/groups-service'; // 🛠️ خدمة الكروبات والشعب
 
 // 📋 واجهة مدخلات خطاف طلاب القسم
 export interface UseDepartmentStudentsProps {
@@ -42,6 +43,7 @@ export const useDepartmentStudents = ({
   const [studentStage, setStudentStage] = useState<number | null>(null); // 🎓 المرحلة الدراسية (1-4)
   const [studentGender, setStudentGender] = useState<'male' | 'female' | null>(null); // 🚻 الجنس
   const [studentStudyType, setStudentStudyType] = useState<'morning' | 'evening' | null>(null); // ☀️ الفترة (صباحي / مسائي)
+  const [studentGroup, setStudentGroup] = useState<string>(''); // 🏷️ كروب الطالب المختار (A, B, C, D أو فارغ للشعبة العامة)
   const [customStudentEmail, setCustomStudentEmail] = useState<string>(''); // ✉️ البريد المخصص
   const [customStudentPassword, setCustomStudentPassword] = useState<string>(''); // 🔑 الرمز المخصص
   const [showStudentPassword, setShowStudentPassword] = useState<boolean>(false); // 👁️ إظهار أو إخفاء الرمز
@@ -49,10 +51,31 @@ export const useDepartmentStudents = ({
   const [isStudentModalOpen, setIsStudentModalOpen] = useState<boolean>(false); // 📦 حالة فتح نافذة الطالب
   const [studentNameError, setStudentNameError] = useState<string>(''); // ⚠️ خطأ التحقق من الاسم
 
+  // 🏷️ حالات وإعدادات كروبات المراحل لرئيس ومقرر القسم
+  const [filterStudentGroup, setFilterStudentGroup] = useState<string>('all'); // 🏷️ فلتر الكروب (الكل، A, B, C, D، عامة)
+  const [stageGroupConfigs, setStageGroupConfigs] = useState<StageGroupConfig[]>(INITIAL_STAGE_GROUP_CONFIGS); // 📋 إعدادات كروبات المراحل
+  const [isStageGroupModalOpen, setIsStageGroupModalOpen] = useState<boolean>(false); // 🪟 نافذة إدارة كروبات المراحل
+
+  // ☁️ مزامنة إعدادات كروبات المراحل للقسم من Supabase والتخزين المحلي
+  useEffect(() => {
+    if (!currentDeptId) return;
+    fetchStageGroupConfigs(currentDeptId).then((cfgs) => {
+      if (cfgs && cfgs.length > 0) {
+        setStageGroupConfigs(cfgs);
+      }
+    }).catch(() => {});
+  }, [currentDeptId]);
+
   // 🔍 حالات التصفية والبحث
   const [studentSearch, setStudentSearch] = useState<string>(''); // 🔍 نص البحث
   const [filterStudentStage, setFilterStudentStage] = useState<number | 'all'>('all'); // 🎓 فلتر المرحلة
   const [filterStudentStudyType, setFilterStudentStudyType] = useState<'all' | 'morning' | 'evening'>('all'); // ☀️ فلتر الدراسة
+
+  // 🔄 إعادة ضبط فلتر الكروب إلى 'all' تلقائياً عند تغيير المرحلة أو نوع الدوام لمنع اختفاء الطلاب
+  useEffect(() => {
+    setFilterStudentGroup('all'); // ⚡ إعادة الفلتر للكل
+    setStudentPage(1); // 📄 إعادة الصفحة إلى 1
+  }, [filterStudentStage, filterStudentStudyType]);
 
   // 📊 حالات استيراد ملفات الإكسل
   const [showStudentExcelInstructions, setShowStudentExcelInstructions] = useState<boolean>(false); // ℹ️ تعليمات الإكسل
@@ -120,9 +143,11 @@ export const useDepartmentStudents = ({
         s.generated_email.toLowerCase().includes(term);
       const matchesStage = filterStudentStage === 'all' || (s.stage_number || 1) === filterStudentStage;
       const matchesStudyType = filterStudentStudyType === 'all' || (s.study_type || 'morning') === filterStudentStudyType;
-      return matchesSearch && matchesStage && matchesStudyType;
+      const matchesGroup = filterStudentGroup === 'all' || 
+        (filterStudentGroup === 'none' ? !s.student_group : s.student_group === filterStudentGroup);
+      return matchesSearch && matchesStage && matchesStudyType && matchesGroup;
     });
-  }, [deptStudents, studentSearch, filterStudentStage, filterStudentStudyType]);
+  }, [deptStudents, studentSearch, filterStudentStage, filterStudentStudyType, filterStudentGroup]);
 
   // 🔽 دالة فتح وإغلاق قائمة المرحلة مع الحساب الذكي لموضعها
   const handleToggleStudentStageDropdown = () => {
@@ -173,6 +198,8 @@ export const useDepartmentStudents = ({
         const rawEmail = String(row['email'] || row['البريد الأكاديمي'] || '').trim();
         const rawPass = String(row['pass'] || row['كلمة المرور'] || '').trim();
         const rawStudyType = String(row['study_type'] || row['نوع الدراسة (صباحي / مسائي)'] || row['الدراسة'] || 'morning').trim();
+        const rawGroup = String(row['group'] || row['الكروب'] || row['الشعبة'] || row['الكروب / الشعبة'] || row['الكروب / الشعبة (A, B, C... اختياري)'] || '').trim().toUpperCase();
+        const cleanGroup = rawGroup ? rawGroup.replace(/^(كروب|شعبة)\s*/i, '').trim().toUpperCase() : undefined;
 
         if (!rawName || rawName.length < 3) {
           rejected.push({
@@ -231,6 +258,7 @@ export const useDepartmentStudents = ({
           stage_number: stageNum,
           stage_id: `stage-${currentDeptId}-${stageNum}`,
           study_type: detectedStudyType,
+          student_group: cleanGroup || undefined, // 🏷️ تعيين الكروب المستورد من الإكسل (مثل A, B, C...)
           university_number: `STU-${randomNum}`,
           generated_email: finalEmail,
           temp_password: finalPass,
@@ -337,6 +365,7 @@ export const useDepartmentStudents = ({
             stage_id: `stage-${currentDeptId}-${studentStage}`,
             study_type: studentStudyType,
             gender: studentGender,
+            student_group: studentGroup || undefined, // 🏷️ حفظ كروب الطالب
             generated_email: finalEmail,
             temp_password: finalPassword
           };
@@ -381,6 +410,7 @@ export const useDepartmentStudents = ({
         stage_number: studentStage,
         stage_id: `stage-${currentDeptId}-${studentStage}`,
         study_type: studentStudyType,
+        student_group: studentGroup || undefined, // 🏷️ حفظ كروب الطالب الجديد
         university_number: `STU-${randomNum}`,
         generated_email: finalEmail,
         temp_password: finalPassword,
@@ -403,6 +433,7 @@ export const useDepartmentStudents = ({
     setStudentStage(null);
     setStudentGender(null);
     setStudentStudyType(null);
+    setStudentGroup(''); // 🔄 تصفير حقل الكروب
     setCustomStudentEmail('');
     setCustomStudentPassword('');
     setStudentNameError('');
@@ -704,6 +735,58 @@ export const useDepartmentStudents = ({
     }
   };
 
+  // 💾 دالة حفظ إعداد كروب مرحلة معينة في سوبابيز والتخزين المحلي
+  const handleSaveStageGroupConfig = async (updatedConfig: StageGroupConfig): Promise<boolean> => {
+    const success = await saveStageGroupConfig(updatedConfig);
+    if (success) {
+      setStageGroupConfigs((prev) => {
+        const idx = prev.findIndex((c) => c.id === updatedConfig.id);
+        if (idx >= 0) {
+          const next = [...prev];
+          next[idx] = updatedConfig;
+          return next;
+        }
+        return [...prev, updatedConfig];
+      });
+      setSuccessMessage('تم حفظ وتحديث إعدادات الكروبات للمرحلة بنجاح! ⚙️');
+      setTimeout(() => setSuccessMessage(''), 3500);
+    }
+    return success;
+  };
+
+  // 👥 دالة التحديث الجماعي لكروبات الطلاب (توزيع متوازن أو نقل)
+  const handleUpdateStudentsGroupBatch = (assignments: Record<string, string>) => {
+    const updatedProfiles = profiles.map((p) => {
+      if (assignments[p.id] !== undefined) {
+        const updatedStd: UserProfile = {
+          ...p,
+          student_group: assignments[p.id] || undefined,
+        };
+        saveProfileToSupabase(updatedStd); // ☁️ مزامنة سحابية
+        return updatedStd;
+      }
+      return p;
+    });
+
+    setProfiles(updatedProfiles);
+    saveStoredData('profiles', updatedProfiles);
+    setSuccessMessage('تم تحديث وتوزيع كروبات الطلاب بنجاح ومزامنتها سحابياً! 👥');
+    setTimeout(() => setSuccessMessage(''), 4000);
+  };
+
+  // 🔀 دالة تعيين كروب جماعي للطلبة المحددين
+  const handleBulkAssignGroup = (targetGroup: string) => {
+    if (selectedStudentIds.length === 0) return;
+    const assignments: Record<string, string> = {};
+    selectedStudentIds.forEach((id) => {
+      assignments[id] = targetGroup;
+    });
+    handleUpdateStudentsGroupBatch(assignments);
+    setSelectedStudentIds([]);
+    setSuccessMessage(`تم نقل وتعيين (${selectedStudentIds.length}) طالب إلى كروب ${targetGroup || 'العام'} بنجاح! 🏷️`);
+    setTimeout(() => setSuccessMessage(''), 3500);
+  };
+
   return {
     // 👤 حالات الطالب
     studentName,
@@ -714,6 +797,8 @@ export const useDepartmentStudents = ({
     setStudentGender,
     studentStudyType,
     setStudentStudyType,
+    studentGroup, // 🏷️ كروب الطالب الحالي
+    setStudentGroup, // 🔄 تحديد كروب الطالب
     customStudentEmail,
     setCustomStudentEmail,
     customStudentPassword,
@@ -726,6 +811,14 @@ export const useDepartmentStudents = ({
     setIsStudentModalOpen,
     studentNameError,
     setStudentNameError,
+
+    // 🏷️ حالات وإعدادات كروبات المراحل
+    filterStudentGroup, // 🏷️ فلتر الكروب
+    setFilterStudentGroup, // 🔄 تحديث فلتر الكروب
+    stageGroupConfigs, // 📋 إعدادات كروبات المراحل
+    setStageGroupConfigs, // 🔄 تحديث الإعدادات
+    isStageGroupModalOpen, // 🪟 نافذة إدارة الكروبات
+    setIsStageGroupModalOpen, // 🔄 تبديل فتح نافذة الكروبات
 
     // 🔍 الفلاتر والبحث
     studentSearch,
@@ -801,5 +894,10 @@ export const useDepartmentStudents = ({
     handleExportStudentsExcel,
     toggleSelectAllStudents,
     toggleSelectStudent,
+
+    // 🏷️ دوال إدارة الكروبات الأكاديمية
+    handleSaveStageGroupConfig,
+    handleUpdateStudentsGroupBatch,
+    handleBulkAssignGroup,
   };
 };

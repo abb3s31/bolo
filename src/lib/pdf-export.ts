@@ -2874,8 +2874,8 @@ export async function exportDepartmentCoursesPDF(options: ExportDepartmentCourse
     departmentName, // 🏢 اسم القسم
     collegeName = 'كلية تكنولوجيا المعلومات', // 🏛️ اسم الكلية الافتراضي
     academicYear = getAcademicYear(), // 📅 العام الدراسي
-    departmentHeadName = 'رئاسة القسم العلمي', // 👤 اسم رئيس القسم
-    rapporteurName = 'مقررية القسم العلمي', // 👤 اسم المقرر
+    departmentHeadName = 'رئيس القسم العلمي', // 👤 اسم رئيس القسم الافتراضي
+    rapporteurName = 'مقرر القسم العلمي', // 👤 اسم المقرر الافتراضي
     stageFilter = 'all', // 🎓 المرحلة المفلترة
     semesterFilter = 'all', // 🗓️ الكورس المفلتر
     isSelectiveExport = false, // 🔍 هل التصدير محدد
@@ -2921,7 +2921,7 @@ export async function exportDepartmentCoursesPDF(options: ExportDepartmentCourse
   const hasAnyFinalExamOpen = courses.some((c) => c.is_final_exam_enabled === true); // 🎯 هل الدور الأول مفتوح لأي مادة بالكشف؟
   const hasAnySupplementaryOpen = courses.some((c) => c.is_supplementary_exam_enabled === true); // 🔄 هل الدور الثاني مفتوح لأي مادة بالكشف؟
 
-  // 📝 توليد صفوف جدول المواد سطراً بسطر باحترافية وتنسيق عالي
+  // 📝 توليد صفوف جدول المواد سطراً بسطر باحترافية وتنسيق عالي وألوان سوداء نقية
   const tableRowsHtml = courses.map((c, idx) => {
     // 🧪 فحص إذا المادة بيها عملي
     const isPractical = c.course_type === 'theory_and_practical' || (c.practical_hours !== undefined && c.practical_hours > 0);
@@ -2933,42 +2933,42 @@ export async function exportDepartmentCoursesPDF(options: ExportDepartmentCourse
     const rowBg = idx % 2 === 0 ? '#ffffff' : '#f8fafc';
 
     return `
-      <tr style="border-bottom: 1.5px solid #cbd5e1; background-color: ${rowBg}; text-align: center; vertical-align: middle; font-size: 11px; color: #000000; height: 34px;">
-        <td style="padding: 0 4px; font-weight: 900; border: 1.5px solid #94a3b8; width: 32px; color: #0f172a; text-align: center; vertical-align: middle;">${idx + 1}</td>
-        <td style="padding: 0 8px; font-weight: 900; text-align: right; border: 1.5px solid #94a3b8; font-size: 11.5px; color: #0f172a; vertical-align: middle;">${escapeHtml(c.name)}</td>
-        <td style="padding: 0 4px; border: 1.5px solid #94a3b8; font-weight: 900; font-family: monospace; color: #0369a1; text-align: center; vertical-align: middle; width: 75px;">${escapeHtml(c.code)}</td>
-        <td style="padding: 0 4px; border: 1.5px solid #94a3b8; font-weight: 800; color: #0f172a; text-align: center; vertical-align: middle; width: 120px;">${stageName} — كورس ${semName}</td>
-        <td style="padding: 0 4px; border: 1.5px solid #94a3b8; font-weight: 800; color: #0f172a; text-align: center; vertical-align: middle; width: 95px;">
-          ${isPractical ? '<span style="color: #065f46; font-weight: 900;">نظري وعملي</span>' : '<span style="color: #475569; font-weight: 900;">نظري فقط</span>'}
+      <tr style="border-bottom: 1.5px solid #000000; background-color: ${rowBg}; text-align: center; vertical-align: middle; font-size: 11px; color: #000000; height: 34px;">
+        <td style="padding: 0 4px; font-weight: 900; border: 1.5px solid #000000; width: 32px; color: #000000; text-align: center; vertical-align: middle;">${idx + 1}</td>
+        <td style="padding: 0 8px; font-weight: 900; text-align: right; border: 1.5px solid #000000; font-size: 11.5px; color: #000000; vertical-align: middle;">${escapeHtml(c.name)}</td>
+        <td style="padding: 0 4px; border: 1.5px solid #000000; font-weight: 900; font-family: monospace; color: #000000; text-align: center; vertical-align: middle; width: 75px;">${escapeHtml(c.code)}</td>
+        <td style="padding: 0 4px; border: 1.5px solid #000000; font-weight: 900; color: #000000; text-align: center; vertical-align: middle; width: 120px;">${stageName} — كورس ${semName}</td>
+        <td style="padding: 0 4px; border: 1.5px solid #000000; font-weight: 900; color: #000000; text-align: center; vertical-align: middle; width: 95px;">
+          ${isPractical ? '<span style="color: #000000; font-weight: 900;">نظري وعملي</span>' : '<span style="color: #000000; font-weight: 900;">نظري فقط</span>'}
         </td>
         <!-- ⚖️ عمود عدد وحدات بولونيا ECTS مع حاوية LTR صريحة لمنع تداخل الأرقام مع النص -->
-        <td style="padding: 0 4px; border: 1.5px solid #94a3b8; font-weight: 900; color: #0f172a; text-align: center; vertical-align: middle; width: 85px;">
+        <td style="padding: 0 4px; border: 1.5px solid #000000; font-weight: 900; color: #000000; text-align: center; vertical-align: middle; width: 85px;">
           <!-- 📦 فلكس بوكس صريح LTR لفصل رقم الوحدات عن كلمة ECTS تماماً وتجنب التراكب في html2canvas -->
           <div dir="ltr" style="display: inline-flex; align-items: center; justify-content: center; gap: 5px; width: 100%;">
             <!-- 🔢 رقم الساعات المعتمدة للوحدة مع خط تجوال لمنع التصاق الرموز -->
-            <span style="font-weight: 900; font-size: 12px; color: #0f172a; font-family: 'Tajawal', sans-serif;">${c.credits || 5}</span>
-            <!-- 🌐 رمز وحدات بولونيا ECTS الأكاديمي -->
-            <span style="font-size: 10px; color: #475569; font-weight: 800; font-family: 'Tajawal', sans-serif;">ECTS</span>
+            <span style="font-weight: 900; font-size: 12px; color: #000000; font-family: 'Tajawal', sans-serif;">${c.credits || 5}</span>
+            <!-- 🌐 رمز وحدات بولونيا ECTS الأكاديمي بلون أسود داكن -->
+            <span style="font-size: 10px; color: #000000; font-weight: 900; font-family: 'Tajawal', sans-serif;">ECTS</span>
           </div>
         </td>
-        <td style="padding: 0 6px; border: 1.5px solid #94a3b8; font-weight: 800; color: #0f172a; text-align: right; vertical-align: middle;">
+        <td style="padding: 0 6px; border: 1.5px solid #000000; font-weight: 900; color: #000000; text-align: right; vertical-align: middle;">
           ${escapeHtml(c.theory_teacher_name || '— لم يحدد —')}
         </td>
-        <td style="padding: 0 6px; border: 1.5px solid #94a3b8; font-weight: 800; color: #0f172a; text-align: right; vertical-align: middle;">
-          ${isPractical ? escapeHtml(c.practical_teacher_name || '— لم يحدد —') : '<span style="color: #94a3b8;">— نظري فقط</span>'}
+        <td style="padding: 0 6px; border: 1.5px solid #000000; font-weight: 900; color: #000000; text-align: right; vertical-align: middle;">
+          ${isPractical ? escapeHtml(c.practical_teacher_name || '— لم يحدد —') : '<span style="color: #000000; font-weight: 900;">— نظري فقط</span>'}
         </td>
         ${hasAnyFinalExamOpen ? `
-          <td style="padding: 0 4px; border: 1.5px solid #94a3b8; font-weight: 900; text-align: center; vertical-align: middle; width: 110px;">
+          <td style="padding: 0 4px; border: 1.5px solid #000000; font-weight: 900; text-align: center; vertical-align: middle; width: 110px;">
             ${c.is_final_exam_enabled 
-              ? '<span style="color: #0284c7; font-weight: 900;">مفتوح للرصد</span>' 
-              : '<span style="color: #94a3b8;">—</span>'}
+              ? '<span style="color: #000000; font-weight: 900;">مفتوح للرصد</span>' 
+              : '<span style="color: #000000; font-weight: 900;">—</span>'}
           </td>
         ` : ''}
         ${hasAnySupplementaryOpen ? `
-          <td style="padding: 0 4px; border: 1.5px solid #94a3b8; font-weight: 900; text-align: center; vertical-align: middle; width: 110px;">
+          <td style="padding: 0 4px; border: 1.5px solid #000000; font-weight: 900; text-align: center; vertical-align: middle; width: 110px;">
             ${c.is_supplementary_exam_enabled 
-              ? '<span style="color: #0284c7; font-weight: 900;">مفتوح للرصد</span>' 
-              : '<span style="color: #94a3b8;">—</span>'}
+              ? '<span style="color: #000000; font-weight: 900;">مفتوح للرصد</span>' 
+              : '<span style="color: #000000; font-weight: 900;">—</span>'}
           </td>
         ` : ''}
       </tr>
@@ -2980,62 +2980,60 @@ export async function exportDepartmentCoursesPDF(options: ExportDepartmentCourse
     <div style="display: flex; flex-direction: column; justify-content: space-between; min-height: 746px;">
       
       <div>
-        <!-- 🏛️ الترويسة الأكاديمية الرسمية للجامعة والوزارة -->
-        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2.5px solid #0F2942; padding-bottom: 12px;">
+        <!-- 🏛️ الترويسة الأكاديمية الرسمية للجامعة والوزارة بلون أسود ناصع وواضح -->
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2.5px solid #000000; padding-bottom: 12px;">
           <div style="text-align: right; line-height: 1.4; color: #000000;">
-            <p style="margin: 0; font-size: 11px; font-weight: 900; color: #475569;">جمهورية العراق — وزارة التعليم العالي والبحث العلمي</p>
-            <h2 style="margin: 3px 0 0; font-size: 15px; font-weight: 900; color: #0F2942;">جامعة الإمام جعفر الصادق (ع) — فرع ميسان</h2>
-            <p style="margin: 2px 0 0; font-size: 12px; font-weight: 900; color: #1e293b;">${escapeHtml(collegeName)} — قسم ${escapeHtml(departmentName)}</p>
+            <p style="margin: 0; font-size: 11px; font-weight: 900; color: #000000;">جمهورية العراق — وزارة التعليم العالي والبحث العلمي</p>
+            <h2 style="margin: 3px 0 0; font-size: 15px; font-weight: 900; color: #000000;">جامعة الإمام جعفر الصادق (ع) — فرع ميسان</h2>
+            <p style="margin: 2px 0 0; font-size: 12px; font-weight: 900; color: #000000;">${escapeHtml(collegeName)} — قسم ${escapeHtml(departmentName)}</p>
           </div>
 
           <div style="text-align: center;">
             <img src="/logo.webp" alt="شعار الجامعة" style="width: 65px; height: 65px; object-fit: contain;" />
-            <!-- 🏷️ عنوان النظام مقسم لسطرين نظيفين لمنع انكسار الأقواس واللغات -->
-            <div style="font-size: 11px; font-weight: 900; color: #0F2942; margin-top: 2px;">مسار بولونيا</div>
-            <!-- 🌐 الاسم الإنكليزي موجه LTR ومفصول تماماً -->
-            <div dir="ltr" style="font-size: 9px; font-weight: 800; color: #475569; margin-top: 1px;">Bologna Process</div>
+            <!-- 🏷️ عنوان النظام بنص عربي فقط وحذف أي نص إنكليزي تلبية لطلب المستخدم -->
+            <div style="font-size: 11.5px; font-weight: 900; color: #000000; margin-top: 2px;">مسار بولونيا</div>
           </div>
 
           <div style="text-align: left; line-height: 1.45; font-size: 11px; font-weight: 900; color: #000000;">
-            <p style="margin: 0; color: #0F2942;">العام الدراسي: <strong>${escapeHtml(displayAcademicYear)}</strong></p>
-            <p style="margin: 0; color: #475569;">نطاق الكشف: <strong>${escapeHtml(stageFilterText)} (${escapeHtml(semesterFilterText)})</strong></p>
-            <p style="margin: 0; color: #475569;">تاريخ الإصدار: <strong>${todayStr}</strong></p>
-            <p style="margin: 0; color: #0369a1;">إجمالي المواد المعتمدة: <strong>${totalCoursesCount} مادة</strong></p>
+            <p style="margin: 0; color: #000000;">العام الدراسي: <strong style="color: #000000;">${escapeHtml(displayAcademicYear)}</strong></p>
+            <p style="margin: 0; color: #000000;">نطاق الكشف: <strong style="color: #000000;">${escapeHtml(stageFilterText)} (${escapeHtml(semesterFilterText)})</strong></p>
+            <p style="margin: 0; color: #000000;">تاريخ الإصدار: <strong style="color: #000000;">${todayStr}</strong></p>
+            <p style="margin: 0; color: #000000;">إجمالي المواد المعتمدة: <strong style="color: #000000;">${totalCoursesCount} مادة</strong></p>
           </div>
         </div>
 
-        <!-- 🏷️ عنوان الوثيقة البارز بدون تداخل الحروف -->
+        <!-- 🏷️ عنوان الوثيقة البارز بدون تداخل الحروف وبألوان سوداء نقية -->
         <div style="text-align: center; margin: 12px 0 10px 0;">
-          <h1 style="margin: 0; font-size: 16.5px; font-weight: 900; color: #0F2942; letter-spacing: normal;">
+          <h1 style="margin: 0; font-size: 16.5px; font-weight: 900; color: #000000; letter-spacing: normal;">
             كشف المقررات والمناهج الدراسية وتوصيف الأساتذة والأدوار الامتحانية
           </h1>
-          <p style="margin: 4px 0 0; font-size: 11.5px; font-weight: 900; color: #334155; letter-spacing: normal;">
+          <p style="margin: 4px 0 0; font-size: 11.5px; font-weight: 900; color: #000000; letter-spacing: normal;">
             قسم ${escapeHtml(departmentName)} ${isSelectiveExport ? '(كشف خاص بالمواد المحددة)' : '— القائمة الأكاديمية المعتمدة'}
           </p>
         </div>
 
-        <!-- 🧮 شريط إحصائيات المقررات المعتمدة بدون إيموجيات مشوهة لضمان طباعة رسمية ونقية -->
-        <div style="display: flex; justify-content: space-between; align-items: center; background-color: #f1f5f9; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 6px 16px; margin-bottom: 10px; font-size: 11px; font-weight: 900; color: #0f172a;">
-          <div>إجمالي المواد بالكشف: <span style="color: #0F2942; font-weight: 900;">${totalCoursesCount} مادة</span></div>
-          <div>المواد النظرية والعملية: <span style="color: #065f46; font-weight: 900;">${theoryPracticalCount} مادة</span></div>
-          <div>المواد النظرية فقط: <span style="color: #475569; font-weight: 900;">${theoryOnlyCount} مادة</span></div>
-          <div>إجمالي وحدات بولونيا: <span style="color: #0369a1; font-weight: 900;">${totalEctsCredits} وحدة معتمدة</span></div>
+        <!-- 🧮 شريط إحصائيات المقررات المعتمدة بنصوص وأرقام سوداء واضحة تماماً -->
+        <div style="display: flex; justify-content: space-between; align-items: center; background-color: #f8fafc; border: 1.5px solid #000000; border-radius: 8px; padding: 6px 16px; margin-bottom: 10px; font-size: 11px; font-weight: 900; color: #000000;">
+          <div>إجمالي المواد بالكشف: <span style="color: #000000; font-weight: 900;">${totalCoursesCount} مادة</span></div>
+          <div>المواد النظرية والعملية: <span style="color: #000000; font-weight: 900;">${theoryPracticalCount} مادة</span></div>
+          <div>المواد النظرية فقط: <span style="color: #000000; font-weight: 900;">${theoryOnlyCount} مادة</span></div>
+          <div>إجمالي وحدات بولونيا: <span style="color: #000000; font-weight: 900;">${totalEctsCredits} وحدة معتمدة</span></div>
         </div>
 
-        <!-- 📊 جدول المواد والمقررات الدراسية الاحترافي مع إخفاء أعمدة الأدوار المغلقة تماماً -->
-        <table style="width: 100%; border-collapse: collapse; border: 2px solid #0F2942;">
+        <!-- 📊 جدول المواد والمقررات الدراسية الاحترافي مع حدود سوداء واضحة -->
+        <table style="width: 100%; border-collapse: collapse; border: 2px solid #000000;">
           <thead>
             <tr style="background-color: #0F2942; color: #ffffff; font-size: 11px; font-weight: 900; height: 34px;">
-              <th style="border: 1.5px solid #1e3a5f; width: 32px; text-align: center; color: #ffffff;">ت</th>
-              <th style="border: 1.5px solid #1e3a5f; text-align: right; padding: 0 8px; color: #ffffff;">اسم المادة الدراسية</th>
-              <th style="border: 1.5px solid #1e3a5f; width: 75px; text-align: center; color: #ffffff;">رمز المادة</th>
-              <th style="border: 1.5px solid #1e3a5f; width: 120px; text-align: center; color: #ffffff;">المرحلة والكورس</th>
-              <th style="border: 1.5px solid #1e3a5f; width: 95px; text-align: center; color: #ffffff;">نوع المادة</th>
-              <th style="border: 1.5px solid #1e3a5f; width: 85px; text-align: center; color: #ffffff;">الوحدات</th>
-              <th style="border: 1.5px solid #1e3a5f; text-align: right; padding: 0 6px; color: #ffffff;">أستاذ النظري</th>
-              <th style="border: 1.5px solid #1e3a5f; text-align: right; padding: 0 6px; color: #ffffff;">أستاذ العملي</th>
-              ${hasAnyFinalExamOpen ? '<th style="border: 1.5px solid #1e3a5f; width: 110px; text-align: center; color: #ffffff;">النهائي (الدور الأول)</th>' : ''}
-              ${hasAnySupplementaryOpen ? '<th style="border: 1.5px solid #1e3a5f; width: 110px; text-align: center; color: #ffffff;">حالة الدور الثاني</th>' : ''}
+              <th style="border: 1.5px solid #000000; width: 32px; text-align: center; color: #ffffff;">ت</th>
+              <th style="border: 1.5px solid #000000; text-align: right; padding: 0 8px; color: #ffffff;">اسم المادة الدراسية</th>
+              <th style="border: 1.5px solid #000000; width: 75px; text-align: center; color: #ffffff;">رمز المادة</th>
+              <th style="border: 1.5px solid #000000; width: 120px; text-align: center; color: #ffffff;">المرحلة والكورس</th>
+              <th style="border: 1.5px solid #000000; width: 95px; text-align: center; color: #ffffff;">نوع المادة</th>
+              <th style="border: 1.5px solid #000000; width: 85px; text-align: center; color: #ffffff;">الوحدات</th>
+              <th style="border: 1.5px solid #000000; text-align: right; padding: 0 6px; color: #ffffff;">أستاذ النظري</th>
+              <th style="border: 1.5px solid #000000; text-align: right; padding: 0 6px; color: #ffffff;">أستاذ العملي</th>
+              ${hasAnyFinalExamOpen ? '<th style="border: 1.5px solid #000000; width: 110px; text-align: center; color: #ffffff;">النهائي (الدور الأول)</th>' : ''}
+              ${hasAnySupplementaryOpen ? '<th style="border: 1.5px solid #000000; width: 110px; text-align: center; color: #ffffff;">حالة الدور الثاني</th>' : ''}
             </tr>
           </thead>
           <tbody>
@@ -3044,35 +3042,27 @@ export async function exportDepartmentCoursesPDF(options: ExportDepartmentCourse
         </table>
       </div>
 
-      <!-- ✍️ صندوق المصادقات والتواقيع الرسمية الثلاثي -->
-      <div style="margin-top: 18px; border-top: 2px solid #0F2942; padding-top: 12px; color: #000000;">
-        <div style="display: flex; justify-content: space-around; text-align: center; font-size: 11px; font-weight: 900;">
-          <div>
-            <p style="margin: 0; color: #475569;">مقرر القسم العلمي</p>
-            <p style="margin: 4px 0 0; font-weight: 900; font-size: 12.5px; color: #0F2942;">${escapeHtml(rapporteurName)}</p>
-            <div style="margin-top: 24px; border-bottom: 1.5px dotted #0F2942; width: 140px;"></div>
-            <span style="font-size: 9.5px; margin-top: 3px; display: block; color: #64748b;">التدقيق والاعتماد الأكاديمي</span>
+      <!-- ✍️ صندوق المصادقات والتواقيع الرسمية الثنائي (المقرر ورئيس القسم فقط بدون العميد وبدون العبارات الفرعية) -->
+      <div style="margin-top: 22px; border-top: 2px solid #000000; padding-top: 14px; color: #000000;">
+        <div style="display: flex; justify-content: space-around; text-align: center; font-size: 12px; font-weight: 900;">
+          <!-- 👤 توقيع مقرر القسم العلمي -->
+          <div style="min-width: 220px;">
+            <p style="margin: 0; color: #000000; font-size: 12px; font-weight: 900;">مقرر القسم العلمي</p>
+            <p style="margin: 6px 0 0; font-weight: 900; font-size: 13px; color: #000000;">${escapeHtml(rapporteurName)}</p>
+            <div style="margin: 28px auto 0 auto; border-bottom: 1.5px dotted #000000; width: 180px;"></div>
           </div>
 
-          <div>
-            <p style="margin: 0; color: #475569;">رئيس القسم العلمي</p>
-            <p style="margin: 4px 0 0; font-weight: 900; font-size: 12.5px; color: #0F2942;">${escapeHtml(departmentHeadName)}</p>
-            <div style="margin-top: 24px; border-bottom: 1.5px dotted #0F2942; width: 140px;"></div>
-            <span style="font-size: 9.5px; margin-top: 3px; display: block; color: #64748b;">المصادقة والتوجيه</span>
-          </div>
-
-          <div>
-            <p style="margin: 0; color: #475569;">عميد الكلية / المعاون العلمي</p>
-            <p style="margin: 4px 0 0; font-weight: 900; font-size: 12.5px; color: #0F2942;">عمادة ${escapeHtml(collegeName)}</p>
-            <div style="margin-top: 24px; border-bottom: 1.5px dotted #0F2942; width: 140px;"></div>
-            <span style="font-size: 9.5px; margin-top: 3px; display: block; color: #64748b;">الختم والمصادقة النهائية</span>
+          <!-- 👤 توقيع رئيس القسم العلمي -->
+          <div style="min-width: 220px;">
+            <p style="margin: 0; color: #000000; font-size: 12px; font-weight: 900;">رئيس القسم العلمي</p>
+            <p style="margin: 6px 0 0; font-weight: 900; font-size: 13px; color: #000000;">${escapeHtml(departmentHeadName)}</p>
+            <div style="margin: 28px auto 0 auto; border-bottom: 1.5px dotted #000000; width: 180px;"></div>
           </div>
         </div>
 
-        <!-- 🛡️ التذييل الرسمي ورمز التحقق الأكاديمي بدون أي إيموجي -->
-        <div style="margin-top: 14px; display: flex; justify-content: space-between; font-size: 9.5px; font-weight: 900; border-top: 1px solid #cbd5e1; padding-top: 6px; color: #475569;">
+        <!-- 🛡️ التذييل الرسمي المعتمد للجامعة بحذف رمز التحقق تماماً -->
+        <div style="margin-top: 18px; text-align: center; font-size: 10px; font-weight: 900; border-top: 1.5px solid #000000; padding-top: 6px; color: #000000;">
           <span>جامعة الإمام جعفر الصادق (ع) — فرع ميسان | المنصة الأكاديمية المركزية لنظام مسار بولونيا</span>
-          <span>رمز التحقق الأكاديمي: CRS-${escapeHtml(departmentName).replace(/\s+/g, '')}-${new Date().getFullYear()}</span>
         </div>
       </div>
 

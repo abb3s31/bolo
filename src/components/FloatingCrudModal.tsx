@@ -1,7 +1,7 @@
 'use client'; // ⚡ ينفذ بالعميل
 
 // 📦 مكون كارت الـ CRUD العائم الفاخر - جامعة الإمام جعفر الصادق (ع) - فرع ميسان
-import { ReactNode, useEffect, useState } from 'react'; // 🔗 رياكت
+import { ReactNode, useEffect, useState, useRef } from 'react'; // 🔗 رياكت
 import { createPortal } from 'react-dom'; // 🌐 بورتال للرسم المباشر على جذر الصفحة
 import { X } from 'lucide-react'; // 🎨 الأيقونات
 import { lockBodyScroll, unlockBodyScroll } from '@/lib/scroll-lock'; // 🔒 نظام إدارة التمرير المركزي
@@ -16,6 +16,7 @@ interface FloatingCrudModalProps {
   footer?: ReactNode; // 🔘 الفوتر الثابت في أسفل الكارد
   maxWidth?: string; // 📐 العرض الأقصى
   onSubmit?: (e: React.FormEvent) => void; // ⚡ دالة إرسال النموذج المباشرة
+  bodyClassName?: string; // 🎨 كلاسات مخصصة لمحتوى الكارد الداخلي
 }
 
 export default function FloatingCrudModal({
@@ -28,9 +29,11 @@ export default function FloatingCrudModal({
   footer,
   maxWidth = 'max-w-2xl',
   onSubmit,
+  bodyClassName, // 🎨 كلاسات مخصصة لمحتوى الكارد
 }: FloatingCrudModalProps) {
   // ⚡ التحقق من اكتمال تحميل الصفحة بالعميل لاستخدام البورتال بأمان
   const [mounted, setMounted] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null); // 📍 مرجع محتوى الكارد الداخلي
 
   useEffect(() => {
     setMounted(true);
@@ -40,6 +43,10 @@ export default function FloatingCrudModal({
   useEffect(() => {
     if (isOpen) {
       lockBodyScroll();
+      // 🔝 تصفير موضع التمرير الداخلي للكارد فور فتحه ليكون من أول سطر
+      if (contentRef.current) {
+        contentRef.current.scrollTop = 0;
+      }
       return () => {
         unlockBodyScroll();
       };
@@ -93,8 +100,8 @@ export default function FloatingCrudModal({
         </button>
       </div>
 
-      {/* 📦 محتوى الكارد في المنتصف مع تمرير داخلي سلس وأنيق */}
-      <div className="p-5 sm:p-7 pb-6 sm:pb-8 overflow-y-auto flex-1 min-h-0 overscroll-contain scroll-smooth">
+      {/* 📦 محتوى الكارد في المنتصف مع تمرير داخلي سلس وأنيق أو كلاسات مخصصة */}
+      <div ref={contentRef} className={bodyClassName || "p-5 sm:p-7 pb-6 sm:pb-8 overflow-y-auto flex-1 min-h-0 overscroll-contain scroll-smooth"}>
         {children}
       </div>
 

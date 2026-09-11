@@ -1,13 +1,14 @@
 // 🗓️ خطاف مخصص لإدارة جدول المحاضرات الأسبوعي، الأيام الرسمية، التضاربات، واستيراد وتصدير الإكسل
 // 🛡️ التزام نمطي صارم بدون any أو unknown مع توثيق عراقي تفصيلي لكل سطر كود
 
-import { useState, useMemo, useRef, useEffect } from 'react'; // ⚛️ استيراد خطافات رياكت الأساسية
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react'; // ⚛️ استيراد خطافات رياكت الأساسية مع useCallback
 import type {
   Course, // 📚 واجهة المادة الدراسية
   UserProfile, // 👤 واجهة الحساب التعريفي
   TeacherCourse, // 🔗 واجهة تكليف التدريسي بالمادة
   ScheduleLecture, // 📋 واجهة المحاضرة بجدول القسم
   DepartmentScheduleConfig, // ⚙️ واجهة إعدادات الجدول والدوام
+  StageGroupConfig, // 👥 واجهة إعدادات كروبات المراحل الأكاديمية
   DayOfWeek, // 🗓️ واجهة أيام الأسبوع
   LectureColor, // 🎨 واجهة ألوان المحاضرات
   LectureType, // 🔬 واجهة نوع المحاضرة (نظري أو عملي)
@@ -75,6 +76,7 @@ export interface UseDepartmentScheduleProps {
   setErrorMessage: (msg: string) => void; // ⚠️ دالة إشعار الخطأ
   setDeleteModalConfig: React.Dispatch<React.SetStateAction<DepartmentDeleteModalConfig>>; // 🗑️ دالة إعداد نافذة الحذف
   isLectureInCurrentDept: (l: ScheduleLecture) => boolean; // 🏢 التحقق من تبعية المحاضرة للقسم
+  stageGroupConfigs?: StageGroupConfig[]; // 👥 قائمة إعدادات كروبات المراحل لتحديد الكروب الافتراضي
 }
 
 // 🎯 دالة الخطاف الرئيسية لإدارة جدول القسم الأكاديمي
@@ -98,13 +100,27 @@ export const useDepartmentSchedule = ({
   setErrorMessage, // ⚠️ رسالة الخطأ
   setDeleteModalConfig, // 🗑️ نافذة الحذف
   isLectureInCurrentDept, // 🏢 فحص التبعية
+  stageGroupConfigs = [], // 👥 إعدادات كروبات المراحل الأكاديمية
 }: UseDepartmentScheduleProps) => {
   // 🎛️ حالات تصفية وعرض الجدول الأسبوعي
   const [selectedScheduleStage, setSelectedScheduleStage] = useState<number>(1); // 🎓 المرحلة المحددة للجدول
   const [selectedScheduleSemester, setSelectedScheduleSemester] = useState<1 | 2>(1); // 📚 الكورس المحدد للجدول
   const [selectedScheduleStudyType, setSelectedScheduleStudyType] = useState<'morning' | 'evening'>('morning'); // ☀️🌙 فترة الجدول (صباحي / مسائي)
-  const [selectedScheduleWeek, setSelectedScheduleWeek] = useState<number>(1); // 🗓️ الأسبوع المحدد بجدول القسم
+  const [selectedScheduleGroup, setSelectedScheduleGroup] = useState<string>('all'); // 👥 الكروب المحدد لجدول القسم ('all', 'A', 'B', 'C', 'D')
+  const [selectedWeekByGroup, setSelectedWeekByGroup] = useState<Record<string, number>>({}); // 🗓️ قاموس حفظ الأسبوع المختار لكل كروب مستقلاً تماماً
   const [selectedScheduleLectureIds, setSelectedScheduleLectureIds] = useState<string[]>([]); // 🔘 معرفات المحاضرات المحددة
+
+  // 🔄 مزامنة الكروب الافتراضي تلقائياً: إذا المرحلة مقسمة لكروبات نختار أول كروب (مثلاً 'A') بدلاً من 'all'
+  useEffect(() => {
+    const currentStageGrpCfg = stageGroupConfigs.find(
+      (c) => c.stage_number === selectedScheduleStage && c.study_type === selectedScheduleStudyType
+    );
+    if (currentStageGrpCfg && currentStageGrpCfg.has_groups && currentStageGrpCfg.groups && currentStageGrpCfg.groups.length > 0) {
+      if (selectedScheduleGroup === 'all' || !currentStageGrpCfg.groups.includes(selectedScheduleGroup)) {
+        setSelectedScheduleGroup(currentStageGrpCfg.groups[0]); // 🥇 تعيين الكروب الأول مباشرة للمرحلة
+      }
+    }
+  }, [stageGroupConfigs, selectedScheduleStage, selectedScheduleStudyType, selectedScheduleGroup]);
 
   // 📝 حالات استمارة إضافة وتعديل المحاضرة
   const [lecDay, setLecDay] = useState<DayOfWeek | ''>(''); // 🗓️ يوم المحاضرة
@@ -130,6 +146,7 @@ export const useDepartmentSchedule = ({
   const [lecCourseSearchTerm, setLecCourseSearchTerm] = useState<string>(''); // 🔍 نص البحث عن المادة
   const [lecCourseTabFilter, setLecCourseTabFilter] = useState<'all' | 'theory' | 'practical'>('all'); // 📑 فلتر نوع المادة
   const [lecTeacherSearchTerm, setLecTeacherSearchTerm] = useState<string>(''); // 🔍 نص البحث عن الأستاذ
+  const [lecTargetGroup, setLecTargetGroup] = useState<string>('all'); // 👥 الكروب أو الشعبة المستهدفة للمحاضرة ('all', 'A', 'B', 'C', 'D'...)
 
   // 🪟 حالات النوافذ المنبثقة للجدول
   const [pendingSemesterStartDate, setPendingSemesterStartDate] = useState<string | null>(null); // 📅 تاريخ الانطلاق المعلق
@@ -147,26 +164,50 @@ export const useDepartmentSchedule = ({
   const lastScheduleScrollYRef = useRef<number>(0); // 📍 مرجع حفظ موضع السكرول
   const lecListContainerRef = useRef<HTMLDivElement | null>(null); // 📜 مرجع حاوية قائمة المحاضرات
 
-  // ⚙️ استخراج إعدادات الجدول للقسم والمرحلة والكورس الحاليين
+  // ⚙️ استخراج إعدادات الجدول للقسم والمرحلة والكورس والكروب المحددين حصراً
   const currentScheduleConfig = useMemo(() => {
     return getScheduleConfigOrDefault(
-      scheduleConfigs,
-      currentDeptId,
-      selectedScheduleStage,
-      selectedScheduleSemester
+      scheduleConfigs, // 📋 كافة الإعدادات
+      currentDeptId, // 🏢 القسم الحالي
+      selectedScheduleStage, // 🎓 المرحلة
+      selectedScheduleSemester, // 🗓️ الكورس
+      selectedScheduleStudyType, // ☀️ نوع الدراسة
+      selectedScheduleGroup !== 'all' ? selectedScheduleGroup : undefined // 👥 الكروب المستقل
     );
-  }, [scheduleConfigs, currentDeptId, selectedScheduleStage, selectedScheduleSemester]);
+  }, [scheduleConfigs, currentDeptId, selectedScheduleStage, selectedScheduleSemester, selectedScheduleStudyType, selectedScheduleGroup]);
 
   // ⚡ احتساب الأسبوع الأكاديمي الحالي للجدول نسبة لتاريخ انطلاق الفصل
   const scheduleCurrentAcademicWeek = useMemo(() => {
     return getCurrentAcademicWeek(currentScheduleConfig.start_date || '2026-09-20');
   }, [currentScheduleConfig.start_date]);
 
-  // 🔄 مزامنة الأسبوع المختار مع الأسبوع الحالي تلقائياً عند تغيير تاريخ انطلاق الفصل
+  // 🗓️ استخراج الأسبوع المعتمد للكروب الحالي تلقائياً مع الرجوع للأسبوع الأكاديمي
+  const selectedScheduleWeek = useMemo(() => {
+    return selectedWeekByGroup[selectedScheduleGroup] || scheduleCurrentAcademicWeek;
+  }, [selectedWeekByGroup, selectedScheduleGroup, scheduleCurrentAcademicWeek]);
+
+  // 🔄 دالة تحديث الأسبوع للكروب المحدد فقط دون التأثير على باقي الكروبات
+  const setSelectedScheduleWeek: React.Dispatch<React.SetStateAction<number>> = useCallback((action: React.SetStateAction<number>) => {
+    setSelectedWeekByGroup((prev) => {
+      const currentVal = prev[selectedScheduleGroup] || scheduleCurrentAcademicWeek;
+      const nextVal = typeof action === 'function' ? action(currentVal) : action;
+      return {
+        ...prev,
+        [selectedScheduleGroup]: nextVal,
+      };
+    });
+  }, [selectedScheduleGroup, scheduleCurrentAcademicWeek]);
+
+  // 🔄 مزامنة الأسبوع المختار مع الأسبوع الحالي عند تغيير تاريخ بداية الفصل للكروب
   useEffect(() => {
     const curW = getCurrentAcademicWeek(currentScheduleConfig.start_date || '2026-09-20');
-    setSelectedScheduleWeek(curW);
-  }, [currentScheduleConfig.start_date]);
+    setSelectedWeekByGroup((prev) => {
+      if (!prev[selectedScheduleGroup]) {
+        return { ...prev, [selectedScheduleGroup]: curW };
+      }
+      return prev;
+    });
+  }, [currentScheduleConfig.start_date, selectedScheduleGroup]);
 
   // 📡 الاستماع لحدث تحديث تاريخ انطلاق الفصل ومزامنة إعدادات ومحاضرات القسم فورياً
   useEffect(() => {
@@ -204,11 +245,12 @@ export const useDepartmentSchedule = ({
         teacher_name: selectedLecTeacher?.full_name, // 👨‍🏫 اسم الأستاذ
         stage_number: selectedScheduleStage, // 🎓 رقم المرحلة
         department_id: currentDeptId, // 🏢 معرف القسم
+        target_group: lecTargetGroup, // 👥 الكروب المستهدف للفحص
       },
       scheduleLectures, // 📚 قائمة المحاضرات المسجلة
       editingLectureId || undefined // ✏️ استثناء المحاضرة قيد التعديل
     );
-  }, [lecDay, lecStartTime, lecEndTime, lecRoom, lecTeacherId, selectedLecTeacher, selectedScheduleStage, currentDeptId, scheduleLectures, editingLectureId]);
+  }, [lecDay, lecStartTime, lecEndTime, lecRoom, lecTeacherId, selectedLecTeacher, selectedScheduleStage, currentDeptId, scheduleLectures, editingLectureId, lecTargetGroup]);
 
   // 💡 حساب القاعات والمختبرات الشاغرة غير المحجوزة في الوقت المحدد
   const availableRoomsForSlot = useMemo(() => {
@@ -232,15 +274,19 @@ export const useDepartmentSchedule = ({
         l.day === dayKey
     ).length;
 
+    const isGroupSpecific = selectedScheduleGroup !== 'all'; // 👥 هل التعديل خاص بكروب مستقل
+    const groupSuffix = isGroupSpecific ? ` — كروب ${selectedScheduleGroup}` : ''; // 🏷️ لاحقة اسم الكروب للترويسات
+    const groupParen = isGroupSpecific ? ` (كروب ${selectedScheduleGroup})` : ''; // 🏷️ اسم الكروب بين قوسين
+
     const actionTitle = isCurrentlyOff
-      ? `تأكيد تفعيل يوم (${dayName}) كيوم دوام رسمي`
-      : `تأكيد تحويل يوم (${dayName}) إلى عطلة رسمية`;
+      ? `تأكيد تفعيل يوم (${dayName}) كيوم دوام رسمي${isGroupSpecific ? ` لكروب ${selectedScheduleGroup}` : ''}`
+      : `تأكيد تحويل يوم (${dayName}) إلى عطلة رسمية${isGroupSpecific ? ` لكروب ${selectedScheduleGroup}` : ''}`;
 
     const actionWarning = isCurrentlyOff
-      ? `هل أنت متأكد من تفعيل يوم (${dayName}) كيوم دوام رسمي معتمد وإتاحته لجدولة المحاضرات لطلبة ${stageName} (الكورس ${semesterName})؟`
+      ? `هل أنت متأكد من تفعيل يوم (${dayName}) كيوم دوام رسمي معتمد وإتاحته لجدولة المحاضرات لطلبة المرحلة ${stageName}${groupSuffix} (الكورس ${semesterName})؟`
       : dayLecturesCount > 0
-      ? `تنبيه: هذا اليوم يحتوي حالياً على (${dayLecturesCount}) محاضرة مجدولة. تحويله إلى عطلة رسمية سيؤثر على جدول المرحلة ${stageName} ولن يتم احتساب المحاضرات فيه كأيام دوام رسمي. هل ترغب بالاستمرار والموافقة؟`
-      : `هل أنت متأكد من تحويل يوم (${dayName}) إلى عطلة رسمية معتمدة لطلبة ${stageName} (الكورس ${semesterName})؟`;
+      ? `تنبيه: هذا اليوم يحتوي حالياً على (${dayLecturesCount}) محاضرة مجدولة. تحويله إلى عطلة رسمية سيؤثر على جدول المرحلة ${stageName}${groupSuffix} ولن يتم احتساب المحاضرات فيه كأيام دوام رسمي. هل ترغب بالاستمرار والموافقة؟`
+      : `هل أنت متأكد من تحويل يوم (${dayName}) إلى عطلة رسمية معتمدة لطلبة المرحلة ${stageName}${groupSuffix} (الكورس ${semesterName})؟`;
 
     const confirmBtnText = isCurrentlyOff
       ? 'نعم، تفعيل كيوم دوام رسمي'
@@ -249,10 +295,10 @@ export const useDepartmentSchedule = ({
     setDeleteModalConfig({
       isOpen: true,
       title: actionTitle,
-      itemName: `يوم ${dayName} — ${stageName} (الكورس ${semesterName})`,
+      itemName: `يوم ${dayName} — المرحلة ${stageName}${groupSuffix} (الكورس ${semesterName})`,
       itemDetails: isCurrentlyOff
-        ? 'الحالة الحالية: عطلة رسمية معتمدة'
-        : `الحالة الحالية: يوم دوام رسمي ${dayLecturesCount > 0 ? `(يحتوي على ${dayLecturesCount} محاضرة مجدولة)` : '(لا توجد محاضرات مجدولة)'}`,
+        ? `الحالة الحالية: عطلة رسمية معتمدة${isGroupSpecific ? ` لـ (كروب ${selectedScheduleGroup})` : ''}`
+        : `الحالة الحالية: يوم دوام رسمي ${dayLecturesCount > 0 ? `(يحتوي على ${dayLecturesCount} محاضرة مجدولة)` : '(لا توجد محاضرات مجدولة)'}${isGroupSpecific ? ` لـ (كروب ${selectedScheduleGroup})` : ''}`,
       warningMessage: actionWarning,
       confirmText: confirmBtnText,
       variant: isCurrentlyOff ? 'success' : 'warning',
@@ -271,21 +317,32 @@ export const useDepartmentSchedule = ({
           newOffDays = [...currentScheduleConfig.off_days.filter((d: DayOfWeek) => d !== dayKey), dayKey];
         }
 
+        const isGroupSpecific = selectedScheduleGroup !== 'all'; // 👥 هل التعديل خاص بكروب مستقل
+        const targetGroupVal = isGroupSpecific ? selectedScheduleGroup : undefined; // 🏷️ تعيين الكروب المستهدف
+
         const updatedConfig: DepartmentScheduleConfig = {
           ...currentScheduleConfig,
-          department_id: currentDeptId,
-          stage_number: selectedScheduleStage,
-          semester: selectedScheduleSemester,
-          working_days: newWorkingDays,
-          off_days: newOffDays,
-          updated_at: new Date().toISOString(),
+          id: isGroupSpecific
+            ? `cfg-${currentDeptId}-${selectedScheduleStage}-${selectedScheduleSemester}-${selectedScheduleStudyType}-${selectedScheduleGroup}`
+            : currentScheduleConfig.id, // 🆔 الحفاظ على المعرف الفريد للكروب
+          department_id: currentDeptId, // 🏢 معرف القسم
+          stage_number: selectedScheduleStage, // 🎓 المرحلة
+          semester: selectedScheduleSemester, // 🗓️ الكورس
+          study_type: selectedScheduleStudyType, // ☀️ نوع الدراسة (صباحي / مسائي)
+          target_group: targetGroupVal, // 👥 حفظ الكروب المستهدف لعزله عن باقي الكروبات
+          working_days: newWorkingDays, // 💼 أيام الدوام المحدثة
+          off_days: newOffDays, // 🏖️ أيام العطل المحدثة
+          updated_at: new Date().toISOString(), // ⏰ تاريخ التحديث
         };
 
         const existingIndex = scheduleConfigs.findIndex(
           (c: DepartmentScheduleConfig) =>
             c.department_id === currentDeptId &&
             c.stage_number === selectedScheduleStage &&
-            c.semester === selectedScheduleSemester
+            c.semester === selectedScheduleSemester &&
+            (!selectedScheduleStudyType || !c.study_type || c.study_type === selectedScheduleStudyType) &&
+            ((isGroupSpecific && c.target_group === targetGroupVal) ||
+             (!isGroupSpecific && (!c.target_group || c.target_group === 'all')))
         );
 
         let updatedConfigsList: DepartmentScheduleConfig[];
@@ -300,7 +357,7 @@ export const useDepartmentSchedule = ({
         saveStoredData('department_schedule_configs', updatedConfigsList);
         saveScheduleConfigToSupabase(updatedConfig); // ☁️ حفظ ومزامنة إعدادات الجدول مع Supabase
 
-        setSuccessMessage(`تم تعديل يوم (${dayName}) إلى ${isCurrentlyOff ? 'يوم دوام رسمي' : 'عطلة رسمية'} بنجاح!`);
+        setSuccessMessage(`تم تعديل يوم (${dayName}) إلى ${isCurrentlyOff ? 'يوم دوام رسمي' : 'عطلة رسمية'}${isGroupSpecific ? ` لكروب ${selectedScheduleGroup}` : ''} بنجاح!`);
         setTimeout(() => setSuccessMessage(''), 3500);
         setDeleteModalConfig((prev: DepartmentDeleteModalConfig) => ({ ...prev, isOpen: false }));
       },
@@ -309,21 +366,31 @@ export const useDepartmentSchedule = ({
 
   // 🔄 استعادة أيام الدوام والعطل الافتراضية
   const handleResetWorkingDays = () => {
+    const isGroupSpecific = selectedScheduleGroup !== 'all';
+    const targetGroupVal = isGroupSpecific ? selectedScheduleGroup : undefined;
+    const stageName = getStageNameInArabic(selectedScheduleStage);
+    const groupLabel = isGroupSpecific ? ` (كروب ${selectedScheduleGroup})` : '';
+
     setDeleteModalConfig({
       isOpen: true,
-      title: 'استعادة أيام الدوام الافتراضية',
-      itemName: `جدول دوام قسم ${deptName}`,
-      itemDetails: `المرحلة ${selectedScheduleStage} - الفصل ${selectedScheduleSemester === 1 ? 'الأول' : 'الثاني'}`,
-      warningMessage: 'هل تريد استعادة أيام الدوام الافتراضية (السبت إلى الأربعاء دوام، والخميس والجمعة عطلة رسمية)؟',
+      title: `استعادة أيام الدوام الافتراضية${isGroupSpecific ? ` — كروب ${selectedScheduleGroup}` : ''}`,
+      itemName: `جدول دوام قسم ${deptName}${isGroupSpecific ? ` — كروب ${selectedScheduleGroup}` : ''}`,
+      itemDetails: `المرحلة ${stageName}${groupLabel} - الفصل ${selectedScheduleSemester === 1 ? 'الأول' : 'الثاني'} (${selectedScheduleStudyType === 'evening' ? 'مسائي' : 'صباحي'})`,
+      warningMessage: `هل تريد استعادة أيام الدوام الافتراضية لطلبة المرحلة ${stageName}${groupLabel} (السبت إلى الأربعاء دوام، والخميس والجمعة عطلة رسمية)؟`,
       confirmText: 'استعادة الافتراضي',
       variant: 'warning',
       iconType: 'alert',
       onConfirm: () => {
         const resetConfig: DepartmentScheduleConfig = {
           ...currentScheduleConfig,
+          id: isGroupSpecific
+            ? `cfg-${currentDeptId}-${selectedScheduleStage}-${selectedScheduleSemester}-${selectedScheduleStudyType}-${selectedScheduleGroup}`
+            : currentScheduleConfig.id,
           department_id: currentDeptId,
           stage_number: selectedScheduleStage,
           semester: selectedScheduleSemester,
+          study_type: selectedScheduleStudyType,
+          target_group: targetGroupVal,
           working_days: [...DEFAULT_WORKING_DAYS],
           off_days: [...DEFAULT_OFF_DAYS],
           updated_at: new Date().toISOString(),
@@ -333,7 +400,10 @@ export const useDepartmentSchedule = ({
           (c: DepartmentScheduleConfig) =>
             c.department_id === currentDeptId &&
             c.stage_number === selectedScheduleStage &&
-            c.semester === selectedScheduleSemester
+            c.semester === selectedScheduleSemester &&
+            (!selectedScheduleStudyType || !c.study_type || c.study_type === selectedScheduleStudyType) &&
+            ((isGroupSpecific && c.target_group === targetGroupVal) ||
+             (!isGroupSpecific && (!c.target_group || c.target_group === 'all')))
         );
 
         let updatedConfigsList: DepartmentScheduleConfig[];
@@ -506,6 +576,9 @@ export const useDepartmentSchedule = ({
         const rawNotes = String(row['ملاحظات'] || row['Notes'] || '').trim();
         const rawDate = String(row['التاريخ'] || row['Date'] || '').trim();
         const rawWeekNumber = parseInt(String(row['الأسبوع'] || row['Week'] || '1').replace(/[^\d]/g, ''), 10);
+        // 👥 قراءة حقل الكروب المستقل من ملف Excel وتنظيفه بدقة
+        const rawGroup = String(row['الكروب'] || row['المجموعة'] || row['الشعبة'] || row['Group'] || '').trim();
+        const parsedGroup = rawGroup ? rawGroup.replace(/^(كروب|شعبة|مجموعة)\s*/i, '').trim().toUpperCase() : 'all';
 
         if (!rawCourseName || rawCourseName.length < 2) {
           rejected.push({
@@ -563,13 +636,14 @@ export const useDepartmentSchedule = ({
         const teacherId = matchedTeacher ? matchedTeacher.id : '';
         const teacherFullName = matchedTeacher ? matchedTeacher.full_name : rawTeacherName;
 
-        // فحص التكرار الدقيق
+        // فحص التكرار الدقيق مع مراعاة الكروب المستهدف
         const isDuplicate = tempAllLectures.some(
           (l: ScheduleLecture) =>
             isLectureInCurrentDept(l) &&
             l.stage_number === stageNumber &&
             l.semester === semesterNumber &&
             (l.study_type || 'morning') === parsedStudyType &&
+            (l.target_group || 'all') === (parsedGroup || 'all') && // 👥 فحص تطابق الكروب
             l.day === parsedDay &&
             l.start_time === startTime &&
             (l.room === roomName || l.course_name.toLowerCase() === finalCourseName.toLowerCase())
@@ -578,9 +652,9 @@ export const useDepartmentSchedule = ({
         if (isDuplicate) {
           duplicates.push({
             name: `${finalCourseName} (${DAYS_OF_WEEK_LIST.find((d: { key: DayOfWeek; label_ar: string }) => d.key === parsedDay)?.label_ar || parsedDay})`,
-            email: `${startTime} - ${endTime} | ${roomName}`,
+            email: `${startTime} - ${endTime} | ${roomName} ${parsedGroup !== 'all' ? `(كروب ${parsedGroup})` : ''}`,
             dept: `مرحلة ${stageNumber} (كورس ${semesterNumber}) - ${parsedStudyType === 'evening' ? 'مسائي' : 'صباحي'}`,
-            reason: 'محاضرة مجدولة مسبقاً في نفس التوقيت واليوم والقاعة',
+            reason: 'محاضرة مجدولة مسبقاً في نفس التوقيت واليوم والقاعة والكروب',
           });
           return;
         }
@@ -615,6 +689,7 @@ export const useDepartmentSchedule = ({
           study_type: parsedStudyType,
           color: finalLectureColor,
           notes: rawNotes || undefined,
+          target_group: parsedGroup || 'all', // 👥 تثبيت الكروب المستهدف المستقل
           week_number: validWeek,
           date: rawDate || undefined,
           custom_weekly_dates: cascaded15Dates,
@@ -625,7 +700,7 @@ export const useDepartmentSchedule = ({
         tempAllLectures.push(newLecture);
 
         accepted.push({
-          name: `${finalCourseName} — ${finalLectureType === 'practical' ? 'مختبر وعملي' : 'محاضرة نظرية'}`,
+          name: `${finalCourseName} — ${finalLectureType === 'practical' ? 'مختبر وعملي' : 'محاضرة نظرية'} ${parsedGroup !== 'all' ? `(كروب ${parsedGroup})` : ''}`,
           dept: `المرحلة ${stageNumber} (كورس ${semesterNumber}) | ${DAYS_OF_WEEK_LIST.find((d: { key: DayOfWeek; label_ar: string }) => d.key === parsedDay)?.label_ar || parsedDay} (${startTime} - ${endTime})`,
           email: `${roomName} ${teacherFullName ? `| ${teacherFullName}` : ''}`,
         });
@@ -873,6 +948,7 @@ export const useDepartmentSchedule = ({
             custom_weekly_dates: Object.keys(all15DatesMap).length > 0 ? all15DatesMap : undefined,
             weekly_overrides: Object.keys(updatedWeeklyOverrides).length > 0 ? updatedWeeklyOverrides : undefined,
             notes: lecNotes.trim() || undefined,
+            target_group: lecTargetGroup || 'all', // 👥 حفظ الكروب المستهدف
           };
           updatedLecToSync = editedLec;
           return editedLec;
@@ -937,6 +1013,7 @@ export const useDepartmentSchedule = ({
         week_number: lecWeekNumber || 1,
         custom_weekly_dates: Object.keys(all15DatesMap).length > 0 ? all15DatesMap : undefined,
         notes: lecNotes.trim() || undefined,
+        target_group: lecTargetGroup || 'all', // 👥 حفظ الكروب المستهدف
         created_at: new Date().toISOString(),
       };
 
@@ -1013,6 +1090,7 @@ export const useDepartmentSchedule = ({
 
     setLecAutoCascadeWeeks(true);
     setLecNotes('');
+    setLecTargetGroup('all'); // 👥 إعادة تعيين الكروب إلى عام افتراضياً
     setLecModalSuccessMsg('');
   };
 
@@ -1053,6 +1131,7 @@ export const useDepartmentSchedule = ({
     setLecAutoCascadeWeeks(true);
     setLecCascadeShiftOption('cascade_following');
     setLecNotes(lec.notes || '');
+    setLecTargetGroup(lec.target_group || 'all'); // 👥 قراءة كروب المحاضرة قيد التعديل
     setIsLectureModalOpen(true);
   };
 
@@ -1125,16 +1204,20 @@ export const useDepartmentSchedule = ({
 
   return {
     // 🎛️ خيارات الفلترة والعرض
-    selectedScheduleStage,
-    setSelectedScheduleStage,
-    selectedScheduleSemester,
-    setSelectedScheduleSemester,
-    selectedScheduleStudyType,
-    setSelectedScheduleStudyType,
-    selectedScheduleWeek,
-    setSelectedScheduleWeek,
-    selectedScheduleLectureIds,
-    setSelectedScheduleLectureIds,
+    selectedScheduleStage, // 🎓 المرحلة المحددة
+    setSelectedScheduleStage, // 🔄 تحديث المرحلة
+    selectedScheduleSemester, // 📚 الكورس المحدد
+    setSelectedScheduleSemester, // 🔄 تحديث الكورس
+    selectedScheduleStudyType, // ☀️ نوع الدراسة (صباحي / مسائي)
+    setSelectedScheduleStudyType, // 🔄 تحديث نوع الدراسة
+    selectedScheduleGroup, // 👥 الكروب المحدد حالياً ('all', 'A', 'B', 'C', 'D')
+    setSelectedScheduleGroup, // 🔄 تحديث الكروب المحدد
+    selectedWeekByGroup, // 🗓️ سجل الأسابيع المستقلة لكل كروب
+    setSelectedWeekByGroup, // 🔄 تحديث قاموس الأسابيع
+    selectedScheduleWeek, // 🔢 الأسبوع المحدد للكروب النشط
+    setSelectedScheduleWeek, // 🔄 تحديث أسبوع الكروب النشط
+    selectedScheduleLectureIds, // 🔘 المحاضرات المحددة
+    setSelectedScheduleLectureIds, // 🔄 تحديث التحديد
 
     // ⚙️ إعدادات الجدول والأسبوع الأكاديمي
     currentScheduleConfig,
@@ -1181,6 +1264,8 @@ export const useDepartmentSchedule = ({
     setLecCourseTabFilter,
     lecTeacherSearchTerm,
     setLecTeacherSearchTerm,
+    lecTargetGroup,
+    setLecTargetGroup,
     lecModalSuccessMsg,
     setLecModalSuccessMsg,
 
