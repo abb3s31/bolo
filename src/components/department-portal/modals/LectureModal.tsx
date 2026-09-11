@@ -2237,8 +2237,9 @@ export const LectureModal: React.FC<LectureModalProps> = ({
                             <GroupUsersSvg className="w-4 h-4 text-[#0F2942] shrink-0" /> {/* 👥 أيقونة الكروب الأكاديمي */}
                             <span>الكروب المستهدف للمحاضرة:</span> {/* 🏷️ عنوان الحقل الصريح */}
                           </label>
-                          <span className="text-xs font-black text-[#0F2942] bg-blue-50 px-3 py-1 rounded-xl border border-blue-200 shadow-2xs">
-                            خاصة بطلبة (كروب {lecTargetGroup || availableStageGroups[0]}) {/* 📌 توضيح استقلالية المحاضرة للكروب المختار */}
+                          <span className="text-xs font-black text-white bg-[#0F2942] px-3 py-1 rounded-xl border border-[#0F2942] shadow-xs inline-flex items-center gap-1.5">
+                            <GroupBadgeSvg className="w-3.5 h-3.5 text-cyan-300 shrink-0" /> {/* 👥 أيقونة الكروب الفيكتورية */}
+                            <span>خاصة بطلبة (كروب {lecTargetGroup || availableStageGroups[0]})</span> {/* 📌 توضيح استقلالية المحاضرة للكروب المختار بالوسم الكحلي الملكي */}
                           </span>
                         </div>
 
@@ -2271,8 +2272,9 @@ export const LectureModal: React.FC<LectureModalProps> = ({
                           <GroupUsersSvg className="w-4 h-4 text-[#0F2942] shrink-0" /> {/* 👥 أيقونة الشعبة الموحدة */}
                           <span>لا يوجد كروبات لهذه المرحلة (شعبة موحدة)</span> {/* 📢 تنبيه صريح بعدم وجود كروبات */}
                         </div>
-                        <span className="px-2.5 py-1 bg-white text-[#0F2942] border border-blue-200 rounded-lg text-xs font-black shadow-2xs">
-                          شعبة موحدة {/* 🏷️ شارة الدفعة الكاملة بدون أي ذكر لكلمة مشتركة */}
+                        <span className="px-3 py-1 bg-[#0F2942] text-white border border-[#0F2942] rounded-xl text-xs font-black shadow-xs inline-flex items-center gap-1.5">
+                          <GroupUsersSvg className="w-3.5 h-3.5 text-cyan-300 shrink-0" /> {/* 👥 أيقونة الشعبة الموحدة */}
+                          <span>شعبة موحدة</span> {/* 🏷️ شارة الدفعة الكاملة بالوسم الكحلي الملكي */}
                         </span>
                       </div>
                     )}
