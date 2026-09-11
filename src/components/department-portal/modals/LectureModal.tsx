@@ -45,6 +45,16 @@ import type {
   StageGroupConfig, // ⚙️ واجهة إعدادات كروبات المراحل
 } from '@/types'; // 🏷️ استيراد الأنواع
 import { GroupUsersSvg, GroupBadgeSvg } from '@/components/common/GroupSvgIcons'; // 👥 استيراد أيقونات الكروبات والشعب الفيكتورية النقية
+import {
+  CalendarDaysSvg,
+  CheckCircle2Svg,
+  LayersSvg,
+  HandCustomSvg,
+  ChevronDownSvg,
+  PinSvg,
+  SparkleSvg,
+  CalendarSingleSvg,
+} from '@/components/common/WeekScopeSvgIcons'; // 🗓️ استيراد الأيقونات الفيكتورية النقية SVG لسريان الأسابيع والتقويم
 import FloatingCrudModal from '@/components/FloatingCrudModal'; // 📦 مودال الكرود العائم
 import ArabicDatePicker from '@/components/schedule/ArabicDatePicker'; // 📅 تقويم التاريخ العربي
 import {
@@ -230,8 +240,11 @@ export const LectureModal: React.FC<LectureModalProps> = ({
   const [isLecTypeDropdownOpen, setIsLecTypeDropdownOpen] = useState<boolean>(false); // 🔬 قائمة النوع
   const [isLecCourseDropdownOpen, setIsLecCourseDropdownOpen] = useState<boolean>(false); // 📚 قائمة المادة
   const [isLecTeacherDropdownOpen, setIsLecTeacherDropdownOpen] = useState<boolean>(false); // 👨‍🏫 قائمة الأستاذ
-  // 🕒 تدار حالات قوائم التوقيت الآن داخل LectureTimeSlotPicker
   const [isLecWeekDropdownOpen, setIsLecWeekDropdownOpen] = useState<boolean>(false); // 🔢 قائمة الأسبوع
+  // 🗓️ حالة طي وتوسيع قسم سريان المحاضرة على أسابيع الفصل (مخفي افتراضياً ليظهر عند النقر أو عند التعديل/تغيير التواريخ)
+  const [isWeeksScopeOpen, setIsWeeksScopeOpen] = useState<boolean>(() => {
+    return Boolean(editingLectureId && lecWeeksScope !== 'all_15_weeks' && (lecCustomWeeks?.length ?? 0) < 15);
+  });
 
   // 📍 إحداثيات ومواقع القوائم المنسدلة المخصصة
   const [lecDayCoords, setLecDayCoords] = useState<{ top?: number; bottom?: number; left: number; width: number; maxHeight?: number; openUpwards?: boolean } | null>(null);
@@ -901,6 +914,7 @@ export const LectureModal: React.FC<LectureModalProps> = ({
                           onChange={(newDate) => {
                             setLecDate(newDate); // 📅 حفظ التاريخ المختار في الحالة
                             if (newDate) {
+                              setIsWeeksScopeOpen(true); // 🗓️ إظهار خيارات سريان المحاضرة تلقائياً عند تغيير أو تحديد التاريخ
                               const dayFound = getDayOfWeekFromDateString(newDate); // 🗓️ استنتاج اليوم الأكاديمي
                               if (dayFound) setLecDay(dayFound); // 🔄 مزامنة اليوم الأسبوعي
                               
@@ -953,7 +967,7 @@ export const LectureModal: React.FC<LectureModalProps> = ({
                             {/* 🏷️ الجانب الأيمن: أيقونة الطبقات + اسم الأسبوع + بادج المرجعي */}
                             <div className="flex items-center gap-2 min-w-0">
                               <div className="p-1.5 bg-blue-50 text-[#0F2942] rounded-lg shrink-0 border border-blue-200">
-                                <Layers className="w-4 h-4 text-[#0F2942]" /> {/* 📚 أيقونة الطبقات */}
+                                <LayersSvg className="w-4 h-4 text-[#0F2942]" /> {/* 📚 أيقونة الطبقات SVG */}
                               </div>
                               <span className="text-sm font-black text-slate-950 whitespace-nowrap">
                                 الأسبوع {lecWeekNumber} {/* 🔢 رقم الأسبوع المعتمد */}
@@ -969,11 +983,11 @@ export const LectureModal: React.FC<LectureModalProps> = ({
                             <div className="flex items-center gap-2 shrink-0">
                               {lecDate && (
                                 <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs whitespace-nowrap flex items-center gap-1.5" dir="ltr">
-                                  <Calendar className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                                  <CalendarSingleSvg className="w-3.5 h-3.5 text-slate-500 shrink-0" /> {/* 🗓️ أيقونة التقويم SVG */}
                                   <span>{lecDate}</span> {/* 🗓️ تاريخ المحاضرة التقويمي */}
                                 </span>
                               )}
-                              <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform duration-200 shrink-0 mr-0.5 ${isLecWeekDropdownOpen ? 'rotate-180 text-[#0F2942]' : ''}`} />
+                              <ChevronDownSvg className={`w-4 h-4 text-slate-500 transition-transform duration-200 shrink-0 mr-0.5 ${isLecWeekDropdownOpen ? 'rotate-180 text-[#0F2942]' : ''}`} /> {/* 🔻 سهم منسدل SVG */}
                             </div>
                           </button>
 
@@ -1018,6 +1032,7 @@ export const LectureModal: React.FC<LectureModalProps> = ({
                                         onClick={() => {
                                           setLecWeekNumber(wk); // 🔢 ضبط رقم الأسبوع المختار
                                           setIsLecWeekDropdownOpen(false); // 🚪 غلق القائمة
+                                          setIsWeeksScopeOpen(true); // 🚀 فتح خيارات سريان الأسابيع تلقائياً عند تغيير الأسبوع
                                           if (computedWkDate) {
                                             setLecDate(computedWkDate); // 📅 تحديث حقل التاريخ تلقائياً ليطابق هذا الأسبوع
                                             const deducedDay = getDayOfWeekFromDateString(computedWkDate); // 🗓️ استنتاج اليوم
@@ -1058,11 +1073,11 @@ export const LectureModal: React.FC<LectureModalProps> = ({
                                             <span className={`text-xs font-mono font-bold px-2 py-1 rounded-lg border shrink-0 flex items-center gap-1 ${
                                               isSelected ? 'bg-white/20 text-white border-white/30' : 'bg-slate-100 text-slate-700 border-slate-200'
                                             }`} dir="ltr">
-                                              <Calendar className="w-3 h-3 shrink-0 opacity-70" />
+                                              <CalendarSingleSvg className="w-3 h-3 shrink-0 opacity-70" />
                                               <span>{computedWkDate}</span>
                                             </span>
                                           )}
-                                          {isSelected && <Check className="w-4 h-4 text-cyan-300 shrink-0" />}
+                                          {isSelected && <CheckCircle2Svg className="w-4 h-4 text-cyan-300 shrink-0" />}
                                         </div>
                                       </button>
                                     );
@@ -1076,201 +1091,184 @@ export const LectureModal: React.FC<LectureModalProps> = ({
                       </div>
                     </div>
 
-                    {/* 🗓️ نطاق سريان المحاضرة على أسابيع الفصل الدراسي (15 أسبوعاً) */}
-                    <div className="p-3 bg-gradient-to-l from-blue-50/70 via-slate-50 to-blue-50/70 border-2 border-blue-200 rounded-2xl space-y-3 text-xs sm:text-sm shadow-2xs">
-                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-blue-200/80 pb-2">
-                        <div className="flex items-center gap-2">
-                          <div className="p-1.5 bg-[#0F2942] text-white rounded-lg shrink-0 shadow-2xs">
-                            <CalendarDays className="w-4 h-4 text-cyan-300" /> {/* 🗓️ أيقونة التقويم الأكاديمي */}
+                    {/* 🗓️ نطاق سريان المحاضرة على أسابيع الفصل الدراسي (15 أسبوعاً) بتصميم ذكي قابل للطي ومطابق لطلب المستخدم */}
+                    <div className="bg-gradient-to-l from-blue-50/70 via-slate-50 to-blue-50/70 border-2 border-blue-200 rounded-2xl text-xs sm:text-sm shadow-2xs transition-all overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => setIsWeeksScopeOpen((prev) => !prev)}
+                        className="w-full p-3.5 flex items-center justify-between gap-2 text-right cursor-pointer select-none group hover:bg-blue-50/50 transition-colors"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="p-2 bg-[#0F2942] text-white rounded-xl shrink-0 shadow-2xs group-hover:bg-[#163a5f] transition-colors">
+                            <CalendarDaysSvg className="w-4 h-4 text-cyan-300" /> {/* 🗓️ أيقونة التقويم الأكاديمي SVG */}
                           </div>
-                          <div>
-                            <span className="font-black text-slate-950 text-sm sm:text-base">
-                              سريان المحاضرة على أسابيع الفصل (15 أسبوعاً):
-                            </span>
-                            <p className="text-[11px] sm:text-xs font-bold text-slate-700">
-                              حدد ما إذا كانت المحاضرة أسبوعية دورية أو مخصصة لأسابيع محددة فقط
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-black text-slate-950 text-xs sm:text-sm">
+                                سريان المحاضرة على أسابيع الفصل (15 أسبوعاً):
+                              </span>
+                              <span className="text-[11px] sm:text-xs font-black px-2.5 py-0.5 rounded-lg bg-blue-100 text-blue-950 border border-blue-200 shadow-2xs">
+                                {lecWeeksScope === 'all_15_weeks' || lecCustomWeeks.length === 15 
+                                  ? 'مقررة في كافة الأسابيع (15/15)' 
+                                  : `مقررة في ${lecCustomWeeks.length} من 15 أسبوعاً`}
+                              </span>
+                            </div>
+                            <p className="text-[11px] font-bold text-slate-600 mt-0.5 truncate">
+                              {isWeeksScopeOpen 
+                                ? 'انقر لطي وتثبيت خيارات الأسابيع' 
+                                : 'المحاضرة تسري تلقائياً على كامل الفصل — اضغط لتخصيص أسابيع معينة أو استثناءات'}
                             </p>
                           </div>
                         </div>
 
-                        {/* 📊 شارة عدد الأسابيع النشطة للمحاضرة */}
-                        <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
-                          <span className="px-3 py-1 bg-[#0F2942] text-white text-xs sm:text-sm font-black rounded-xl border border-[#0F2942] shadow-xs flex items-center gap-1.5">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-cyan-300" />
-                            <span>مقررة في: <strong>{lecCustomWeeks.length}</strong> من 15 أسبوعاً</span>
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* 🎛️ أزرار الأنماط السريعة لتحديد نطاق الأسابيع */}
-                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
-                        {/* 1. كافة الأسابيع الـ 15 */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setLecWeeksScope?.('all_15_weeks'); // 🎯 تحديد النمط الشامل
-                            setLecCustomWeeks?.([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]); // 📋 تفعيل كافة الأسابيع
-                            setLecAutoCascadeWeeks(true); // 🔄 تفعيل التعاقب التلقائي
-                            setSuccessMessage('تم تحديد المحاضرة لكافة أسابيع الفصل الـ 15 بالتساوي 📅✨'); // 💬 إشعار
-                            setTimeout(() => setSuccessMessage(''), 3000); // ⏱️ إخفاء الإشعار
-                          }}
-                          className={`p-2 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer border-2 text-center shadow-2xs active:scale-95 ${
-                            lecWeeksScope === 'all_15_weeks'
-                              ? 'bg-[#0F2942] text-white border-[#0F2942] ring-2 ring-[#0F2942]/20'
-                              : 'bg-white text-slate-800 border-slate-300 hover:bg-slate-100'
-                          }`}
-                        >
-                          كافة الأسابيع (1-15)
-                        </button>
-
-                        {/* 2. هذا الأسبوع فقط */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setLecWeeksScope?.('this_week_only'); // 🎯 نمط أسبوع واحد
-                            setLecCustomWeeks?.([lecWeekNumber || 1]); // 📋 تفعيل الأسبوع الحالي حصراً
-                            setLecAutoCascadeWeeks(false); // 🛑 إيقاف التعاقب
-                            setSuccessMessage(`تم تخصيص المحاضرة للأسبوع (${lecWeekNumber || 1}) فقط كاستثناء تقويمي 📍`); // 💬 إشعار
-                            setTimeout(() => setSuccessMessage(''), 3000); // ⏱️ إخفاء الإشعار
-                          }}
-                          className={`p-2 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer border-2 text-center shadow-2xs active:scale-95 ${
-                            lecWeeksScope === 'this_week_only'
-                              ? 'bg-[#0F2942] text-white border-[#0F2942] ring-2 ring-[#0F2942]/20'
-                              : 'bg-white text-slate-800 border-slate-300 hover:bg-slate-100'
-                          }`}
-                        >
-                          هذا الأسبوع فقط ({lecWeekNumber || 1})
-                        </button>
-
-                        {/* 3. الأسابيع الفردية */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setLecWeeksScope?.('odd_weeks'); // 🎯 نمط الأسابيع الفردية
-                            setLecCustomWeeks?.([1, 3, 5, 7, 9, 11, 13, 15]); // 📋 الأسابيع الفردية فقط
-                            setSuccessMessage('تم تخصيص المحاضرة للأسابيع الفردية (1، 3، 5، 7، 9، 11، 13، 15) 🔢'); // 💬 إشعار
-                            setTimeout(() => setSuccessMessage(''), 3000); // ⏱️ إخفاء الإشعار
-                          }}
-                          className={`p-2 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer border-2 text-center shadow-2xs active:scale-95 ${
-                            lecWeeksScope === 'odd_weeks'
-                              ? 'bg-[#0F2942] text-white border-[#0F2942] ring-2 ring-[#0F2942]/20'
-                              : 'bg-white text-slate-800 border-slate-300 hover:bg-slate-100'
-                          }`}
-                        >
-                          الأسابيع الفردية (8)
-                        </button>
-
-                        {/* 4. الأسابيع الزوجية */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setLecWeeksScope?.('even_weeks'); // 🎯 نمط الأسابيع الزوجية
-                            setLecCustomWeeks?.([2, 4, 6, 8, 10, 12, 14]); // 📋 الأسابيع الزوجية فقط
-                            setSuccessMessage('تم تخصيص المحاضرة للأسابيع الزوجية (2، 4، 6، 8، 10، 12، 14) 🔢'); // 💬 إشعار
-                            setTimeout(() => setSuccessMessage(''), 3000); // ⏱️ إخفاء الإشعار
-                          }}
-                          className={`p-2 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer border-2 text-center shadow-2xs active:scale-95 ${
-                            lecWeeksScope === 'even_weeks'
-                              ? 'bg-[#0F2942] text-white border-[#0F2942] ring-2 ring-[#0F2942]/20'
-                              : 'bg-white text-slate-800 border-slate-300 hover:bg-slate-100'
-                          }`}
-                        >
-                          الأسابيع الزوجية (7)
-                        </button>
-
-                        {/* 5. تخصيص حر بأزرار الأسابيع */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setLecWeeksScope?.('custom_pick'); // 🎯 نمط التخصيص الحر
-                          }}
-                          className={`col-span-2 sm:col-span-1 p-2 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer border-2 text-center shadow-2xs active:scale-95 ${
-                            lecWeeksScope === 'custom_pick'
-                              ? 'bg-[#0F2942] text-white border-[#0F2942] ring-2 ring-[#0F2942]/20'
-                              : 'bg-white text-slate-800 border-slate-300 hover:bg-slate-100'
-                          }`}
-                        >
-                          تحديد يدوي حر ✋
-                        </button>
-                      </div>
-
-                      {/* 🔢 شريط اختيار الأسابيع الـ 15 تفاعلي بالكبسولات الصغيرة الفاخرة */}
-                      <div className="pt-2 border-t border-blue-200/60">
-                        <div className="flex items-center justify-between gap-2 mb-1.5">
-                          <span className="text-xs font-black text-slate-800 flex items-center gap-1.5">
-                            <Layers className="w-3.5 h-3.5 text-[#0F2942]" />
-                            <span>انقر على رقم أي أسبوع لإضافته أو استبعاده من جدول المحاضرة:</span>
-                          </span>
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setLecWeeksScope?.('custom_pick'); // 🎯 تحويل لنمط التخصيص
-                                setLecCustomWeeks?.([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]); // 📋 تحديد الكل
-                              }}
-                              className="text-[11px] font-black text-blue-900 hover:text-blue-950 underline cursor-pointer"
-                            >
-                              تحديد الكل
-                            </button>
-                            <span className="text-slate-300">|</span>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setLecWeeksScope?.('custom_pick'); // 🎯 تحويل لنمط التخصيص
-                                setLecCustomWeeks?.([lecWeekNumber || 1]); // 📋 الإبقاء على الأسبوع الحالي فقط
-                              }}
-                              className="text-[11px] font-black text-rose-700 hover:text-rose-900 underline cursor-pointer"
-                            >
-                              إلغاء البقية
-                            </button>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <div className={`p-1.5 rounded-lg bg-slate-200 text-slate-800 transition-transform duration-200 ${isWeeksScopeOpen ? 'rotate-180 bg-[#0F2942] text-white' : ''}`}>
+                            <ChevronDownSvg className="w-4 h-4" /> {/* 🔻 سهم منسدل SVG نقي */}
                           </div>
                         </div>
+                      </button>
 
-                        {/* 🔘 أزرار الأسابيع من 1 إلى 15 */}
-                        <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-15 gap-1.5">
-                          {Array.from({ length: 15 }, (_, i) => i + 1).map((wNum) => {
-                            const isWeekActive = lecCustomWeeks.includes(wNum); // 🔍 فحص نشاط الأسبوع
-                            const isCurrentSelectedWeek = wNum === (lecWeekNumber || 1); // 🌟 هل هو الأسبوع الحالي المفتوح
+                      {/* 🎛️ المحتوى الموسع عند طلب التخصيص أو تغيير التواريخ */}
+                      {isWeeksScopeOpen && (
+                        <div className="p-3.5 pt-0 space-y-3 border-t border-blue-200/80 animate-in fade-in duration-150">
+                          {/* 🎛️ أزرار الأنماط السريعة لتحديد نطاق الأسابيع (بعد حذف الفردي والزوجي كلياً) */}
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2">
+                            {/* 1. كافة الأسابيع الـ 15 */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setLecWeeksScope?.('all_15_weeks'); // 🎯 تحديد النمط الشامل
+                                setLecCustomWeeks?.([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]); // 📋 تفعيل كافة الأسابيع
+                                setLecAutoCascadeWeeks(true); // 🔄 تفعيل التعاقب التلقائي
+                                setSuccessMessage('تم تحديد المحاضرة لكافة أسابيع الفصل الـ 15 بالتساوي 📅✨'); // 💬 إشعار
+                                setTimeout(() => setSuccessMessage(''), 3000); // ⏱️ إخفاء الإشعار
+                              }}
+                              className={`p-2.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer border-2 flex items-center justify-center gap-2 shadow-2xs active:scale-95 ${
+                                lecWeeksScope === 'all_15_weeks'
+                                  ? 'bg-[#0F2942] text-white border-[#0F2942] ring-2 ring-[#0F2942]/20'
+                                  : 'bg-white text-slate-800 border-slate-300 hover:bg-slate-100'
+                              }`}
+                            >
+                              <CalendarDaysSvg className="w-4 h-4 shrink-0 text-cyan-300" /> {/* 🗓️ أيقونة SVG نقية */}
+                              <span>كافة الأسابيع (1-15)</span>
+                            </button>
 
-                            return (
-                              <button
-                                key={wNum}
-                                type="button"
-                                onClick={() => {
-                                  let nextWeeks: number[]; // 📋 مصفوفة الأسابيع القادمة
-                                  if (isWeekActive) { // ❌ إذا كان مفعلاً نقوم بحذفه
-                                    nextWeeks = lecCustomWeeks.filter((w) => w !== wNum); // 🧹 استبعاد الأسبوع
-                                    if (nextWeeks.length === 0) { // 🛡️ نمنع إفراغ كافة الأسابيع كلياً
-                                      nextWeeks = [wNum]; // 🛡️ إعادة الأسبوع الحالي لمنع الخطأ
-                                    }
-                                  } else { // ➕ إذا لم يكن مفعلاً نضيفه
-                                    nextWeeks = [...lecCustomWeeks, wNum].sort((a, b) => a - b); // 📈 إضافة وترتيب
-                                  }
-                                  setLecCustomWeeks?.(nextWeeks); // 💾 حفظ الأسابيع المحدثة
-                                  setLecWeeksScope?.('custom_pick'); // 🎯 ضبط النمط على يدوي
-                                }}
-                                className={`py-2 px-1 rounded-xl text-xs font-black transition-all cursor-pointer border-2 text-center flex flex-col items-center justify-center gap-0.5 shadow-2xs active:scale-90 ${
-                                  isWeekActive
-                                    ? isCurrentSelectedWeek
-                                      ? 'bg-[#0F2942] text-white border-cyan-400 ring-2 ring-cyan-400/40 shadow-sm'
-                                      : 'bg-[#0F2942] text-white border-[#0F2942]'
-                                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100 hover:text-slate-900'
-                                }`}
-                                title={`أسبوع ${wNum} ${isWeekActive ? '(نشط ومجدول)' : '(معطل ومستبعد)'}`}
-                              >
-                                <span className="font-mono text-sm leading-none">{wNum}</span>
-                                <span className="text-[10px] scale-90 leading-none">
-                                  {isCurrentSelectedWeek ? 'الحالي' : `أسبوع`}
-                                </span>
-                              </button>
-                            );
-                          })}
+                            {/* 2. هذا الأسبوع فقط */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setLecWeeksScope?.('this_week_only'); // 🎯 نمط أسبوع واحد
+                                setLecCustomWeeks?.([lecWeekNumber || 1]); // 📋 تفعيل الأسبوع الحالي حصراً
+                                setLecAutoCascadeWeeks(false); // 🛑 إيقاف التعاقب
+                                setSuccessMessage(`تم تخصيص المحاضرة للأسبوع (${lecWeekNumber || 1}) فقط كاستثناء تقويمي 📍`); // 💬 إشعار
+                                setTimeout(() => setSuccessMessage(''), 3000); // ⏱️ إخفاء الإشعار
+                              }}
+                              className={`p-2.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer border-2 flex items-center justify-center gap-2 shadow-2xs active:scale-95 ${
+                                lecWeeksScope === 'this_week_only'
+                                  ? 'bg-[#0F2942] text-white border-[#0F2942] ring-2 ring-[#0F2942]/20'
+                                  : 'bg-white text-slate-800 border-slate-300 hover:bg-slate-100'
+                              }`}
+                            >
+                              <PinSvg className="w-4 h-4 shrink-0 text-cyan-300" /> {/* 📌 أيقونة SVG نقية */}
+                              <span>هذا الأسبوع فقط ({lecWeekNumber || 1})</span>
+                            </button>
+
+                            {/* 3. تخصيص حر بأزرار الأسابيع */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setLecWeeksScope?.('custom_pick'); // 🎯 نمط التخصيص الحر
+                              }}
+                              className={`p-2.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer border-2 flex items-center justify-center gap-2 shadow-2xs active:scale-95 ${
+                                lecWeeksScope === 'custom_pick'
+                                  ? 'bg-[#0F2942] text-white border-[#0F2942] ring-2 ring-[#0F2942]/20'
+                                  : 'bg-white text-slate-800 border-slate-300 hover:bg-slate-100'
+                              }`}
+                            >
+                              <HandCustomSvg className="w-4 h-4 shrink-0 text-cyan-300" /> {/* ✋ أيقونة SVG نقية */}
+                              <span>تحديد يدوي حر</span>
+                            </button>
+                          </div>
+
+                          {/* 🔢 شريط اختيار الأسابيع الـ 15 تفاعلي بالكبسولات الصغيرة الفاخرة */}
+                          <div className="pt-2.5 border-t border-blue-200/60">
+                            <div className="flex items-center justify-between gap-2 mb-2">
+                              <span className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                                <LayersSvg className="w-3.5 h-3.5 text-[#0F2942]" /> {/* 📚 أيقونة SVG نقية */}
+                                <span>انقر على رقم أي أسبوع لإضافته أو استبعاده من جدول المحاضرة:</span>
+                              </span>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setLecWeeksScope?.('custom_pick'); // 🎯 تحويل لنمط التخصيص
+                                    setLecCustomWeeks?.([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]); // 📋 تحديد الكل
+                                  }}
+                                  className="text-[11px] font-black text-blue-900 hover:text-blue-950 underline cursor-pointer"
+                                >
+                                  تحديد الكل
+                                </button>
+                                <span className="text-slate-300">|</span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setLecWeeksScope?.('custom_pick'); // 🎯 تحويل لنمط التخصيص
+                                    setLecCustomWeeks?.([lecWeekNumber || 1]); // 📋 الإبقاء على الأسبوع الحالي فقط
+                                  }}
+                                  className="text-[11px] font-black text-rose-700 hover:text-rose-900 underline cursor-pointer"
+                                >
+                                  إلغاء البقية
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* 🔘 أزرار الأسابيع من 1 إلى 15 */}
+                            <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-15 gap-1.5">
+                              {Array.from({ length: 15 }, (_, i) => i + 1).map((wNum) => {
+                                const isWeekActive = lecCustomWeeks.includes(wNum); // 🔍 فحص نشاط الأسبوع
+                                const isCurrentSelectedWeek = wNum === (lecWeekNumber || 1); // 🌟 هل هو الأسبوع الحالي المفتوح
+
+                                return (
+                                  <button
+                                    key={wNum}
+                                    type="button"
+                                    onClick={() => {
+                                      let nextWeeks: number[]; // 📋 مصفوفة الأسابيع القادمة
+                                      if (isWeekActive) { // ❌ إذا كان مفعلاً نقوم بحذفه
+                                        nextWeeks = lecCustomWeeks.filter((w) => w !== wNum); // 🧹 استبعاد الأسبوع
+                                        if (nextWeeks.length === 0) { // 🛡️ نمنع إفراغ كافة الأسابيع كلياً
+                                          nextWeeks = [wNum]; // 🛡️ إعادة الأسبوع الحالي لمنع الخطأ
+                                        }
+                                      } else { // ➕ إذا لم يكن مفعلاً نضيفه
+                                        nextWeeks = [...lecCustomWeeks, wNum].sort((a, b) => a - b); // 📈 إضافة وترتيب
+                                      }
+                                      setLecCustomWeeks?.(nextWeeks); // 💾 حفظ الأسابيع المحدثة
+                                      setLecWeeksScope?.('custom_pick'); // 🎯 ضبط النمط على يدوي
+                                    }}
+                                    className={`py-2 px-1 rounded-xl text-xs font-black transition-all cursor-pointer border-2 text-center flex flex-col items-center justify-center gap-0.5 shadow-2xs active:scale-90 ${
+                                      isWeekActive
+                                        ? isCurrentSelectedWeek
+                                          ? 'bg-[#0F2942] text-white border-cyan-400 ring-2 ring-cyan-400/40 shadow-sm'
+                                          : 'bg-[#0F2942] text-white border-[#0F2942]'
+                                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100 hover:text-slate-900'
+                                    }`}
+                                    title={`أسبوع ${wNum} ${isWeekActive ? '(نشط ومجدول)' : '(معطل ومستبعد)'}`}
+                                  >
+                                    <span className="font-mono text-sm leading-none">{wNum}</span>
+                                    <span className="text-[10px] scale-90 leading-none">
+                                      {isCurrentSelectedWeek ? 'الحالي' : `أسبوع`}
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
                         </div>
-                      </div>
+                      )}
 
                       {/* 🔀 خيارات ترحيل التعديلات والاستثناءات الخاصة بالأسبوع المختار (عند التعديل فقط) */}
                       {editingLectureId && lecWeekNumber > 1 && (
-                        <div className="pt-2 border-t border-blue-200/60 space-y-1.5">
+                        <div className="p-3 bg-white/70 border-t border-blue-200/80 space-y-1.5">
                           <div className="font-black text-slate-900 flex items-center justify-between">
                             <span className="flex items-center gap-1.5 text-xs sm:text-sm">
                               <Layers className="w-4 h-4 text-[#0F2942]" />
@@ -1422,6 +1420,7 @@ export const LectureModal: React.FC<LectureModalProps> = ({
                                     onClick={() => {
                                       setLecDay(d.key);
                                       setIsLecDayDropdownOpen(false);
+                                      setIsWeeksScopeOpen(true); // 🚀 فتح خيارات سريان الأسابيع تلقائياً عند تغيير اليوم
                                       // 🧠 المزامنة التقويمية الذكية: احتساب تاريخ هذا اليوم تلقائياً للأسبوع المحدد
                                       const baseStart = currentScheduleConfig?.start_date || '2026-09-20';
                                       const targetWk = lecWeekNumber || 1;
