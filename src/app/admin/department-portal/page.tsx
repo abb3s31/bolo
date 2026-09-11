@@ -825,6 +825,8 @@ export default function DepartmentPortalPage() {
     lecStudyType, setLecStudyType,
     lecAutoCascadeWeeks, setLecAutoCascadeWeeks,
     lecCascadeShiftOption, setLecCascadeShiftOption,
+    lecWeeksScope, setLecWeeksScope,
+    lecCustomWeeks, setLecCustomWeeks,
     closeModalAfterSave, setCloseModalAfterSave,
     lecCourseSearchTerm, setLecCourseSearchTerm,
     lecCourseTabFilter, setLecCourseTabFilter,
@@ -851,7 +853,7 @@ export default function DepartmentPortalPage() {
     handleSaveExamSchedule, calculateEndTimeFromStart,
     advanceToNextTimeSlot, handleSaveLecture,
     resetLectureModalState, handleEditLecture,
-    handleDeleteLecture, handleBulkDeleteScheduleLectures,
+    handleDeleteLecture, handleDeleteLectureForWeek, handleBulkDeleteScheduleLectures,
   } = scheduleHook;
 
   // 📊 حالات تبويب درجات وسعيات مسار بولونيا
@@ -1832,6 +1834,7 @@ export default function DepartmentPortalPage() {
           isLectureInCurrentDept={isLectureInCurrentDept}
           handleEditLecture={handleEditLecture}
           handleDeleteLecture={handleDeleteLecture}
+          handleDeleteLectureForWeek={handleDeleteLectureForWeek} // 🚫 تمرير دالة إلغاء المحاضرة للأسبوع المحدد
           handleSaveLecture={handleSaveLecture}
           handleSaveSemesterStartDate={handleSaveSemesterStartDate}
           resetLectureModalState={resetLectureModalState}
@@ -1870,6 +1873,10 @@ export default function DepartmentPortalPage() {
           setLecAutoCascadeWeeks={setLecAutoCascadeWeeks}
           lecCascadeShiftOption={lecCascadeShiftOption}
           setLecCascadeShiftOption={setLecCascadeShiftOption}
+          lecWeeksScope={lecWeeksScope} // 🔢 تمرير نطاق الأسابيع المعتمدة
+          setLecWeeksScope={setLecWeeksScope} // 🔄 تمرير دالة تحديث نطاق الأسابيع
+          lecCustomWeeks={lecCustomWeeks} // 📋 تمرير قائمة الأسابيع المخصصة
+          setLecCustomWeeks={setLecCustomWeeks} // 🔄 تمرير دالة تحديث قائمة الأسابيع
           closeModalAfterSave={closeModalAfterSave}
           setCloseModalAfterSave={setCloseModalAfterSave}
           lecCourseSearchTerm={lecCourseSearchTerm}
@@ -2166,6 +2173,7 @@ export default function DepartmentPortalPage() {
         currentHead={currentHead}
         currentRap={currentRap}
         selectedScheduleStage={selectedScheduleStage}
+        setSelectedScheduleStage={setSelectedScheduleStage} // 🔄 تمرير دالة تحديث المرحلة لمزامنة تبويبات المودال
         scheduleLectures={scheduleLectures}
         scheduleConfigs={scheduleConfigs}
         academicYear={academicYear}

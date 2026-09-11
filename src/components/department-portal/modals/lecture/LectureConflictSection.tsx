@@ -201,9 +201,9 @@ export const LectureConflictSection: React.FC<LectureConflictSectionProps> = ({
                     {/* 🏷️ 1. الترويسة: الشارات على اليمين + أزرار تعديل وحذف على اليسار مصفوفة أفقياً */}
                     <div className="flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        {/* 🎖️ وسم تسلسل المحاضرة الأكاديمي الفصيح بتصميم كحلي ملكي راقٍ */}
+                        {/* 🎖️ وسم تسلسل المحاضرة الأكاديمي الفصيح بتصميم كحلي ملكي راقٍ ومرتب بدون أي نقاط */}
                         <span className="px-2.5 py-1 rounded-lg text-xs font-black bg-[#0F2942] text-white border border-[#0F2942] flex items-center gap-1.5 shadow-2xs shrink-0">
-                          <span className="w-1.5 h-1.5 rounded-full bg-cyan-300 shrink-0" />
+                          {/* 🏷️ عرض تسلسل المحاضرة (المحاضرة الأولى، المحاضرة الثانية...) بنص واضح ومباشر */}
                           <span>{formatArabicOrdinalLectureName(idx + 1)}</span>
                         </span>
                         {/* نوع الدراسة موحد بلون أزرق أكاديمي */}

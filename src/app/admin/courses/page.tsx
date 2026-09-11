@@ -1299,7 +1299,7 @@ export default function AdminCoursesPage() {
                           return <span className="text-rose-600 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200 font-bold text-xs whitespace-nowrap">غير معين</span>;
                         })()
                       ) : (
-                        <span className="text-slate-400 font-medium text-xs whitespace-nowrap">— نظري فقط</span>
+                        <span className="text-black font-black text-xs sm:text-sm whitespace-nowrap">— نظري فقط</span>
                       )}
                     </td>
                     

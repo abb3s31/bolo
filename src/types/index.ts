@@ -469,9 +469,10 @@ export interface ScheduleLecture {
   study_type?: 'morning' | 'evening'; // ☀️ نوع الدراسة (صباحي / مسائي)
   target_group?: string;      // 🏷️ الكروب المستهدف بالمحاضرة ('all' لكافة الشعب أو 'A', 'B' لكروب محدد)
   date?: string;              // 📅 تاريخ المحاضرة التقويمي الفعلي أو المرجعي للأسبوع الأول (YYYY-MM-DD)
+  active_weeks?: number[];    // 🔢 قائمة أرقام الأسابيع المحددة التي تقام فيها هذه المحاضرة (من 1 إلى 15)
   week_number?: number;       // 🔢 رقم الأسبوع الدراسي المعتمد (من 1 إلى 15) وفق نظام بولونيا
   custom_weekly_dates?: Record<number, string>; // 📆 التواريخ التقويمية المحسوبة لكافة الأسابيع الـ 15 بالتسلسل
-  weekly_overrides?: Record<number, { day?: DayOfWeek; date?: string; start_time?: string; end_time?: string; room?: string; teacher_id?: string; teacher_name?: string }>; // ⚙️ تعديلات واستثناءات الأسابيع المنفصلة أو المنقولة
+  weekly_overrides?: Record<number, { day?: DayOfWeek; date?: string; start_time?: string; end_time?: string; room?: string; teacher_id?: string; teacher_name?: string; is_cancelled?: boolean }>; // ⚙️ تعديلات واستثناءات الأسابيع المنفصلة أو المنقولة أو الملغاة
   notes?: string;             // 💡 ملاحظات وتنبيهات للطلاب
   created_at?: string;        // ⏰ تاريخ إنشاء المحاضرة
   updated_at?: string;        // ⏰ تاريخ آخر تعديل

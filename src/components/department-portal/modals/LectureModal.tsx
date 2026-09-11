@@ -11,6 +11,7 @@ import {
   BookOpen, // 📖 أيقونة المادة
   Clock, // 🕒 أيقونة الوقت
   Calendar, // 📅 أيقونة التاريخ
+  CalendarDays, // 🗓️ أيقونة التقويم الأكاديمي للأيام والأسابيع
   Edit3, // ✏️ أيقونة التعديل
   Trash2, // 🗑️ أيقونة الحذف
   Plus, // ➕ أيقونة الإضافة
@@ -21,6 +22,8 @@ import {
   UserCheck, // 👤 أيقونة اختيار الأستاذ
   FlaskConical, // 🧪 أيقونة المختبر والعملي
   AlertCircle, // ⚠️ أيقونة التنبيه
+  AlertTriangle, // 🚨 أيقونة التحذير العالمية
+  ArrowDown, // ⬇️ أيقونة سهم التمرير نحو الحقل الناقص
   CheckCircle2, // ✅ أيقونة النجاح
   DoorClosed, // 🚪 أيقونة القاعة
   RotateCcw, // 🔄 أيقونة التراجع
@@ -56,6 +59,15 @@ import {
 } from '@/lib/schedule-utils'; // 🕒 أدوات الجدول الأكاديمي
 import type { ScheduleConflict } from '@/lib/schedule-utils'; // ⚠️ نوع تضارب الجدول
 import { getStageNameInArabic } from '@/lib/grade-utils'; // 🏷️ اسم المرحلة بالعربية
+
+// 🛡️ أيقونة SVG فيكتور أنيقة وثابتة لشارة الحقل المطلوب بدون أي وميض أو قفز
+export const RequiredFieldSvgIcon: React.FC<{ className?: string }> = ({ className = 'w-3.5 h-3.5 text-rose-600 shrink-0' }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10" />
+    <line x1="12" y1="8" x2="12" y2="12" />
+    <line x1="12" y1="16" x2="12.01" y2="16" />
+  </svg>
+);
 
 // 📋 واجهة خصائص نافذة إضافة وتعديل واستعراض المحاضرات الأسبوعية
 export interface LectureModalProps {
@@ -117,6 +129,10 @@ export interface LectureModalProps {
   setLecAutoCascadeWeeks: React.Dispatch<React.SetStateAction<boolean>>; // 🔄 تحديث التكرار
   lecCascadeShiftOption: 'cascade_following' | 'this_week_only' | 'all_15_weeks'; // 🔀 نمط التعديل
   setLecCascadeShiftOption: React.Dispatch<React.SetStateAction<'cascade_following' | 'this_week_only' | 'all_15_weeks'>>; // 🔄 تحديث نمط التعديل
+  lecWeeksScope?: 'all_15_weeks' | 'this_week_only' | 'odd_weeks' | 'even_weeks' | 'custom_pick'; // 🔢 نطاق الأسابيع المعتمدة للمحاضرة
+  setLecWeeksScope?: React.Dispatch<React.SetStateAction<'all_15_weeks' | 'this_week_only' | 'odd_weeks' | 'even_weeks' | 'custom_pick'>>; // 🔄 تحديث نطاق الأسابيع
+  lecCustomWeeks?: number[]; // 📋 قائمة الأسابيع المخصصة للمحاضرة
+  setLecCustomWeeks?: React.Dispatch<React.SetStateAction<number[]>>; // 🔄 تحديث قائمة الأسابيع
   closeModalAfterSave: boolean; // 🚪 إغلاق بعد الحفظ
   setCloseModalAfterSave: React.Dispatch<React.SetStateAction<boolean>>; // 🔄 تحديث الإغلاق بعد الحفظ
   lecCourseSearchTerm: string; // 🔍 بحث المادة
@@ -191,6 +207,10 @@ export const LectureModal: React.FC<LectureModalProps> = ({
   setLecAutoCascadeWeeks, // 🔄 تحديث التكرار
   lecCascadeShiftOption, // 🔀 نمط التعديل
   setLecCascadeShiftOption, // 🔄 تحديث نمط التعديل
+  lecWeeksScope = 'all_15_weeks', // 🔢 نطاق الأسابيع المعتمدة افتراضياً لكافة الأسابيع الـ 15
+  setLecWeeksScope, // 🔄 تحديث نطاق الأسابيع
+  lecCustomWeeks = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], // 📋 قائمة الأسابيع المخصصة
+  setLecCustomWeeks, // 🔄 تحديث قائمة الأسابيع
   closeModalAfterSave, // 🚪 إغلاق بعد الحفظ
   setCloseModalAfterSave, // 🔄 تحديث الإغلاق بعد الحفظ
   lecCourseSearchTerm, // 🔍 بحث المادة
@@ -363,6 +383,141 @@ export const LectureModal: React.FC<LectureModalProps> = ({
     };
   }, [isLecDayDropdownOpen, isLecTypeDropdownOpen, isLecCourseDropdownOpen, isLecTeacherDropdownOpen, isLecWeekDropdownOpen]);
 
+  // 🔗 مرجع حقل إدخال القاعة الدراسية للتركيز والتمرير
+  const lecRoomInputRef = useRef<HTMLInputElement | null>(null);
+
+  // 🚨 حالة التنبيه العالمي الفاخر للحقول المطلوبة الناقصة
+  const [validationAlert, setValidationAlert] = useState<{
+    message: string; // 💬 نص التنبيه العالمي
+    missingKeys: string[]; // 🔑 مفاتيح الحقول الناقصة
+    activeKey: string; // 🎯 مفتاح أول حقل تم التمرير إليه
+  } | null>(null);
+
+  // ⏱️ مرجع مؤقت إخفاء التنبيه التلقائي
+  const validationTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 🧹 تنظيف مؤقت التنبيه عند تفريغ المكون
+  useEffect(() => {
+    return () => {
+      if (validationTimerRef.current) {
+        clearTimeout(validationTimerRef.current);
+      }
+    };
+  }, []);
+
+  // 🔍 مؤشرات الحقول الإلزامية غير المستوفية لإضاءة التنبيهات
+  const hasMissingDay = Boolean(validationAlert?.missingKeys.includes('day') && !lecDay);
+  const hasMissingCourse = Boolean(validationAlert?.missingKeys.includes('course') && !lecCourseId);
+  const hasMissingType = Boolean(validationAlert?.missingKeys.includes('type') && !lecType);
+  const hasMissingRoom = Boolean(validationAlert?.missingKeys.includes('room') && !lecRoom.trim());
+  const hasMissingStartTime = Boolean(validationAlert?.missingKeys.includes('startTime') && !lecStartTime);
+  const hasMissingEndTime = Boolean(validationAlert?.missingKeys.includes('endTime') && !lecEndTime);
+
+  // 🚨 معالج إرسال النموذج مع التحقق الذكي والتمرير السلس نحو الحقول المطلوبة والتنبيه العالمي
+  const handleSubmitLectureForm = (e: React.FormEvent) => {
+    e.preventDefault(); // 🛑 منع الإرسال التلقائي
+
+    // 📋 تجميع قائمة الحقول الإلزامية الناقصة بدقة فائقة
+    const missing: Array<{
+      key: string;
+      name: string;
+      id: string;
+      getElement: () => HTMLElement | null;
+    }> = [];
+
+    if (!lecDay) {
+      missing.push({
+        key: 'day',
+        name: 'اليوم الأسبوعي',
+        id: 'field-container-lec-day',
+        getElement: () => lecDayButtonRef.current,
+      });
+    }
+
+    if (!lecCourseId) {
+      missing.push({
+        key: 'course',
+        name: 'المادة والمقرر الأكاديمي',
+        id: 'field-container-lec-course',
+        getElement: () => lecCourseButtonRef.current,
+      });
+    }
+
+    if (!lecType) {
+      missing.push({
+        key: 'type',
+        name: 'طبيعة المحاضرة (نظري / عملي)',
+        id: 'field-container-lec-type',
+        getElement: () => lecTypeButtonRef.current,
+      });
+    }
+
+    if (!lecRoom.trim()) {
+      missing.push({
+        key: 'room',
+        name: 'القاعة الدراسية أو المختبر',
+        id: 'field-container-lec-room',
+        getElement: () => lecRoomInputRef.current,
+      });
+    }
+
+    if (!lecStartTime) {
+      missing.push({
+        key: 'startTime',
+        name: 'وقت بدء المحاضرة',
+        id: 'field-container-lec-start-time',
+        getElement: () => (typeof document !== 'undefined' ? document.getElementById('field-container-lec-start-time') : null),
+      });
+    }
+
+    if (!lecEndTime) {
+      missing.push({
+        key: 'endTime',
+        name: 'وقت انتهاء المحاضرة',
+        id: 'field-container-lec-end-time',
+        getElement: () => (typeof document !== 'undefined' ? document.getElementById('field-container-lec-end-time') : null),
+      });
+    }
+
+    // 🛑 إذا وجد أي حقل ناقص: تشغيل السكرول الذكي وإطلاق التنبيه العالمي الفاخر
+    if (missing.length > 0) {
+      const firstMissing = missing[0];
+      const missingKeys = missing.map((m) => m.key);
+      const missingNames = missing.map((m) => m.name).join('، ');
+
+      // 🔔 تفعيل التنبيه العالمي الفاخر
+      setValidationAlert({
+        message: `يرجى استكمال: ${missingNames}`,
+        missingKeys,
+        activeKey: firstMissing.key,
+      });
+
+      // 🚀 تحريك السكرول نحو الحقل المطلوب الأول بكل سلاسة واحترافية (Smooth Scroll)
+      const targetElement = firstMissing.getElement() || (typeof document !== 'undefined' ? document.getElementById(firstMissing.id) : null);
+      if (targetElement) {
+        targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // 🎯 تفعيل المؤشر فورياً إذا كان عنصراً يقبل التركيز
+        if (targetElement instanceof HTMLInputElement || targetElement instanceof HTMLButtonElement) {
+          setTimeout(() => {
+            targetElement.focus({ preventScroll: true });
+          }, 350);
+        }
+      }
+
+      // ⏱️ ضبط مؤقت لإخفاء التنبيه بعد 7 ثوانٍ
+      if (validationTimerRef.current) clearTimeout(validationTimerRef.current);
+      validationTimerRef.current = setTimeout(() => {
+        setValidationAlert(null);
+      }, 7000);
+
+      return;
+    }
+
+    // ✨ في حال اكتمال كافة الحقول المطلوبة: مسح التنبيهات وحفظ المحاضرة
+    setValidationAlert(null);
+    handleSaveLecture(e);
+  };
+
   // 🕒 تم استبدال renderCustomTimePickerDropdown بالمكون المستقل LectureTimeSlotPicker
   return (
           <FloatingCrudModal
@@ -387,24 +542,36 @@ export const LectureModal: React.FC<LectureModalProps> = ({
                 <span className="text-xs sm:text-sm font-bold text-slate-700">
                   {editingLectureId ? 'تعديل تفاصيل المحاضرة للمرحلة المحددة:' : 'حدد اليوم والمادة والقاعة والتوقيت والأستاذ:'}
                 </span>
-                {/* 🌟 باجات كبيرة وواضحة جداً للمرحلة والكروب والكورس ونوع الدراسة بهيدر الكارد بلون موحد */}
+                {/* 🌟 باجات المرحلة والكروب والكورس ونوع الدراسة بهيدر الكارد بلون أكاديمي موحد */}
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-blue-50 text-blue-950 border border-blue-200 shadow-2xs flex items-center gap-1.5">
-                    <GraduationCap className="w-4 h-4 text-[#0F2942]" />
+                  {/* 🎓 وسم المرحلة الدراسية بنمط أزرق أكاديمي موحد */}
+                  <span className="text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-blue-50 text-[#0F2942] border border-blue-200 shadow-2xs flex items-center gap-1.5">
+                    <GraduationCap className="w-3.5 h-3.5 text-blue-700 shrink-0" />
                     <span>المرحلة {getStageNameInArabic(selectedScheduleStage)}</span>
                   </span>
-                  {availableStageGroups.length > 0 && (
-                    <span className="text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-[#0F2942] text-cyan-300 border border-[#0F2942] shadow-2xs flex items-center gap-1.5">
-                      <GroupBadgeSvg className="w-4 h-4 text-cyan-300 shrink-0" /> {/* 👥 أيقونة الكروب الفيكتورية */}
+
+                  {/* 👥 وسم الكروب المستهدف بنفس النمط واللون الموحد */}
+                  {availableStageGroups.length > 0 ? (
+                    <span className="text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-blue-50 text-[#0F2942] border border-blue-200 shadow-2xs flex items-center gap-1.5">
+                      <GroupBadgeSvg className="w-3.5 h-3.5 text-blue-700 shrink-0" /> {/* 👥 أيقونة الكروب الفيكتورية */}
                       <span>كروب {lecTargetGroup && lecTargetGroup !== 'all' ? lecTargetGroup : availableStageGroups[0]}</span> {/* 🏷️ اسم الكروب المستهدف */}
                     </span>
+                  ) : (
+                    <span className="text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-blue-50 text-[#0F2942] border border-blue-200 shadow-2xs flex items-center gap-1.5">
+                      <GroupUsersSvg className="w-3.5 h-3.5 text-blue-700 shrink-0" /> {/* 👥 أيقونة الشعبة الموحدة */}
+                      <span>شعبة موحدة</span>
+                    </span>
                   )}
-                  <span className="text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-blue-50 text-blue-950 border border-blue-200 shadow-2xs flex items-center gap-1.5">
-                    <Layers className="w-4 h-4 text-[#0F2942]" />
+
+                  {/* 📚 وسم الكورس الدراسي بنفس النمط واللون الموحد */}
+                  <span className="text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-blue-50 text-[#0F2942] border border-blue-200 shadow-2xs flex items-center gap-1.5">
+                    <Layers className="w-3.5 h-3.5 text-blue-700 shrink-0" />
                     <span>الكورس {selectedScheduleSemester === 1 ? 'الأول' : 'الثاني'}</span>
                   </span>
-                  <span className="text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-blue-50 text-blue-950 border border-blue-200 shadow-2xs flex items-center gap-1.5">
-                    {lecStudyType === 'morning' ? <Sun className="w-4 h-4 text-[#0F2942]" /> : <Moon className="w-4 h-4 text-[#0F2942]" />}
+
+                  {/* ☀️🌙 وسم الفترة الدراسية بنفس النمط واللون الموحد */}
+                  <span className="text-xs sm:text-sm font-black px-3 py-1 rounded-xl bg-blue-50 text-[#0F2942] border border-blue-200 shadow-2xs flex items-center gap-1.5">
+                    {lecStudyType === 'morning' ? <Sun className="w-3.5 h-3.5 text-blue-700 shrink-0" /> : <Moon className="w-3.5 h-3.5 text-blue-700 shrink-0" />}
                     <span>{lecStudyType === 'morning' ? 'الصباحي' : 'المسائي'}</span>
                   </span>
                 </div>
@@ -412,7 +579,7 @@ export const LectureModal: React.FC<LectureModalProps> = ({
             }
             icon={editingLectureId ? <Edit3 className="w-6 h-6 text-cyan-300" /> : <Clock className="w-6 h-6 text-cyan-300" />}
             maxWidth="max-w-6xl"
-            onSubmit={handleSaveLecture}
+            onSubmit={handleSubmitLectureForm}
             footer={
               <div className="flex items-center justify-between gap-3 w-full flex-wrap">
                 <div className="text-sm sm:text-base font-black text-slate-800">
@@ -422,8 +589,12 @@ export const LectureModal: React.FC<LectureModalProps> = ({
                       <span>أنت الآن في وضع تعديل بيانات المحاضرة المجدولة</span>
                     </span>
                   ) : (!lecDay || !lecType || !lecCourseId || !lecRoom.trim() || !lecStartTime || !lecEndTime) ? (
-                    <span className="text-[#0F2942] flex items-center gap-2 font-black bg-blue-50/90 px-3.5 py-2 rounded-xl border-2 border-blue-200 shadow-2xs">
-                      <AlertCircle className="w-5 h-5 inline text-[#0F2942] shrink-0" />
+                    <span className={`flex items-center gap-2 font-black px-3.5 py-2 rounded-xl border-2 shadow-2xs transition-all ${
+                      validationAlert
+                        ? 'bg-rose-50 text-rose-950 border-rose-300 shadow-xs'
+                        : 'text-[#0F2942] bg-blue-50/90 border-blue-200'
+                    }`}>
+                      <AlertCircle className={`w-5 h-5 inline shrink-0 ${validationAlert ? 'text-rose-600' : 'text-[#0F2942]'}`} />
                       <span>يرجى استكمال تحديد اليوم، طبيعة المحاضرة، المادة، القاعة، وتوقيت البدء والانتهاء</span>
                     </span>
                   ) : currentLecConflicts.length > 0 ? (
@@ -512,8 +683,6 @@ export const LectureModal: React.FC<LectureModalProps> = ({
             }
           >
             <div className="space-y-4">
-
-              
               {/* 🎛️ 1. الشريط العلوي الثابت والمدمج: المرحلة + الكورس + الفترة الدراسية بسطر واحد */}
               <div className="p-3 bg-slate-50 border border-slate-300 rounded-2xl flex flex-wrap xl:flex-nowrap items-center justify-between gap-3">
                 {/* المرحلة */}
@@ -712,8 +881,8 @@ export const LectureModal: React.FC<LectureModalProps> = ({
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {/* تاريخ المحاضرة */}
+                    <div className="space-y-3.5">
+                      {/* 1. تاريخ المحاضرة التقويمي (في الأعلى بعرض كامل وأنيق) */}
                       <div className="space-y-1.5">
                         <label className="h-7 text-xs sm:text-sm font-black text-slate-900 flex items-center justify-between gap-1.5">
                           <span className="flex items-center gap-1.5 shrink-0 whitespace-nowrap">
@@ -753,7 +922,7 @@ export const LectureModal: React.FC<LectureModalProps> = ({
                         />
                       </div>
 
-                      {/* رقم الأسبوع الدراسي الذكي المتصل بالتقويم */}
+                      {/* 2. رقم الأسبوع الدراسي الذكي (أسفل زر تاريخ المحاضرة التقويمي بعرض كامل) */}
                       <div className="space-y-1.5 relative">
                         {/* 📏 عنوان وبادج الأسبوع بسطر واحد أفقي منسق بنفس ارتفاع التسمية المجاورة h-7 تماماً */}
                         <label className="h-7 text-xs sm:text-sm font-black text-slate-900 flex items-center justify-between gap-1.5">
@@ -781,33 +950,31 @@ export const LectureModal: React.FC<LectureModalProps> = ({
                               isLecWeekDropdownOpen ? 'border-[#0F2942] ring-2 ring-[#0F2942]/20' : 'border-slate-300 hover:border-slate-400'
                             }`}
                           >
-                            {/* 🏷️ الجانب الأيمن: أيقونة الطبقات + عمود منسق (الأسبوع 1 + المرجعي، وأسفله التاريخ التقويمي) */}
+                            {/* 🏷️ الجانب الأيمن: أيقونة الطبقات + اسم الأسبوع + بادج المرجعي */}
                             <div className="flex items-center gap-2 min-w-0">
                               <div className="p-1.5 bg-blue-50 text-[#0F2942] rounded-lg shrink-0 border border-blue-200">
-                                <Layers className="w-4 h-4 text-[#0F2942]" />
+                                <Layers className="w-4 h-4 text-[#0F2942]" /> {/* 📚 أيقونة الطبقات */}
                               </div>
-                              <div className="flex flex-col text-right justify-center leading-none gap-1 min-w-0">
-                                <div className="flex items-center gap-1.5 shrink-0 whitespace-nowrap">
-                                  <span className="text-xs sm:text-sm font-black text-slate-950">
-                                    الأسبوع {lecWeekNumber}
-                                  </span>
-                                  {lecWeekNumber === 1 && (
-                                    <span className="text-[10px] font-black px-1.5 py-0.5 rounded-md bg-blue-100 text-[#0F2942] border border-blue-200 shadow-2xs">
-                                      المرجعي
-                                    </span>
-                                  )}
-                                </div>
-                                {lecDate && (
-                                  <div className="flex items-center gap-1 text-[11px] font-mono font-bold text-slate-600 whitespace-nowrap">
-                                    <Calendar className="w-3 h-3 text-slate-400 shrink-0" />
-                                    <span>{lecDate}</span>
-                                  </div>
-                                )}
-                              </div>
+                              <span className="text-sm font-black text-slate-950 whitespace-nowrap">
+                                الأسبوع {lecWeekNumber} {/* 🔢 رقم الأسبوع المعتمد */}
+                              </span>
+                              {lecWeekNumber === 1 && (
+                                <span className="text-xs font-black px-2 py-0.5 rounded-lg bg-blue-50 text-[#0F2942] border border-blue-200 shadow-2xs whitespace-nowrap">
+                                  المرجعي {/* 📌 وسم الأسبوع المرجعي */}
+                                </span>
+                              )}
                             </div>
 
-                            {/* 🔽 الجانب الأيسر: سهم القائمة المنسدلة التفاعلي */}
-                            <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform duration-200 shrink-0 mr-1 ${isLecWeekDropdownOpen ? 'rotate-180 text-[#0F2942]' : ''}`} />
+                            {/* 📅 الجانب الأيسر: كبسولة تاريخ الأسبوع وسهم القائمة المنسدلة */}
+                            <div className="flex items-center gap-2 shrink-0">
+                              {lecDate && (
+                                <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs whitespace-nowrap flex items-center gap-1.5" dir="ltr">
+                                  <Calendar className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                                  <span>{lecDate}</span> {/* 🗓️ تاريخ المحاضرة التقويمي */}
+                                </span>
+                              )}
+                              <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform duration-200 shrink-0 mr-0.5 ${isLecWeekDropdownOpen ? 'rotate-180 text-[#0F2942]' : ''}`} />
+                            </div>
                           </button>
 
                           {isLecWeekDropdownOpen && lecWeekCoords && typeof document !== 'undefined' && createPortal(
@@ -865,21 +1032,21 @@ export const LectureModal: React.FC<LectureModalProps> = ({
                                       >
                                         {/* 📏 عناصر الأسبوع مرتبة: اسم الأسبوع + بادج المرجعي/الحالي ثم التاريخ في كبسولة أنيقة */}
                                         <div className="flex items-center gap-2 flex-nowrap whitespace-nowrap min-w-0">
-                                          <span className="font-mono text-sm font-black shrink-0">الأسبوع {wk}</span>
+                                          <span className="text-sm font-black shrink-0">الأسبوع {wk}</span>
                                           {wk === 1 && (
-                                            <span className={`text-[10px] font-black px-1.5 py-0.5 rounded border shrink-0 ${
+                                            <span className={`text-xs font-black px-2 py-0.5 rounded-lg border shrink-0 ${
                                               isSelected
                                                 ? 'bg-white/20 text-white border-white/30'
-                                                : 'bg-blue-100 text-[#0F2942] border-blue-300'
+                                                : 'bg-blue-50 text-[#0F2942] border-blue-200 shadow-2xs'
                                             }`}>
                                               المرجعي
                                             </span>
                                           )}
                                           {isCurrentWk && (
-                                            <span className={`text-[10px] font-black px-1.5 py-0.5 rounded border shrink-0 ${
+                                            <span className={`text-xs font-black px-2 py-0.5 rounded-lg border shrink-0 ${
                                               isSelected
                                                 ? 'bg-emerald-400 text-slate-950 border-emerald-300 font-black'
-                                                : 'bg-emerald-100 text-emerald-950 border-emerald-300'
+                                                : 'bg-emerald-50 text-emerald-950 border-emerald-300 shadow-2xs'
                                             }`}>
                                               الأسبوع الحالي
                                             </span>
@@ -888,10 +1055,11 @@ export const LectureModal: React.FC<LectureModalProps> = ({
 
                                         <div className="flex items-center gap-2 shrink-0">
                                           {computedWkDate && (
-                                            <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded-md border shrink-0 ${
-                                              isSelected ? 'bg-white/20 text-white border-white/30' : 'bg-slate-100 text-slate-900 border-slate-300'
-                                            }`}>
-                                              {computedWkDate}
+                                            <span className={`text-xs font-mono font-bold px-2 py-1 rounded-lg border shrink-0 flex items-center gap-1 ${
+                                              isSelected ? 'bg-white/20 text-white border-white/30' : 'bg-slate-100 text-slate-700 border-slate-200'
+                                            }`} dir="ltr">
+                                              <Calendar className="w-3 h-3 shrink-0 opacity-70" />
+                                              <span>{computedWkDate}</span>
                                             </span>
                                           )}
                                           {isSelected && <Check className="w-4 h-4 text-cyan-300 shrink-0" />}
@@ -908,98 +1076,276 @@ export const LectureModal: React.FC<LectureModalProps> = ({
                       </div>
                     </div>
 
-                    {/* خيارات التعاقب التلقائي والترحيل الذكي بين الأيام والأسابيع */}
-                    {lecWeekNumber === 1 ? (
-                      <div className="p-2.5 bg-white/90 border border-blue-200 rounded-xl flex items-center justify-between gap-3 text-xs sm:text-sm">
-                        <label className="flex items-center gap-2 cursor-pointer select-none">
-                          {/* 🔄 خانة الاختيار مع إطلاق التنبيه العالمي الفاخر فورياً عند التفعيل أو التعطيل */}
-                          <input
-                            type="checkbox"
-                            checked={lecAutoCascadeWeeks}
-                            onChange={(e) => {
-                              const isChecked = e.target.checked; // 🔍 قراءة حالة التفعيل
-                              setLecAutoCascadeWeeks(isChecked); // 💾 تخزين القيمة في الذاكرة
-                              // 🔔 إشعار التنبيه العالمي الفوري للنظام
-                              if (isChecked) {
-                                setSuccessMessage('تم تفعيل توليد واحتساب تواريخ كافة الأسابيع الـ 15 تلقائياً (+7 أيام لكل أسبوع) 📅✨'); // 🟢 رسالة التفعيل
-                              } else {
-                                setSuccessMessage('تم تعطيل التوليد التلقائي لتواريخ الأسابيع اللاحقة 🛑'); // 🔴 رسالة التعطيل
-                              }
-                              setTimeout(() => setSuccessMessage(''), 4000); // ⏱️ إخفاء التنبيه بعد 4 ثوانٍ
-                            }}
-                            className="w-4 h-4 rounded text-[#0F2942] focus:ring-[#0F2942] border-slate-300 cursor-pointer accent-[#0F2942]"
-                          />
-                          <span className="font-black text-slate-900">
-                            توليد واحتساب تواريخ كافة الأسابيع الـ 15 تلقائياً (+7 أيام لكل أسبوع)
-                          </span>
-                        </label>
-                        <span className="text-xs font-black text-blue-950 bg-blue-50 px-2.5 py-0.5 rounded-lg border border-blue-200 shadow-2xs shrink-0">
-                          نظام ذكي
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="p-2.5 bg-white/90 border border-indigo-200 rounded-xl space-y-2 text-xs sm:text-sm">
-                        <div className="font-black text-slate-900 flex items-center justify-between">
-                          <span className="flex items-center gap-1.5">
-                            <Layers className="w-4 h-4 text-[#0F2942]" />
-                            <span>نظام الترحيل الذكي بين الأيام والأسابيع:</span>
-                          </span>
-                          <span className="text-[11px] font-black text-blue-950 bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-200 shadow-2xs">
-                            من الأسبوع {lecWeekNumber}
+                    {/* 🗓️ نطاق سريان المحاضرة على أسابيع الفصل الدراسي (15 أسبوعاً) */}
+                    <div className="p-3 bg-gradient-to-l from-blue-50/70 via-slate-50 to-blue-50/70 border-2 border-blue-200 rounded-2xl space-y-3 text-xs sm:text-sm shadow-2xs">
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-blue-200/80 pb-2">
+                        <div className="flex items-center gap-2">
+                          <div className="p-1.5 bg-[#0F2942] text-white rounded-lg shrink-0 shadow-2xs">
+                            <CalendarDays className="w-4 h-4 text-cyan-300" /> {/* 🗓️ أيقونة التقويم الأكاديمي */}
+                          </div>
+                          <div>
+                            <span className="font-black text-slate-950 text-sm sm:text-base">
+                              سريان المحاضرة على أسابيع الفصل (15 أسبوعاً):
+                            </span>
+                            <p className="text-[11px] sm:text-xs font-bold text-slate-700">
+                              حدد ما إذا كانت المحاضرة أسبوعية دورية أو مخصصة لأسابيع محددة فقط
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* 📊 شارة عدد الأسابيع النشطة للمحاضرة */}
+                        <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
+                          <span className="px-3 py-1 bg-[#0F2942] text-white text-xs sm:text-sm font-black rounded-xl border border-[#0F2942] shadow-xs flex items-center gap-1.5">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-cyan-300" />
+                            <span>مقررة في: <strong>{lecCustomWeeks.length}</strong> من 15 أسبوعاً</span>
                           </span>
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setLecCascadeShiftOption('this_week_only')}
-                            className={`p-2 rounded-lg text-xs font-black transition cursor-pointer border text-center ${
-                              lecCascadeShiftOption === 'this_week_only'
-                                ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-2xs'
-                                : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                            }`}
-                          >
-                            هذا الأسبوع فقط (استثناء)
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setLecCascadeShiftOption('cascade_following')}
-                            className={`p-2 rounded-lg text-xs font-black transition cursor-pointer border text-center flex items-center justify-center gap-1 ${
-                              lecCascadeShiftOption === 'cascade_following'
-                                ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-2xs'
-                                : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                            }`}
-                          >
-                            <span>ترحيل للأسابيع اللاحقة ({lecWeekNumber} - 15)</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setLecCascadeShiftOption('all_15_weeks')}
-                            className={`p-2 rounded-lg text-xs font-black transition cursor-pointer border text-center ${
-                              lecCascadeShiftOption === 'all_15_weeks'
-                                ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-2xs'
-                                : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                            }`}
-                          >
-                            تحديث كافة الأسابيع الـ 15
-                          </button>
+                      </div>
+
+                      {/* 🎛️ أزرار الأنماط السريعة لتحديد نطاق الأسابيع */}
+                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
+                        {/* 1. كافة الأسابيع الـ 15 */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setLecWeeksScope?.('all_15_weeks'); // 🎯 تحديد النمط الشامل
+                            setLecCustomWeeks?.([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]); // 📋 تفعيل كافة الأسابيع
+                            setLecAutoCascadeWeeks(true); // 🔄 تفعيل التعاقب التلقائي
+                            setSuccessMessage('تم تحديد المحاضرة لكافة أسابيع الفصل الـ 15 بالتساوي 📅✨'); // 💬 إشعار
+                            setTimeout(() => setSuccessMessage(''), 3000); // ⏱️ إخفاء الإشعار
+                          }}
+                          className={`p-2 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer border-2 text-center shadow-2xs active:scale-95 ${
+                            lecWeeksScope === 'all_15_weeks'
+                              ? 'bg-[#0F2942] text-white border-[#0F2942] ring-2 ring-[#0F2942]/20'
+                              : 'bg-white text-slate-800 border-slate-300 hover:bg-slate-100'
+                          }`}
+                        >
+                          كافة الأسابيع (1-15)
+                        </button>
+
+                        {/* 2. هذا الأسبوع فقط */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setLecWeeksScope?.('this_week_only'); // 🎯 نمط أسبوع واحد
+                            setLecCustomWeeks?.([lecWeekNumber || 1]); // 📋 تفعيل الأسبوع الحالي حصراً
+                            setLecAutoCascadeWeeks(false); // 🛑 إيقاف التعاقب
+                            setSuccessMessage(`تم تخصيص المحاضرة للأسبوع (${lecWeekNumber || 1}) فقط كاستثناء تقويمي 📍`); // 💬 إشعار
+                            setTimeout(() => setSuccessMessage(''), 3000); // ⏱️ إخفاء الإشعار
+                          }}
+                          className={`p-2 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer border-2 text-center shadow-2xs active:scale-95 ${
+                            lecWeeksScope === 'this_week_only'
+                              ? 'bg-[#0F2942] text-white border-[#0F2942] ring-2 ring-[#0F2942]/20'
+                              : 'bg-white text-slate-800 border-slate-300 hover:bg-slate-100'
+                          }`}
+                        >
+                          هذا الأسبوع فقط ({lecWeekNumber || 1})
+                        </button>
+
+                        {/* 3. الأسابيع الفردية */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setLecWeeksScope?.('odd_weeks'); // 🎯 نمط الأسابيع الفردية
+                            setLecCustomWeeks?.([1, 3, 5, 7, 9, 11, 13, 15]); // 📋 الأسابيع الفردية فقط
+                            setSuccessMessage('تم تخصيص المحاضرة للأسابيع الفردية (1، 3، 5، 7، 9، 11، 13، 15) 🔢'); // 💬 إشعار
+                            setTimeout(() => setSuccessMessage(''), 3000); // ⏱️ إخفاء الإشعار
+                          }}
+                          className={`p-2 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer border-2 text-center shadow-2xs active:scale-95 ${
+                            lecWeeksScope === 'odd_weeks'
+                              ? 'bg-[#0F2942] text-white border-[#0F2942] ring-2 ring-[#0F2942]/20'
+                              : 'bg-white text-slate-800 border-slate-300 hover:bg-slate-100'
+                          }`}
+                        >
+                          الأسابيع الفردية (8)
+                        </button>
+
+                        {/* 4. الأسابيع الزوجية */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setLecWeeksScope?.('even_weeks'); // 🎯 نمط الأسابيع الزوجية
+                            setLecCustomWeeks?.([2, 4, 6, 8, 10, 12, 14]); // 📋 الأسابيع الزوجية فقط
+                            setSuccessMessage('تم تخصيص المحاضرة للأسابيع الزوجية (2، 4، 6، 8، 10، 12، 14) 🔢'); // 💬 إشعار
+                            setTimeout(() => setSuccessMessage(''), 3000); // ⏱️ إخفاء الإشعار
+                          }}
+                          className={`p-2 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer border-2 text-center shadow-2xs active:scale-95 ${
+                            lecWeeksScope === 'even_weeks'
+                              ? 'bg-[#0F2942] text-white border-[#0F2942] ring-2 ring-[#0F2942]/20'
+                              : 'bg-white text-slate-800 border-slate-300 hover:bg-slate-100'
+                          }`}
+                        >
+                          الأسابيع الزوجية (7)
+                        </button>
+
+                        {/* 5. تخصيص حر بأزرار الأسابيع */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setLecWeeksScope?.('custom_pick'); // 🎯 نمط التخصيص الحر
+                          }}
+                          className={`col-span-2 sm:col-span-1 p-2 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer border-2 text-center shadow-2xs active:scale-95 ${
+                            lecWeeksScope === 'custom_pick'
+                              ? 'bg-[#0F2942] text-white border-[#0F2942] ring-2 ring-[#0F2942]/20'
+                              : 'bg-white text-slate-800 border-slate-300 hover:bg-slate-100'
+                          }`}
+                        >
+                          تحديد يدوي حر ✋
+                        </button>
+                      </div>
+
+                      {/* 🔢 شريط اختيار الأسابيع الـ 15 تفاعلي بالكبسولات الصغيرة الفاخرة */}
+                      <div className="pt-2 border-t border-blue-200/60">
+                        <div className="flex items-center justify-between gap-2 mb-1.5">
+                          <span className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                            <Layers className="w-3.5 h-3.5 text-[#0F2942]" />
+                            <span>انقر على رقم أي أسبوع لإضافته أو استبعاده من جدول المحاضرة:</span>
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setLecWeeksScope?.('custom_pick'); // 🎯 تحويل لنمط التخصيص
+                                setLecCustomWeeks?.([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]); // 📋 تحديد الكل
+                              }}
+                              className="text-[11px] font-black text-blue-900 hover:text-blue-950 underline cursor-pointer"
+                            >
+                              تحديد الكل
+                            </button>
+                            <span className="text-slate-300">|</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setLecWeeksScope?.('custom_pick'); // 🎯 تحويل لنمط التخصيص
+                                setLecCustomWeeks?.([lecWeekNumber || 1]); // 📋 الإبقاء على الأسبوع الحالي فقط
+                              }}
+                              className="text-[11px] font-black text-rose-700 hover:text-rose-900 underline cursor-pointer"
+                            >
+                              إلغاء البقية
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* 🔘 أزرار الأسابيع من 1 إلى 15 */}
+                        <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-15 gap-1.5">
+                          {Array.from({ length: 15 }, (_, i) => i + 1).map((wNum) => {
+                            const isWeekActive = lecCustomWeeks.includes(wNum); // 🔍 فحص نشاط الأسبوع
+                            const isCurrentSelectedWeek = wNum === (lecWeekNumber || 1); // 🌟 هل هو الأسبوع الحالي المفتوح
+
+                            return (
+                              <button
+                                key={wNum}
+                                type="button"
+                                onClick={() => {
+                                  let nextWeeks: number[]; // 📋 مصفوفة الأسابيع القادمة
+                                  if (isWeekActive) { // ❌ إذا كان مفعلاً نقوم بحذفه
+                                    nextWeeks = lecCustomWeeks.filter((w) => w !== wNum); // 🧹 استبعاد الأسبوع
+                                    if (nextWeeks.length === 0) { // 🛡️ نمنع إفراغ كافة الأسابيع كلياً
+                                      nextWeeks = [wNum]; // 🛡️ إعادة الأسبوع الحالي لمنع الخطأ
+                                    }
+                                  } else { // ➕ إذا لم يكن مفعلاً نضيفه
+                                    nextWeeks = [...lecCustomWeeks, wNum].sort((a, b) => a - b); // 📈 إضافة وترتيب
+                                  }
+                                  setLecCustomWeeks?.(nextWeeks); // 💾 حفظ الأسابيع المحدثة
+                                  setLecWeeksScope?.('custom_pick'); // 🎯 ضبط النمط على يدوي
+                                }}
+                                className={`py-2 px-1 rounded-xl text-xs font-black transition-all cursor-pointer border-2 text-center flex flex-col items-center justify-center gap-0.5 shadow-2xs active:scale-90 ${
+                                  isWeekActive
+                                    ? isCurrentSelectedWeek
+                                      ? 'bg-[#0F2942] text-white border-cyan-400 ring-2 ring-cyan-400/40 shadow-sm'
+                                      : 'bg-[#0F2942] text-white border-[#0F2942]'
+                                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100 hover:text-slate-900'
+                                }`}
+                                title={`أسبوع ${wNum} ${isWeekActive ? '(نشط ومجدول)' : '(معطل ومستبعد)'}`}
+                              >
+                                <span className="font-mono text-sm leading-none">{wNum}</span>
+                                <span className="text-[10px] scale-90 leading-none">
+                                  {isCurrentSelectedWeek ? 'الحالي' : `أسبوع`}
+                                </span>
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
-                    )}
+
+                      {/* 🔀 خيارات ترحيل التعديلات والاستثناءات الخاصة بالأسبوع المختار (عند التعديل فقط) */}
+                      {editingLectureId && lecWeekNumber > 1 && (
+                        <div className="pt-2 border-t border-blue-200/60 space-y-1.5">
+                          <div className="font-black text-slate-900 flex items-center justify-between">
+                            <span className="flex items-center gap-1.5 text-xs sm:text-sm">
+                              <Layers className="w-4 h-4 text-[#0F2942]" />
+                              <span>نظام استثناء وتعديل الأسبوع المحدد:</span>
+                            </span>
+                            <span className="text-[11px] font-black text-blue-950 bg-blue-100 px-2 py-0.5 rounded-lg border border-blue-200">
+                              الأسبوع {lecWeekNumber}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setLecCascadeShiftOption('this_week_only')}
+                              className={`p-2 rounded-lg text-xs font-black transition cursor-pointer border-2 text-center ${
+                                lecCascadeShiftOption === 'this_week_only'
+                                  ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-2xs'
+                                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                              }`}
+                            >
+                              هذا الأسبوع فقط (استثناء)
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setLecCascadeShiftOption('cascade_following')}
+                              className={`p-2 rounded-lg text-xs font-black transition cursor-pointer border-2 text-center flex items-center justify-center gap-1 ${
+                                lecCascadeShiftOption === 'cascade_following'
+                                  ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-2xs'
+                                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                              }`}
+                            >
+                              <span>ترحيل للأسابيع اللاحقة ({lecWeekNumber} - 15)</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setLecCascadeShiftOption('all_15_weeks')}
+                              className={`p-2 rounded-lg text-xs font-black transition cursor-pointer border-2 text-center ${
+                                lecCascadeShiftOption === 'all_15_weeks'
+                                  ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-2xs'
+                                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                              }`}
+                            >
+                              تحديث كافة الأسابيع الـ 15
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {/* 1. اليوم الأسبوعي للمحاضرة */}
-                  <div className="space-y-1.5 relative">
-                      <label className="block text-sm font-black text-slate-950 flex items-center gap-1.5">
+                  <div id="field-container-lec-day" className="space-y-1.5 relative scroll-mt-20">
+                    <label className="block text-sm font-black text-slate-950 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
                         <Calendar className="w-4 h-4 text-[#0F2942]" />
                         <span>اليوم الأسبوعي <span className="text-red-600">*</span></span>
-                      </label>
-                      <div>
-                        <button
-                          ref={lecDayButtonRef}
-                          type="button"
-                          onClick={handleToggleLecDayDropdown}
-                          className="w-full px-3.5 py-2.5 bg-slate-50 hover:bg-white border-2 border-slate-300 focus:border-[#0F2942] rounded-xl text-sm font-black text-slate-950 flex items-center justify-between cursor-pointer shadow-2xs transition-all text-right"
-                        >
+                      </span>
+                      {/* 🚨 شارة التنبيه الأنيقة الثابتة مع أيقونة SVG عند نقص اليوم */}
+                      {hasMissingDay && (
+                        <span className="text-xs font-black text-rose-700 bg-rose-50 border border-rose-200 px-2.5 py-0.5 rounded-lg inline-flex items-center gap-1 shadow-2xs">
+                          <RequiredFieldSvgIcon />
+                          <span>مطلوب</span>
+                        </span>
+                      )}
+                    </label>
+                    <div>
+                      <button
+                        ref={lecDayButtonRef}
+                        type="button"
+                        onClick={handleToggleLecDayDropdown}
+                        className={`w-full px-3.5 py-2.5 bg-slate-50 hover:bg-white border-2 rounded-xl text-sm font-black text-slate-950 flex items-center justify-between cursor-pointer shadow-2xs transition-all text-right ${
+                          hasMissingDay
+                            ? 'border-rose-400 ring-2 ring-rose-200 bg-rose-50/30'
+                            : 'border-slate-300 focus:border-[#0F2942]'
+                        }`}
+                      >
                           <div className="flex items-center gap-2 truncate">
                             {lecDay ? (
                               <>
@@ -1119,35 +1465,44 @@ export const LectureModal: React.FC<LectureModalProps> = ({
                     </div>
 
                   {/* 2. المادة الدراسية والمقرر الأكاديمي */}
-                  <div className="space-y-1.5 relative">
+                  <div id="field-container-lec-course" className="space-y-1.5 relative scroll-mt-20">
                     <label className="block text-sm font-black text-slate-950 flex items-center justify-between">
                       <span className="flex items-center gap-1.5">
                         <BookOpen className="w-4 h-4 text-[#0F2942]" />
                         <span>المادة والمقرر الأكاديمي <span className="text-red-600">*</span></span>
                       </span>
-                      {/* 🔬 باج توضيح طبيعة المادة (مختبر وتطبيق عملي / مادة نظرية فقط) بجوار اسم المادة مباشرة وبنسق موحد */}
-                      {(() => {
-                        const selCourse = courses.find((c) => c.id === lecCourseId);
-                        if (!selCourse) return null;
-                        const isPractical = selCourse.course_type === 'theory_and_practical' || Boolean(selCourse.has_practical);
-                        return (
-                          <span className="text-xs font-black px-2.5 py-0.5 rounded-lg border flex items-center gap-1.5 shadow-2xs bg-blue-50 text-blue-950 border-blue-200">
-                            {isPractical ? (
-                              <>
-                                <FlaskConical className="w-3.5 h-3.5 text-[#0F2942] shrink-0" />
-                                <span>مادة تتضمن مختبر وتطبيق عملي</span>
-                              </>
-                            ) : (
-                              <>
-                                <BookOpen className="w-3.5 h-3.5 text-[#0F2942] shrink-0" />
-                                <span>مادة نظرية فقط</span>
-                              </>
-                            )}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {/* 🚨 شارة التنبيه الأنيقة الثابتة مع أيقونة SVG عند نقص المادة */}
+                        {hasMissingCourse && (
+                          <span className="text-xs font-black text-rose-700 bg-rose-50 border border-rose-200 px-2.5 py-0.5 rounded-lg inline-flex items-center gap-1 shadow-2xs">
+                            <RequiredFieldSvgIcon />
+                            <span>مطلوب</span>
                           </span>
-                        );
-                      })()}
+                        )}
+                        {/* 🔬 باج توضيح طبيعة المادة (مختبر وتطبيق عملي / مادة نظرية فقط) بجوار اسم المادة مباشرة وبنسق موحد */}
+                        {(() => {
+                          const selCourse = courses.find((c) => c.id === lecCourseId);
+                          if (!selCourse) return null;
+                          const isPractical = selCourse.course_type === 'theory_and_practical' || Boolean(selCourse.has_practical);
+                          return (
+                            <span className="text-xs font-black px-2.5 py-0.5 rounded-lg border flex items-center gap-1.5 shadow-2xs bg-blue-50 text-blue-950 border-blue-200">
+                              {isPractical ? (
+                                <>
+                                  <FlaskConical className="w-3.5 h-3.5 text-[#0F2942] shrink-0" />
+                                  <span>مادة تتضمن مختبر وتطبيق عملي</span>
+                                </>
+                              ) : (
+                                <>
+                                  <BookOpen className="w-3.5 h-3.5 text-[#0F2942] shrink-0" />
+                                  <span>مادة نظرية فقط</span>
+                                </>
+                              )}
+                            </span>
+                          );
+                        })()}
+                      </div>
                     </label>
-<div>
+                    <div>
                       {(() => {
                         const selectedCourseObj = courses.find((c) => c.id === lecCourseId);
                         return (
@@ -1156,7 +1511,11 @@ export const LectureModal: React.FC<LectureModalProps> = ({
                               ref={lecCourseButtonRef}
                               type="button"
                               onClick={handleToggleLecCourseDropdown}
-                              className="w-full px-3.5 py-2.5 bg-slate-50 hover:bg-white border-2 border-slate-300 focus:border-[#0F2942] rounded-xl text-sm font-black text-slate-950 flex items-center justify-between cursor-pointer shadow-2xs transition-all text-right"
+                              className={`w-full px-3.5 py-2.5 bg-slate-50 hover:bg-white border-2 rounded-xl text-sm font-black text-slate-950 flex items-center justify-between cursor-pointer shadow-2xs transition-all text-right ${
+                                hasMissingCourse
+                                  ? 'border-rose-400 ring-2 ring-rose-200 bg-rose-50/30'
+                                  : 'border-slate-300 focus:border-[#0F2942]'
+                              }`}
                             >
                               <div className="flex items-center gap-2.5 truncate">
                                 <div className="p-1.5 bg-blue-100 text-blue-900 rounded-lg shrink-0">
@@ -1531,18 +1890,31 @@ export const LectureModal: React.FC<LectureModalProps> = ({
                   </div>
 
                   {/* 3. طبيعة المحاضرة (مباشرة أسفل المادة مع التحديد التلقائي الذكي للنظري والعملي) */}
-                  <div className="space-y-1.5 relative">
-                    <label className="block text-sm font-black text-slate-950 flex items-center gap-1.5">
-                      <Layers className="w-4 h-4 text-[#0F2942]" />
-                      <span>طبيعة المحاضرة <span className="text-red-600">*</span></span>
+                  <div id="field-container-lec-type" className="space-y-1.5 relative scroll-mt-20">
+                    <label className="block text-sm font-black text-slate-950 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <Layers className="w-4 h-4 text-[#0F2942]" />
+                        <span>طبيعة المحاضرة <span className="text-red-600">*</span></span>
+                      </span>
+                      {/* 🚨 شارة التنبيه الأنيقة الثابتة مع أيقونة SVG عند نقص طبيعة المحاضرة */}
+                      {hasMissingType && (
+                        <span className="text-xs font-black text-rose-700 bg-rose-50 border border-rose-200 px-2.5 py-0.5 rounded-lg inline-flex items-center gap-1 shadow-2xs">
+                          <RequiredFieldSvgIcon />
+                          <span>مطلوب</span>
+                        </span>
+                      )}
                     </label>
-<div>
-                        <button
-                          ref={lecTypeButtonRef}
-                          type="button"
-                          onClick={handleToggleLecTypeDropdown}
-                          className="w-full px-3.5 py-2.5 bg-slate-50 hover:bg-white border-2 border-slate-300 focus:border-[#0F2942] rounded-xl text-sm font-black text-slate-950 flex items-center justify-between cursor-pointer shadow-2xs transition-all text-right"
-                        >
+                    <div>
+                      <button
+                        ref={lecTypeButtonRef}
+                        type="button"
+                        onClick={handleToggleLecTypeDropdown}
+                        className={`w-full px-3.5 py-2.5 bg-slate-50 hover:bg-white border-2 rounded-xl text-sm font-black text-slate-950 flex items-center justify-between cursor-pointer shadow-2xs transition-all text-right ${
+                          hasMissingType
+                            ? 'border-rose-400 ring-2 ring-rose-200 bg-rose-50/30'
+                            : 'border-slate-300 focus:border-[#0F2942]'
+                        }`}
+                      >
                           <div className="flex items-center gap-2 truncate">
                             {lecType === 'practical' ? (
                               <FlaskConical className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -1828,21 +2200,32 @@ export const LectureModal: React.FC<LectureModalProps> = ({
                     </div>
 
                     {/* القاعة والمختبر مع المقترحات الشاغرة الذكية */}
-                    <div className="space-y-1.5">
-                      <label className="block text-sm font-black text-slate-950 flex items-center gap-1.5">
-                        <DoorClosed className="w-4 h-4 text-[#0F2942]" />
-                        <span>القاعة / المختبر <span className="text-red-600">*</span></span>
+                    <div id="field-container-lec-room" className="space-y-1.5 scroll-mt-20">
+                      <label className="block text-sm font-black text-slate-950 flex items-center justify-between">
+                        <span className="flex items-center gap-1.5">
+                          <DoorClosed className="w-4 h-4 text-[#0F2942]" />
+                          <span>القاعة / المختبر <span className="text-red-600">*</span></span>
+                        </span>
+                        {/* 🚨 شارة التنبيه الأنيقة الثابتة مع أيقونة SVG عند نقص القاعة */}
+                        {hasMissingRoom && (
+                          <span className="text-xs font-black text-rose-700 bg-rose-50 border border-rose-200 px-2.5 py-0.5 rounded-lg inline-flex items-center gap-1 shadow-2xs">
+                            <RequiredFieldSvgIcon /> {/* 🛡️ أيقونة SVG فيكتور أنيقة */}
+                            <span>مطلوب</span> {/* 🏷️ نص الحقل المطلوب */}
+                          </span>
+                        )}
                       </label>
                       <input
+                        ref={lecRoomInputRef}
                         type="text"
                         value={lecRoom}
                         onChange={(e) => setLecRoom(e.target.value)}
                         placeholder="مثال: مدرج الخوارزمي، مختبر البرمجيات 1..."
-                        required
-                        className="w-full px-3.5 py-2.5 bg-slate-50 hover:bg-white border-2 border-slate-300 focus:border-[#0F2942] rounded-xl text-sm font-black text-slate-950 focus:outline-none focus:ring-4 focus:ring-[#0F2942]/10 transition-all shadow-2xs"
+                        className={`w-full px-3.5 py-2.5 bg-slate-50 hover:bg-white border-2 rounded-xl text-sm font-black text-slate-950 focus:outline-none transition-all shadow-2xs ${
+                          hasMissingRoom
+                            ? 'border-rose-400 ring-2 ring-rose-200 bg-rose-50/30'
+                            : 'border-slate-300 focus:border-[#0F2942] focus:ring-4 focus:ring-[#0F2942]/10'
+                        }`}
                       />
-
-
                     </div>
                   </div>
 
@@ -1904,6 +2287,8 @@ export const LectureModal: React.FC<LectureModalProps> = ({
                     setLecEndTime={setLecEndTime}
                     lecType={lecType}
                     lecStudyType={lecStudyType}
+                    hasMissingStartTime={hasMissingStartTime}
+                    hasMissingEndTime={hasMissingEndTime}
                   />
                 </div>
 

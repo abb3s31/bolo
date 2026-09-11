@@ -128,6 +128,7 @@ export default function FloatingCrudModal({
       {onSubmit ? (
         <form 
           onSubmit={onSubmit} 
+          noValidate
           onClick={(e) => e.stopPropagation()} 
           className={`relative z-10 w-full ${maxWidth} max-h-[90vh] flex flex-col items-center justify-center`}
         >

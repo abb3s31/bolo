@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'; // 🎨 استيراد أيقونات لوسيد
 import type { LectureType } from '@/types'; // 🔬 نوع المحاضرة (نظري أو عملي)
 import { calculateSmartDropdownPosition, type SmartDropdownPosition } from '../../dropdownUtils'; // 📐 حساب الموضع الذكي
+import { RequiredFieldSvgIcon } from '../LectureModal'; // 🛡️ أيقونة SVG فيكتور أنيقة وموحدة لشارات الحقول المطلوبة
 
 // 📋 واجهة خصائص مكون منتقي توقيت المحاضرة
 export interface LectureTimeSlotPickerProps {
@@ -24,6 +25,8 @@ export interface LectureTimeSlotPickerProps {
   setLecEndTime: (time: string) => void; // 🔄 دالة تحديث وقت الانتهاء
   lecType: LectureType | ''; // 🔬 نوع المحاضرة لحساب المدة التلقائية
   lecStudyType: 'morning' | 'evening'; // ☀️🌙 نوع الدراسة الافتراضي
+  hasMissingStartTime?: boolean; // 🚨 مؤشر نقص وقت البدء لإطلاق التنبيه والتمرير
+  hasMissingEndTime?: boolean; // 🚨 مؤشر نقص وقت الانتهاء لإطلاق التنبيه والتمرير
 }
 
 // 🧮 تحويل صيغة 24 ساعة إلى 12 ساعة بنظام العرض العراقي
@@ -103,6 +106,8 @@ export const LectureTimeSlotPicker: React.FC<LectureTimeSlotPickerProps> = ({
   setLecEndTime, // 🔄 تحديث الانتهاء
   lecType, // 🔬 نوع المحاضرة
   lecStudyType, // ☀️🌙 نوع الدراسة
+  hasMissingStartTime = false, // 🚨 مؤشر نقص وقت البدء لإطلاق التنبيه
+  hasMissingEndTime = false, // 🚨 مؤشر نقص وقت الانتهاء لإطلاق التنبيه
 }) => {
   // 🔘 حالات فتح وإغلاق قوائم التوقيت
   const [isLecStartTimeDropdownOpen, setIsLecStartTimeDropdownOpen] = useState<boolean>(false); // ⏰ قائمة وقت البدء
@@ -348,10 +353,19 @@ export const LectureTimeSlotPicker: React.FC<LectureTimeSlotPickerProps> = ({
     // 4. وقت البدء + وقت الانتهاء بقوائم منسدلة احترافية مخصصة
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
       {/* البدء */}
-      <div className="space-y-1.5 relative">
-        <label className="block text-sm font-black text-slate-950 flex items-center gap-1.5">
-          <Clock className="w-4 h-4 text-[#0F2942]" />
-          <span>وقت بدء المحاضرة <span className="text-red-600">*</span></span>
+      <div id="field-container-lec-start-time" className="space-y-1.5 relative scroll-mt-20">
+        <label className="block text-sm font-black text-slate-950 flex items-center justify-between">
+          <span className="flex items-center gap-1.5">
+            <Clock className="w-4 h-4 text-[#0F2942]" />
+            <span>وقت بدء المحاضرة <span className="text-red-600">*</span></span>
+          </span>
+          {/* 🚨 شارة التنبيه الأنيقة الثابتة مع أيقونة SVG عند نقص وقت البدء */}
+          {hasMissingStartTime && (
+            <span className="text-xs font-black text-rose-700 bg-rose-50 border border-rose-200 px-2.5 py-0.5 rounded-lg inline-flex items-center gap-1 shadow-2xs">
+              <RequiredFieldSvgIcon /> {/* 🛡️ أيقونة SVG فيكتور أنيقة */}
+              <span>مطلوب</span> {/* 🏷️ نص الحقل المطلوب */}
+            </span>
+          )}
         </label>
         <div>
           <button
@@ -359,7 +373,11 @@ export const LectureTimeSlotPicker: React.FC<LectureTimeSlotPickerProps> = ({
             type="button"
             onClick={handleToggleLecStartTimeDropdown}
             className={`w-full px-3.5 py-2.5 bg-slate-50 hover:bg-white border-2 rounded-xl text-sm font-black text-slate-950 flex items-center justify-between cursor-pointer shadow-2xs transition-all text-right ${
-              isLecStartTimeDropdownOpen ? 'border-[#0F2942] ring-2 ring-[#0F2942]/20' : 'border-slate-300'
+              hasMissingStartTime
+                ? 'border-rose-400 ring-2 ring-rose-200 bg-rose-50/30'
+                : isLecStartTimeDropdownOpen
+                ? 'border-[#0F2942] ring-2 ring-[#0F2942]/20'
+                : 'border-slate-300'
             }`}
           >
             <div className="flex items-center gap-2">
@@ -409,10 +427,19 @@ export const LectureTimeSlotPicker: React.FC<LectureTimeSlotPickerProps> = ({
       </div>
 
       {/* الانتهاء */}
-      <div className="space-y-1.5 relative">
-        <label className="block text-sm font-black text-slate-950 flex items-center gap-1.5">
-          <Clock className="w-4 h-4 text-[#0F2942]" />
-          <span>وقت انتهاء المحاضرة <span className="text-red-600">*</span></span>
+      <div id="field-container-lec-end-time" className="space-y-1.5 relative scroll-mt-20">
+        <label className="block text-sm font-black text-slate-950 flex items-center justify-between">
+          <span className="flex items-center gap-1.5">
+            <Clock className="w-4 h-4 text-[#0F2942]" />
+            <span>وقت انتهاء المحاضرة <span className="text-red-600">*</span></span>
+          </span>
+          {/* 🚨 شارة التنبيه الأنيقة الثابتة مع أيقونة SVG عند نقص وقت الانتهاء */}
+          {hasMissingEndTime && (
+            <span className="text-xs font-black text-rose-700 bg-rose-50 border border-rose-200 px-2.5 py-0.5 rounded-lg inline-flex items-center gap-1 shadow-2xs">
+              <RequiredFieldSvgIcon /> {/* 🛡️ أيقونة SVG فيكتور أنيقة */}
+              <span>مطلوب</span> {/* 🏷️ نص الحقل المطلوب */}
+            </span>
+          )}
         </label>
         <div>
           <button
@@ -420,7 +447,11 @@ export const LectureTimeSlotPicker: React.FC<LectureTimeSlotPickerProps> = ({
             type="button"
             onClick={handleToggleLecEndTimeDropdown}
             className={`w-full px-3.5 py-2.5 bg-slate-50 hover:bg-white border-2 rounded-xl text-sm font-black text-slate-950 flex items-center justify-between cursor-pointer shadow-2xs transition-all text-right ${
-              isLecEndTimeDropdownOpen ? 'border-[#0F2942] ring-2 ring-[#0F2942]/20' : 'border-slate-300'
+              hasMissingEndTime
+                ? 'border-rose-400 ring-2 ring-rose-200 bg-rose-50/30'
+                : isLecEndTimeDropdownOpen
+                ? 'border-[#0F2942] ring-2 ring-[#0F2942]/20'
+                : 'border-slate-300'
             }`}
           >
             <div className="flex items-center gap-2">

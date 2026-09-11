@@ -810,4 +810,26 @@ export function formatArabicLectureCount(count: number): string { // 🔢 دال
   return `${count} محاضرة`; // 🔢 تمييز مفرد منصوب بعد العشرة (مثلاً 12 محاضرة)
 } // 🔚 نهاية الدالة
 
+// 🎯 دالة ذكية ومركزية لفحص هل المحاضرة نشطة ومقررة في أسبوع دراسي محدد (1 إلى 15)
+export function isLectureActiveInWeek(lecture: ScheduleLecture, weekNumber: number): boolean { // 🧪 دالة فحص أسبوع المحاضرة
+  if (lecture.weekly_overrides?.[weekNumber]?.is_cancelled) { // 🚫 أول شي نشيك: هل المحاضرة ملغاة بهذا الأسبوع بالذات؟
+    return false; // 🛑 إذا ملغاة بهذا الأسبوع ما نطلعها نهائياً
+  } // 🔚 نهاية فحص الإلغاء
+
+  if (Array.isArray(lecture.active_weeks) && lecture.active_weeks.length > 0) { // 🔢 ثاني شي نشيك: هل اكو لستة أسابيع محددة ومخصصة للمحاضرة؟
+    return lecture.active_weeks.includes(weekNumber); // 🎯 إذا الأسبوع موجود باللستة نكول نعم فعالة
+  } // 🔚 نهاية فحص الأسابيع المحددة
+
+  if (lecture.custom_weekly_dates && Object.keys(lecture.custom_weekly_dates).length > 0) { // 📆 ثالث شي نشيك: هل متولدة الها تواريخ بأسابيع معينة؟
+    return Boolean(lecture.custom_weekly_dates[weekNumber]); // 📅 إذا هذا الأسبوع عنده تاريخ متولد نكول فعالة
+  } // 🔚 نهاية فحص التواريخ المتولدة
+
+  if (lecture.week_number && lecture.week_number > 1 && !lecture.custom_weekly_dates) { // 📌 رابع شي نشيك: إذا انعملت لأسبوع محدد فوق الأسبوع الأول وما بيها تعاقب
+    return lecture.week_number === weekNumber; // 🎯 تظهر بس بالأسبوع اللي انعملت بيه
+  } // 🔚 نهاية فحص الأسبوع الفردي المحدد
+
+  return weekNumber >= 1 && weekNumber <= 15; // 🌟 خامس شي: الافتراضي بنظام بولونيا هو التكرار الأسبوعي لكافة الأسابيع (1 إلى 15)
+} // 🔚 نهاية الدالة
+
+
 

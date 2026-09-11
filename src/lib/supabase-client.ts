@@ -2100,49 +2100,55 @@ async function ensureLectureDependenciesInSupabase(lec: ScheduleLecture): Promis
   }
 }
 
+// 📦 واجهة بيانات التقويم والأسابيع والكروبات المشفرة في الحقل السحابي
+interface LectureEncodedMetadata { // 📝 تعريف نوع البيانات المشفرة
+  date?: string; // 📅 تاريخ المحاضرة
+  active_weeks?: number[]; // 🔢 الأسابيع النشطة للمحاضرة
+  week_number?: number; // 🔢 رقم الأسبوع الأساسي
+  custom_weekly_dates?: Record<number, string>; // 📆 التواريخ التقويمية المحسوبة
+  weekly_overrides?: Record<number, { day?: DayOfWeek; date?: string; start_time?: string; end_time?: string; room?: string; teacher_id?: string; teacher_name?: string; is_cancelled?: boolean }>; // ⚙️ استثناءات وتعديلات الأسابيع
+  target_group?: string; // 🏷️ كروب المحاضرة المستهدف
+} // 🔚 نهاية الواجهة
+
 // 📦 دالة مساعدة لتضمين وحفظ بيانات التقويم والأسابيع والكروبات داخل حقل notes لحمايتها سحابياً
-function encodeLectureMetaIntoNotes(lec: ScheduleLecture): string | undefined {
-  const meta: Record<string, unknown> = {};
-  if (lec.date) meta.date = lec.date;
-  if (lec.week_number) meta.week_number = lec.week_number;
-  if (lec.custom_weekly_dates) meta.custom_weekly_dates = lec.custom_weekly_dates;
-  if (lec.weekly_overrides) meta.weekly_overrides = lec.weekly_overrides;
+function encodeLectureMetaIntoNotes(lec: ScheduleLecture): string | undefined { // 💾 دالة تشفير البيانات
+  const meta: LectureEncodedMetadata = {}; // 📦 كائن البيانات المشفرة بنوع صريح
+  if (lec.date) meta.date = lec.date; // 📅 حفظ التاريخ الفعلي
+  if (lec.active_weeks) meta.active_weeks = lec.active_weeks; // 🔢 حفظ لستة الأسابيع النشطة المحددة
+  if (lec.week_number) meta.week_number = lec.week_number; // 🔢 حفظ رقم الأسبوع
+  if (lec.custom_weekly_dates) meta.custom_weekly_dates = lec.custom_weekly_dates; // 📆 حفظ التواريخ الأسبوعية
+  if (lec.weekly_overrides) meta.weekly_overrides = lec.weekly_overrides; // ⚙️ حفظ الاستثناءات وتعديلات الأسابيع
   if (lec.target_group) meta.target_group = lec.target_group; // 🏷️ حفظ كروب المحاضرة داخل الحقل المشفر
 
-  const rawNotes = lec.notes ? lec.notes.replace(/<!--\s*LEC_DATA:[\s\S]*?-->/g, '').trim() : '';
-  if (Object.keys(meta).length === 0) return rawNotes || undefined;
-  const metaTag = `<!-- LEC_DATA:${JSON.stringify(meta)} -->`;
-  return rawNotes ? `${rawNotes}\n${metaTag}` : metaTag;
-}
+  const rawNotes = lec.notes ? lec.notes.replace(/<!--\s*LEC_DATA:[\s\S]*?-->/g, '').trim() : ''; // 🧹 تنظيف الملاحظات من الوسم القديم
+  if (Object.keys(meta).length === 0) return rawNotes || undefined; // 🛡️ إذا فارغ نرجع الملاحظات العادية
+  const metaTag = `<!-- LEC_DATA:${JSON.stringify(meta)} -->`; // 🏷️ صياغة الوسم السحابي المشفر
+  return rawNotes ? `${rawNotes}\n${metaTag}` : metaTag; // 🚀 دمج الملاحظات مع الوسم
+} // 🔚 نهاية الدالة
 
 // 📦 دالة مساعدة لاستخراج وفك تشفير بيانات التقويم والأسابيع والكروبات من حقل notes السحابي
-function decodeLectureMetaFromNotes(lec: ScheduleLecture): ScheduleLecture {
-  if (!lec.notes || !lec.notes.includes('<!-- LEC_DATA:')) return lec;
-  try {
-    const match = lec.notes.match(/<!--\s*LEC_DATA:([\s\S]*?)-->/);
-    if (match && match[1]) {
-      const meta = JSON.parse(match[1]) as {
-        date?: string;
-        week_number?: number;
-        custom_weekly_dates?: Record<number, string>;
-        weekly_overrides?: Record<number, { day?: DayOfWeek; date?: string; start_time?: string; end_time?: string; room?: string; teacher_id?: string; teacher_name?: string }>;
-        target_group?: string; // 🏷️ كروب المحاضرة المستهدف
-      };
-      const cleanNotes = lec.notes.replace(/<!--\s*LEC_DATA:[\s\S]*?-->/g, '').trim();
-      return {
-        ...lec,
-        date: lec.date || meta.date,
-        week_number: lec.week_number || meta.week_number || 1,
-        custom_weekly_dates: lec.custom_weekly_dates || meta.custom_weekly_dates,
-        weekly_overrides: lec.weekly_overrides || meta.weekly_overrides,
+function decodeLectureMetaFromNotes(lec: ScheduleLecture): ScheduleLecture { // 📥 دالة استخراج البيانات
+  if (!lec.notes || !lec.notes.includes('<!-- LEC_DATA:')) return lec; // 🛡️ إذا ماكو وسم نرجع المحاضرة كما هي
+  try { // 🛡️ حماية من أخطاء التحليل
+    const match = lec.notes.match(/<!--\s*LEC_DATA:([\s\S]*?)-->/); // 🔍 استخراج محتوى الوسم
+    if (match && match[1]) { // 🎯 إذا لكينه المحتوى
+      const meta = JSON.parse(match[1]) as LectureEncodedMetadata; // 📦 تحويل النص لكائن بنوع صريح
+      const cleanNotes = lec.notes.replace(/<!--\s*LEC_DATA:[\s\S]*?-->/g, '').trim(); // 🧹 تنظيف الملاحظات النصية
+      return { // 🚀 إرجاع المحاضرة مع البيانات المفكوكة
+        ...lec, // 📋 البيانات الأساسية
+        date: lec.date || meta.date, // 📅 استرجاع التاريخ
+        active_weeks: lec.active_weeks || meta.active_weeks, // 🔢 استرجاع الأسابيع النشطة
+        week_number: lec.week_number || meta.week_number || 1, // 🔢 استرجاع رقم الأسبوع
+        custom_weekly_dates: lec.custom_weekly_dates || meta.custom_weekly_dates, // 📆 استرجاع التواريخ الأسبوعية
+        weekly_overrides: lec.weekly_overrides || meta.weekly_overrides, // ⚙️ استرجاع الاستثناءات والتعديلات
         target_group: lec.target_group || meta.target_group || 'all', // 🏷️ استرجاع كروب المحاضرة المعزول
-        notes: cleanNotes || undefined,
-      };
-    }
-  } catch (parseErr) {
-    console.warn('تنبيه أثناء فك بيانات التقويم والكروبات:', parseErr);
-  }
-  return lec;
+        notes: cleanNotes || undefined, // 💡 استرجاع الملاحظات النظيفة
+      }; // 🔚 نهاية إرجاع الكائن
+    } // 🔚 نهاية فحص المحتوى
+  } catch (parseErr) { // ⚠️ التقاط أي خطأ في التحليل
+    console.warn('تنبيه أثناء فك بيانات التقويم والكروبات:', parseErr); // 📢 تسجيل تنبيه
+  } // 🔚 نهاية البلوك
+  return lec; // 🛡️ إرجاع المحاضرة الأصلية كخطة احتياطية
 }
 
 export async function syncScheduleLecturesFromSupabase(): Promise<ScheduleLecture[]> {

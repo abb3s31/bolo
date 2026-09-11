@@ -110,14 +110,21 @@ export const useDepartmentSchedule = ({
   const [selectedWeekByGroup, setSelectedWeekByGroup] = useState<Record<string, number>>({}); // 🗓️ قاموس حفظ الأسبوع المختار لكل كروب مستقلاً تماماً
   const [selectedScheduleLectureIds, setSelectedScheduleLectureIds] = useState<string[]>([]); // 🔘 معرفات المحاضرات المحددة
 
-  // 🔄 مزامنة الكروب الافتراضي تلقائياً: إذا المرحلة مقسمة لكروبات نختار أول كروب (مثلاً 'A') بدلاً من 'all'
+  // 🔄 مزامنة الكروب الافتراضي تلقائياً: إذا المرحلة مقسمة لكروبات نختار أول كروب (مثلاً 'A') بدلاً من 'all'، وإذا شعبة موحدة نعيده إلى 'all'
   useEffect(() => {
+    // 🔍 جلب إعدادات المرحلة المحددة
     const currentStageGrpCfg = stageGroupConfigs.find(
       (c) => c.stage_number === selectedScheduleStage && c.study_type === selectedScheduleStudyType
     );
+    // ⚙️ فحص وجود كروبات معتمدة للمرحلة
     if (currentStageGrpCfg && currentStageGrpCfg.has_groups && currentStageGrpCfg.groups && currentStageGrpCfg.groups.length > 0) {
       if (selectedScheduleGroup === 'all' || !currentStageGrpCfg.groups.includes(selectedScheduleGroup)) {
         setSelectedScheduleGroup(currentStageGrpCfg.groups[0]); // 🥇 تعيين الكروب الأول مباشرة للمرحلة
+      }
+    } else {
+      // 🛑 في حال كانت المرحلة شعبة موحدة نضمن إعادة التعيين إلى all
+      if (selectedScheduleGroup !== 'all') {
+        setSelectedScheduleGroup('all'); // 🔄 تصفير الكروب لشعبة موحدة
       }
     }
   }, [stageGroupConfigs, selectedScheduleStage, selectedScheduleStudyType, selectedScheduleGroup]);
@@ -135,6 +142,8 @@ export const useDepartmentSchedule = ({
   const [lecWeekNumber, setLecWeekNumber] = useState<number>(1); // 🔢 رقم الأسبوع المعتمد
   const [lecAutoCascadeWeeks, setLecAutoCascadeWeeks] = useState<boolean>(true); // 🌟 تعاقب التواريخ التلقائي للأسابيع الـ 15
   const [lecCascadeShiftOption, setLecCascadeShiftOption] = useState<'cascade_following' | 'this_week_only' | 'all_15_weeks'>('cascade_following'); // 🔄 خيار ترحيل التعديل
+  const [lecWeeksScope, setLecWeeksScope] = useState<'all_15_weeks' | 'this_week_only' | 'odd_weeks' | 'even_weeks' | 'custom_pick'>('all_15_weeks'); // 🔢 نطاق الأسابيع المعتمدة للمحاضرة
+  const [lecCustomWeeks, setLecCustomWeeks] = useState<number[]>([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]); // 📋 لستة الأسابيع المخصصة يدوياً للمحاضرة
   const [originalLecDay, setOriginalLecDay] = useState<DayOfWeek | ''>(''); // 🗓️ اليوم الأصلي لتتبع التحويل بين الأيام
   const [lecStudyType, setLecStudyType] = useState<'morning' | 'evening'>('morning'); // ☀️🌙 فترة المحاضرة
   const [lecNotes, setLecNotes] = useState<string>(''); // 📝 ملاحظات المحاضرة
@@ -893,41 +902,75 @@ export const useDepartmentSchedule = ({
       actualLecDate = calculateDateForAnyDayInWeek(baseStart, 1, targetWk, safeDay);
     }
     const effectiveBaseDate = actualLecDate || calculateDateForAnyDayInWeek(baseStart, 1, targetWk, safeDay);
-    const all15DatesMap: Record<number, string> = {};
-    if (effectiveBaseDate) {
-      const all15 = generateAll15WeeksDates(effectiveBaseDate, safeDay, targetWk);
-      all15.forEach((item: { weekNumber: number; date: string }) => {
-        all15DatesMap[item.weekNumber] = item.date;
-      });
-    }
+    // 🔢 حساب قائمة الأسابيع الدراسية النشطة للمحاضرة بدقة
+    let computedActiveWeeks: number[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]; // 🌟 افتراضياً كافة الأسابيع الـ 15
+    if (lecWeeksScope === 'this_week_only') { // 📍 خيار هذا الأسبوع فقط
+      computedActiveWeeks = [targetWk]; // 🔢 أسبوع واحد فقط
+    } else if (lecWeeksScope === 'odd_weeks') { // 🔢 الأسابيع الفردية
+      computedActiveWeeks = [1, 3, 5, 7, 9, 11, 13, 15]; // 🎯 قائمة الأسابيع الفردية
+    } else if (lecWeeksScope === 'even_weeks') { // 🔢 الأسابيع الزوجية
+      computedActiveWeeks = [2, 4, 6, 8, 10, 12, 14]; // 🎯 قائمة الأسابيع الزوجية
+    } else if (lecWeeksScope === 'custom_pick') { // ✋ اختيار يدوي مخصص
+      computedActiveWeeks = lecCustomWeeks.length > 0 ? [...lecCustomWeeks].sort((a, b) => a - b) : [targetWk]; // 🎯 القائمة المخصصة مرتبة
+    } else if (!lecAutoCascadeWeeks && targetWk === 1) { // 🛑 تعطيل التعاقب بالأسبوع 1
+      computedActiveWeeks = [1]; // 🔢 الأسبوع الأول فقط
+    } else if (targetWk > 1 && lecCascadeShiftOption === 'this_week_only') { // 📌 استثناء هذا الأسبوع فقط
+      computedActiveWeeks = [targetWk]; // 🔢 الأسبوع الحالي فقط
+    } else if (targetWk > 1 && lecCascadeShiftOption === 'cascade_following') { // ➡️ ترحيل للأسابيع اللاحقة
+      computedActiveWeeks = Array.from({ length: 16 - targetWk }, (_, i) => targetWk + i); // 🔢 من الأسبوع الحالي إلى الأسبوع 15
+    } // 🔚 نهاية تحديد الأسابيع
+
+    const all15DatesMap: Record<number, string> = {}; // 📅 خريطة التواريخ المحسوبة
+    if (effectiveBaseDate) { // 🛡️ إذا وجد تاريخ أساس
+      computedActiveWeeks.forEach((w) => { // 🔄 توليد التواريخ للأسابيع النشطة حصراً
+        all15DatesMap[w] = calculateDateForAnyDayInWeek(baseStart, 1, w, safeDay); // 🧮 حساب التاريخ الدقيق لليوم والأسبوع
+      }); // 🔚 نهاية التكرار
+    } // 🔚 نهاية الشرط
 
     if (editingLectureId) {
       // ✏️ تعديل محاضرة قائمة
       let updatedLecToSync: ScheduleLecture | null = null;
       const updated = scheduleLectures.map((l: ScheduleLecture) => {
         if (l.id === editingLectureId) {
-          const updatedWeeklyOverrides: Record<number, { day?: DayOfWeek; date?: string; start_time?: string; end_time?: string; room?: string; teacher_id?: string; teacher_name?: string }> = l.weekly_overrides ? { ...l.weekly_overrides } : {};
+          const updatedWeeklyOverrides: Record<number, { day?: DayOfWeek; date?: string; start_time?: string; end_time?: string; room?: string; teacher_id?: string; teacher_name?: string; is_cancelled?: boolean }> = l.weekly_overrides ? { ...l.weekly_overrides } : {}; // ⚙️ استنساخ الاستثناءات السابقة
 
-          if (originalLecDay && originalLecDay !== safeDay && (lecCascadeShiftOption === 'cascade_following' || lecCascadeShiftOption === 'all_15_weeks')) {
-            const startWeek = lecCascadeShiftOption === 'all_15_weeks' ? 1 : (lecWeekNumber || 1);
-            const shiftedMap = shiftLectureToAnyDay(originalLecDay, safeDay, startWeek, effectiveBaseDate, 15, targetWk);
-            for (let w = startWeek; w <= 15; w++) {
-              const shiftInfo = shiftedMap[w];
-              if (shiftInfo) {
-                updatedWeeklyOverrides[w] = {
-                  ...(updatedWeeklyOverrides[w] || {}),
-                  day: shiftInfo.day,
-                  date: shiftInfo.date,
-                  start_time: lecStartTime,
-                  end_time: lecEndTime,
-                  room: lecRoom.trim(),
-                  teacher_id: teacher ? teacher.id : undefined,
-                  teacher_name: teacher ? teacher.full_name : undefined,
-                };
-                all15DatesMap[w] = shiftInfo.date;
-              }
-            }
-          }
+          if (lecCascadeShiftOption === 'this_week_only' && targetWk > 1) { // 🎯 تعديل خاص بهذا الأسبوع فقط كاستثناء دون المساس ببقية الأسابيع
+            updatedWeeklyOverrides[targetWk] = { // 📝 تسجيل استثناء لهذا الأسبوع المختار حصراً
+              ...(updatedWeeklyOverrides[targetWk] || {}), // 📋 الحقول السابقة
+              day: safeDay, // 🗓️ اليوم المعدل
+              date: effectiveBaseDate, // 📅 التاريخ المعدل
+              start_time: lecStartTime, // ⏰ وقت البدء المعدل
+              end_time: lecEndTime, // ⏰ وقت الانتهاء المعدل
+              room: lecRoom.trim(), // 🏛️ القاعة المعدلة
+              teacher_id: teacher ? teacher.id : undefined, // 👨‍🏫 معرف الأستاذ المعدل
+              teacher_name: teacher ? teacher.full_name : undefined, // 👤 اسم الأستاذ المعدل
+              is_cancelled: false, // ✅ تأكيد عدم الإلغاء
+            }; // 🔚 نهاية الاستثناء
+            all15DatesMap[targetWk] = effectiveBaseDate; // 📅 تحديث تاريخ هذا الأسبوع
+          } else if (originalLecDay && originalLecDay !== safeDay && (lecCascadeShiftOption === 'cascade_following' || lecCascadeShiftOption === 'all_15_weeks')) { // 🔀 إذا تم تغيير اليوم وترحيله
+            const startWeek = lecCascadeShiftOption === 'all_15_weeks' ? 1 : (lecWeekNumber || 1); // 🔢 أسبوع بداية الترحيل
+            const shiftedMap = shiftLectureToAnyDay(originalLecDay, safeDay, startWeek, effectiveBaseDate, 15, targetWk); // 🔄 إزاحة الأيام
+            for (let w = startWeek; w <= 15; w++) { // 🔁 تكرار الترحيل
+              const shiftInfo = shiftedMap[w]; // ℹ️ بيانات اليوم المرحل
+              if (shiftInfo) { // 🎯 إذا وجدت بيانات
+                updatedWeeklyOverrides[w] = { // 📝 تحديث استثناء الأسبوع
+                  ...(updatedWeeklyOverrides[w] || {}), // 📋 البيانات السابقة
+                  day: shiftInfo.day, // 🗓️ اليوم الجديد
+                  date: shiftInfo.date, // 📅 التاريخ الجديد
+                  start_time: lecStartTime, // ⏰ وقت البدء
+                  end_time: lecEndTime, // ⏰ وقت الانتهاء
+                  room: lecRoom.trim(), // 🏛️ القاعة
+                  teacher_id: teacher ? teacher.id : undefined, // 👨‍🏫 معرف الأستاذ
+                  teacher_name: teacher ? teacher.full_name : undefined, // 👤 اسم الأستاذ
+                  is_cancelled: false, // ✅ غير ملغاة
+                }; // 🔚 نهاية استثناء الأسبوع
+                all15DatesMap[w] = shiftInfo.date; // 📅 حفظ التاريخ
+              } // 🔚 نهاية الشرط
+            } // 🔚 نهاية التكرار
+          } // 🔚 نهاية الشرط
+
+          const isScopeThisWeekOnly = lecCascadeShiftOption === 'this_week_only' && targetWk > 1; // 🔍 فحص هل التعديل خاص بهذا الأسبوع فقط
+          const finalActiveWeeks = isScopeThisWeekOnly ? (l.active_weeks || [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]) : computedActiveWeeks; // 🔢 الأسابيع النشطة
 
           const editedLec: ScheduleLecture = {
             ...l,
@@ -936,14 +979,15 @@ export const useDepartmentSchedule = ({
             course_code: course.code,
             teacher_id: teacher ? teacher.id : undefined,
             teacher_name: teacher ? teacher.full_name : undefined,
-            day: safeDay,
-            start_time: lecStartTime,
-            end_time: lecEndTime,
-            room: lecRoom.trim(),
+            day: isScopeThisWeekOnly ? l.day : safeDay,
+            start_time: isScopeThisWeekOnly ? l.start_time : lecStartTime,
+            end_time: isScopeThisWeekOnly ? l.end_time : lecEndTime,
+            room: isScopeThisWeekOnly ? l.room : lecRoom.trim(),
             color: safeColor,
             type: safeType,
             study_type: lecStudyType,
             date: effectiveBaseDate,
+            active_weeks: finalActiveWeeks,
             week_number: lecWeekNumber || 1,
             custom_weekly_dates: Object.keys(all15DatesMap).length > 0 ? all15DatesMap : undefined,
             weekly_overrides: Object.keys(updatedWeeklyOverrides).length > 0 ? updatedWeeklyOverrides : undefined,
@@ -1009,12 +1053,13 @@ export const useDepartmentSchedule = ({
         color: safeColor,
         type: safeType,
         study_type: lecStudyType,
-        date: effectiveBaseDate,
-        week_number: lecWeekNumber || 1,
-        custom_weekly_dates: Object.keys(all15DatesMap).length > 0 ? all15DatesMap : undefined,
-        notes: lecNotes.trim() || undefined,
+        date: effectiveBaseDate, // 📅 التاريخ الفعلي
+        active_weeks: computedActiveWeeks, // 🔢 قائمة الأسابيع الدراسية المحددة التي تقام فيها هذه المحاضرة
+        week_number: lecWeekNumber || 1, // 🔢 رقم الأسبوع الأساسي
+        custom_weekly_dates: Object.keys(all15DatesMap).length > 0 ? all15DatesMap : undefined, // 📆 التواريخ التقويمية المحسوبة
+        notes: lecNotes.trim() || undefined, // 💡 الملاحظات
         target_group: lecTargetGroup || 'all', // 👥 حفظ الكروب المستهدف
-        created_at: new Date().toISOString(),
+        created_at: new Date().toISOString(), // ⏰ تاريخ الإنشاء
       };
 
       const updated = [...scheduleLectures, newLec];
@@ -1088,10 +1133,12 @@ export const useDepartmentSchedule = ({
     const computedDate = calculateDateForAnyDayInWeek(savedStartDate, 1, targetWk, targetDay);
     setLecDate(computedDate || savedStartDate);
 
-    setLecAutoCascadeWeeks(true);
-    setLecNotes('');
+    setLecAutoCascadeWeeks(true); // 🔄 تفعيل التوليد التلقائي افتراضياً
+    setLecWeeksScope('all_15_weeks'); // 🔢 إعادة ضبط نطاق الأسابيع لكافة الأسابيع الـ 15 افتراضياً
+    setLecCustomWeeks([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]); // 📋 لستة الأسابيع الـ 15 كاملة
+    setLecNotes(''); // 🧹 تصفير الملاحظات
     setLecTargetGroup('all'); // 👥 إعادة تعيين الكروب إلى عام افتراضياً
-    setLecModalSuccessMsg('');
+    setLecModalSuccessMsg(''); // ✨ تصفير رسالة النجاح
   };
 
   // ✏️ فتح استمارة تعديل المحاضرة
@@ -1128,6 +1175,21 @@ export const useDepartmentSchedule = ({
     setLecWeekNumber(targetWeek);
     setLecDate(effectiveDate);
 
+    // 🔢 قراءة وضبط نطاق الأسابيع المعتمدة للمحاضرة قيد التعديل
+    if (lec.active_weeks && lec.active_weeks.length > 0) { // 🔍 إذا المحاضرة محددة بأسابيع معينة
+      setLecCustomWeeks(lec.active_weeks); // 📋 تحميل قائمة الأسابيع المحددة
+      if (lec.active_weeks.length === 15) { // 🌟 إذا تشمل كل الأسابيع
+        setLecWeeksScope('all_15_weeks'); // 🎯 تحديد خيار كل الأسابيع
+      } else if (lec.active_weeks.length === 1 && lec.active_weeks[0] === targetWeek) { // 📍 إذا أسبوع واحد فقط
+        setLecWeeksScope('this_week_only'); // 🎯 تحديد خيار هذا الأسبوع فقط
+      } else { // 🔀 إذا تخصيص يدوي أو فردي/زوجي
+        setLecWeeksScope('custom_pick'); // 🎯 تحديد خيار التخصيص اليدوي
+      } // 🔚 نهاية فحص الطول
+    } else { // 🛡️ إذا ماكو تحديد مسبق للأسابيع
+      setLecWeeksScope('all_15_weeks'); // 🌟 افتراضياً كل الأسابيع الـ 15
+      setLecCustomWeeks([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]); // 📋 لستة الأسابيع الـ 15 كاملة
+    } // 🔚 نهاية شرط الأسابيع
+
     setLecAutoCascadeWeeks(true);
     setLecCascadeShiftOption('cascade_following');
     setLecNotes(lec.notes || '');
@@ -1155,6 +1217,48 @@ export const useDepartmentSchedule = ({
       },
     });
   };
+
+  // 🚫 إلغاء أو حذف المحاضرة لأسبوع محدد فقط دون التأثير على بقية الأسابيع الـ 15
+  const handleDeleteLectureForWeek = (id: string, weekNumber: number) => { // 🗑️ دالة إلغاء أسبوع فردي
+    const targetLecture = scheduleLectures.find((l: ScheduleLecture) => l.id === id); // 🔍 البحث عن المحاضرة
+    setDeleteModalConfig({ // ⚙️ تكوين نافذة تأكيد الحذف
+      isOpen: true, // 🪟 فتح النافذة
+      title: `إلغاء المحاضرة للأسبوع ${weekNumber} فقط`, // 📝 عنوان الحذف الخاص بالأسبوع
+      itemName: `${targetLecture?.course_name || 'محاضرة'} (الأسبوع ${weekNumber})`, // 🏷️ اسم المحاضرة
+      itemDetails: `سيتم استبعاد وإلغاء هذه المحاضرة في الأسبوع ${weekNumber} فقط، وستبقى معتمدة في سائر الأسابيع الأخرى بشكل طبيعي.`, // ℹ️ التوضيح
+      warningMessage: `⚠️ تنبيه: ستظهر المحاضرة كملغاة أو محذوفة لطلبة الأسبوع ${weekNumber} حصراً.`, // ⚠️ التحذير
+      confirmText: `تأكيد إلغاء الأسبوع ${weekNumber}`, // 🔘 زر التأكيد
+      variant: 'danger', // 🔴 لون التحذير
+      iconType: 'trash', // 🗑️ أيقونة السلة
+      onConfirm: () => { // ⚡ تنفيذ الإلغاء
+        let updatedLecToSync: ScheduleLecture | null = null; // 📦 كائن للمزامنة السحابية
+        const updated = scheduleLectures.map((l: ScheduleLecture) => { // 🔄 تحديث مصفوفة المحاضرات
+          if (l.id === id) { // 🎯 مطابقة المحاضرة المستهدفة
+            const overrides: Record<number, { day?: DayOfWeek; date?: string; start_time?: string; end_time?: string; room?: string; teacher_id?: string; teacher_name?: string; is_cancelled?: boolean }> = l.weekly_overrides ? { ...l.weekly_overrides } : {}; // ⚙️ استنساخ الاستثناءات
+            overrides[weekNumber] = { // 🚫 تسجيل حالة الإلغاء للأسبوع
+              ...(overrides[weekNumber] || {}), // 📋 الحقول السابقة
+              is_cancelled: true, // 🛑 وسم الإلغاء الصريح
+            }; // 🔚 نهاية تسجيل الأسبوع
+            const updatedLec: ScheduleLecture = { // 📝 بناء المحاضرة المحدثة
+              ...l, // 📋 البيانات السابقة
+              weekly_overrides: overrides, // ⚙️ إسناد الاستثناءات بعد الإلغاء
+            }; // 🔚 نهاية الكائن
+            updatedLecToSync = updatedLec; // 🎯 تعيين للمزامنة
+            return updatedLec; // 🚀 إرجاع المحاضرة المحدثة
+          } // 🔚 نهاية الشرط
+          return l; // 🛡️ إرجاع المحاضرات الأخرى
+        }); // 🔚 نهاية الماب
+        setScheduleLectures(updated); // 💾 تحديث الحالة المحلية
+        saveStoredData('schedule_lectures', updated); // 💾 حفظ بالتخزين المحلي
+        if (updatedLecToSync) { // ☁️ إذا توفرت محاضرة للمزامنة
+          saveScheduleLectureToSupabase(updatedLecToSync); // 🌐 حفظ التحديث في Supabase
+        } // 🔚 نهاية المزامنة
+        setSuccessMessage(`تم بنجاح إلغاء محاضرة (${targetLecture?.course_name}) للأسبوع ${weekNumber} فقط! 🛑✨`); // 💬 إشعار النجاح
+        setTimeout(() => setSuccessMessage(''), 3500); // ⏱️ توقيت الإخفاء
+        setDeleteModalConfig((prev: DepartmentDeleteModalConfig) => ({ ...prev, isOpen: false })); // 🚪 غلق النافذة
+      }, // 🔚 نهاية onConfirm
+    }); // 🔚 نهاية تكوين المودال
+  }; // 🔚 نهاية الدالة
 
   // 🗑️ حذف جماعي لمحاضرات الجدول المحددة
   const handleBulkDeleteScheduleLectures = () => {
@@ -1256,6 +1360,10 @@ export const useDepartmentSchedule = ({
     setLecAutoCascadeWeeks,
     lecCascadeShiftOption,
     setLecCascadeShiftOption,
+    lecWeeksScope, // 🔢 نطاق الأسابيع المعتمدة (كافة الأسابيع، هذا الأسبوع فقط، فردية، زوجية، مخصصة)
+    setLecWeeksScope, // 🔄 تحديث نطاق الأسابيع
+    lecCustomWeeks, // 📋 قائمة الأسابيع المحددة يدوياً
+    setLecCustomWeeks, // 🔄 تحديث قائمة الأسابيع المحددة
     closeModalAfterSave,
     setCloseModalAfterSave,
     lecCourseSearchTerm,
@@ -1313,6 +1421,7 @@ export const useDepartmentSchedule = ({
     resetLectureModalState,
     handleEditLecture,
     handleDeleteLecture,
+    handleDeleteLectureForWeek, // 🚫 دالة إلغاء أو حذف المحاضرة لأسبوع محدد فقط
     handleBulkDeleteScheduleLectures,
   };
 };

@@ -15,7 +15,10 @@ import {
   GraduationCap, // 🎓 أيقونة المرحلة الأكاديمية
   Clock, // ⏰ أيقونة التوقيت والفترة
   Calendar, // 🗓️ أيقونة التقويم والجدول الأكاديمي
-} from 'lucide-react'; // 🎨 أيقونات لوسيد
+  Layers, // 📚 أيقونة الكورس والطبقات الدراسية
+  Sun, // ☀️ أيقونة الدراسة الصباحية
+  Moon, // 🌙 أيقونة الدراسة المسائية
+} from 'lucide-react'; // 🎨 استيراد أيقونات لوسيد המعتمدة
 import StudentScheduleTimeline from '@/components/schedule/StudentScheduleTimeline'; // 🗓️ مكون الجدول الأسبوعي والـ Timeline
 import { PrintFilterDropdown, PrintFilterOption } from '@/components/PrintFilterDropdown'; // 🖨️ قائمة تصفية الطباعة الاحترافية
 import { detectArabicGender } from '@/lib/demographics-utils'; // 🧮 التعرف الذكي على جنس التدريسي
@@ -43,6 +46,7 @@ export interface DepartmentPrintModalsProps {
   currentHead?: { full_name?: string } | null; // 👤 رئيس القسم الأكاديمي
   currentRap?: { full_name?: string } | null; // 👤 مقرر القسم الأكاديمي
   selectedScheduleStage: number; // 🎓 المرحلة المختارة لعرض الجدول
+  setSelectedScheduleStage?: React.Dispatch<React.SetStateAction<number>> | ((stage: number) => void); // 🔄 دالة تحديث المرحلة المختارة بالمعاينة والمزامنة مع الصفحة الرئيسية
   scheduleLectures: ScheduleLecture[]; // 📚 محاضرات الجدول للقسم
   scheduleConfigs: DepartmentScheduleConfig[]; // ⚙️ إعدادات الجدول وتوقيتات الدوام
   academicYear?: string; // 🗓️ العام الدراسي الحالي
@@ -95,6 +99,7 @@ export const DepartmentPrintModals: React.FC<DepartmentPrintModalsProps> = ({
   currentHead,
   currentRap,
   selectedScheduleStage,
+  setSelectedScheduleStage, // 🔄 دالة تحديث المرحلة بالمعاينة
   scheduleLectures,
   scheduleConfigs,
   academicYear,
@@ -142,21 +147,36 @@ export const DepartmentPrintModals: React.FC<DepartmentPrintModalsProps> = ({
                 </div>
                 <div>
                   <h3 className="text-lg sm:text-xl font-black text-slate-950 flex items-center gap-2 flex-wrap">
-                    <span>معاينة جدول الطلاب</span>
-                    <span className="px-2.5 py-0.5 rounded-full bg-slate-200 text-slate-900 text-xs font-black border border-slate-300">
-                      المرحلة {getStageNameInArabic(selectedScheduleStage)}
+                    <span>معاينة جدول الطلاب</span> {/* 🏷️ عنوان النافذة الرسمي */}
+                    {/* 1️⃣ 🎓 وسم المرحلة الدراسية بلون كحلي ملكي أخف وأيقونة تخرج سماوية */}
+                    <span className="px-3.5 py-1 rounded-xl bg-[#1e4570] text-white text-xs sm:text-sm font-black border border-[#2e5988] shadow-2xs flex items-center gap-1.5">
+                      <GraduationCap className="w-3.5 h-3.5 text-cyan-300 shrink-0" /> {/* 🎓 أيقونة المرحلة بالسماوي */}
+                      <span>المرحلة {getStageNameInArabic(selectedScheduleStage)}</span> {/* 🏷️ اسم المرحلة بالعربية */}
                     </span>
-                    <span className="px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-950 text-xs font-black border border-blue-200">
-                      {selectedScheduleStudyType === 'morning' ? 'الصباحي' : 'المسائي'}
+                    {/* 2️⃣ 🗓️ وسم الكورس الدراسي الأكاديمي بلون كحلي ملكي أخف */}
+                    <span className="px-3.5 py-1 rounded-xl bg-[#1e4570] text-white text-xs sm:text-sm font-black border border-[#2e5988] shadow-2xs flex items-center gap-1.5">
+                      <Layers className="w-3.5 h-3.5 text-cyan-300 shrink-0" /> {/* 📚 أيقونة الكورس بالسماوي */}
+                      <span>الكورس {selectedScheduleSemester === 2 ? 'الثاني' : 'الأول'}</span> {/* 🗓️ اسم الكورس */}
                     </span>
+                    {/* 3️⃣ 👥 وسم الكروب الأكاديمي المختار مرتب قبل صباحي بلون كحلي ملكي أخف */}
                     {selectedScheduleGroup && selectedScheduleGroup !== 'all' && (
-                      <span className="px-2.5 py-0.5 rounded-full bg-[#0F2942] text-cyan-300 text-xs font-black border border-[#0F2942] shadow-2xs flex items-center gap-1">
+                      <span className="px-3.5 py-1 rounded-xl bg-[#1e4570] text-white text-xs sm:text-sm font-black border border-[#2e5988] shadow-2xs flex items-center gap-1.5">
                         <GroupBadgeSvg className="w-3.5 h-3.5 text-cyan-300 shrink-0" /> {/* 👥 أيقونة الكروب الفيكتورية SVG */}
                         <span>كروب {selectedScheduleGroup}</span> {/* 🏷️ اسم الكروب */}
                       </span>
                     )}
+                    {/* 4️⃣ ☀️🌙 وسم الفترة الدراسية (صباحي / مسائي) مرتب رابعاً بعد الكروب بلون كحلي ملكي أخف */}
+                    <span className="px-3.5 py-1 rounded-xl bg-[#1e4570] text-white text-xs sm:text-sm font-black border border-[#2e5988] shadow-2xs flex items-center gap-1.5">
+                      {selectedScheduleStudyType === 'evening' ? (
+                        <Moon className="w-3.5 h-3.5 text-cyan-300 shrink-0" /> // 🌙 أيقونة المسائي بالسماوي
+                      ) : (
+                        <Sun className="w-3.5 h-3.5 text-cyan-300 shrink-0" /> // ☀️ أيقونة الصباحي بالسماوي
+                      )}
+                      <span>{selectedScheduleStudyType === 'evening' ? 'مسائي' : 'صباحي'}</span> {/* 🏷️ اسم الفترة فصيح ومباشر */}
+                    </span>
                   </h3>
-                  <p className="text-xs font-black text-slate-700 mt-0.5">
+                  {/* 📝 العنوان الفرعي بحجم أكبر قليلاً ولون أسود فاحم وواضح جداً */}
+                  <p className="text-xs sm:text-sm font-black text-slate-950 mt-1">
                     استعراض الجدول الأكاديمي الشامل وفق نظام مسار بولونيا بدقة واكتمال
                   </p>
                 </div>
@@ -171,9 +191,9 @@ export const DepartmentPrintModals: React.FC<DepartmentPrintModalsProps> = ({
               </button>
             </div>
 
-            {/* 📜 منطقة عرض محتوى الجدول الأكاديمي مع سكرول داخلي صلب ومستقل محمي من قفزات السكرول */}
+            {/* 📜 منطقة عرض محتوى الجدول الأكاديمي ممتدة مباشرة بكامل مساحة الكارد الكبير بدون تكرار إطارات */}
             <div
-              className="p-4 sm:p-6 overflow-y-auto flex-1 overscroll-contain [overflow-anchor:none]"
+              className="p-0 overflow-y-auto flex-1 overscroll-contain [overflow-anchor:none]"
               style={{ scrollbarGutter: 'stable' }}
             >
               <StudentScheduleTimeline
@@ -189,6 +209,8 @@ export const DepartmentPrintModals: React.FC<DepartmentPrintModalsProps> = ({
                 initialStudyType={selectedScheduleStudyType}
                 initialGroup={selectedScheduleGroup && selectedScheduleGroup !== 'all' ? selectedScheduleGroup : undefined} // 👥 فتح المعاينة على الكروب المختار مباشرة
                 showSemesterSwitcher={true}
+                showStageSwitcher={true} // 🎓 إظهار شريط تبويبات المراحل الأكاديمية الأربعة للمعاينة الحية
+                onStageChange={setSelectedScheduleStage} // 🔄 تحديث المرحلة النشطة تلقائياً بالمودال والصفحة فور النقر
                 stageGroupConfigs={stageGroupConfigs} // 👥 تمرير إعدادات الكروبات للمعاينة لعزل كل كروب بجدوله الخاص
               />
             </div>

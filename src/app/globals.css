@@ -170,38 +170,45 @@ code, pre, kbd, samp, .font-mono, [class*="font-mono"] {
     box-sizing: border-box !important; /* 📐 التزام تام بأبعاد الصندوق الحاوي */
   }
 
-  /* 📄 10. هندسة وثيقة جدول المحاضرات الأسبوعي المعتمد للطباعة في صفحة A4 أفقية واحدة محكمة بدون انقسام وملء كامل للورقة */
+  /* 📄 10. هندسة وثيقة جدول المحاضرات الأسبوعي المعتمد للطباعة في صفحة A4 أفقية بدون انقسام وبدون أي تداخل نهائياً */
   .official-schedule-document {
     width: 100% !important; /* 📐 استغلال كامل عرض الورقة الأفقي (287 مم) */
     max-width: 100% !important; /* 🔒 قفل العرض على كامل الصفحة */
-    height: 186mm !important; /* 📏 ارتفاع هندسي دقيق 186 ملم يملأ كامل الصفحة الأفقية ويلغي الفراغ الأبيض بالكامل */
-    min-height: 186mm !important; /* 📐 ضمان استغلال كامل مساحة الورقة A4 بالعرض */
-    max-height: 186mm !important; /* 🔒 حماية صارمة لمنع التمدد لصفحة ثانية نهائياً */
+    height: auto !important; /* 📏 ارتفاع تلقائي يتدفق طبيعياً ويلغي أي فراغ أبيض غير مستغل */
+    min-height: 184mm !important; /* 📐 استغلال ارتفاع صفحة A4 بالعرض ودفع التواقيع والتذييل لأسفل الورقة */
+    max-height: none !important; /* 🔒 حماية صارمة لمنع التمدد لصفحة ثانية نهائياً */
     box-sizing: border-box !important; /* 📐 احتساب الحدود ضمن القياس */
     margin: 0 !important; /* 🚫 تصفير أي هوامش تسبب فواصل بيضاء */
     padding: 0 !important; /* 🔲 تصفير الحشوات الخارجية */
     display: flex !important; /* 📦 توزيع الأقسام بنظام فليكس عمودي محكم */
     flex-direction: column !important; /* ⬇️ ترتيب رأسي من الترويسة للجدول للتواقيع */
-    justify-content: space-between !important; /* ⚖️ تثبيت الترويسة بالأعلى والتواقيع بالأسفل وتمديد الجدول لملء الفراغ */
+    justify-content: space-between !important; /* ⚖️ توزيع متباعد يدفع الترويسة للأعلى والتواقيع والتذييل لأسفل الورقة مباشرة لتقليل المساحة البيضاء */
+    gap: 1.5mm !important; /* 🤏 فجوة هوائية متوازنة لملء مساحة الصفحة ومنع الفراغات الزائدة */
+    page-break-inside: avoid !important; /* 🚫 منع انقسام الوثيقة إلى صفحتين */
+    break-inside: avoid !important; /* 🛡️ حماية الوثيقة من التجزئة */
+    page-break-after: avoid !important; /* 🚫 منع إنشاء صفحة ثانية فارغة */
+    break-after: avoid !important; /* 🔒 قفل الصفحة الواحدة */
   }
 
-  /* 📦 حاوية الجدول تستغل كامل المساحة العمودية المتاحة بالورقة */
+  /* 📦 حاوية الجدول تستغل المساحة وتتدفق لملء المساحة الوسطية */
   .official-schedule-document .schedule-table-wrapper {
-    flex: 1 1 auto !important; /* 📈 استغلال كامل الارتفاع المتبقي بين الترويسة والتواقيع */
-    display: flex !important; /* 📦 تفعيل الفليكس لتمديد الجدول الداخلي */
-    flex-direction: column !important; /* ⬇️ تدفق عمودي */
+    width: 100% !important; /* 📐 ملء العرض بالكامل */
+    display: flex !important; /* 📦 نظام فليكس لملء المساحة الوسطية */
+    flex-direction: column !important;
+    flex: 1 1 auto !important; /* 📐 تمدد الجدول لملء الحيز الشاغر ودفع التذييل لأسفل الورقة */
     min-height: 0 !important; /* 🛡️ منع الفليكس من تجاوز المساحة */
-    margin: 1.5mm 0 !important; /* 🤏 فاصل هوائي طفيف وأنيق */
+    margin: 0.5mm 0 !important; /* 🤏 فاصل هوائي طفيف وأنيق لملء الفراغ */
   }
 
   /* 📊 جدول المحاضرات يتمدد لملء الحاوية بالكامل بنسب متساوية وواضحة */
   .official-schedule-document table {
     border-collapse: collapse !important; /* 🧱 دمج الحدود المتصلة */
     width: 100% !important; /* 📐 استغلال كامل العرض */
-    height: 100% !important; /* 📏 استغلال كامل الارتفاع العمودي الممنوح للجدول */
-    flex: 1 1 auto !important; /* 📈 التمدد التلقائي مع الحاوية */
+    height: 100% !important; /* 📏 استغلال كامل الارتفاع المتاح للجدول لملء الصفحة */
     table-layout: fixed !important; /* 📐 تثبيت عرض الأعمدة بدقة */
     margin: 0 !important; /* 🚫 تصفير الهوامش لمنع دفع الجدول للأسفل */
+    page-break-inside: avoid !important; /* 🚫 منع تكسر الجدول */
+    break-inside: avoid !important; /* 🛡️ حماية الجدول بالكامل */
   }
 
   .official-schedule-document thead {
@@ -209,18 +216,17 @@ code, pre, kbd, samp, .font-mono, [class*="font-mono"] {
   }
 
   .official-schedule-document thead tr {
-    height: 9mm !important; /* 📏 ارتفاع محسوب لترويسة الأعمدة */
+    height: 7.5mm !important; /* 📏 ارتفاع محسوب ومريح لترويسة الأعمدة ووضوح العناوين */
   }
 
   .official-schedule-document tbody {
     display: table-row-group !important; /* 📌 الحفاظ على تدفق صفوف المحاضرات المتناسق */
-    height: 100% !important; /* 📏 استغلال كامل ارتفاع جسم الجدول */
   }
 
   .official-schedule-document tbody tr {
     page-break-inside: avoid !important; /* 🚫 منع انقسام الصف الواحد */
     break-inside: avoid !important; /* 🛡️ حماية الصف الواحد من التمزق */
-    height: 1% !important; /* ⚖️ توزيع الارتفاع العمودي بالتساوي على جميع صفوف الأيام تلقائياً */
+    height: auto !important; /* ⚖️ ارتفاع تلقائي متناسب تماماً مع المحتوى */
   }
 
   .official-schedule-document th,
@@ -228,26 +234,31 @@ code, pre, kbd, samp, .font-mono, [class*="font-mono"] {
     border: 1.5px solid #000000 !important; /* 🧱 خطوط واضحة وصريحة وسوداء بالكامل للطباعة */
     -webkit-print-color-adjust: exact !important; /* 🎨 تثبيت ألوان وخلفيات الخلايا بجودة ناصعة */
     print-color-adjust: exact !important; /* 🎨 التزام صارم بجودة الرسوميات بالكروم */
-    height: inherit !important; /* 📏 توريث ارتفاع الصف للخلايا الداخلية */
+    vertical-align: top !important; /* 📐 محاذاة علوية متناسقة تمنع التداخل الداخلي */
+    padding: 0.6mm 1mm !important; /* 🔲 حشوة مريحة تملأ مساحة الخلية وتمنح النص فخامة ووضوح */
   }
 
-  /* 🃏 كارت المحاضرة داخل الخلية يتمدد عمودياً لملء كامل المساحة ويوفر راحة ووضوح فائق للنصوص */
+  /* 🃏 كارت المحاضرة داخل الخلية يتمدد عمودياً لملء كامل المساحة ويوفر راحة ووضوح فائق للنصوص بصفحة واحدة فقط */
   .official-schedule-document td .lecture-slot-card {
-    height: 100% !important; /* 📏 ملء كامل ارتفاع الخلية المتاحة */
+    height: 100% !important; /* 📏 ملء كامل ارتفاع الخلية المتاحة لملء الفراغ الأبيض */
+    min-height: var(--schedule-row-height, 25.5mm) !important; /* 📐 ارتفاع هندسي محكم يملأ الصفحة A4 الأفقية ويلغي المساحة البيضاء الزائدة */
     display: flex !important; /* 📦 توزيع عناصر المحاضرة بفليكس عمودي */
     flex-direction: column !important; /* ⬇️ توقيت بالأعلى ومادة بالوسط وأستاذ بالأسفل */
-    justify-content: space-between !important; /* ⚖️ توزيع فخم وفسيح يلغي أي ضيق بالنصوص */
+    justify-content: space-between !important; /* ⚖️ توزيع متناسق مريح يملأ الخلية */
+    gap: 0.6mm !important; /* 🤏 مسافة بينية لمنع التلاصق */
+    padding: 0.5mm 0.6mm !important; /* 🔲 حشوة داخلية لحماية المحتوى */
   }
 
   /* 🗓️ خلية اليوم تتوسط عمودياً وأفقياً بدقة لمنع أي تداخل أو قفز فوق الخطوط الفاصلة */
   .official-schedule-document td .day-column-cell {
     height: 100% !important; /* 📏 استغلال ارتفاع خلية اليوم */
+    min-height: var(--schedule-row-height, 25.5mm) !important; /* 📐 مطابقة ارتفاع خانة اليوم لكروت المحاضرات بصفحة واحدة */
     display: flex !important; /* 📦 نظام فليكس منظم */
     flex-direction: column !important; /* ⬇️ ترتيب اسم اليوم وتحته عدد المحاضرات */
     align-items: center !important; /* 🎯 توسيط أفقي محكم */
     justify-content: center !important; /* 🎯 توسيط رأسي في قلب الخلية لمنع لمس الحدود */
-    gap: 1.5mm !important; /* 🤏 فجوة هوائية تحمي النصوص من التلاصق */
-    padding: 1mm 0 !important; /* 🔲 حشوة متوازنة تمنع الخروج عن الإطار */
+    gap: 0.6mm !important; /* 🤏 فجوة هوائية تحمي النصوص من التلاصق */
+    padding: 0.5mm 0 !important; /* 🔲 حشوة متوازنة تمنع الخروج عن الإطار */
   }
 }
 

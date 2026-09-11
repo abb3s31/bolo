@@ -1217,7 +1217,7 @@ export const DepartmentCoursesTab: React.FC<DepartmentCoursesTabProps> = ({
                                 );
                               })()
                             ) : (
-                              <span className="text-slate-400 font-bold text-xs whitespace-nowrap">— نظري فقط</span>
+                              <span className="text-black font-black text-xs sm:text-sm whitespace-nowrap">— نظري فقط</span>
                             )}
                           </td>
 

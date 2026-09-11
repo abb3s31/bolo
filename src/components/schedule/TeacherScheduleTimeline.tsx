@@ -21,6 +21,7 @@ import {
   getCurrentAcademicWeek,
   formatDateArabicWithDay,
   IRAQI_ARABIC_MONTHS,
+  isLectureActiveInWeek, // 🎯 دالة فحص نشاط المحاضرة في الأسبوع المختار للأستاذ
 } from '@/lib/schedule-utils'; // 🕒 دوال حسابات الجدول والأسابيع الـ 15 والتواريخ الذكية
 import { getStageNameInArabic } from '@/lib/grade-utils'; // 🎓 أسماء المراحل بالعربية
 import { formatArabicScheduleTime, getAcademicSlotOrder, formatOfficialIssueDate, formatArabicLectureCount, formatAcademicRoomName } from '@/components/schedule/StudentScheduleTimeline'; // 🕒 أدوات التوقيت الأكاديمي الموحد ص وم والفرز الذكي وتاريخ الإصدار وصياغة أعداد المحاضرات الفصيحة وتنسيق القاعات
@@ -127,6 +128,7 @@ export default function TeacherScheduleTimeline({
         styleTag = document.createElement('style'); // 🏗️ إنشاء عنصر ستايل جديد
         styleTag.id = 'schedule-print-orientation-style'; // 🏷️ إسناد المعرف الثابت للوسم
         styleTag.innerHTML = `@media print { @page { size: A4 landscape !important; margin: 4mm 5mm !important; } html, body { height: 100% !important; margin: 0 !important; padding: 0 !important; } }`; // 📐 فرض الاتجاه العرضي والهوامش المحكمة وملء كامل الصفحة
+        document.head.appendChild(styleTag); // 📌 تثبيت الوسم في رأس الصفحة لتطبيقه على الطباعة فوراً
       }
     } else {
       document.body.classList.remove('print-modal-active'); // 🔓 رفع الحجب بعد إغلاق نافذة الطباعة
@@ -229,10 +231,15 @@ export default function TeacherScheduleTimeline({
     });
   }, [myAllLectures, selectedSemester, selectedStage, selectedStudyType]);
 
-  // 🖨️ الأيام المعتمدة لطباعة جدول الأستاذ (السبت للخميس، وإذا الجمعة بيها محاضرات تنضاف أوتوماتيك)
+  // 🖨️ الأيام المعتمدة لطباعة جدول الأستاذ: حصر الطباعة على أيام الدوام الفعلية فقط التي بها محاضرات للأستاذ
   const printScheduleDays = useMemo(() => {
-    const hasFriday = myLectures.some((l) => l.day === 'friday'); // 🔍 فحص هل يوم الجمعة يحتوي على محاضرات
-    return hasFriday ? DAYS_OF_WEEK_LIST : DAYS_OF_WEEK_LIST.filter((d) => d.key !== 'friday'); // 🗓️ تجهيز قائمة الأيام
+    // 🎯 استخراج أيام الدوام الفعلية التي تحتوي على محاضرات مسجلة للأستاذ
+    const daysWithLectures = DAYS_OF_WEEK_LIST.filter((d) => myLectures.some((l) => l.day === d.key)); // 🗓️ فحص وتصفية الأيام التي بها دوام ومحاضرات فقط
+    if (daysWithLectures.length > 0) {
+      return daysWithLectures; // 🚀 طباعة أيام الدوام الفعلي فقط للأستاذ بدون عطل أو أيام فارغة
+    }
+    // 🛡️ في حال كان جدول الأستاذ فارغاً كلياً نعرض أيام الدوام الرسمية القياسية
+    return DAYS_OF_WEEK_LIST.filter((d) => d.key !== 'friday' && d.key !== 'thursday'); // 🗓️ قائمة افتراضية في حالة عدم وجود محاضرات
   }, [myLectures]);
 
   // 🔢 حساب أكبر عدد محاضرات باليوم الواحد للأستاذ لتحديد عدد أعمدة الجدول المطبوع (أقل شي 4 أعمدة)
@@ -243,6 +250,16 @@ export default function TeacherScheduleTimeline({
       if (count > max) max = count; // 📈 تحديث الحد الأقصى إذا زاد
     });
     return max; // 🎯 إرجاع عدد الأعمدة المطلوب
+  }, [printScheduleDays, myLectures]);
+
+  // 📏 حساب الارتفاع الهندسي لصفوف الجدول لملء صفحة A4 بالعرض ودفع التذييل لأسفل الورقة وتقليل المساحة البيضاء الفارغة
+  const rowMinHeightMm = useMemo((): number => {
+    const activeDaysCount = printScheduleDays.filter(
+      (d) => myLectures.length === 0 || myLectures.some((l) => l.day === d.key)
+    ).length; // 🗓️ حساب عدد أيام الدوام الفعلي للأستاذ
+    if (activeDaysCount <= 4) return 31.5; // 4 أيام أو أقل: ارتفاع كافي لملء الصفحة ودفع التذييل للأسفل
+    if (activeDaysCount === 5) return 25.5; // 5 أيام (الدوام القياسي السبت-الأربعاء): يملأ الصفحة بدقة ويترك 8 مم فقط أسفل التذييل
+    return 21.5; // 6 أيام: ارتفاع متناسق
   }, [printScheduleDays, myLectures]);
 
   // 📊 دالة تصدير جدول الأستاذ الأسبوعي إلى Excel الفاخر
@@ -357,9 +374,11 @@ export default function TeacherScheduleTimeline({
   const dayLectures = useMemo(() => {
     return myLectures
       .filter((l) => {
-        const override = l.weekly_overrides?.[selectedAcademicWeek];
-        const effectiveDay = override?.day || l.day;
-        return effectiveDay === selectedDay;
+        // 🎯 فحص هل المحاضرة نشطة ومقررة للأستاذ في هذا الأسبوع المحدد (1 إلى 15)
+        if (!isLectureActiveInWeek(l, selectedAcademicWeek)) return false; // 🚫 استبعاد إذا غير نشطة بهذا الأسبوع
+        const override = l.weekly_overrides?.[selectedAcademicWeek]; // ⚙️ استخراج استثناء الأسبوع
+        const effectiveDay = override?.day || l.day; // 🗓️ اليوم المعتمد الفعلي
+        return effectiveDay === selectedDay; // 🎯 مطابقة اليوم المختار
       })
       .map((l) => {
         const override = l.weekly_overrides?.[selectedAcademicWeek];
@@ -684,7 +703,12 @@ export default function TeacherScheduleTimeline({
           {DAYS_OF_WEEK_LIST.map((d) => {
             const isSelected = selectedDay === d.key; // 🌟 هل هذا اليوم هو المختار حالياً للعرض
             const isToday = currentRealDay === d.key; // 🕒 هل هذا اليوم هو اليوم الفعلي للتقويم
-            const dayLecturesCount = myLectures.filter((l) => l.day === d.key).length; // 📊 عدد محاضرات الأستاذ بهذا اليوم
+            const dayLecturesCount = myLectures.filter((l) => { // 📊 حساب عدد محاضرات الأستاذ لهذا اليوم بدقة للأسبوع المختار
+              if (!isLectureActiveInWeek(l, selectedAcademicWeek)) return false; // 🚫 استبعاد إذا غير نشطة بهذا الأسبوع
+              const override = l.weekly_overrides?.[selectedAcademicWeek]; // ⚙️ استخراج استثناء الأسبوع
+              const effectiveDay = override?.day || l.day; // 🗓️ اليوم المعتمد الفعلي
+              return effectiveDay === d.key; // 🎯 مطابقة هذا اليوم
+            }).length; // 🔢 استخراج العدد الإجمالي الصحيح للأستاذ
             const dayCalcDate = calculateDateForAnyDayInWeek(effectiveStartDate, 1, selectedAcademicWeek, d.key); // 🗓️ تاريخ اليوم المحسوب
             const p = dayCalcDate.split('-'); // ✂️ تفكيك التاريخ لاستخراج اليوم والشهر
             const formattedDayDate = p.length === 3
@@ -1137,7 +1161,7 @@ export default function TeacherScheduleTimeline({
             className="fixed inset-0 top-0 left-0 right-0 bottom-0 w-screen h-screen min-h-[100dvh] z-[999999] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 overflow-hidden print:p-0 print:static print:bg-white print:backdrop-blur-none print:w-full print:h-auto print:min-h-0 print:overflow-visible print:block"
             dir="rtl"
           >
-            {/* 📄 تنسيقات الطباعة الإلزامية لفرض العرض الأفقي والتسطير الواضح للجدول وضمان صفحة واحدة بدقة 100% */}
+            {/* 📄 تنسيقات الطباعة الإلزامية لفرض العرض الأفقي والتسطير الواضح للجدول وضمان صفحة واحدة بدقة 100% بدون أي تداخل */}
             <style dangerouslySetInnerHTML={{ __html: `
               @media print {
                 @page {
@@ -1172,35 +1196,80 @@ export default function TeacherScheduleTimeline({
                   box-sizing: border-box !important;
                 }
                 .official-schedule-document {
-                  display: flex !important;
+                  display: flex !important; /* 📦 تخطيط فليكس عمودي منظم */
+                  flex-direction: column !important; /* ⬇️ تدفق رأسي من الترويسة للجدول للتواقيع */
+                  justify-content: space-between !important; /* ⚖️ توزيع متباعد يدفع الترويسة للأعلى والتواقيع والتذييل لأسفل الورقة مباشرة لتقليل المساحة البيضاء */
+                  gap: 1.5mm !important; /* 🤏 فجوة هوائية متوازنة لضبط مقاس الصفحة */
+                  width: 100% !important; /* 📐 استغلال كامل عرض الورقة */
+                  max-width: 100% !important; /* 🔒 قفل العرض */
+                  height: auto !important; /* 📏 ارتفاع تلقائي */
+                  min-height: 184mm !important; /* 🛡️ ملء ارتفاع الصفحة A4 ودفع التذييل للحافة السفلية للورقة */
+                  max-height: none !important; /* 🚫 منع التمدد لصفحة ثانية */
+                  margin: 0 !important; /* 🚫 تصفير الهوامش */
+                  padding: 0 !important; /* 🔲 تصفير الحشوات */
+                  background: #ffffff !important; /* ⚪ خلفية بيضاء نقية */
+                  page-break-inside: avoid !important; /* 🚫 منع انقسام الوثيقة */
+                  break-inside: avoid !important; /* 🛡️ حماية الوثيقة من التجزئة */
+                  page-break-after: avoid !important; /* 🚫 منع إنشاء صفحة ثانية فارغة */
+                  break-after: avoid !important; /* 🔒 قفل الصفحة الواحدة */
+                }
+                .official-schedule-document .schedule-table-wrapper {
+                  display: flex !important; /* 📦 نظام فليكس لملء المساحة الوسطية */
                   flex-direction: column !important;
-                  width: 100% !important;
-                  max-width: 100% !important;
-                  margin: 0 !important;
-                  padding: 0 !important;
-                  background: #ffffff !important;
+                  flex: 1 1 auto !important; /* 📐 تمدد الجدول لملء الحيز الشاغر ودفع التذييل لأسفل الورقة */
+                  width: 100% !important; /* 📐 ملء العرض */
+                  min-height: 0 !important; /* 🛡️ حماية الفليكس */
+                  margin: 0.5mm 0 !important; /* 🤏 فاصل طفيف */
                 }
                 .official-schedule-document table {
-                  border-collapse: collapse !important;
-                  width: 100% !important;
-                  table-layout: fixed !important;
-                  margin: 0 !important;
+                  border-collapse: collapse !important; /* 🧱 دمج الحدود المتصلة */
+                  width: 100% !important; /* 📐 ملء العرض بالكامل */
+                  height: 100% !important; /* 📏 ملء الارتفاع المتاح لملء الورقة */
+                  table-layout: fixed !important; /* 📐 تثبيت عرض الأعمدة */
+                  margin: 0 !important; /* 🚫 تصفير الهوامش */
+                  page-break-inside: avoid !important; /* 🚫 منع تكسر الجدول */
+                  break-inside: avoid !important; /* 🛡️ حماية الجدول بالكامل */
                 }
                 .official-schedule-document thead {
-                  display: table-header-group !important;
+                  display: table-header-group !important; /* 📌 تثبيت ترويسة الأعمدة */
+                }
+                .official-schedule-document thead tr {
+                  height: 7.5mm !important; /* 📏 ارتفاع محسوب لترويسة الأعمدة */
                 }
                 .official-schedule-document tbody {
-                  display: table-row-group !important;
+                  display: table-row-group !important; /* 📌 تدفق صفوف المحاضرات */
                 }
                 .official-schedule-document tr {
-                  page-break-inside: avoid !important;
-                  break-inside: avoid !important;
+                  page-break-inside: avoid !important; /* 🚫 منع انقسام الصف الواحد */
+                  break-inside: avoid !important; /* 🛡️ حماية الصفوف */
+                  height: auto !important; /* ⚖️ ارتفاع متناسق */
                 }
                 .official-schedule-document th, 
                 .official-schedule-document td {
-                  border: 1.5px solid #000000 !important;
-                  -webkit-print-color-adjust: exact !important;
-                  print-color-adjust: exact !important;
+                  border: 1.5px solid #000000 !important; /* 🧱 حدود سوداء واضحة للطباعة */
+                  -webkit-print-color-adjust: exact !important; /* 🎨 تثبيت جودة الألوان */
+                  print-color-adjust: exact !important; /* 🎨 دقة الرسوميات */
+                  vertical-align: top !important; /* 📐 محاذاة علوية متناسقة */
+                  padding: 0.6mm 1mm !important; /* 🔲 حشوة مضبوطة ومريحة للقراءة */
+                }
+                .official-schedule-document td .lecture-slot-card {
+                  min-height: ${rowMinHeightMm}mm !important; /* 📐 ارتفاع هندسي محكم يضمن بقاء كامل الوثيقة بصفحة واحدة ويقلل المساحة البيضاء الزائدة */
+                  height: 100% !important; /* 📏 ملء الخلية بالكامل */
+                  display: flex !important; /* 📦 ترتيب عمودي للعناصر */
+                  flex-direction: column !important; /* ⬇️ توقيت ومادة وتدريسي */
+                  justify-content: space-between !important; /* ⚖️ توزيع مريح للعناصر يملأ الخلية */
+                  gap: 0.6mm !important; /* 🤏 مسافة بينية لمنع التلاصق */
+                  padding: 0.5mm 0.6mm !important; /* 🔲 حشوة داخلية لحماية الكارت */
+                }
+                .official-schedule-document td .day-column-cell {
+                  min-height: ${rowMinHeightMm}mm !important; /* 📐 مطابقة ارتفاع خانة اليوم لكروت المحاضرات لملء الصفحة */
+                  height: 100% !important; /* 📏 استغلال كامل الارتفاع */
+                  display: flex !important; /* 📦 نظام فليكس منظم */
+                  flex-direction: column !important; /* ⬇️ ترتيب اسم اليوم والعدد */
+                  align-items: center !important; /* 🎯 توسيط أفقي */
+                  justify-content: center !important; /* 🎯 توسيط رأسي في قلب الخلية */
+                  gap: 0.6mm !important; /* 🤏 فجوة هوائية تحمي النصوص */
+                  padding: 0.5mm 0 !important; /* 🔲 حشوة عمودية متوازنة */
                 }
               }
             `}} />
@@ -1251,47 +1320,50 @@ export default function TeacherScheduleTimeline({
 
               {/* 📄 منطقة الوثيقة الرسمية المجهزة للطباعة بنظام الصفوف والأعمدة */}
               <div className="p-4 sm:p-8 overflow-y-auto flex-1 overscroll-contain bg-slate-100 print:bg-white print:p-0 print:overflow-visible print:static print:block print:h-auto print:m-0">
-                <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-300 print:border-none print:p-0 max-w-7xl mx-auto shadow-sm print:shadow-none flex flex-col gap-3 print:gap-1.5 official-schedule-document w-full print:w-full print:h-[186mm] print:min-h-[186mm] print:max-h-[186mm] print:flex print:flex-col print:justify-between print:overflow-visible">
+                <div 
+                  className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-300 print:border-none print:p-0 max-w-7xl mx-auto shadow-sm print:shadow-none flex flex-col gap-3 print:gap-1.5 official-schedule-document w-full print:w-full print:h-auto print:min-h-[184mm] print:max-h-none print:flex print:flex-col print:justify-between print:overflow-visible"
+                  style={{ '--schedule-row-height': `${rowMinHeightMm}mm` } as React.CSSProperties}
+                >
                   
                   {/* 🏛️ 1. الترويسة الأكاديمية الرسمية */}
-                  <div className="flex items-center justify-between border-b-2 border-black pb-3 print:pb-1 text-black shrink-0">
+                  <div className="flex items-center justify-between border-b-2 border-black pb-3 print:pb-0.5 text-black shrink-0">
                     {/* الجهة الأكاديمية - يمين */}
-                    <div className="text-right space-y-0.5 text-xs print:text-[9.5px] leading-tight font-black text-black">
-                      <div className="text-sm print:text-[10.5px] font-black text-black">جمهورية العراق</div>
-                      <div className="text-xs print:text-[9px] font-black text-black">وزارة التعليم العالي والبحث العلمي</div>
-                      <div className="text-sm print:text-[10.5px] font-black text-black">جامعة الإمام جعفر الصادق (ع)</div>
-                      <div className="text-xs print:text-[8.5px] font-black text-black">فرع ميسان — كلية تكنولوجيا المعلومات</div>
-                      <div className="text-xs print:text-[9.5px] font-black text-black">قسم {departmentName}</div>
+                    <div className="text-right space-y-0.5 text-xs print:text-[10px] leading-tight font-black text-black">
+                      <div className="text-sm print:text-[11.5px] font-black text-black">جمهورية العراق</div>
+                      <div className="text-xs print:text-[10px] font-black text-black">وزارة التعليم العالي والبحث العلمي</div>
+                      <div className="text-sm print:text-[11.5px] font-black text-black">جامعة الإمام جعفر الصادق (ع)</div>
+                      <div className="text-xs print:text-[9.5px] font-black text-black">فرع ميسان — كلية تكنولوجيا المعلومات</div>
+                      <div className="text-xs print:text-[10.5px] font-black text-black">قسم {departmentName}</div>
                     </div>
 
                     {/* الشعار والعنوان - وسط */}
                     <div className="flex flex-col items-center justify-center text-center">
-                      <div className="relative w-16 h-16 sm:w-20 sm:h-20 print:w-11 print:h-11 mb-1 print:mb-0.5">
+                      <div className="relative w-14 h-14 sm:w-16 sm:h-16 print:w-9 print:h-9 mb-1 print:mb-0">
                         <Image
                           src="/logo.webp"
                           alt="شعار جامعة الإمام جعفر الصادق (ع)"
-                          width={80}
-                          height={80}
-                          className="object-contain mx-auto print:max-h-11"
+                          width={60}
+                          height={60}
+                          className="object-contain mx-auto print:max-h-9"
                           priority
                         />
                       </div>
-                      <h1 className="text-base sm:text-lg print:text-[12.5px] font-black text-black tracking-tight leading-tight">
+                      <h1 className="text-base sm:text-lg print:text-[14px] font-black text-black tracking-tight leading-tight">
                         جدول النصاب والعبء التدريسي الأسبوعي المعتمد
                       </h1>
-                      <div className="text-xs print:text-[9.5px] font-black text-black mt-0.5 print:mt-0">
+                      <div className="text-xs print:text-[10px] font-black text-black mt-0.5 print:mt-0">
                         العام الدراسي {resolvedAcademicYear}
                       </div>
                     </div>
 
                     {/* بيانات الجدول - يسار */}
-                    <div className="text-left space-y-1 print:space-y-0.5 text-xs print:text-[9px] font-black text-black font-sans leading-tight">
+                    <div className="text-left space-y-1 print:space-y-0.5 text-xs print:text-[10px] font-black text-black font-sans leading-tight">
                       <div><span>الأستاذ:</span> <strong className="text-black font-black">{teacherName}</strong></div>
                       <div><span>الكورس:</span> <strong className="text-black font-black">الكورس {selectedSemester === 1 ? 'الأول' : 'الثاني'}</strong></div>
                       <div><span>إجمالي النصاب:</span> <strong className="text-black font-black">{totalWeeklyHours} ساعة معتمدة ({myLectures.length} محاضرات)</strong></div>
                       <div className="flex items-center gap-1.5 print:gap-1">
                         <span>تاريخ الإصدار:</span>
-                        <span className="font-mono font-black text-black px-1.5 py-0.5 print:px-1 print:py-0 rounded bg-slate-100 border border-slate-300 inline-block shadow-2xs print:text-[8.5px]" dir="ltr">
+                        <span className="font-mono font-black text-black px-1.5 py-0.5 print:px-1 print:py-0.5 rounded bg-slate-100 border border-slate-300 inline-block shadow-2xs print:text-[9.5px]" dir="ltr">
                           {formatOfficialIssueDate()}
                         </span>
                       </div>
@@ -1304,13 +1376,13 @@ export default function TeacherScheduleTimeline({
                       {/* ترويسة الأعمدة */}
                       <thead>
                         <tr className="bg-slate-100 border-b-2 border-black text-black print:bg-slate-100">
-                          <th className="p-2.5 print:py-1.5 print:px-1 text-center font-black border border-black text-xs sm:text-sm print:text-[11px] w-[11%] print:w-[11%] text-black">
+                          <th className="p-2.5 print:py-1.5 print:px-1 text-center font-black border border-black text-xs sm:text-sm print:text-[12px] w-[11%] print:w-[11%] text-black">
                             اليوم
                           </th>
                           {Array.from({ length: printMaxSlots }).map((_, slotIdx) => {
                             const slotLabels = ['المحاضرة الأولى', 'المحاضرة الثانية', 'المحاضرة الثالثة', 'المحاضرة الرابعة', 'المحاضرة الخامسة', 'المحاضرة السادسة'];
                             return (
-                              <th key={slotIdx} className="p-2.5 print:py-1.5 print:px-1 text-center font-black border border-black text-xs sm:text-sm print:text-[11px] text-black" style={{ width: `${89 / printMaxSlots}%` }}>
+                              <th key={slotIdx} className="p-2.5 print:py-1.5 print:px-1 text-center font-black border border-black text-xs sm:text-sm print:text-[12px] text-black" style={{ width: `${89 / printMaxSlots}%` }}>
                                 {slotLabels[slotIdx] || `المحاضرة ${slotIdx + 1}`}
                               </th>
                             );
@@ -1318,124 +1390,128 @@ export default function TeacherScheduleTimeline({
                         </tr>
                       </thead>
 
-                      {/* صفوف الأيام والمحاضرات */}
+                      {/* صفوف الأيام والمحاضرات (طباعة أيام الدوام الفعلي فقط للأستاذ بدقة 100%) */}
                       <tbody>
-                        {printScheduleDays.map((d) => {
-                          const dayLecs = myLectures
-                            .filter((l) => l.day === d.key)
-                            .sort((a, b) => getAcademicSlotOrder(a.start_time) - getAcademicSlotOrder(b.start_time));
+                        {printScheduleDays
+                          .filter((d) => myLectures.length === 0 || myLectures.some((l) => l.day === d.key))
+                          .map((d) => {
+                            const dayLecs = myLectures
+                              .filter((l) => l.day === d.key)
+                              .sort((a, b) => getAcademicSlotOrder(a.start_time) - getAcademicSlotOrder(b.start_time));
 
-                          if (dayLecs.length === 0) {
-                            return (
-                              <tr key={d.key} className="border-b border-black">
-                                <td className="p-2.5 print:py-1.5 print:px-1 text-center font-black border border-black bg-slate-50 text-black text-xs sm:text-sm print:text-[11px] w-[11%] print:w-[11%]">
-                                  <div className="day-column-cell flex flex-col items-center justify-center h-full">
-                                    <span className="font-black text-sm print:text-[12.5px] text-black leading-tight">{d.label_ar}</span>
-                                  </div>
-                                </td>
-                                <td
-                                  colSpan={printMaxSlots}
-                                  className="p-3 print:py-1.5 print:px-1 text-center font-black border border-black bg-white text-black text-xs sm:text-sm print:text-[10px]"
-                                >
-                                  —
-                                </td>
-                              </tr>
-                            );
-                          }
-
-                          return (
-                            <tr key={d.key} className="border-b border-black">
-                              <td className="p-2.5 print:py-1.5 print:px-1 text-center font-black border border-black bg-slate-50 text-black text-xs sm:text-sm print:text-[11px] align-middle w-[11%] print:w-[11%]">
-                                <div className="day-column-cell flex flex-col items-center justify-center h-full gap-1 print:gap-1">
-                                  <span className="font-black text-sm print:text-[12.5px] text-black leading-tight">{d.label_ar}</span>
-                                  {dayLecs.length > 0 && (
-                                    <span className="text-[10px] print:text-[8px] font-bold text-slate-700 bg-slate-200/80 print:bg-slate-100 px-1.5 py-0.5 rounded border border-slate-300 print:border-black/30 leading-none inline-block shadow-2xs">
-                                      {formatArabicLectureCount(dayLecs.length)}
-                                    </span>
-                                  )}
-                                </div>
-                              </td>
-                              {Array.from({ length: printMaxSlots }).map((_, slotIdx) => {
-                                const lec = dayLecs[slotIdx];
-                                if (!lec) {
-                                  return (
-                                    <td key={slotIdx} className="p-2 print:py-1.5 print:px-1 text-center text-black font-black border border-black bg-white align-middle text-xs sm:text-sm print:text-[10px]" style={{ width: `${89 / printMaxSlots}%` }}>
-                                      —
-                                    </td>
-                                  );
-                                }
-                                const typeLabel = lec.type === 'practical' ? 'عملي' : lec.type === 'tutorial' ? 'حلقة نقاشية' : 'نظري';
-                                return (
-                                  <td key={slotIdx} className="p-2 sm:p-2.5 print:p-1 border border-black bg-white align-top text-right text-xs text-black" style={{ width: `${89 / printMaxSlots}%` }}>
-                                    <div className="lecture-slot-card flex flex-col justify-between h-full min-h-[125px] print:min-h-0 print:h-full gap-1 print:gap-1">
-                                      {/* 1️⃣ الشريط العلوي: التوقيت الأكاديمي المعتمد ص وم + نوع المحاضرة */}
-                                      <div className="flex items-center justify-between gap-1 print:gap-0.5 border-b border-black/20 pb-1 print:pb-0.5 font-black shrink-0">
-                                        <span className="px-2 py-0.5 print:px-1.5 print:py-0.5 rounded bg-slate-50 border border-black/40 text-[10px] sm:text-[11px] print:text-[9px] font-black text-black font-sans shrink-0 shadow-2xs" dir="rtl">
-                                          {formatArabicScheduleTime(`${lec.start_time} - ${lec.end_time}`)}
-                                        </span>
-                                        <span className={`px-2 py-0.5 print:px-1.5 print:py-0.5 rounded text-[10px] print:text-[8.5px] font-black shrink-0 border ${
-                                          lec.type === 'practical' 
-                                            ? 'bg-slate-900 text-white border-black shadow-2xs' 
-                                            : lec.type === 'tutorial'
-                                              ? 'bg-slate-200 text-black border-black'
-                                              : 'bg-white text-black border-black'
-                                        }`}>
-                                          {typeLabel}
-                                        </span>
-                                      </div>
-
-                                      {/* 2️⃣ جسم الخلية: اسم المادة وكودها */}
-                                      <div className="flex-1 flex flex-col justify-center space-y-1 print:space-y-0.5 py-1 print:py-1">
-                                        <div className="font-black text-xs sm:text-[13px] print:text-[10.5px] sm:print:text-[11px] text-black leading-snug print:leading-snug tracking-tight line-clamp-2">
-                                          {lec.course_name}
-                                        </div>
-                                        {lec.course_code && (
-                                          <div className="flex items-center">
-                                            <span className="font-mono font-black text-[10px] print:text-[8.5px] px-1.5 py-0.5 print:px-1.5 print:py-0.5 bg-slate-100 text-black rounded border border-slate-400 inline-block shadow-2xs" dir="ltr">
-                                              {lec.course_code}
-                                            </span>
-                                          </div>
-                                        )}
-                                      </div>
-
-                                      {/* 3️⃣ كارت المرحلة والقاعة بتنسيق أفقي متناسق */}
-                                      <div className="bg-slate-50 border-t border-black/25 pt-1 pb-0.5 px-1.5 print:py-1 print:px-1 rounded text-[10px] sm:text-[11px] print:text-[9px] font-black text-black print:flex print:items-center print:justify-between print:gap-1 shrink-0">
-                                        <div className="flex items-center gap-1 print:gap-0.5 text-black font-black leading-tight truncate">
-                                          <span className="text-black font-black shrink-0">المرحلة:</span>
-                                          {/* 🎓 كتابة المرحلة والدراسة والكروب المستقل بشكل دقيق حتى يعرف التدريسي يا كروب يدرّس */}
-                                          <span className="text-black font-black truncate print:text-[9px]">
-                                            المرحلة {getStageNameInArabic(lec.stage_number || 1)} ({lec.study_type === 'evening' ? 'مسائي' : 'صباحي'}){lec.target_group && lec.target_group !== 'all' ? ` — كروب ${lec.target_group}` : ''}
-                                          </span>
-                                        </div>
-                                        <div className="flex items-center gap-1 print:gap-0.5 text-black font-black leading-tight shrink-0">
-                                          <span className="text-black font-black shrink-0">المكان:</span>
-                                          <span className="text-black font-black truncate px-1 py-0.5 print:px-1.5 print:py-0.5 bg-white rounded border border-black/40 inline-block shadow-2xs print:text-[9px]">
-                                            {lec.room}
-                                          </span>
-                                        </div>
-                                      </div>
+                            if (dayLecs.length === 0) {
+                              return (
+                                <tr key={d.key} className="border-b border-black">
+                                  <td className="p-2.5 print:py-1 print:px-1 text-center font-black border border-black bg-slate-50 text-black text-xs sm:text-sm print:text-[14px] w-[11%] print:w-[11%]">
+                                    <div 
+                                      className="day-column-cell flex flex-col items-center justify-center h-full"
+                                      style={{ minHeight: `${rowMinHeightMm}mm` }}
+                                    >
+                                      <span className="font-black text-sm print:text-[15px] text-black leading-tight">{d.label_ar}</span>
                                     </div>
                                   </td>
-                                );
-                              })}
-                            </tr>
-                          );
-                        })}
+                                  <td
+                                    colSpan={printMaxSlots}
+                                    className="p-3 print:py-2 print:px-2 text-center font-black border border-black bg-white text-black text-xs sm:text-sm print:text-[13px]"
+                                  >
+                                    —
+                                  </td>
+                                </tr>
+                              );
+                            }
+
+                            return (
+                              <tr key={d.key} className="border-b border-black">
+                                <td className="p-2.5 print:py-1 print:px-1 text-center font-black border border-black bg-slate-50 text-black text-xs sm:text-sm print:text-[14px] align-middle w-[11%] print:w-[11%]">
+                                  <div 
+                                    className="day-column-cell flex flex-col items-center justify-center h-full gap-1 print:gap-0.5"
+                                    style={{ minHeight: `${rowMinHeightMm}mm` }}
+                                  >
+                                    <span className="font-black text-sm print:text-[15px] text-black leading-tight">{d.label_ar}</span>
+                                    {dayLecs.length > 0 && (
+                                      <span className="text-[10px] print:text-[9.5px] font-black text-black bg-slate-200/90 print:bg-slate-100 px-2 py-0.5 rounded border border-slate-300 print:border-black/50 leading-none inline-block shadow-2xs mt-1 print:mt-0.5">
+                                        {formatArabicLectureCount(dayLecs.length)}
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+                                {Array.from({ length: printMaxSlots }).map((_, slotIdx) => {
+                                  const lec = dayLecs[slotIdx];
+                                  if (!lec) {
+                                    return (
+                                      <td key={slotIdx} className="p-2 print:py-1 print:px-1 text-center text-slate-400 font-black border border-black bg-white align-middle text-xs sm:text-sm print:text-[14px]" style={{ width: `${89 / printMaxSlots}%` }}>
+                                        —
+                                      </td>
+                                    );
+                                  }
+                                  const typeLabel = lec.type === 'practical' ? 'عملي' : lec.type === 'tutorial' ? 'حلقة نقاشية' : 'نظري';
+                                  return (
+                                    <td key={slotIdx} className="p-2 sm:p-2.5 print:p-0.5 border border-black bg-white align-top text-right text-xs text-black" style={{ width: `${89 / printMaxSlots}%` }}>
+                                      <div 
+                                        className="lecture-slot-card flex flex-col justify-between h-full min-h-[110px] print:min-h-[25.5mm] print:h-full gap-1 print:gap-0.5"
+                                        style={{ minHeight: `${rowMinHeightMm}mm` }}
+                                      >
+                                        {/* 1️⃣ الشريط العلوي: التوقيت الأكاديمي المعتمد ص وم + نوع المحاضرة */}
+                                        <div className="flex items-center justify-between gap-1 print:gap-0.5 border-b border-black/20 pb-0.5 print:pb-0.5 font-black shrink-0">
+                                          <span className="px-2 py-0.5 print:px-1.5 print:py-0.5 rounded bg-slate-100 border border-black/50 text-[10px] sm:text-[11px] print:text-[10px] font-black text-black font-sans shrink-0 shadow-2xs" dir="rtl">
+                                            {formatArabicScheduleTime(`${lec.start_time} - ${lec.end_time}`)}
+                                          </span>
+                                          <span className={`px-2 py-0.5 print:px-1.5 print:py-0.5 rounded text-[10px] print:text-[10px] font-black shrink-0 border ${
+                                            lec.type === 'practical' 
+                                              ? 'bg-slate-900 text-white border-black shadow-2xs' 
+                                              : lec.type === 'tutorial'
+                                                ? 'bg-slate-200 text-black border-black'
+                                                : 'bg-white text-black border-black'
+                                          }`}>
+                                            {typeLabel}
+                                          </span>
+                                        </div>
+
+                                        {/* 2️⃣ جسم الخلية: اسم المادة فقط بنص واضح وأسود ناصع (حذف رمز المادة لضمان بقاء الوثيقة بصفحة واحدة) */}
+                                        <div className="flex-1 flex flex-col justify-center py-1 print:py-0.5">
+                                          <div className="font-black text-xs sm:text-[14px] print:text-[13.5px] text-black leading-snug line-clamp-2">
+                                            {lec.course_name}
+                                          </div>
+                                        </div>
+
+                                        {/* 3️⃣ كارت المرحلة والقاعة بتنسيق أفقي متناسق */}
+                                        <div className="bg-slate-50 border-t border-black/25 pt-0.5 pb-0.5 px-1.5 print:py-0.5 print:px-1 rounded text-[10px] sm:text-[11px] print:text-[10px] font-black text-black print:flex print:items-center print:justify-between print:gap-1 shrink-0">
+                                          <div className="flex items-center gap-1 print:gap-0.5 text-black font-black leading-tight truncate">
+                                            <span className="text-black font-black shrink-0">المرحلة:</span>
+                                            {/* 🎓 كتابة المرحلة والدراسة والكروب المستقل بشكل دقيق حتى يعرف التدريسي يا كروب يدرّس */}
+                                            <span className="text-black font-black truncate print:text-[10px]">
+                                              المرحلة {getStageNameInArabic(lec.stage_number || 1)} ({lec.study_type === 'evening' ? 'مسائي' : 'صباحي'}){lec.target_group && lec.target_group !== 'all' ? ` — كروب ${lec.target_group}` : ''}
+                                            </span>
+                                          </div>
+                                          <div className="flex items-center gap-1 print:gap-0.5 text-black font-black leading-tight shrink-0">
+                                            <span className="text-black font-black shrink-0">المكان:</span>
+                                            <span className="text-black font-black truncate px-1 py-0.5 print:px-1 print:py-0 bg-white rounded border border-black/40 inline-block shadow-2xs print:text-[9.5px]">
+                                              {lec.room}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            );
+                          })}
                       </tbody>
                     </table>
                   </div>
 
                   {/* ✍️ 3. التواقيع الرسمية المعتمدة بالأسماء وتاريخ الاعتماد التلقائي الصادر من النظام */}
-                  <div className="grid grid-cols-3 gap-6 print:gap-4 text-center pt-2 mt-2 print:pt-1 print:mt-0.5 border-t-2 border-black text-black shrink-0">
+                  <div className="grid grid-cols-3 gap-6 print:gap-4 text-center pt-2 print:pt-1.5 print:mt-0 border-t-2 border-black text-black shrink-0 print:break-inside-avoid">
                     {/* عضو هيئة التدريس */}
                     <div className="space-y-1 print:space-y-0.5 flex flex-col items-center justify-between text-black">
                       <div className="text-center">
-                        <p className="font-black text-xs sm:text-sm print:text-[10px] text-black">عضو هيئة التدريس</p>
-                        <p className="font-black text-xs sm:text-sm print:text-[10px] text-black mt-0.5 print:mt-0">{teacherName}</p>
+                        <p className="font-black text-xs sm:text-sm print:text-[11px] text-black">عضو هيئة التدريس</p>
+                        <p className="font-black text-xs sm:text-sm print:text-[10.5px] text-black mt-0.5 print:mt-0">{teacherName}</p>
                       </div>
-                      <div className="space-y-0.5 print:space-y-0 w-full text-center text-black font-black">
-                        <p className="font-black text-center text-black text-xs print:text-[9px]">التوقيع: .....................</p>
-                        <p className="font-black text-center text-[11px] print:text-[8.5px] text-black">
+                      <div className="space-y-0.5 print:space-y-0.5 w-full text-center text-black font-black">
+                        <p className="font-black text-center text-black text-xs print:text-[10px]">التوقيع: .....................</p>
+                        <p className="font-black text-center text-[11px] print:text-[9.5px] text-black">
                           التاريخ: <span className="font-mono font-black" dir="ltr">{formatOfficialIssueDate()}</span>
                         </p>
                       </div>
@@ -1444,12 +1520,12 @@ export default function TeacherScheduleTimeline({
                     {/* مقرر القسم العلمي */}
                     <div className="space-y-1 print:space-y-0.5 flex flex-col items-center justify-between text-black">
                       <div className="text-center">
-                        <p className="font-black text-xs sm:text-sm print:text-[10px] text-black">مقرر القسم العلمي</p>
-                        <p className="font-black text-xs sm:text-sm print:text-[10px] text-black mt-0.5 print:mt-0">{resolvedRapporteurName}</p>
+                        <p className="font-black text-xs sm:text-sm print:text-[11px] text-black">مقرر القسم العلمي</p>
+                        <p className="font-black text-xs sm:text-sm print:text-[10.5px] text-black mt-0.5 print:mt-0">{resolvedRapporteurName}</p>
                       </div>
-                      <div className="space-y-0.5 print:space-y-0 w-full text-center text-black font-black">
-                        <p className="font-black text-center text-black text-xs print:text-[9px]">التوقيع: .....................</p>
-                        <p className="font-black text-center text-[11px] print:text-[8.5px] text-black">
+                      <div className="space-y-0.5 print:space-y-0.5 w-full text-center text-black font-black">
+                        <p className="font-black text-center text-black text-xs print:text-[10px]">التوقيع: .....................</p>
+                        <p className="font-black text-center text-[11px] print:text-[9.5px] text-black">
                           التاريخ: <span className="font-mono font-black" dir="ltr">{formatOfficialIssueDate()}</span>
                         </p>
                       </div>
@@ -1458,12 +1534,12 @@ export default function TeacherScheduleTimeline({
                     {/* رئيس القسم العلمي */}
                     <div className="space-y-1 print:space-y-0.5 flex flex-col items-center justify-between text-black">
                       <div className="text-center">
-                        <p className="font-black text-xs sm:text-sm print:text-[10px] text-black">رئيس قسم {departmentName}</p>
-                        <p className="font-black text-xs sm:text-sm print:text-[10px] text-black mt-0.5 print:mt-0">{resolvedHeadName}</p>
+                        <p className="font-black text-xs sm:text-sm print:text-[11px] text-black">رئيس قسم {departmentName}</p>
+                        <p className="font-black text-xs sm:text-sm print:text-[10.5px] text-black mt-0.5 print:mt-0">{resolvedHeadName}</p>
                       </div>
-                      <div className="space-y-0.5 print:space-y-0 w-full text-center text-black font-black">
-                        <p className="font-black text-center text-black text-xs print:text-[9px]">التوقيع: .....................</p>
-                        <p className="font-black text-center text-[11px] print:text-[8.5px] text-black">
+                      <div className="space-y-0.5 print:space-y-0.5 w-full text-center text-black font-black">
+                        <p className="font-black text-center text-black text-xs print:text-[10px]">التوقيع: .....................</p>
+                        <p className="font-black text-center text-[11px] print:text-[9.5px] text-black">
                           التاريخ: <span className="font-mono font-black" dir="ltr">{formatOfficialIssueDate()}</span>
                         </p>
                       </div>
@@ -1471,7 +1547,7 @@ export default function TeacherScheduleTimeline({
                   </div>
 
                   {/* 📝 4. التذييل والتوثيق الإلكتروني */}
-                  <div className="flex items-center justify-between text-[10px] sm:text-[11px] print:text-[8.5px] font-black text-black pt-1 print:pt-0.5 border-t-2 border-black shrink-0">
+                  <div className="flex items-center justify-between text-[10px] sm:text-[11px] print:text-[8.5px] font-black text-black pt-1.5 print:pt-1 pb-1 print:pb-0.5 border-t border-black shrink-0">
                     <span>المنصة الأكاديمية المركزية — مسار بولونيا التعليمي — جامعة الإمام جعفر الصادق (ع) - فرع ميسان</span>
                     <span>وثيقة نصاب تدريسي رسمية صادرة إلكترونياً وغير قابلة للشطب أو التعديل اليدوي</span>
                   </div>

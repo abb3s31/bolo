@@ -29,6 +29,8 @@ import {
   Square, // ⬜ أيقونة مربع غير محدد
   CheckCheck, // ✔️ أيقونة التحديد الشامل
   Info, // ℹ️ أيقونة المعلومات
+  X, // ❌ أيقونة الإلغاء والإغلاق
+  XCircle, // 🚫 أيقونة إلغاء المحاضرة للأسبوع
 } from 'lucide-react'; // 🎨 استيراد أيقونات لوسيد
 import type {
   UserProfile, // 👤 نوع بروفايل المستخدم
@@ -52,6 +54,7 @@ import {
   IRAQI_ARABIC_MONTHS, // 🏷️ تنسيق التاريخ بالعربية مع اسم اليوم
   formatArabicLectureCount, // 🔤 صياغة عدد المحاضرات
   formatArabicOrdinalLectureName, // 🎖️ صياغة تسلسل المحاضرة
+  isLectureActiveInWeek, // 🎯 فحص نشاط المحاضرة في الأسبوع المختار
 } from '@/lib/schedule-utils'; // 🕒 أدوات الجدول الأكاديمي
 import type { ScheduleConflict } from '@/lib/schedule-utils'; // ⚠️ نوع تضارب الجدول
 import { getStageNameInArabic } from '@/lib/grade-utils'; // 🏷️ اسم المرحلة بالعربية
@@ -104,6 +107,7 @@ export interface DepartmentScheduleTabProps {
   isLectureInCurrentDept: (l: ScheduleLecture) => boolean; // 🏢 التحقق من تبعية المحاضرة
   handleEditLecture: (lec: ScheduleLecture) => void; // ✏️ تعديل محاضرة
   handleDeleteLecture: (id: string) => void; // 🗑️ حذف محاضرة
+  handleDeleteLectureForWeek?: (id: string, weekNumber: number) => void; // 🚫 إلغاء المحاضرة لهذا الأسبوع فقط
   handleSaveLecture: (e: React.FormEvent) => void; // 💾 حفظ المحاضرة
   handleSaveSemesterStartDate: (newStartDate: string) => void; // 📅 حفظ تاريخ انطلاق الفصل
   resetLectureModalState: (initialDay?: DayOfWeek, initialWeek?: number) => void; // 🧹 تصفير استمارة المحاضرة
@@ -146,6 +150,10 @@ export interface DepartmentScheduleTabProps {
   setLecAutoCascadeWeeks: React.Dispatch<React.SetStateAction<boolean>>; // 🔄 تحديث التكرار
   lecCascadeShiftOption: 'cascade_following' | 'this_week_only' | 'all_15_weeks'; // 🔀 نمط التعديل
   setLecCascadeShiftOption: React.Dispatch<React.SetStateAction<'cascade_following' | 'this_week_only' | 'all_15_weeks'>>; // 🔄 تحديث نمط التعديل
+  lecWeeksScope?: 'all_15_weeks' | 'this_week_only' | 'odd_weeks' | 'even_weeks' | 'custom_pick'; // 🔢 نطاق الأسابيع المعتمدة للمحاضرة
+  setLecWeeksScope?: React.Dispatch<React.SetStateAction<'all_15_weeks' | 'this_week_only' | 'odd_weeks' | 'even_weeks' | 'custom_pick'>>; // 🔄 تحديث نطاق الأسابيع
+  lecCustomWeeks?: number[]; // 📋 قائمة الأسابيع المخصصة للمحاضرة
+  setLecCustomWeeks?: React.Dispatch<React.SetStateAction<number[]>>; // 🔄 تحديث قائمة الأسابيع
   closeModalAfterSave: boolean; // 🚪 إغلاق بعد الحفظ
   setCloseModalAfterSave: React.Dispatch<React.SetStateAction<boolean>>; // 🔄 تحديث الإغلاق بعد الحفظ
   lecCourseSearchTerm: string; // 🔍 بحث المادة
@@ -203,6 +211,7 @@ export const DepartmentScheduleTab: React.FC<DepartmentScheduleTabProps> = ({
   isLectureInCurrentDept,
   handleEditLecture,
   handleDeleteLecture,
+  handleDeleteLectureForWeek, // 🚫 دالة إلغاء المحاضرة لهذا الأسبوع فقط
   handleSaveLecture,
   handleSaveSemesterStartDate,
   resetLectureModalState,
@@ -243,6 +252,10 @@ export const DepartmentScheduleTab: React.FC<DepartmentScheduleTabProps> = ({
   setLecAutoCascadeWeeks,
   lecCascadeShiftOption,
   setLecCascadeShiftOption,
+  lecWeeksScope, // 🔢 نطاق الأسابيع المعتمدة
+  setLecWeeksScope, // 🔄 تحديث نطاق الأسابيع
+  lecCustomWeeks, // 📋 قائمة الأسابيع المخصصة
+  setLecCustomWeeks, // 🔄 تحديث قائمة الأسابيع
   closeModalAfterSave,
   setCloseModalAfterSave,
   lecCourseSearchTerm,
@@ -262,14 +275,22 @@ export const DepartmentScheduleTab: React.FC<DepartmentScheduleTabProps> = ({
   const selectedScheduleGroup = selectedScheduleGroupProp !== undefined ? selectedScheduleGroupProp : localScheduleGroup;
   const setSelectedScheduleGroup = setSelectedScheduleGroupProp || setLocalScheduleGroup;
 
-  // 🔄 مزامنة الكروب الافتراضي داخل التبويب لضمان عدم البقاء على 'all' عند وجود كروبات بالمرحلة
+  // 🔄 مزامنة الكروب الافتراضي داخل التبويب لضمان التوافق التام (كروب أول عند وجود كروبات، وشعبة موحدة عند عدم وجودها)
   useEffect(() => {
+    // 🔍 البحث عن إعدادات المرحلة الحالية
     const currentCfg = stageGroupConfigs?.find(
       (c) => c.stage_number === selectedScheduleStage && c.study_type === selectedScheduleStudyType
     );
+    // ⚙️ التحقق من وجود كروبات معتمدة بالمرحلة
     if (currentCfg && currentCfg.has_groups && currentCfg.groups && currentCfg.groups.length > 0) {
+      // 🎯 اختيار الكروب الأول إذا كان الكروب الحالي غير موجود أو مضبوط على all
       if (selectedScheduleGroup === 'all' || !currentCfg.groups.includes(selectedScheduleGroup)) {
         setSelectedScheduleGroup(currentCfg.groups[0]); // 🥇 تعيين الكروب الأول افتراضياً
+      }
+    } else {
+      // 🛑 إذا كانت المرحلة شعبة موحدة نرجع الكروب تلقائياً إلى all
+      if (selectedScheduleGroup !== 'all') {
+        setSelectedScheduleGroup('all'); // 🔄 تصفير الكروب إلى شعبة موحدة
       }
     }
   }, [stageGroupConfigs, selectedScheduleStage, selectedScheduleStudyType, selectedScheduleGroup, setSelectedScheduleGroup]);
@@ -414,7 +435,129 @@ export const DepartmentScheduleTab: React.FC<DepartmentScheduleTabProps> = ({
             </div>
           </div>
 
-          {/* 🎛️ شريط تحديد المرحلة والكورس الدراسي والفترة بتصميم هندسي راقٍ بسطر واحد */}
+          {/* ========================================================================= */}
+          {/* 📅 1. كارد التقويم الأكاديمي المعتمد للفصل الدراسي (15 أسبوعاً — مسار بولونيا) بالبداية */}
+          {/* ========================================================================= */}
+          <div className="bg-white border border-slate-300 rounded-3xl p-5 sm:p-6 shadow-sm space-y-4">
+            <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 border-b border-slate-200 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-blue-50 text-[#0F2942] border border-blue-200 rounded-2xl shadow-2xs">
+                  <CalendarDays className="w-6 h-6 text-blue-700" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <h3 className="text-lg sm:text-xl font-black text-slate-950">
+                      التقويم الأكاديمي المعتمد للفصل الدراسي (15 أسبوعاً — مسار بولونيا)
+                    </h3>
+                    <span className="px-3 py-1 bg-emerald-50 text-emerald-950 border border-emerald-400 font-black text-xs sm:text-sm rounded-full flex items-center shadow-2xs">
+                      <span>الأسبوع الحالي: {scheduleCurrentAcademicWeek} من 15</span>
+                    </span>
+                  </div>
+                  <p className="text-sm sm:text-base font-black text-black mt-1">
+                    {/* 🗓️ توضيح عراقي: نص يبين حساب التواريخ التلقائي لكل أسبوع بدون سالفة الحفظ السحابي والمحلي بلون أسود وحجم مكبر قليلاً */}
+                    حساب ذكي وتلقائي للتواريخ وفق الفارق الزمني (+7 أيام لكل أسبوع)
+                  </p>
+                </div>
+              </div>
+
+              {/* 📆 محدد ومعدل تاريخ انطلاق الفصل الدراسي بتصميم كحلي ملكي فاخر وأكاديمي متناسق */}
+              <div className="flex items-center gap-3 bg-slate-50/90 hover:bg-slate-50 px-3 py-2 rounded-2xl border border-slate-300 shadow-2xs transition-all">
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className="p-1.5 bg-[#0F2942] text-cyan-300 rounded-lg shrink-0 border border-[#0F2942] shadow-2xs">
+                    <CalendarDays className="w-4 h-4 text-cyan-300" />
+                  </div>
+                  <span className="text-sm font-black text-slate-950 whitespace-nowrap">
+                    تاريخ انطلاق الفصل (الأسبوع 1):
+                  </span>
+                </div>
+                <div className="w-60 sm:w-68 shrink-0">
+                  <ArabicDatePicker
+                    value={currentScheduleConfig.start_date || '2026-09-20'}
+                    onChange={(newDate) => {
+                      // 🛡️ فحص إذا كان التاريخ مختلفاً لإظهار نافذة التأكيد الاحترافية
+                      if (!newDate || newDate === (currentScheduleConfig.start_date || '2026-09-20')) return;
+                      setPendingSemesterStartDate(newDate); // 📅 تعيين التاريخ المؤقت الجديد
+                      setShowSemesterDateConfirmModal(true); // 🛑 فتح نافذة التأكيد الفاخرة
+                    }}
+                    placeholder="حدد تاريخ الانطلاق"
+                    variant="royal-navy" // 👑 تطبيق النمط الكحلي الملكي الفاخر
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* أشرطة الأسابيع الـ 15 الأفقية */}
+            <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-15 gap-2 overflow-x-auto pb-1">
+              {Array.from({ length: 15 }, (_, i) => i + 1).map((wNum) => {
+                const isSel = selectedScheduleWeek === wNum;
+                const isCurr = scheduleCurrentAcademicWeek === wNum;
+                const baseD = currentScheduleConfig.start_date || '2026-09-20'; // 📅 تاريخ انطلاق الفصل المعتمد للقسم
+                const baseDayKey = getDayOfWeekFromDateString(baseD); // 🗓️ اليوم الأكاديمي المعتمد لتاريخ الانطلاق (مثلاً الأحد)
+                const weekStartDate = calculateDateForAnyDayInWeek(baseD, 1, wNum, baseDayKey); // 📅 احتساب تاريخ هذا الأسبوع المتطابق تماماً مع يوم وتاريخ الانطلاق (+7 أيام لكل أسبوع)
+                const p = weekStartDate.split('-'); // ✂️ تفكيك التاريخ لاستخراج اليوم والشهر
+                const dNum = p.length === 3 ? parseInt(p[2], 10) : ''; // 🔢 رقم اليوم
+                const mName = p.length === 3 ? (IRAQI_ARABIC_MONTHS[parseInt(p[1], 10) - 1] || '') : ''; // 🏷️ اسم الشهر العراقي المعتمد
+
+                return (
+                  <button
+                    key={wNum}
+                    type="button"
+                    onClick={() => setSelectedScheduleWeek(wNum)}
+                    className={`py-2 px-1.5 rounded-2xl text-center font-black transition-all cursor-pointer border-2 flex flex-col items-center justify-between min-h-[74px] sm:min-h-[78px] ${
+                      isSel
+                        ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-md ring-2 ring-blue-500/20'
+                        : isCurr
+                        ? 'bg-emerald-50 text-emerald-950 border-emerald-400 hover:bg-emerald-100 shadow-2xs'
+                        : 'bg-slate-50 text-slate-800 border-slate-200 hover:bg-slate-100 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="w-full flex items-center justify-between px-1">
+                      <span className={`text-xs font-black ${isSel ? 'text-cyan-300' : isCurr ? 'text-emerald-950' : 'text-slate-950'}`}>
+                        أسبوع
+                      </span>
+                      {isCurr && (
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-emerald-300/40 animate-pulse" title="الأسبوع الحالي" />
+                      )}
+                    </div>
+                    <div className="text-base sm:text-lg font-black font-mono leading-none my-0.5">
+                      {wNum}
+                    </div>
+                    {/* 📅 تكبير نص التاريخ للشهر واليوم ليكون مقروءاً وبخط داكن عريض */}
+                    <div className={`text-[11px] sm:text-xs font-black leading-tight mt-0.5 ${isSel ? 'text-cyan-200' : 'text-slate-950'}`}>
+                      {dNum} {mName.substring(0, 5)}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* تفاصيل وتواريخ أيام الأسبوع المختار */}
+            <div className="p-3 bg-blue-50/50 rounded-2xl border border-blue-200 flex flex-wrap items-center justify-between gap-2 text-xs sm:text-sm font-black text-slate-900">
+              <div className="flex items-center gap-2">
+                <span className="text-[#0F2942]">
+                  نطاق تواريخ الأسبوع {selectedScheduleWeek}:
+                </span>
+                <span className="text-blue-950 font-black">
+                  {formatDateArabicWithDay(calculateDateForAnyDayInWeek(currentScheduleConfig.start_date || '2026-09-20', 1, selectedScheduleWeek, 'saturday'))}
+                  {' إلى '}
+                  {formatDateArabicWithDay(calculateDateForAnyDayInWeek(currentScheduleConfig.start_date || '2026-09-20', 1, selectedScheduleWeek, 'thursday'))}
+                </span>
+              </div>
+              {selectedScheduleWeek !== scheduleCurrentAcademicWeek && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedScheduleWeek(scheduleCurrentAcademicWeek)}
+                  className="px-3 py-1.5 bg-[#0F2942] text-white rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-1.5 shadow-2xs hover:bg-[#1a3d5e]"
+                >
+                  <span>الانتقال للأسبوع الحالي ({scheduleCurrentAcademicWeek})</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* ========================================================================= */}
+          {/* 🎛️ 2. كارد تحديد المرحلة والكورس الدراسي والفترة بتصميم هندسي راقٍ بسطر واحد */}
+          {/* ========================================================================= */}
           <div className="p-4 bg-slate-50 border border-slate-300 rounded-3xl shadow-2xs flex flex-wrap xl:flex-nowrap items-center justify-between gap-4">
             
             {/* محدد المرحلة */}
@@ -631,8 +774,7 @@ export const DepartmentScheduleTab: React.FC<DepartmentScheduleTabProps> = ({
           </div>
 
           {/* ========================================================================= */}
-          {/* ========================================================================= */}
-          {/* 👥 شريط اختيار جدول الكروب الأسبوعي الخاص لكل مرحلة (جداول مستقلة وخاصة 100%) */}
+          {/* 👥 3. كارد اختيار جدول الكروب الأسبوعي الخاص لكل مرحلة (جداول مستقلة وخاصة 100%) */}
           {/* ========================================================================= */}
           {(() => {
             // 🔍 استخراج إعدادات الكروبات للمرحلة والدوام المحددين بدقة عالية
@@ -645,17 +787,33 @@ export const DepartmentScheduleTab: React.FC<DepartmentScheduleTabProps> = ({
               ? rawGroups // ✨ استخدام كروبات المرحلة المعتمدة فقط
               : []; // 🛑 مصفوفة فارغة إذا كانت المرحلة شعبة موحدة
 
-            // 🛑 في حال كانت المرحلة غير مقسمة لكروبات (شعبة موحدة) نعرض تنبيهاً واضحاً
+            // 🛑 في حال كانت المرحلة غير مقسمة لكروبات (شعبة موحدة) نعرض تنبيهاً واضحاً ومميزاً
             if (stageGroupsList.length === 0) {
               return (
-                <div className="p-4 bg-white border border-slate-300 rounded-3xl shadow-2xs flex items-center justify-between gap-3 flex-wrap">
-                  <div className="flex items-center gap-2 text-sm sm:text-base font-black text-slate-950">
-                    <GroupScheduleSvg className="w-5 h-5 text-[#0F2942]" /> {/* 👥 أيقونة الشعبة الموحدة */}
-                    <span>لا يوجد كروبات لهذه المرحلة — جدول دراسي لشعبة موحدة</span> {/* 📢 توضيح عدم وجود كروبات */}
+                <div className="p-4 sm:p-5 bg-gradient-to-r from-blue-50/80 via-sky-50/40 to-blue-50/80 border-2 border-blue-200/90 rounded-3xl shadow-xs flex items-center justify-between gap-3 flex-wrap">
+                  {/* 📢 الحاوية النصية الرئيسية مع الأيقونة الفيكتورية النقية */}
+                  <div className="flex items-center gap-3">
+                    {/* 🎨 مربع الأيقونة بالكحلي الملكي */}
+                    <div className="p-2.5 bg-[#0F2942] text-cyan-300 rounded-2xl shadow-2xs shrink-0">
+                      <GroupScheduleSvg className="w-5 h-5 text-cyan-300" /> {/* 👥 أيقونة الشعبة الموحدة */}
+                    </div>
+                    {/* 🔤 النصوص التوضيحية البارزة والواضحة */}
+                    <div>
+                      <h4 className="text-base sm:text-lg font-black text-[#0F2942] flex items-center gap-2">
+                        <span>لا يوجد كروبات لهذه المرحلة — جدول دراسي لشعبة موحدة</span> {/* 📢 توضيح عدم وجود كروبات صريح وواضح */}
+                      </h4>
+                      <p className="text-xs sm:text-sm font-black text-black mt-0.5">
+                        جدول دراسي موحد يشمل جميع طلبة المرحلة بدون تقسيم لكروبات فرعية {/* 📝 وصف توضيحي إضافي بلون أسود صريح */}
+                      </p>
+                    </div>
                   </div>
-                  <span className="px-3.5 py-1.5 bg-blue-50 text-[#0F2942] border border-blue-200 rounded-xl text-xs sm:text-sm font-black shadow-2xs">
-                    شعبة موحدة {/* 🏷️ باج الشعبة الموحدة */}
-                  </span>
+                  {/* 🏷️ باج الشعبة الموحدة بتصميم كحلي ملكي راقٍ ونص أبيض صريح */}
+                  <div className="flex items-center gap-2">
+                    <span className="px-4 py-2 bg-[#0F2942] text-white border border-[#0F2942] rounded-xl text-xs sm:text-sm font-black shadow-2xs flex items-center gap-1.5">
+                      <GroupUsersSvg className="w-4 h-4 text-cyan-300" /> {/* 👥 أيقونة الأعضاء بلون سماوي */}
+                      <span className="text-white font-black">شعبة موحدة</span> {/* 🏷️ باج الشعبة الموحدة بنص أبيض صريح */}
+                    </span>
+                  </div>
                 </div>
               );
             }
@@ -719,132 +877,6 @@ export const DepartmentScheduleTab: React.FC<DepartmentScheduleTabProps> = ({
           })()}
 
           {/* ========================================================================= */}
-          {/* 📅 شريط التقويم الأكاديمي الذكي (15 أسبوعاً) وتاريخ انطلاق الفصل الدراسي */}
-          {/* ========================================================================= */}
-          <div className="bg-white border border-slate-300 rounded-3xl p-5 sm:p-6 shadow-sm space-y-4">
-            <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 border-b border-slate-200 pb-4">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-blue-50 text-[#0F2942] border border-blue-200 rounded-2xl shadow-2xs">
-                  <CalendarDays className="w-6 h-6 text-blue-700" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2.5 flex-wrap">
-                    <h3 className="text-lg sm:text-xl font-black text-slate-950">
-                      التقويم الأكاديمي المعتمد للفصل الدراسي (15 أسبوعاً — مسار بولونيا)
-                    </h3>
-                    <span className="px-3 py-1 bg-emerald-50 text-emerald-950 border border-emerald-400 font-black text-xs sm:text-sm rounded-full flex items-center shadow-2xs">
-                      <span>الأسبوع الحالي: {scheduleCurrentAcademicWeek} من 15</span>
-                    </span>
-                    {selectedScheduleGroup !== 'all' && (
-                      <span className="px-3 py-1 bg-[#0F2942] text-cyan-300 border border-[#0F2942] font-black text-xs sm:text-sm rounded-full flex items-center gap-1 shadow-2xs">
-                        <GroupBadgeSvg className="w-3.5 h-3.5 text-cyan-300 shrink-0" /> {/* 👥 أيقونة الكروب الفيكتورية SVG */}
-                        <span>جدول كروب {selectedScheduleGroup}</span>
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-sm font-black text-slate-700 mt-1">
-                    {/* 🗓️ توضيح عراقي: نص يبين حساب التواريخ التلقائي لكل أسبوع بدون سالفة الحفظ السحابي والمحلي */}
-                    حساب ذكي وتلقائي للتواريخ وفق الفارق الزمني (+7 أيام لكل أسبوع)
-                  </p>
-                </div>
-              </div>
-
-              {/* 📆 محدد ومعدل تاريخ انطلاق الفصل الدراسي بتصميم كحلي ملكي فاخر وأكاديمي متناسق */}
-              <div className="flex items-center gap-3 bg-slate-50/90 hover:bg-slate-50 px-3 py-2 rounded-2xl border border-slate-300 shadow-2xs transition-all">
-                <div className="flex items-center gap-2 shrink-0">
-                  <div className="p-1.5 bg-[#0F2942] text-cyan-300 rounded-lg shrink-0 border border-[#0F2942] shadow-2xs">
-                    <CalendarDays className="w-4 h-4 text-cyan-300" />
-                  </div>
-                  <span className="text-sm font-black text-slate-950 whitespace-nowrap">
-                    تاريخ انطلاق الفصل (الأسبوع 1):
-                  </span>
-                </div>
-                <div className="w-60 sm:w-68 shrink-0">
-                  <ArabicDatePicker
-                    value={currentScheduleConfig.start_date || '2026-09-20'}
-                    onChange={(newDate) => {
-                      // 🛡️ فحص إذا كان التاريخ مختلفاً لإظهار نافذة التأكيد الاحترافية
-                      if (!newDate || newDate === (currentScheduleConfig.start_date || '2026-09-20')) return;
-                      setPendingSemesterStartDate(newDate); // 📅 تعيين التاريخ المؤقت الجديد
-                      setShowSemesterDateConfirmModal(true); // 🛑 فتح نافذة التأكيد الفاخرة
-                    }}
-                    placeholder="حدد تاريخ الانطلاق"
-                    variant="royal-navy" // 👑 تطبيق النمط الكحلي الملكي الفاخر
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* أشرطة الأسابيع الـ 15 الأفقية */}
-            <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-15 gap-2 overflow-x-auto pb-1">
-              {Array.from({ length: 15 }, (_, i) => i + 1).map((wNum) => {
-                const isSel = selectedScheduleWeek === wNum;
-                const isCurr = scheduleCurrentAcademicWeek === wNum;
-                const baseD = currentScheduleConfig.start_date || '2026-09-20'; // 📅 تاريخ انطلاق الفصل المعتمد للقسم
-                const baseDayKey = getDayOfWeekFromDateString(baseD); // 🗓️ اليوم الأكاديمي المعتمد لتاريخ الانطلاق (مثلاً الأحد)
-                const weekStartDate = calculateDateForAnyDayInWeek(baseD, 1, wNum, baseDayKey); // 📅 احتساب تاريخ هذا الأسبوع المتطابق تماماً مع يوم وتاريخ الانطلاق (+7 أيام لكل أسبوع)
-                const p = weekStartDate.split('-'); // ✂️ تفكيك التاريخ لاستخراج اليوم والشهر
-                const dNum = p.length === 3 ? parseInt(p[2], 10) : ''; // 🔢 رقم اليوم
-                const mName = p.length === 3 ? (IRAQI_ARABIC_MONTHS[parseInt(p[1], 10) - 1] || '') : ''; // 🏷️ اسم الشهر العراقي المعتمد
-
-                return (
-                  <button
-                    key={wNum}
-                    type="button"
-                    onClick={() => setSelectedScheduleWeek(wNum)}
-                    className={`py-2 px-1.5 rounded-2xl text-center font-black transition-all cursor-pointer border-2 flex flex-col items-center justify-between min-h-[74px] sm:min-h-[78px] ${
-                      isSel
-                        ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-md ring-2 ring-blue-500/20'
-                        : isCurr
-                        ? 'bg-emerald-50 text-emerald-950 border-emerald-400 hover:bg-emerald-100 shadow-2xs'
-                        : 'bg-slate-50 text-slate-800 border-slate-200 hover:bg-slate-100 hover:border-slate-300'
-                    }`}
-                  >
-                    <div className="w-full flex items-center justify-between px-1">
-                      <span className={`text-xs font-black ${isSel ? 'text-cyan-300' : isCurr ? 'text-emerald-950' : 'text-slate-950'}`}>
-                        أسبوع
-                      </span>
-                      {isCurr && (
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-emerald-300/40 animate-pulse" title="الأسبوع الحالي" />
-                      )}
-                    </div>
-                    <div className="text-base sm:text-lg font-black font-mono leading-none my-0.5">
-                      {wNum}
-                    </div>
-                    {/* 📅 تكبير نص التاريخ للشهر واليوم ليكون مقروءاً وبخط داكن عريض */}
-                    <div className={`text-[11px] sm:text-xs font-black leading-tight mt-0.5 ${isSel ? 'text-cyan-200' : 'text-slate-950'}`}>
-                      {dNum} {mName.substring(0, 5)}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* تفاصيل وتواريخ أيام الأسبوع المختار */}
-            <div className="p-3 bg-blue-50/50 rounded-2xl border border-blue-200 flex flex-wrap items-center justify-between gap-2 text-xs sm:text-sm font-black text-slate-900">
-              <div className="flex items-center gap-2">
-                <span className="text-[#0F2942]">
-                  نطاق تواريخ الأسبوع {selectedScheduleWeek}:
-                </span>
-                <span className="text-blue-950 font-black">
-                  {formatDateArabicWithDay(calculateDateForAnyDayInWeek(currentScheduleConfig.start_date || '2026-09-20', 1, selectedScheduleWeek, 'saturday'))}
-                  {' إلى '}
-                  {formatDateArabicWithDay(calculateDateForAnyDayInWeek(currentScheduleConfig.start_date || '2026-09-20', 1, selectedScheduleWeek, 'thursday'))}
-                </span>
-              </div>
-              {selectedScheduleWeek !== scheduleCurrentAcademicWeek && (
-                <button
-                  type="button"
-                  onClick={() => setSelectedScheduleWeek(scheduleCurrentAcademicWeek)}
-                  className="px-3 py-1.5 bg-[#0F2942] text-white rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-1.5 shadow-2xs hover:bg-[#1a3d5e]"
-                >
-                  <span>الانتقال للأسبوع الحالي ({scheduleCurrentAcademicWeek})</span>
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* ========================================================================= */}
           {/* 🏖️ 1. كارت إدارة أيام الدوام والعطل الأسبوعية الرسمية */}
           {/* ========================================================================= */}
           <div className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-7 shadow-sm space-y-4">
@@ -853,13 +885,46 @@ export const DepartmentScheduleTab: React.FC<DepartmentScheduleTabProps> = ({
                 <Sun className="w-6 h-6 text-blue-800" />
               </div>
               <div>
-                <h3 className="text-lg sm:text-xl font-black text-slate-950 flex items-center gap-2">
-                  <span>
-                    تحديد أيام الدوام والعطل الأسبوعية للمرحلة {getStageNameInArabic(selectedScheduleStage)}
-                    {selectedScheduleGroup !== 'all' ? ` (جدول كروب ${selectedScheduleGroup})` : ' (شعبة موحدة)'}
-                    {' '}(الكورس {selectedScheduleSemester === 1 ? 'الأول' : 'الثاني'})
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <h3 className="text-lg sm:text-xl font-black text-slate-950">
+                    تحديد أيام الدوام والعطل الأسبوعية {/* 📌 العنوان الرئيسي لكارت أيام الدوام */}
+                  </h3>
+
+                  {/* 🎓 وسم المرحلة الدراسية بنمط أزرق أكاديمي موحد */}
+                  <span className="px-3 py-1 bg-blue-50 text-[#0F2942] border border-blue-200 font-black text-xs sm:text-sm rounded-xl flex items-center gap-1.5 shadow-2xs">
+                    <GraduationCap className="w-3.5 h-3.5 text-blue-700 shrink-0" /> {/* 🎓 أيقونة المرحلة الأكاديمية */}
+                    <span>المرحلة {getStageNameInArabic(selectedScheduleStage)}</span> {/* 🏷️ اسم المرحلة المختارة */}
                   </span>
-                </h3>
+
+                  {/* 👥 وسم الكروب أو الشعبة الموحدة بنفس النمط واللون الموحد */}
+                  {stageGroupsList.length > 0 && selectedScheduleGroup !== 'all' ? (
+                    <span className="px-3 py-1 bg-blue-50 text-[#0F2942] border border-blue-200 font-black text-xs sm:text-sm rounded-xl flex items-center gap-1.5 shadow-2xs">
+                      <GroupBadgeSvg className="w-3.5 h-3.5 text-blue-700 shrink-0" /> {/* 👥 أيقونة الكروب الفيكتورية */}
+                      <span>جدول كروب {selectedScheduleGroup}</span> {/* 🏷️ اسم الكروب المحدد */}
+                    </span>
+                  ) : (
+                    <span className="px-3 py-1 bg-blue-50 text-[#0F2942] border border-blue-200 font-black text-xs sm:text-sm rounded-xl flex items-center gap-1.5 shadow-2xs">
+                      <GroupUsersSvg className="w-3.5 h-3.5 text-blue-700 shrink-0" /> {/* 👥 أيقونة الشعبة الموحدة */}
+                      <span>شعبة موحدة</span> {/* 🏷️ باج الشعبة الموحدة */}
+                    </span>
+                  )}
+
+                  {/* 📚 وسم الكورس الدراسي بنفس النمط واللون الموحد */}
+                  <span className="px-3 py-1 bg-blue-50 text-[#0F2942] border border-blue-200 font-black text-xs sm:text-sm rounded-xl flex items-center gap-1.5 shadow-2xs">
+                    <Layers className="w-3.5 h-3.5 text-blue-700 shrink-0" /> {/* 📚 أيقونة الكورس الدراسي */}
+                    <span>الكورس {selectedScheduleSemester === 1 ? 'الأول' : 'الثاني'}</span> {/* 🏷️ رقم الكورس الدراسي */}
+                  </span>
+
+                  {/* ☀️🌙 وسم الفترة الدراسية بنفس النمط واللون الموحد */}
+                  <span className="px-3 py-1 bg-blue-50 text-[#0F2942] border border-blue-200 font-black text-xs sm:text-sm rounded-xl flex items-center gap-1.5 shadow-2xs">
+                    {selectedScheduleStudyType === 'evening' ? (
+                      <Moon className="w-3.5 h-3.5 text-blue-700 shrink-0" />
+                    ) : (
+                      <Sun className="w-3.5 h-3.5 text-blue-700 shrink-0" />
+                    )}
+                    <span>{selectedScheduleStudyType === 'evening' ? 'المسائي' : 'الصباحي'}</span> {/* 🏷️ الفترة الدراسية */}
+                  </span>
+                </div>
                 <p className="text-sm sm:text-base font-black text-slate-800 mt-1">
                   اضغط على أي يوم لطلب تعديل حالته بين دوام رسمي أو عطلة رسمية مع نافذة تأكيد وموافقة مسبقة
                 </p>
@@ -998,6 +1063,10 @@ export const DepartmentScheduleTab: React.FC<DepartmentScheduleTabProps> = ({
           setLecAutoCascadeWeeks={setLecAutoCascadeWeeks}
           lecCascadeShiftOption={lecCascadeShiftOption}
           setLecCascadeShiftOption={setLecCascadeShiftOption}
+          lecWeeksScope={lecWeeksScope} // 🔢 تمرير نطاق الأسابيع المعتمدة
+          setLecWeeksScope={setLecWeeksScope} // 🔄 تمرير دالة تحديث نطاق الأسابيع
+          lecCustomWeeks={lecCustomWeeks} // 📋 تمرير قائمة الأسابيع المخصصة
+          setLecCustomWeeks={setLecCustomWeeks} // 🔄 تمرير دالة تحديث قائمة الأسابيع
           closeModalAfterSave={closeModalAfterSave}
           setCloseModalAfterSave={setCloseModalAfterSave}
           lecCourseSearchTerm={lecCourseSearchTerm}
@@ -1016,13 +1085,14 @@ export const DepartmentScheduleTab: React.FC<DepartmentScheduleTabProps> = ({
           {/* 📅 3. استعراض محاضرات المرحلة المجدولة بحسب أيام الأسبوع */}
           {/* ========================================================================= */}
           {(() => {
-            // 📚 جلب وفلترة كافة محاضرات المرحلة الحالية المحددة (للقسم والمرحلة والكورس ونوع الدراسة) لكافة الأسابيع والأيام
+            // 📚 جلب وفلترة كافة محاضرات المرحلة الحالية المحددة للأسبوع المختار (للقسم والمرحلة والكورس ونوع الدراسة)
             const currentStageScheduleLectures = scheduleLectures.filter(
               (l) => {
-                if (!isLectureInCurrentDept(l)) return false;
-                if (l.stage_number !== selectedScheduleStage) return false;
-                if (l.semester !== selectedScheduleSemester) return false;
+                if (!isLectureInCurrentDept(l)) return false; // 🏢 عزل القسم
+                if (l.stage_number !== selectedScheduleStage) return false; // 🎓 عزل المرحلة
+                if (l.semester !== selectedScheduleSemester) return false; // 📚 عزل الكورس
                 if ((l.study_type || 'morning') !== selectedScheduleStudyType) return false; // ☀️ فحص الصباحي والمسائي
+                if (!isLectureActiveInWeek(l, selectedScheduleWeek)) return false; // 🎯 عزل أسبوعي ذكي: فحص نشاط المحاضرة في الأسبوع المختار
                 if (stageGroupsList.length > 0) {
                   return l.target_group === activeScheduleGroup; // 🎯 عزل صارم: إظهار محاضرات هذا الكروب حصراً بدون دمج
                 }
@@ -1030,7 +1100,7 @@ export const DepartmentScheduleTab: React.FC<DepartmentScheduleTabProps> = ({
               }
             );
 
-            // 🆔 مصفوفة المعرفات الفريدة لكافة محاضرات المرحلة الحالية
+            // 🆔 مصفوفة المعرفات الفريدة لكافة محاضرات المرحلة الحالية للأسبوع المختار
             const allStageLectureIds = currentStageScheduleLectures.map((l) => l.id);
 
             // ✅ هل كافة محاضرات هذه المرحلة محددة حالياً؟
@@ -1097,6 +1167,21 @@ export const DepartmentScheduleTab: React.FC<DepartmentScheduleTabProps> = ({
               .sort((a, b) => a - b)
               .map((sem) => semesterLabelsMapAr[sem] || `الكورس ${sem}`);
 
+            // 👥 استخراج الكروبات المحددة الفريدة (كروب A، كروب B... أو شعبة موحدة)
+            const selectedGroupsList = Array.from(
+              new Set(
+                currentlySelectedLectures.map((l) => {
+                  if (l.target_group && l.target_group !== 'all') {
+                    return `كروب ${l.target_group}`;
+                  }
+                  if (stageGroupsList.length > 0 && activeScheduleGroup && activeScheduleGroup !== 'all') {
+                    return `كروب ${activeScheduleGroup}`;
+                  }
+                  return 'شعبة موحدة';
+                })
+              )
+            ).sort();
+
             // 🔁 دالة تبديل تحديد كافة المحاضرات لجميع الأسابيع والأيام دفعة واحدة
             const handleToggleSelectAllStageLectures = () => {
               if (isAllStageLecturesSelected) {
@@ -1134,7 +1219,7 @@ export const DepartmentScheduleTab: React.FC<DepartmentScheduleTabProps> = ({
                       ) : (
                         <Sun className="w-4 h-4 text-sky-600" />
                       )}
-                      <span>إجمالي المحاضرات ({selectedScheduleStudyType === 'evening' ? 'مسائي' : 'صباحي'}): <strong>{currentStageScheduleLectures.length}</strong></span>
+                      <span>إجمالي محاضرات (الأسبوع {selectedScheduleWeek}) ({selectedScheduleStudyType === 'evening' ? 'مسائي' : 'صباحي'}): <strong>{currentStageScheduleLectures.length}</strong></span>
                       {selectedStageLecturesCount > 0 && (
                         <div className="mr-2 inline-flex items-center gap-2 flex-wrap">
                           {/* 🎖️ وسم عدد المحاضرات المحددة بلون كحلي ملكي موحد وبحجم متوسط واضح */}
@@ -1156,6 +1241,14 @@ export const DepartmentScheduleTab: React.FC<DepartmentScheduleTabProps> = ({
                             <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-sm font-black bg-[#0F2942] text-white border border-[#0F2942] shadow-xs">
                               <GraduationCap className="w-4 h-4 text-cyan-300 shrink-0" />
                               <span>{selectedStagesList.join('، ')}</span>
+                            </span>
+                          )}
+
+                          {/* 👥 وسم الكروب المحدد بلون كحلي ملكي موحد */}
+                          {selectedGroupsList.length > 0 && (
+                            <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-sm font-black bg-[#0F2942] text-white border border-[#0F2942] shadow-xs">
+                              <GroupBadgeSvg className="w-4 h-4 text-cyan-300 shrink-0" />
+                              <span>{selectedGroupsList.join('، ')}</span>
                             </span>
                           )}
 
@@ -1260,6 +1353,15 @@ export const DepartmentScheduleTab: React.FC<DepartmentScheduleTabProps> = ({
                           </span>
                         )}
 
+                        {/* 👥 الكروب المحدد بلون كحلي ملكي موحد */}
+                        {selectedGroupsList.length > 0 && (
+                          <span className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-[#0F2942] text-white border border-[#0F2942] rounded-xl text-sm font-black shadow-xs">
+                            <GroupBadgeSvg className="w-4.5 h-4.5 text-cyan-300 shrink-0" />
+                            <span className="text-cyan-200 font-bold">الكروب:</span>
+                            <span className="text-white">{selectedGroupsList.join('، ')}</span>
+                          </span>
+                        )}
+
                         {/* ☀️/🌙 الفترة المحددة بلون كحلي ملكي موحد */}
                         {selectedStudyTypesList.length > 0 && (
                           <span className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-[#0F2942] text-white border border-[#0F2942] rounded-xl text-sm font-black shadow-xs">
@@ -1285,38 +1387,44 @@ export const DepartmentScheduleTab: React.FC<DepartmentScheduleTabProps> = ({
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center gap-2.5 shrink-0 flex-nowrap">
                       {/* ⚡ زر مساند فوري: تحديد كافة المحاضرات إذا لم تكن كلها محددة */}
                       {!isAllStageLecturesSelected && allStageLectureIds.length > 0 && (
                         <button
                           type="button"
                           onClick={handleToggleSelectAllStageLectures}
-                          className="px-3.5 py-2 bg-white hover:bg-slate-100 text-[#0F2942] border-2 border-[#0F2942] rounded-xl font-black text-xs sm:text-sm transition flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
+                          className="px-4 py-2.5 bg-white hover:bg-slate-100 text-[#0F2942] border-2 border-[#0F2942] rounded-xl font-black text-xs sm:text-sm transition flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95 whitespace-nowrap shrink-0"
                           title="تحديد باقي كافة المحاضرات دفعة واحدة"
                         >
-                          <CheckCheck className="w-4 h-4 text-[#0F2942]" />
+                          <CheckCheck className="w-4 h-4 text-[#0F2942] shrink-0" />
                           <span>تحديد الكل ({allStageLectureIds.length})</span>
                         </button>
                       )}
 
+                      {/* 🗑️ زر حذف كافة المحاضرات المحددة بتصميم أحمر تحذيري راقٍ ومطابق الحجم */}
                       <button
                         type="button"
                         onClick={handleBulkDeleteScheduleLectures}
-                        className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl font-black text-sm transition flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+                        className="px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-black text-xs sm:text-sm transition flex items-center gap-2 cursor-pointer shadow-sm active:scale-95 whitespace-nowrap shrink-0 border border-red-700"
+                        title={isAllStageLecturesSelected ? 'حذف كافة محاضرات الجدول المحددة' : 'حذف المحاضرات المحددة'}
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-4 h-4 text-white shrink-0" />
                         <span>
                           {isAllStageLecturesSelected
                             ? `حذف كافة المحاضرات (${selectedScheduleLectureIds.length})`
                             : `حذف المحاضرات المحددة (${selectedScheduleLectureIds.length})`}
                         </span>
                       </button>
+
+                      {/* ❌ زر إلغاء التحديد بتصميم راقٍ متناسق بنفس الارتفاع والأبعاد مع أيقونة واضحة */}
                       <button
                         type="button"
                         onClick={() => setSelectedScheduleLectureIds([])}
-                        className="px-3.5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl font-black text-sm transition cursor-pointer"
+                        className="px-4 py-2.5 bg-white hover:bg-slate-100 text-slate-800 border-2 border-slate-300 rounded-xl font-black text-xs sm:text-sm transition flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95 whitespace-nowrap shrink-0"
+                        title="إلغاء تحديد كافة المحاضرات"
                       >
-                        إلغاء التحديد
+                        <X className="w-4 h-4 text-slate-600 shrink-0" />
+                        <span>إلغاء التحديد</span>
                       </button>
                     </div>
                   </div>
@@ -1325,21 +1433,37 @@ export const DepartmentScheduleTab: React.FC<DepartmentScheduleTabProps> = ({
             <div className="space-y-4">
               {DAYS_OF_WEEK_LIST.map((d) => {
                 const isOff = currentScheduleConfig.off_days.includes(d.key);
-                // 📚 جلب وترتيب محاضرات هذا اليوم للقسم المحدد
+                // 📚 جلب وترتيب محاضرات هذا اليوم للقسم المحدد مع عزل الأسبوع بدقة تامة
                 const dayLecs = scheduleLectures
                   .filter(
                     (l) => {
-                      if (!isLectureInCurrentDept(l)) return false;
-                      if (l.stage_number !== selectedScheduleStage) return false;
-                      if (l.semester !== selectedScheduleSemester) return false;
+                      if (!isLectureInCurrentDept(l)) return false; // 🏢 عزل صارم 100%: مطابقة معرف القسم حصراً
+                      if (l.stage_number !== selectedScheduleStage) return false; // 🎓 مطابقة المرحلة الدراسية المحددة
+                      if (l.semester !== selectedScheduleSemester) return false; // 🗓️ مطابقة الكورس الدراسي
                       if ((l.study_type || 'morning') !== selectedScheduleStudyType) return false; // ☀️ مطابقة الدوام الصباحي أو المسائي
-                      if (l.day !== d.key) return false; // 🗓️ مطابقة يوم المحاضرة
+                      if (!isLectureActiveInWeek(l, selectedScheduleWeek)) return false; // 🎯 عزل أسبوعي ذكي: فحص نشاط المحاضرة في الأسبوع المختار
+                      const weekOverride = l.weekly_overrides?.[selectedScheduleWeek]; // ⚙️ استخراج استثناء وتعديل هذا الأسبوع
+                      const effectiveDay = weekOverride?.day || l.day; // 🗓️ اليوم الفعلي المعتمد بعد الاستثناء
+                      if (effectiveDay !== d.key) return false; // 🗓️ مطابقة يوم المحاضرة الفعلي
                       if (stageGroupsList.length > 0) {
                         return l.target_group === activeScheduleGroup; // 🎯 عزل صارم: إظهار محاضرات هذا الكروب فقط
                       }
                       return true; // 🌐 شعبة موحدة
                     }
                   )
+                  .map((l) => { // 🔄 تطبيق تعديلات واستثناءات الأسبوع المختار
+                    const weekOverride = l.weekly_overrides?.[selectedScheduleWeek]; // ⚙️ فحص الاستثناء الأسبوعي
+                    if (!weekOverride) return l; // 🛡️ إذا ماكو استثناء نرجع المحاضرة كما هي
+                    return { // 🚀 تطبيق التعديل الخاص بالأسبوع
+                      ...l, // 📋 البيانات الأصلية
+                      day: weekOverride.day || l.day, // 🗓️ اليوم المعدل
+                      start_time: weekOverride.start_time || l.start_time, // ⏰ وقت البدء المعدل
+                      end_time: weekOverride.end_time || l.end_time, // ⏰ وقت الانتهاء المعدل
+                      room: weekOverride.room || l.room, // 🏛️ القاعة المعدلة
+                      teacher_name: weekOverride.teacher_name || l.teacher_name, // 👨‍🏫 اسم الأستاذ المعدل
+                      date: weekOverride.date || l.date, // 📅 التاريخ المعدل
+                    }; // 🔚 نهاية الكائن
+                  })
                   .sort((a, b) => timeStringToMinutes(a.start_time) - timeStringToMinutes(b.start_time));
 
                 return (
@@ -1353,8 +1477,8 @@ export const DepartmentScheduleTab: React.FC<DepartmentScheduleTabProps> = ({
                       <div className="flex items-center gap-3">
                         <span className="font-black text-lg sm:text-xl text-slate-950">{d.label_ar}</span>
                         {isOff ? (
-                          <span className="px-3 py-1 bg-slate-200 text-slate-950 border border-slate-300 text-sm font-black rounded-xl">
-                            <Coffee className="w-4 h-4 inline mr-1 text-slate-700" /> عطلة رسمية معتمدة
+                          <span className="px-3 py-1 bg-rose-50 text-rose-950 border border-rose-300 text-sm font-black rounded-xl shadow-2xs">
+                            <Coffee className="w-4 h-4 inline mr-1 text-rose-700" /> عطلة رسمية معتمدة
                           </span>
                         ) : (
                           <span className="px-3 py-1 bg-emerald-100 text-emerald-950 border border-emerald-300 text-sm font-black rounded-xl">
@@ -1512,9 +1636,9 @@ export const DepartmentScheduleTab: React.FC<DepartmentScheduleTabProps> = ({
 
                                 {/* شارات الدراسة والنوع موحدة بنصوص واضحة وعريضة */}
                                 <div className="flex items-center gap-1.5 flex-wrap">
-                                  {/* 🎖️ وسم تسلسل المحاضرة الأكاديمي الفصيح (المحاضرة الأولى، المحاضرة الثانية...) بتصميم كحلي ملكي راقٍ */}
+                                  {/* 🎖️ وسم تسلسل المحاضرة الأكاديمي الفصيح (المحاضرة الأولى، المحاضرة الثانية...) بتصميم كحلي ملكي راقٍ بدون أي نقطة سمائية */}
                                   <span className="px-3 py-1.5 bg-[#0F2942] text-white border border-[#0F2942] rounded-xl text-xs sm:text-sm font-black shadow-2xs flex items-center gap-1.5 shrink-0">
-                                    <span className="w-2 h-2 rounded-full bg-cyan-300 shrink-0" />
+                                    {/* 🏷️ إظهار تسلسل المحاضرة بنص أنيق وواضح */}
                                     <span>{formatArabicOrdinalLectureName(idx + 1)}</span>
                                   </span>
                                   <span className={unifiedBadgeClass}>
@@ -1609,20 +1733,31 @@ export const DepartmentScheduleTab: React.FC<DepartmentScheduleTabProps> = ({
                                   )}
                                   {lec.notes && (
                                     <p className="text-xs sm:text-sm font-black text-slate-800 bg-white border border-slate-200 p-2.5 rounded-lg flex items-center gap-2">
-                                      <Lightbulb className="w-4 h-4 text-amber-600 shrink-0" />
+                                      <Lightbulb className="w-4 h-4 text-blue-700 shrink-0" /> {/* 💡 أيقونة الملاحظات بلون أزرق أكاديمي */}
                                       <span>ملاحظات: <strong>{lec.notes}</strong></span>
                                     </p>
                                   )}
                                 </div>
                               </div>
 
-                              {/* 🛠️ 4. أزرار الإجراءات تعديل وحذف متساوية ومتباعدة بوضوح */}
-                              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+                              {/* 🛠️ 4. أزرار الإجراءات تعديل وحذف وإلغاء للأسبوع متساوية ومتباعدة بوضوح وبدون أي لون برتقالي */}
+                              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100 flex-wrap">
+                                {handleDeleteLectureForWeek && (
+                                  <button
+                                    type="button" // 🔘 نوع الزر
+                                    onClick={() => handleDeleteLectureForWeek(lec.id, selectedScheduleWeek)} // 🚫 استدعاء دالة الإلغاء للأسبوع المحدد
+                                    className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 hover:bg-[#0F2942] text-slate-950 hover:text-white border-2 border-slate-300 hover:border-[#0F2942] rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer shadow-2xs active:scale-95 group" // 🎨 تصميم رسمي رصين متناسق تماماً مع هوية النظام وبدون أي لون برتقالي
+                                    title={`إلغاء واستبعاد هذه المحاضرة للأسبوع ${selectedScheduleWeek} فقط دون حذفها من بقية الأسابيع`} // 💬 تلميح زر الإلغاء
+                                  >
+                                    <XCircle className="w-4 h-4 text-slate-700 group-hover:text-white shrink-0 transition-colors" /> {/* 🚫 أيقونة الإلغاء بلون متناسق */}
+                                    <span>إلغاء للأسبوع ({selectedScheduleWeek})</span> {/* 📝 نص الزر الموضح لرقم الأسبوع */}
+                                  </button>
+                                )}
                                 <button
                                   type="button"
                                   onClick={() => handleEditLecture(lec)}
                                   className="flex items-center gap-1.5 px-4 py-2 bg-blue-100 hover:bg-blue-600 text-blue-950 hover:text-white border-2 border-blue-300 hover:border-blue-600 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer shadow-2xs active:scale-95"
-                                  title="تعديل المحاضرة"
+                                  title="تعديل بيانات المحاضرة"
                                 >
                                   <Edit3 className="w-4 h-4" />
                                   <span>تعديل</span>
@@ -1631,10 +1766,10 @@ export const DepartmentScheduleTab: React.FC<DepartmentScheduleTabProps> = ({
                                   type="button"
                                   onClick={() => handleDeleteLecture(lec.id)}
                                   className="flex items-center gap-1.5 px-4 py-2 bg-rose-100 hover:bg-rose-600 text-rose-950 hover:text-white border-2 border-rose-300 hover:border-rose-600 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer shadow-2xs active:scale-95"
-                                  title="حذف المحاضرة"
+                                  title="حذف المحاضرة نهائياً من كافة الأسابيع"
                                 >
                                   <Trash2 className="w-4 h-4" />
-                                  <span>حذف</span>
+                                  <span>حذف نهائي</span>
                                 </button>
                               </div>
                             </div>
