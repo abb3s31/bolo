@@ -3,7 +3,7 @@
 // 📊 مكتبة قراءة وتوليد ملفات Excel احترافياً - جامعة الإمام جعفر الصادق (ع) - فرع ميسان
 import ExcelJS from 'exceljs'; // 📦 محرك ExcelJS لتوليد الجداول المجدولة الملونة الفاخرة
 import * as XLSX from 'xlsx'; // 📦 مكتبة قراءة وتحليل ملفات Excel
-import { sanitizeExcelField } from './grade-utils'; // 🛡️ دالة تطهير الصيغ والرموز
+import { sanitizeExcelField, isAssessmentItemActive, DEFAULT_THEORY_PRACTICAL_SCHEME, DEFAULT_THEORY_ONLY_SCHEME } from './grade-utils'; // 🛡️ دالة تطهير الصيغ والرموز والمخططات وفحص البنود المفتوحة
 import { generateStrongUniqueEmail, generateStrongPassword, INITIAL_PROFILES } from './mock-data'; // 🎲 توليد الحسابات الموحدة
 import { formatEnglishDateTime, translateAcademicField, getTranslatedAuditAction, translateAuditDetails } from './date-utils'; // 📅 دوال تنسيق التاريخ وترجمة البنود والتفاصيل الأكاديمية والأمنية
 import { AssessmentScheme, AttendanceWarningStatus, CourseType, FinalExamSchedule, FinalExamSlot, StudentTuitionRecord, UserProfile } from '@/types'; // 🔗 استيراد واجهات المخطط وحالة الإنذارات ونوع المادة وجداول الامتحانات والأقساط والملفات الشخصية
@@ -158,62 +158,48 @@ export async function downloadTeacherGradeTemplate(
   const finalTag = isFinalActive ? '_مع_النهائي' : '_السعي_فقط'; // 🏷️ وسم حالة الفاينل في اسم الملف
   const supTag = isSupActive ? '_دور_ثاني' : ''; // 🏷️ وسم حالة الدور الثاني في اسم الملف
 
-  const q1Label = scheme ? `${scheme.quiz1.title_ar} (${scheme.quiz1.max_score})` : 'الكويز1 (5)';
-  const q2Label = scheme ? `${scheme.quiz2.title_ar} (${scheme.quiz2.max_score})` : 'الكويز2 (5)';
-  const a1Label = scheme ? `${scheme.assignment1.title_ar} (${scheme.assignment1.max_score})` : 'الواجب1 (5)';
-  const a2Label = scheme ? `${scheme.assignment2.title_ar} (${scheme.assignment2.max_score})` : 'الواجب2 (5)';
-  const repLabel = scheme ? `${scheme.report.title_ar} (${scheme.report.max_score})` : 'التقرير (10)';
-  const midLabel = scheme ? `${scheme.midterm.title_ar} (${scheme.midterm.max_score})` : 'الميدترم (10)';
-  const pracLabel = scheme ? `${scheme.practical.title_ar} (${scheme.practical.max_score})` : 'العملي (10)';
-  const finLabel = scheme ? `${scheme.final_exam.title_ar} (${scheme.final_exam.max_score})` : 'النهائي (50)';
-  const supLabel = 'امتحان الدور الثاني (50)';
+  // 🎛️ تحديد المخطط التقييمي المعتمد
+  const effectiveScheme: AssessmentScheme = scheme || (hasPractical ? DEFAULT_THEORY_PRACTICAL_SCHEME : DEFAULT_THEORY_ONLY_SCHEME);
 
-  const columns = [
+  // 🔍 فحص حالة كل بند هل هو مفتوح أم مغلق لإخفائه بالكامل من نموذج الإكسل
+  const hasQuiz1 = isAssessmentItemActive(effectiveScheme.quiz1);
+  const hasQuiz2 = isAssessmentItemActive(effectiveScheme.quiz2);
+  const hasAssignment1 = isAssessmentItemActive(effectiveScheme.assignment1);
+  const hasAssignment2 = isAssessmentItemActive(effectiveScheme.assignment2);
+  const hasReport = isAssessmentItemActive(effectiveScheme.report);
+  const hasMidterm = isAssessmentItemActive(effectiveScheme.midterm);
+  const hasPracticalActive = hasPractical && isAssessmentItemActive(effectiveScheme.practical);
+  const hasFinalActive = isFinalActive && isAssessmentItemActive(effectiveScheme.final_exam);
+
+  const columns: { header: string; key: string; width: number }[] = [
     { header: 'ت', key: 'seq', width: 10 },
     { header: 'اسم الطالب الرباعي', key: 'std_name', width: 36 },
-    { header: q1Label, key: 'q1', width: 18 },
-    { header: q2Label, key: 'q2', width: 18 },
-    { header: a1Label, key: 'a1', width: 18 },
-    { header: a2Label, key: 'a2', width: 18 },
-    { header: repLabel, key: 'rep', width: 18 },
-    { header: midLabel, key: 'mid', width: 18 },
   ];
 
-  if (hasPractical) {
-    columns.push({ header: pracLabel, key: 'prac', width: 18 });
-  }
-  
-  // 🎯 إضافة عمود الامتحان النهائي الدور الأول فقط إذا كان مفعلاً
-  if (isFinalActive) {
-    columns.push({ header: finLabel, key: 'fin', width: 18 });
-  }
-
-  // 🔄 إضافة عمود الدور الثاني فقط في حال كانت فترة الدور الثاني مفعلة رسمياً من رئاسة القسم
-  if (isSupActive) {
-    columns.push({ header: supLabel, key: 'sup', width: 24 });
-  }
+  if (hasQuiz1) columns.push({ header: `${effectiveScheme.quiz1.title_ar} (${effectiveScheme.quiz1.max_score})`, key: 'q1', width: 18 });
+  if (hasQuiz2) columns.push({ header: `${effectiveScheme.quiz2.title_ar} (${effectiveScheme.quiz2.max_score})`, key: 'q2', width: 18 });
+  if (hasAssignment1) columns.push({ header: `${effectiveScheme.assignment1.title_ar} (${effectiveScheme.assignment1.max_score})`, key: 'a1', width: 18 });
+  if (hasAssignment2) columns.push({ header: `${effectiveScheme.assignment2.title_ar} (${effectiveScheme.assignment2.max_score})`, key: 'a2', width: 18 });
+  if (hasReport) columns.push({ header: `${effectiveScheme.report.title_ar} (${effectiveScheme.report.max_score})`, key: 'rep', width: 18 });
+  if (hasMidterm) columns.push({ header: `${effectiveScheme.midterm.title_ar} (${effectiveScheme.midterm.max_score})`, key: 'mid', width: 18 });
+  if (hasPracticalActive) columns.push({ header: `${effectiveScheme.practical.title_ar} (${effectiveScheme.practical.max_score})`, key: 'prac', width: 18 });
+  if (hasFinalActive) columns.push({ header: `${effectiveScheme.final_exam.title_ar} (${effectiveScheme.final_exam.max_score})`, key: 'fin', width: 18 });
+  if (isSupActive) columns.push({ header: 'امتحان الدور الثاني (50)', key: 'sup', width: 24 });
 
   const mappedRows: Record<string, string | number>[] = students.map((std, idx) => {
     const row: Record<string, string | number> = {
       seq: idx + 1,
       std_name: sanitizeExcelField(std.full_name),
-      q1: scheme ? (scheme.quiz1.max_score * 0.9) : 4.5,
-      q2: scheme ? scheme.quiz2.max_score : 5,
-      a1: scheme ? (scheme.assignment1.max_score * 0.8) : 4,
-      a2: scheme ? scheme.assignment2.max_score : 5,
-      rep: scheme ? (scheme.report.max_score * 0.95) : 9.5,
-      mid: scheme ? (scheme.midterm.max_score * 0.9) : 9,
     };
-    if (hasPractical) {
-      row.prac = scheme ? scheme.practical.max_score : 10;
-    }
-    // 🎯 إضافة درجة الفاينل في النموذج فقط في حال كان مفعلاً
-    if (isFinalActive) {
-      row.fin = scheme ? (scheme.final_exam.max_score * 0.9) : 45;
-    }
-    if (isSupActive) {
-      row.sup = ''; // حقل فارغ للدور الثاني
-    }
+    if (hasQuiz1) row.q1 = effectiveScheme.quiz1.max_score * 0.9;
+    if (hasQuiz2) row.q2 = effectiveScheme.quiz2.max_score;
+    if (hasAssignment1) row.a1 = effectiveScheme.assignment1.max_score * 0.8;
+    if (hasAssignment2) row.a2 = effectiveScheme.assignment2.max_score;
+    if (hasReport) row.rep = effectiveScheme.report.max_score * 0.95;
+    if (hasMidterm) row.mid = effectiveScheme.midterm.max_score * 0.9;
+    if (hasPracticalActive) row.prac = effectiveScheme.practical.max_score;
+    if (hasFinalActive) row.fin = effectiveScheme.final_exam.max_score * 0.9;
+    if (isSupActive) row.sup = '';
     return row;
   });
 
@@ -226,23 +212,16 @@ export async function downloadTeacherGradeTemplate(
     const emptyRow: Record<string, string | number> = {
       seq: i,
       std_name: '',
-      q1: scheme ? (scheme.quiz1.max_score * 0.9) : 4.5,
-      q2: scheme ? scheme.quiz2.max_score : 5,
-      a1: scheme ? (scheme.assignment1.max_score * 0.8) : 4,
-      a2: scheme ? scheme.assignment2.max_score : 5,
-      rep: scheme ? (scheme.report.max_score * 0.95) : 9.5,
-      mid: scheme ? (scheme.midterm.max_score * 0.9) : 9,
     };
-    if (hasPractical) {
-      emptyRow.prac = scheme ? scheme.practical.max_score : 10;
-    }
-    // 🎯 إضافة درجة الفاينل للأسطر الفارغة فقط إذا كان مفعلاً
-    if (isFinalActive) {
-      emptyRow.fin = scheme ? (scheme.final_exam.max_score * 0.9) : 45;
-    }
-    if (isSupActive) {
-      emptyRow.sup = '';
-    }
+    if (hasQuiz1) emptyRow.q1 = effectiveScheme.quiz1.max_score * 0.9;
+    if (hasQuiz2) emptyRow.q2 = effectiveScheme.quiz2.max_score;
+    if (hasAssignment1) emptyRow.a1 = effectiveScheme.assignment1.max_score * 0.8;
+    if (hasAssignment2) emptyRow.a2 = effectiveScheme.assignment2.max_score;
+    if (hasReport) emptyRow.rep = effectiveScheme.report.max_score * 0.95;
+    if (hasMidterm) emptyRow.mid = effectiveScheme.midterm.max_score * 0.9;
+    if (hasPracticalActive) emptyRow.prac = effectiveScheme.practical.max_score;
+    if (hasFinalActive) emptyRow.fin = effectiveScheme.final_exam.max_score * 0.9;
+    if (isSupActive) emptyRow.sup = '';
     return emptyRow;
   });
 
@@ -2614,55 +2593,73 @@ export async function exportCustomGradesList(
     is_locked: boolean; // 🔒 هل السعي مقفول ومعتمد رسمياً؟
   }[],
   deptName: string, // 🏢 اسم القسم الأكاديمي
-  courseFilterName: string = 'كافة المواد' // 📘 اسم المادة المصفاة للتسمية
+  courseFilterName: string = 'كافة المواد', // 📘 اسم المادة المصفاة للتسمية
+  scheme?: AssessmentScheme // 🎛️ المخطط التقييمي للمادة لإخفاء البنود المغلقة
 ): Promise<void> {
-  // 📝 تجهيز البيانات وتحويل الأرقام والتقديرات لصيغة قابلة للتصدير
-  const data = grades.map((g, idx) => ({
-    seq: idx + 1, // 🔢 التسلسل
-    student: g.student_name, // 👤 الطالب
-    uniNum: g.university_number, // 🆔 الرقم الجامعي
-    course: g.course_name, // 📘 المادة
-    q1: g.quiz1, // كويز 1
-    q2: g.quiz2, // كويز 2
-    a1: g.assignment1, // واجب 1
-    a2: g.assignment2, // واجب 2
-    rep: g.report, // تقرير
-    mid: g.midterm, // نصفي
-    prac: g.practical, // عملي
-    coursework: g.final_coursework_total, // السعي من 50
-    finalExam: g.final_exam, // النهائي من 50
-    suppExam: g.supplementary_exam ?? '—', // الدور الثاني
-    total: g.final_total ?? (g.final_coursework_total + g.final_exam), // المجموع النهائي
-    gradeLetter: g.letter_grade || '—', // التقدير الحرفي
-    status: g.is_locked ? 'معتمد ومقفل' : 'مسودة قيد الرصد', // حالة السجل
-    dept: deptName, // القسم
-  }));
+  // 🔍 فحص حالة كل بند إذا كان المخطط متوفراً
+  const hasQuiz1 = !scheme || isAssessmentItemActive(scheme.quiz1);
+  const hasQuiz2 = !scheme || isAssessmentItemActive(scheme.quiz2);
+  const hasAssignment1 = !scheme || isAssessmentItemActive(scheme.assignment1);
+  const hasAssignment2 = !scheme || isAssessmentItemActive(scheme.assignment2);
+  const hasReport = !scheme || isAssessmentItemActive(scheme.report);
+  const hasMidterm = !scheme || isAssessmentItemActive(scheme.midterm);
+  const hasPractical = !scheme || isAssessmentItemActive(scheme.practical);
+
+  // 📝 تجهيز البيانات وتحويل الأرقام والتقديرات لصيغة قابلة للتصدير مع إخفاء البنود المغلقة
+  const data = grades.map((g, idx) => {
+    const rowObj: Record<string, string | number> = {
+      seq: idx + 1, // 🔢 التسلسل
+      student: g.student_name, // 👤 الطالب
+      uniNum: g.university_number, // 🆔 الرقم الجامعي
+      course: g.course_name, // 📘 المادة
+    };
+    if (hasQuiz1) rowObj.q1 = g.quiz1;
+    if (hasQuiz2) rowObj.q2 = g.quiz2;
+    if (hasAssignment1) rowObj.a1 = g.assignment1;
+    if (hasAssignment2) rowObj.a2 = g.assignment2;
+    if (hasReport) rowObj.rep = g.report;
+    if (hasMidterm) rowObj.mid = g.midterm;
+    if (hasPractical) rowObj.prac = g.practical;
+    rowObj.coursework = g.final_coursework_total;
+    rowObj.finalExam = g.final_exam;
+    rowObj.suppExam = g.supplementary_exam ?? '—';
+    rowObj.total = g.final_total ?? (g.final_coursework_total + g.final_exam);
+    rowObj.gradeLetter = g.letter_grade || '—';
+    rowObj.status = g.is_locked ? 'معتمد ومقفل' : 'مسودة قيد الرصد';
+    rowObj.dept = deptName;
+    return rowObj;
+  });
+
+  const columns: { header: string; key: string; width: number }[] = [
+    { header: 'ت', key: 'seq', width: 8 },
+    { header: 'اسم الطالب الثلاثي', key: 'student', width: 32 },
+    { header: 'الرقم الجامعي', key: 'uniNum', width: 18 },
+    { header: 'المادة الدراسية', key: 'course', width: 28 },
+  ];
+
+  if (hasQuiz1) columns.push({ header: scheme ? `${scheme.quiz1.title_ar} (${scheme.quiz1.max_score})` : 'كويز 1 (5)', key: 'q1', width: 12 });
+  if (hasQuiz2) columns.push({ header: scheme ? `${scheme.quiz2.title_ar} (${scheme.quiz2.max_score})` : 'كويز 2 (5)', key: 'q2', width: 12 });
+  if (hasAssignment1) columns.push({ header: scheme ? `${scheme.assignment1.title_ar} (${scheme.assignment1.max_score})` : 'واجب 1 (5)', key: 'a1', width: 12 });
+  if (hasAssignment2) columns.push({ header: scheme ? `${scheme.assignment2.title_ar} (${scheme.assignment2.max_score})` : 'واجب 2 (5)', key: 'a2', width: 12 });
+  if (hasReport) columns.push({ header: scheme ? `${scheme.report.title_ar} (${scheme.report.max_score})` : 'تقرير (5)', key: 'rep', width: 12 });
+  if (hasMidterm) columns.push({ header: scheme ? `${scheme.midterm.title_ar} (${scheme.midterm.max_score})` : 'نصفي (15)', key: 'mid', width: 12 });
+  if (hasPractical) columns.push({ header: scheme ? `${scheme.practical.title_ar} (${scheme.practical.max_score})` : 'عملي (10)', key: 'prac', width: 12 });
+  columns.push(
+    { header: 'مجموع السعي (50)', key: 'coursework', width: 18 },
+    { header: 'الامتحان النهائي (50)', key: 'finalExam', width: 20 },
+    { header: 'الدور الثاني', key: 'suppExam', width: 14 },
+    { header: 'المجموع الكلي (100)', key: 'total', width: 20 },
+    { header: 'التقدير', key: 'gradeLetter', width: 12 },
+    { header: 'حالة السجل', key: 'status', width: 16 },
+    { header: 'القسم الأكاديمي', key: 'dept', width: 24 }
+  );
 
   const dateFormatted = new Date().toISOString().slice(0, 10); // 📅 تاريخ اليوم للتسمية
   await generateAndDownloadExcel(
     [
       {
         sheetName: 'سجل_درجات_بولونيا', // 📑 اسم ورقة العمل
-        columns: [
-          { header: 'ت', key: 'seq', width: 8 },
-          { header: 'اسم الطالب الثلاثي', key: 'student', width: 32 },
-          { header: 'الرقم الجامعي', key: 'uniNum', width: 18 },
-          { header: 'المادة الدراسية', key: 'course', width: 28 },
-          { header: 'كويز 1 (5)', key: 'q1', width: 12 },
-          { header: 'كويز 2 (5)', key: 'q2', width: 12 },
-          { header: 'واجب 1 (5)', key: 'a1', width: 12 },
-          { header: 'واجب 2 (5)', key: 'a2', width: 12 },
-          { header: 'تقرير (5)', key: 'rep', width: 12 },
-          { header: 'نصفي (15)', key: 'mid', width: 12 },
-          { header: 'عملي (10)', key: 'prac', width: 12 },
-          { header: 'مجموع السعي (50)', key: 'coursework', width: 18 },
-          { header: 'الامتحان النهائي (50)', key: 'finalExam', width: 20 },
-          { header: 'الدور الثاني', key: 'suppExam', width: 14 },
-          { header: 'المجموع الكلي (100)', key: 'total', width: 20 },
-          { header: 'التقدير', key: 'gradeLetter', width: 12 },
-          { header: 'حالة السجل', key: 'status', width: 16 },
-          { header: 'القسم الأكاديمي', key: 'dept', width: 24 },
-        ],
+        columns,
         data,
         headerColor: 'FF0F2942', // 🎨 كحلي ملكي فاخر
       },
@@ -2680,8 +2677,10 @@ export async function exportCustomAttendanceList(
     study_type: 'morning' | 'evening'; // ☀️ نوع الدراسة (صباحي / مسائي)
     course_name: string; // 📝 اسم المادة الدراسية
     total_hours: number; // ⏳ إجمالي الساعات المقررة
-    unexcused_hours: number; // ❌ ساعات الغياب بدون عذر
-    excused_hours: number; // 📑 ساعات الغياب بعذر
+    present_hours?: number; // 🟢 ساعات الحضور الفعلي
+    excused_hours: number; // 🔵 ساعات الإجازة الرسمية
+    holiday_hours?: number; // 🏖️ ساعات العطلة الرسمية
+    unexcused_hours: number; // 🔴 ساعات الغياب بدون عذر
     absence_percentage: number; // 📊 نسبة الغياب الكلية
     warning_status: AttendanceWarningStatus | 'none' | 'first_warning' | 'final_warning' | 'dismissed'; // ⚠️ حالة الإنذار الأكاديمي
     notes?: string; // 📝 ملاحظات
@@ -2700,7 +2699,7 @@ export async function exportCustomAttendanceList(
     dismissed: 'حرمان رسمي وتجاوز الحد (10%)',
   };
 
-  // 📝 تجهيز البيانات وتنسيق نسب الغياب
+  // 📝 تجهيز البيانات وتنسيق نسب وساعات الحضور والإجازات والعطل والغياب
   const data = records.map((r, idx) => ({
     seq: idx + 1, // 🔢 التسلسل
     student: r.student_name, // 👤 اسم الطالب
@@ -2709,8 +2708,10 @@ export async function exportCustomAttendanceList(
     studyType: r.study_type === 'evening' ? 'مسائي' : 'صباحي', // ☀️ نوع الدراسة
     course: r.course_name, // 📘 المادة
     total: r.total_hours, // الساعات المقررة
-    unexcused: r.unexcused_hours, // بدون عذر
-    excused: r.excused_hours, // بعذر
+    present: r.present_hours ?? 0, // 🟢 ساعات الحضور الفعلي
+    excused: r.excused_hours, // 🔵 ساعات الإجازة
+    holiday: r.holiday_hours ?? 0, // 🏖️ ساعات العطلة الرسمية
+    unexcused: r.unexcused_hours, // 🔴 ساعات الغياب
     pct: `${r.absence_percentage.toFixed(1)}%`, // النسبة
     status: warningLabels[r.warning_status] || 'طبيعي', // الموقف الأكاديمي
     notes: r.notes || '—', // ملاحظات
@@ -2730,8 +2731,10 @@ export async function exportCustomAttendanceList(
           { header: 'الدراسة', key: 'studyType', width: 14 },
           { header: 'المادة الدراسية', key: 'course', width: 28 },
           { header: 'الساعات المقررة', key: 'total', width: 16 },
-          { header: 'غياب بدون عذر (ساعات)', key: 'unexcused', width: 22 },
-          { header: 'غياب بعذر (ساعات)', key: 'excused', width: 20 },
+          { header: 'ساعات الحضور (س)', key: 'present', width: 18 },
+          { header: 'ساعات الإجازة (س)', key: 'excused', width: 18 },
+          { header: 'ساعات العطلة (س)', key: 'holiday', width: 18 },
+          { header: 'ساعات الغياب (س)', key: 'unexcused', width: 18 },
           { header: 'نسبة الغياب', key: 'pct', width: 14 },
           { header: 'الموقف والإنذار الأكاديمي', key: 'status', width: 28 },
           { header: 'ملاحظات', key: 'notes', width: 22 },

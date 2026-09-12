@@ -696,27 +696,67 @@ export const LectureModal: React.FC<LectureModalProps> = ({
             }
           >
             <div className="space-y-4">
-              {/* 🎛️ 1. الشريط العلوي الثابت والمدمج: المرحلة + الكورس + الفترة الدراسية بسطر واحد */}
-              <div className="p-3 bg-slate-50 border border-slate-300 rounded-2xl flex flex-wrap xl:flex-nowrap items-center justify-between gap-3">
-                {/* المرحلة */}
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-sm font-black text-slate-950 flex items-center gap-1.5 shrink-0">
-                    <GraduationCap className="w-4 h-4 text-[#0F2942]" />
-                    <span>المرحلة:</span>
-                  </span>
-                  <div className="flex items-center gap-1.5 flex-nowrap">
-                    {[
-                      { num: 1, name: 'المرحلة الأولى' },
-                      { num: 2, name: 'المرحلة الثانية' },
-                      { num: 3, name: 'المرحلة الثالثة' },
-                      { num: 4, name: 'المرحلة الرابعة' },
-                    ].map((stg) => (
+              {/* 🎛️ 1. الشريط العلوي الموحد: المرحلة + الكورس + الفترة الدراسية + الكروب المستهدف */}
+              <div className="p-3.5 bg-slate-50 border border-slate-300 rounded-2xl space-y-3 shadow-2xs">
+                {/* 🎓 الصف الأول: المرحلة + الكورس + الفترة الدراسية */}
+                <div className="flex flex-wrap xl:flex-nowrap items-center justify-between gap-3">
+                  {/* المرحلة */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-sm font-black text-slate-950 flex items-center gap-1.5 shrink-0">
+                      <GraduationCap className="w-4 h-4 text-[#0F2942]" />
+                      <span>المرحلة:</span>
+                    </span>
+                    <div className="flex items-center gap-1.5 flex-nowrap">
+                      {[
+                        { num: 1, name: 'المرحلة الأولى' },
+                        { num: 2, name: 'المرحلة الثانية' },
+                        { num: 3, name: 'المرحلة الثالثة' },
+                        { num: 4, name: 'المرحلة الرابعة' },
+                      ].map((stg) => (
+                        <button
+                          key={stg.num}
+                          type="button"
+                          onClick={() => {
+                            if (selectedScheduleStage !== stg.num) {
+                              setSelectedScheduleStage(stg.num);
+                              setLecCourseId(''); // 🧹 تصفير المادة
+                              setLecType(''); // 🧹 تصفير طبيعة المحاضرة
+                              setLecTeacherId(''); // 🧹 تصفير الأستاذ المحاضر
+                              setLecRoom(''); // 🧹 تصفير القاعة
+                              setLecStartTime(''); // 🧹 تصفير وقت البدء
+                              setLecEndTime(''); // 🧹 تصفير وقت الانتهاء
+                              setLecNotes(''); // 🧹 تصفير الملاحظات
+                              setEditingLectureId(null); // 🔄 إلغاء وضع التعديل
+                              setLecModalSuccessMsg(''); // 🧹 مسح رسالة النجاح
+                              setIsLecCourseDropdownOpen(false); // 🚪 إغلاق القوائم المنسدلة
+                              setIsLecTypeDropdownOpen(false);
+                              setIsLecTeacherDropdownOpen(false);
+                            }
+                          }}
+                          className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer whitespace-nowrap ${
+                            selectedScheduleStage === stg.num
+                              ? 'bg-[#0F2942] text-white shadow-xs'
+                              : 'bg-white text-slate-950 border border-slate-300 hover:bg-slate-100'
+                          }`}
+                        >
+                          {stg.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* الكورس */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-sm font-black text-slate-950 flex items-center gap-1.5 shrink-0">
+                      <Layers className="w-4 h-4 text-[#0F2942]" />
+                      <span>الكورس:</span>
+                    </span>
+                    <div className="flex items-center gap-1.5 flex-nowrap">
                       <button
-                        key={stg.num}
                         type="button"
                         onClick={() => {
-                          if (selectedScheduleStage !== stg.num) {
-                            setSelectedScheduleStage(stg.num);
+                          if (selectedScheduleSemester !== 1) {
+                            setSelectedScheduleSemester(1);
                             setLecCourseId(''); // 🧹 تصفير المادة
                             setLecType(''); // 🧹 تصفير طبيعة المحاضرة
                             setLecTeacherId(''); // 🧹 تصفير الأستاذ المحاضر
@@ -732,147 +772,167 @@ export const LectureModal: React.FC<LectureModalProps> = ({
                           }
                         }}
                         className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer whitespace-nowrap ${
-                          selectedScheduleStage === stg.num
+                          selectedScheduleSemester === 1
                             ? 'bg-[#0F2942] text-white shadow-xs'
                             : 'bg-white text-slate-950 border border-slate-300 hover:bg-slate-100'
                         }`}
                       >
-                        {stg.name}
+                        الكورس الأول
                       </button>
-                    ))}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (selectedScheduleSemester !== 2) {
+                            setSelectedScheduleSemester(2);
+                            setLecCourseId(''); // 🧹 تصفير المادة
+                            setLecType(''); // 🧹 تصفير طبيعة المحاضرة
+                            setLecTeacherId(''); // 🧹 تصفير الأستاذ المحاضر
+                            setLecRoom(''); // 🧹 تصفير القاعة
+                            setLecStartTime(''); // 🧹 تصفير وقت البدء
+                            setLecEndTime(''); // 🧹 تصفير وقت الانتهاء
+                            setLecNotes(''); // 🧹 تصفير الملاحظات
+                            setEditingLectureId(null); // 🔄 إلغاء وضع التعديل
+                            setLecModalSuccessMsg(''); // 🧹 مسح رسالة النجاح
+                            setIsLecCourseDropdownOpen(false); // 🚪 إغلاق القوائم المنسدلة
+                            setIsLecTypeDropdownOpen(false);
+                            setIsLecTeacherDropdownOpen(false);
+                          }
+                        }}
+                        className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer whitespace-nowrap ${
+                          selectedScheduleSemester === 2
+                            ? 'bg-[#0F2942] text-white shadow-xs'
+                            : 'bg-white text-slate-950 border border-slate-300 hover:bg-slate-100'
+                        }`}
+                      >
+                        الكورس الثاني
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* الفترة: الصباحي / المسائي */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-sm font-black text-slate-950 flex items-center gap-1.5 shrink-0">
+                      <Clock className="w-4 h-4 text-[#0F2942]" />
+                      <span>الفترة:</span>
+                    </span>
+                    <div className="flex items-center gap-1.5 flex-nowrap">
+                      {/* ☀️ زر الفترة الصباحية بنمط الكحلي الملكي الفاخر #0F2942 */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (lecStudyType !== 'morning') {
+                            setLecStudyType('morning');
+                            setLecCourseId(''); // 🧹 تصفير المادة
+                            setLecType(''); // 🧹 تصفير طبيعة المحاضرة
+                            setLecTeacherId(''); // 🧹 تصفير الأستاذ المحاضر
+                            setLecRoom(''); // 🧹 تصفير القاعة
+                            setLecStartTime(''); // 🧹 تصفير وقت البدء
+                            setLecEndTime(''); // 🧹 تصفير وقت الانتهاء
+                            setLecNotes(''); // 🧹 تصفير الملاحظات
+                            setEditingLectureId(null); // 🔄 إلغاء وضع التعديل
+                            setLecModalSuccessMsg(''); // 🧹 مسح رسالة النجاح
+                            setIsLecCourseDropdownOpen(false); // 🚪 إغلاق القوائم المنسدلة
+                            setIsLecTypeDropdownOpen(false);
+                            setIsLecTeacherDropdownOpen(false);
+                          }
+                        }}
+                        className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                          lecStudyType === 'morning'
+                            ? 'bg-[#0F2942] text-white shadow-xs'
+                            : 'bg-white text-slate-950 border border-slate-300 hover:bg-slate-100'
+                        }`}
+                      >
+                        <Sun className="w-4 h-4 shrink-0" />
+                        <span>الصباحي</span>
+                      </button>
+                      {/* 🌙 زر الفترة المسائية بتصميم مطابق لزر الكورس الأول والثاني #0F2942 */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (lecStudyType !== 'evening') {
+                            setLecStudyType('evening');
+                            setLecCourseId(''); // 🧹 تصفير المادة
+                            setLecType(''); // 🧹 تصفير طبيعة المحاضرة
+                            setLecTeacherId(''); // 🧹 تصفير الأستاذ المحاضر
+                            setLecRoom(''); // 🧹 تصفير القاعة
+                            setLecStartTime(''); // 🧹 تصفير وقت البدء
+                            setLecEndTime(''); // 🧹 تصفير وقت الانتهاء
+                            setLecNotes(''); // 🧹 تصفير الملاحظات
+                            setEditingLectureId(null); // 🔄 إلغاء وضع التعديل
+                            setLecModalSuccessMsg(''); // 🧹 مسح رسالة النجاح
+                            setIsLecCourseDropdownOpen(false); // 🚪 إغلاق القوائم المنسدلة
+                            setIsLecTypeDropdownOpen(false);
+                            setIsLecTeacherDropdownOpen(false);
+                          }
+                        }}
+                        className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                          lecStudyType === 'evening'
+                            ? 'bg-[#0F2942] text-white shadow-xs'
+                            : 'bg-white text-slate-950 border border-slate-300 hover:bg-slate-100'
+                        }`}
+                      >
+                        <Moon className="w-4 h-4 shrink-0" />
+                        <span>المسائي</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
 
-                {/* الكورس */}
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-sm font-black text-slate-950 flex items-center gap-1.5 shrink-0">
-                    <Layers className="w-4 h-4 text-[#0F2942]" />
-                    <span>الكورس:</span>
-                  </span>
-                  <div className="flex items-center gap-1.5 flex-nowrap">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (selectedScheduleSemester !== 1) {
-                          setSelectedScheduleSemester(1);
-                          setLecCourseId(''); // 🧹 تصفير المادة
-                          setLecType(''); // 🧹 تصفير طبيعة المحاضرة
-                          setLecTeacherId(''); // 🧹 تصفير الأستاذ المحاضر
-                          setLecRoom(''); // 🧹 تصفير القاعة
-                          setLecStartTime(''); // 🧹 تصفير وقت البدء
-                          setLecEndTime(''); // 🧹 تصفير وقت الانتهاء
-                          setLecNotes(''); // 🧹 تصفير الملاحظات
-                          setEditingLectureId(null); // 🔄 إلغاء وضع التعديل
-                          setLecModalSuccessMsg(''); // 🧹 مسح رسالة النجاح
-                          setIsLecCourseDropdownOpen(false); // 🚪 إغلاق القوائم المنسدلة
-                          setIsLecTypeDropdownOpen(false);
-                          setIsLecTeacherDropdownOpen(false);
-                        }
-                      }}
-                      className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer whitespace-nowrap ${
-                        selectedScheduleSemester === 1
-                          ? 'bg-[#0F2942] text-white shadow-xs'
-                          : 'bg-white text-slate-950 border border-slate-300 hover:bg-slate-100'
-                      }`}
-                    >
-                      الكورس الأول
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (selectedScheduleSemester !== 2) {
-                          setSelectedScheduleSemester(2);
-                          setLecCourseId(''); // 🧹 تصفير المادة
-                          setLecType(''); // 🧹 تصفير طبيعة المحاضرة
-                          setLecTeacherId(''); // 🧹 تصفير الأستاذ المحاضر
-                          setLecRoom(''); // 🧹 تصفير القاعة
-                          setLecStartTime(''); // 🧹 تصفير وقت البدء
-                          setLecEndTime(''); // 🧹 تصفير وقت الانتهاء
-                          setLecNotes(''); // 🧹 تصفير الملاحظات
-                          setEditingLectureId(null); // 🔄 إلغاء وضع التعديل
-                          setLecModalSuccessMsg(''); // 🧹 مسح رسالة النجاح
-                          setIsLecCourseDropdownOpen(false); // 🚪 إغلاق القوائم المنسدلة
-                          setIsLecTypeDropdownOpen(false);
-                          setIsLecTeacherDropdownOpen(false);
-                        }
-                      }}
-                      className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer whitespace-nowrap ${
-                        selectedScheduleSemester === 2
-                          ? 'bg-[#0F2942] text-white shadow-xs'
-                          : 'bg-white text-slate-950 border border-slate-300 hover:bg-slate-100'
-                      }`}
-                    >
-                      الكورس الثاني
-                    </button>
-                  </div>
-                </div>
+                {/* 👥 فاصل أنيق بين تبويبات المراحل وشريط الكروب المستهدف */}
+                <div className="border-t border-slate-200/90" />
 
-                {/* الفترة: الصباحي / المسائي */}
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-sm font-black text-slate-950 flex items-center gap-1.5 shrink-0">
-                    <Clock className="w-4 h-4 text-[#0F2942]" />
-                    <span>الفترة:</span>
-                  </span>
-                  <div className="flex items-center gap-1.5 flex-nowrap">
-                    {/* ☀️ زر الفترة الصباحية بنمط الكحلي الملكي الفاخر #0F2942 */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (lecStudyType !== 'morning') {
-                          setLecStudyType('morning');
-                          setLecCourseId(''); // 🧹 تصفير المادة
-                          setLecType(''); // 🧹 تصفير طبيعة المحاضرة
-                          setLecTeacherId(''); // 🧹 تصفير الأستاذ المحاضر
-                          setLecRoom(''); // 🧹 تصفير القاعة
-                          setLecStartTime(''); // 🧹 تصفير وقت البدء
-                          setLecEndTime(''); // 🧹 تصفير وقت الانتهاء
-                          setLecNotes(''); // 🧹 تصفير الملاحظات
-                          setEditingLectureId(null); // 🔄 إلغاء وضع التعديل
-                          setLecModalSuccessMsg(''); // 🧹 مسح رسالة النجاح
-                          setIsLecCourseDropdownOpen(false); // 🚪 إغلاق القوائم المنسدلة
-                          setIsLecTypeDropdownOpen(false);
-                          setIsLecTeacherDropdownOpen(false);
-                        }
-                      }}
-                      className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-                        lecStudyType === 'morning'
-                          ? 'bg-[#0F2942] text-white shadow-xs'
-                          : 'bg-white text-slate-950 border border-slate-300 hover:bg-slate-100'
-                      }`}
-                    >
-                      <Sun className="w-4 h-4 shrink-0" />
-                      <span>الصباحي</span>
-                    </button>
-                    {/* 🌙 زر الفترة المسائية بتصميم مطابق لزر الكورس الأول والثاني #0F2942 */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (lecStudyType !== 'evening') {
-                          setLecStudyType('evening');
-                          setLecCourseId(''); // 🧹 تصفير المادة
-                          setLecType(''); // 🧹 تصفير طبيعة المحاضرة
-                          setLecTeacherId(''); // 🧹 تصفير الأستاذ المحاضر
-                          setLecRoom(''); // 🧹 تصفير القاعة
-                          setLecStartTime(''); // 🧹 تصفير وقت البدء
-                          setLecEndTime(''); // 🧹 تصفير وقت الانتهاء
-                          setLecNotes(''); // 🧹 تصفير الملاحظات
-                          setEditingLectureId(null); // 🔄 إلغاء وضع التعديل
-                          setLecModalSuccessMsg(''); // 🧹 مسح رسالة النجاح
-                          setIsLecCourseDropdownOpen(false); // 🚪 إغلاق القوائم المنسدلة
-                          setIsLecTypeDropdownOpen(false);
-                          setIsLecTeacherDropdownOpen(false);
-                        }
-                      }}
-                      className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-                        lecStudyType === 'evening'
-                          ? 'bg-[#0F2942] text-white shadow-xs'
-                          : 'bg-white text-slate-950 border border-slate-300 hover:bg-slate-100'
-                      }`}
-                    >
-                      <Moon className="w-4 h-4 shrink-0" />
-                      <span>المسائي</span>
-                    </button>
-                  </div>
+                {/* 👥 الصف الثاني: الكروب المستهدف للمحاضرة بالبداية أسفل تبويبات المراحل مباشرة */}
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-0.5">
+                  {availableStageGroups.length > 0 ? ( // ⚙️ فحص هل المرحلة مقسمة لكروبات معتمدة
+                    <>
+                      {/* 🎯 قسم العنوان وأزرار الكروبات الأنيقة */}
+                      <div className="flex items-center gap-2.5 flex-wrap">
+                        <label className="text-xs sm:text-sm font-black text-slate-950 flex items-center gap-1.5 shrink-0">
+                          <GroupUsersSvg className="w-4 h-4 text-[#0F2942] shrink-0" /> {/* 👥 أيقونة الكروب الأكاديمي */}
+                          <span>الكروب المستهدف للمحاضرة:</span> {/* 🏷️ عنوان الحقل الصريح في بداية النموذج */}
+                        </label>
+                        {/* 🔘 أزرار اختيار الكروب المعتمد حصراً */}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {availableStageGroups.map((grpName) => {
+                            const isSelected = lecTargetGroup === grpName; // 🔍 فحص هل هذا الكروب هو المحدد
+                            return (
+                              <button
+                                key={grpName} // 🔑 مفتاح فريد لكل كروب
+                                type="button" // 🔘 نوع الزر للنموذج لمنع الإرسال الخاطئ
+                                onClick={() => setLecTargetGroup(grpName)} // ⚡ تحديد الكروب المستهدف
+                                className={`px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer flex items-center gap-1.5 border ${
+                                  isSelected
+                                    ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-xs scale-[1.02]' // 🎨 كحلي ملكي للكروب المحدد
+                                    : 'bg-white hover:bg-slate-100 text-slate-950 border-slate-300' // ⚪ مظهر متناسق مع أزرار المراحل
+                                }`}
+                              >
+                                <GroupBadgeSvg className="w-3.5 h-3.5 shrink-0" /> {/* 🏷️ أيقونة شارة الكروب */}
+                                <span>كروب {grpName}</span> {/* 🔤 اسم الكروب */}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* 📌 شارة توضيح الكروب المختار بالوسم الكحلي الملكي */}
+                      <span className="text-xs font-black text-white bg-[#0F2942] px-3 py-1.5 rounded-xl border border-[#0F2942] shadow-xs inline-flex items-center gap-1.5 shrink-0">
+                        <GroupBadgeSvg className="w-3.5 h-3.5 text-cyan-300 shrink-0" /> {/* 👥 أيقونة الكروب الفيكتورية */}
+                        <span>خاصة بطلبة (كروب {lecTargetGroup || availableStageGroups[0]})</span> {/* 📌 تأكيد استقلالية المحاضرة للكروب المختار */}
+                      </span>
+                    </>
+                  ) : (
+                    // 🛑 في حال كانت المرحلة غير مقسمة لكروبات (شعبة موحدة)
+                    <div className="flex items-center justify-between w-full p-2 bg-blue-50/70 border border-blue-200 rounded-xl text-xs sm:text-sm font-black text-blue-950">
+                      <div className="flex items-center gap-2">
+                        <GroupUsersSvg className="w-4 h-4 text-[#0F2942] shrink-0" /> {/* 👥 أيقونة الشعبة الموحدة */}
+                        <span>لا يوجد كروبات لهذه المرحلة (شعبة موحدة)</span> {/* 📢 تنبيه صريح بعدم وجود كروبات */}
+                      </div>
+                      <span className="px-3 py-1 bg-[#0F2942] text-white border border-[#0F2942] rounded-xl text-xs font-black shadow-xs inline-flex items-center gap-1.5">
+                        <GroupUsersSvg className="w-3.5 h-3.5 text-cyan-300 shrink-0" /> {/* 👥 أيقونة الشعبة الموحدة */}
+                        <span>شعبة موحدة</span> {/* 🏷️ شارة الدفعة الكاملة */}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -2228,57 +2288,6 @@ export const LectureModal: React.FC<LectureModalProps> = ({
                     </div>
                   </div>
 
-                  {/* 👥 3.5 تحديد الكروب المستهدف للمحاضرة (خاص حصراً بكروبات المرحلة أو شعبة موحدة دون أي دمج أو اشتراك) */}
-                  <div className="space-y-2.5 p-3.5 bg-slate-50 border-2 border-slate-200 rounded-2xl shadow-2xs">
-                    {availableStageGroups.length > 0 ? ( // ⚙️ فحص هل المرحلة الحالية مقسمة لكروبات معتمدة
-                      <>
-                        <div className="flex items-center justify-between flex-wrap gap-2">
-                          <label className="text-xs sm:text-sm font-black text-slate-950 flex items-center gap-1.5">
-                            <GroupUsersSvg className="w-4 h-4 text-[#0F2942] shrink-0" /> {/* 👥 أيقونة الكروب الأكاديمي */}
-                            <span>الكروب المستهدف للمحاضرة:</span> {/* 🏷️ عنوان الحقل الصريح */}
-                          </label>
-                          <span className="text-xs font-black text-white bg-[#0F2942] px-3 py-1 rounded-xl border border-[#0F2942] shadow-xs inline-flex items-center gap-1.5">
-                            <GroupBadgeSvg className="w-3.5 h-3.5 text-cyan-300 shrink-0" /> {/* 👥 أيقونة الكروب الفيكتورية */}
-                            <span>خاصة بطلبة (كروب {lecTargetGroup || availableStageGroups[0]})</span> {/* 📌 توضيح استقلالية المحاضرة للكروب المختار بالوسم الكحلي الملكي */}
-                          </span>
-                        </div>
-
-                        {/* 🎯 أزرار اختيار الكروب المعتمد حصراً بدون زر شعبة عامة أو كلمة مشتركة */}
-                        <div className="flex flex-wrap items-center gap-2 pt-1">
-                          {availableStageGroups.map((grpName) => {
-                            const isSelected = lecTargetGroup === grpName; // 🔍 فحص هل هذا الكروب هو المحدد
-                            return (
-                              <button
-                                key={grpName} // 🔑 مفتاح فريد لكل كروب
-                                type="button" // 🔘 نوع الزر للنموذج لمنع الإرسال
-                                onClick={() => setLecTargetGroup(grpName)} // ⚡ تحديد الكروب المستهدف حصراً
-                                className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer flex items-center gap-2 border-2 ${
-                                  isSelected
-                                    ? 'bg-[#0F2942] text-white border-[#0F2942] shadow-xs ring-2 ring-[#0F2942]/20 scale-[1.02]' // 🎨 كحلي ملكي جذاب للكروب المحدد
-                                    : 'bg-white hover:bg-slate-100 text-slate-800 border-slate-300' // ⚪ مظهر أنيق هادئ للكروب غير المحدد
-                                }`}
-                              >
-                                <GroupBadgeSvg className="w-4 h-4 shrink-0" /> {/* 🏷️ أيقونة شارة الكروب */}
-                                <span>كروب {grpName}</span> {/* 🔤 اسم الكروب المستقل */}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </>
-                    ) : (
-                      // 🛑 في حال كانت المرحلة غير مقسمة لكروبات (شعبة موحدة)
-                      <div className="flex items-center justify-between p-3 bg-blue-50/70 border border-blue-200 rounded-xl text-xs sm:text-sm font-black text-blue-950">
-                        <div className="flex items-center gap-2">
-                          <GroupUsersSvg className="w-4 h-4 text-[#0F2942] shrink-0" /> {/* 👥 أيقونة الشعبة الموحدة */}
-                          <span>لا يوجد كروبات لهذه المرحلة (شعبة موحدة)</span> {/* 📢 تنبيه صريح بعدم وجود كروبات */}
-                        </div>
-                        <span className="px-3 py-1 bg-[#0F2942] text-white border border-[#0F2942] rounded-xl text-xs font-black shadow-xs inline-flex items-center gap-1.5">
-                          <GroupUsersSvg className="w-3.5 h-3.5 text-cyan-300 shrink-0" /> {/* 👥 أيقونة الشعبة الموحدة */}
-                          <span>شعبة موحدة</span> {/* 🏷️ شارة الدفعة الكاملة بالوسم الكحلي الملكي */}
-                        </span>
-                      </div>
-                    )}
-                  </div>
 
                   {/* 4. وقت البدء + وقت الانتهاء عبر المكون المستقل LectureTimeSlotPicker */}
                   <LectureTimeSlotPicker

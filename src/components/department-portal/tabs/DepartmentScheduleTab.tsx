@@ -31,7 +31,9 @@ import {
   Info, // ℹ️ أيقونة المعلومات
   X, // ❌ أيقونة الإلغاء والإغلاق
   XCircle, // 🚫 أيقونة إلغاء المحاضرة للأسبوع
+  Lock, // 🔒 أيقونة القفل للحماية والاعتماد المركزي
 } from 'lucide-react'; // 🎨 استيراد أيقونات لوسيد
+import { getAcademicYear, formatAcademicYearDisplay } from '@/lib/mock-data'; // 🗓️ دوال العام الدراسي المعتمد
 import type {
   UserProfile, // 👤 نوع بروفايل المستخدم
   Course, // 📚 نوع المادة الدراسية
@@ -460,28 +462,27 @@ export const DepartmentScheduleTab: React.FC<DepartmentScheduleTabProps> = ({
                 </div>
               </div>
 
-              {/* 📆 محدد ومعدل تاريخ انطلاق الفصل الدراسي بتصميم كحلي ملكي فاخر وأكاديمي متناسق */}
-              <div className="flex items-center gap-3 bg-slate-50/90 hover:bg-slate-50 px-3 py-2 rounded-2xl border border-slate-300 shadow-2xs transition-all">
+              {/* 📆 عرض تاريخ انطلاق الدوام الرسمي المعتمد مركزياً بتصميم كحلي ملكي فاخر وأكاديمي متناسق */}
+              <div className="flex items-center gap-3 bg-slate-50/90 hover:bg-slate-50 px-3.5 py-2 rounded-2xl border border-slate-300 shadow-2xs transition-all flex-wrap">
                 <div className="flex items-center gap-2 shrink-0">
                   <div className="p-1.5 bg-[#0F2942] text-cyan-300 rounded-lg shrink-0 border border-[#0F2942] shadow-2xs">
                     <CalendarDays className="w-4 h-4 text-cyan-300" />
                   </div>
-                  <span className="text-sm font-black text-slate-950 whitespace-nowrap">
-                    تاريخ انطلاق الفصل (الأسبوع 1):
+                  <span className="text-sm sm:text-base font-black text-slate-950 whitespace-nowrap">
+                    تاريخ انطلاق الدوام ({selectedScheduleSemester === 2 ? 'الكورس الثاني' : 'الكورس الأول'}) ({formatAcademicYearDisplay(getAcademicYear())}) (الأسبوع 1):
                   </span>
                 </div>
-                <div className="w-60 sm:w-68 shrink-0">
-                  <ArabicDatePicker
-                    value={currentScheduleConfig.start_date || '2026-09-20'}
-                    onChange={(newDate) => {
-                      // 🛡️ فحص إذا كان التاريخ مختلفاً لإظهار نافذة التأكيد الاحترافية
-                      if (!newDate || newDate === (currentScheduleConfig.start_date || '2026-09-20')) return;
-                      setPendingSemesterStartDate(newDate); // 📅 تعيين التاريخ المؤقت الجديد
-                      setShowSemesterDateConfirmModal(true); // 🛑 فتح نافذة التأكيد الفاخرة
-                    }}
-                    placeholder="حدد تاريخ الانطلاق"
-                    variant="royal-navy" // 👑 تطبيق النمط الكحلي الملكي الفاخر
-                  />
+                {/* 🔒 عرض التاريخ المعتمد كـ Read-Only Badge فاخر ورسمي */}
+                <div className="flex items-center gap-2 bg-white px-3.5 py-1.5 rounded-xl border border-slate-300 shadow-2xs">
+                  <span className="text-base font-black text-slate-950 font-mono" dir="ltr">
+                    {currentScheduleConfig.start_date || '2026-09-20'}
+                  </span>
+                  <span
+                    className="p-1 bg-blue-100 text-blue-950 border border-blue-300 rounded-lg flex items-center justify-center shadow-2xs cursor-help"
+                    title="تاريخ معتمد رسمياً (صلاحية تعديل التقويم محصورة بالمسؤول العام)"
+                  >
+                    <Lock className="w-3.5 h-3.5 text-blue-900" />
+                  </span>
                 </div>
               </div>
             </div>

@@ -79,7 +79,6 @@ import DepartmentScheduleTab from '@/components/department-portal/tabs/Departmen
 import DepartmentAttendanceTab from '@/components/department-portal/tabs/DepartmentAttendanceTab'; // 📋 تبويب الحضور
 import DepartmentAnalyticsTab from '@/components/department-portal/tabs/DepartmentAnalyticsTab'; // 📊 تبويب التحليلات
 
-import AssessmentSchemeModal from '@/components/department-portal/modals/AssessmentSchemeModal'; // 🎛️ مودال توزيع درجات بولونيا
 import FinalExamScheduleEditor from '@/components/exams/FinalExamScheduleEditor'; // 📝 محرر جداول الامتحانات
 import { DepartmentAssessmentsOverview } from '@/components/assessments/DepartmentAssessmentsOverview'; // 📚 لوحة التكليفات والامتحانات
 import TuitionManagementTab from '@/components/tuition/TuitionManagementTab'; // 💳 لوحة الأقساط
@@ -731,7 +730,10 @@ export default function DepartmentPortalPage() {
     isExportingCoursesExcel, setIsExportingCoursesExcel,
     isAssessmentModalOpen, setIsAssessmentModalOpen,
     selectedCourseForAssessment, setSelectedCourseForAssessment,
+    targetCoursesForAssessment, setTargetCoursesForAssessment,
     tempAssessmentScheme, setTempAssessmentScheme,
+    handleOpenBatchAssessmentModal,
+    getDefaultAssessmentScheme,
     roundConfirmModal, setRoundConfirmModal,
     examToggleConfirmation, setExamToggleConfirmation,
     quickAssignConfig, setQuickAssignConfig,
@@ -936,8 +938,10 @@ export default function DepartmentPortalPage() {
       const formattedGrades = targetGrades.map((g: Grade) => {
         const student = deptStudents.find((s: UserProfile): boolean => s.id === g.student_id);
         const course = deptCourses.find((c: Course): boolean => c.id === g.course_id);
-        const cwTotal = calculateCourseworkTotal(g);
-        const finalTot = calculateFinalTotal(g);
+        const courseScheme = course ? getCourseAssessmentScheme(course) : undefined;
+        const cwTotal = calculateCourseworkTotal(g, courseScheme); // 🧮 حساب السعي للمخطط المعتمد للبند المفتوح فقط
+        const isSupActive = course?.is_supplementary_exam_enabled === true;
+        const finalTot = calculateFinalTotal(g, isSupActive, courseScheme); // 💯 حساب النهائي للمخطط للبند المفتوح
         const letter = getLetterGrade(finalTot);
         return {
           ...g,
@@ -953,11 +957,13 @@ export default function DepartmentPortalPage() {
         };
       });
 
-      const scopeName = filterGradeCourse !== 'all'
-        ? (deptCourses.find((c: Course): boolean => c.id === filterGradeCourse)?.name || 'مادة_محددة')
-        : (filterGradeStage !== 'all' ? `المرحلة_${filterGradeStage}` : 'كافة_المراحل');
+      const targetCourse = filterGradeCourse !== 'all'
+        ? deptCourses.find((c: Course): boolean => c.id === filterGradeCourse)
+        : undefined;
+      const scopeName = targetCourse?.name || (filterGradeStage !== 'all' ? `المرحلة_${filterGradeStage}` : 'كافة_المراحل');
+      const courseScheme = targetCourse ? getCourseAssessmentScheme(targetCourse) : undefined;
 
-      await exportCustomGradesList(formattedGrades, `${deptName}_${scopeName}`);
+      await exportCustomGradesList(formattedGrades, `${deptName}_${scopeName}`, scopeName, courseScheme);
       setSuccessMessage(`تم تصدير (${formattedGrades.length}) سجل درجات بنجاح! 📊`);
       setTimeout(() => setSuccessMessage(''), 3500);
     } catch (error) {
@@ -1054,17 +1060,19 @@ export default function DepartmentPortalPage() {
         : attendanceRecords.filter((r: StudentAttendanceRecord): boolean => r.week_number === filterAttendanceWeek);
 
       const formattedAttendanceRecords: {
-        student_name: string;
-        university_number: string;
-        stage_number: number;
-        study_type: 'morning' | 'evening';
-        course_name: string;
-        total_hours: number;
-        unexcused_hours: number;
-        excused_hours: number;
-        absence_percentage: number;
-        warning_status: 'none' | 'first_warning' | 'final_warning' | 'dismissed';
-        notes?: string;
+        student_name: string; // 👤 اسم الطالب
+        university_number: string; // 🆔 الرقم الجامعي
+        stage_number: number; // 🎓 المرحلة
+        study_type: 'morning' | 'evening'; // ☀️ نوع الدراسة
+        course_name: string; // 📝 اسم المادة
+        total_hours: number; // ⏳ الساعات المقررة
+        present_hours: number; // 🟢 ساعات الحضور الفعلي
+        excused_hours: number; // 🔵 ساعات الإجازة الرسمية
+        holiday_hours: number; // 🏖️ ساعات العطلة الرسمية
+        unexcused_hours: number; // 🔴 ساعات الغياب غير المبرر
+        absence_percentage: number; // 📊 نسبة الغياب
+        warning_status: 'none' | 'first_warning' | 'final_warning' | 'dismissed'; // ⚠️ الموقف
+        notes?: string; // 💡 ملاحظات
       }[] = [];
 
       for (const st of targetStudents) {
@@ -1084,17 +1092,19 @@ export default function DepartmentPortalPage() {
           else if (summary.warning_status === 'banned') mappedWarning = 'dismissed';
 
           formattedAttendanceRecords.push({
-            student_name: st.full_name,
-            university_number: st.university_number || '—',
-            stage_number: st.stage_number || c.stage_number || 1,
-            study_type: st.study_type === 'evening' ? 'evening' : 'morning',
-            course_name: c.name,
-            total_hours: summary.total_scheduled_hours || 45,
-            unexcused_hours: summary.total_unexcused_absence_hours,
-            excused_hours: summary.total_excused_absence_hours,
-            absence_percentage: summary.absence_percentage,
-            warning_status: mappedWarning,
-            notes: mappedWarning !== 'none' ? 'إنذار أكاديمي رسمي' : 'دوام منتظم',
+            student_name: st.full_name, // 👤 اسم الطالب الثلاثي
+            university_number: st.university_number || '—', // 🆔 الرقم الجامعي
+            stage_number: st.stage_number || c.stage_number || 1, // 🎓 رقم المرحلة
+            study_type: st.study_type === 'evening' ? 'evening' : 'morning', // ☀️ نوع الدراسة
+            course_name: c.name, // 📘 اسم المادة
+            total_hours: summary.total_scheduled_hours || 45, // ⏳ إجمالي الساعات
+            present_hours: summary.total_present_hours || 0, // 🟢 ساعات الحضور الفعلي
+            excused_hours: summary.total_excused_absence_hours || 0, // 🔵 ساعات الإجازة الرسمية
+            holiday_hours: summary.total_holiday_hours || 0, // 🏖️ ساعات العطلة الرسمية
+            unexcused_hours: summary.total_unexcused_absence_hours || 0, // 🔴 ساعات الغياب
+            absence_percentage: summary.absence_percentage, // 📊 نسبة الغياب
+            warning_status: mappedWarning, // ⚠️ حالة الإنذار
+            notes: mappedWarning !== 'none' ? 'إنذار أكاديمي رسمي' : 'دوام منتظم', // 📝 ملاحظة
           });
         }
       }
@@ -1665,6 +1675,15 @@ export default function DepartmentPortalPage() {
           handleCourseExcelUpload={handleCourseExcelUpload}
           handleDownloadCourseTemplate={handleDownloadCourseTemplate}
           handleOpenAssessmentModal={handleOpenAssessmentModal}
+          handleOpenBatchAssessmentModal={handleOpenBatchAssessmentModal}
+          isAssessmentModalOpen={isAssessmentModalOpen}
+          setIsAssessmentModalOpen={setIsAssessmentModalOpen}
+          selectedCourseForAssessment={selectedCourseForAssessment}
+          targetCoursesForAssessment={targetCoursesForAssessment}
+          tempAssessmentScheme={tempAssessmentScheme}
+          setTempAssessmentScheme={setTempAssessmentScheme}
+          handleSaveAssessmentSchemeModal={handleSaveAssessmentSchemeModal}
+          getDefaultAssessmentScheme={getDefaultAssessmentScheme}
           handleBulkToggleFinalExam={handleBulkToggleFinalExam}
           handleBulkToggleSupplementaryExam={handleBulkToggleSupplementaryExam}
           filteredCourses={filteredCourses}
@@ -1953,6 +1972,7 @@ export default function DepartmentPortalPage() {
           filterAttendanceGroup={filterAttendanceGroup}
           setFilterAttendanceGroup={setFilterAttendanceGroup}
           stageGroupConfigs={stageGroupConfigs}
+          academicYear={academicYear}
         />
       )}
 
@@ -1970,20 +1990,6 @@ export default function DepartmentPortalPage() {
           departmentName={deptName}
         />
       )}
-      {/* ========================================================================= */}
-      {/* 🎛️ نافذة منبثقة لتخصيص توزيع الدرجات والعناوين لبنود بولونيا الـ 7 (Assessment Scheme Modal) */}
-      {/* ========================================================================= */}
-      <AssessmentSchemeModal
-        isOpen={isAssessmentModalOpen}
-        onClose={() => setIsAssessmentModalOpen(false)}
-        course={selectedCourseForAssessment}
-        tempAssessmentScheme={tempAssessmentScheme}
-        setTempAssessmentScheme={setTempAssessmentScheme}
-        deptName={deptName}
-        onSave={handleSaveAssessmentSchemeModal}
-        getStageNameInArabic={getStageNameInArabic}
-        getDefaultAssessmentScheme={getDefaultAssessmentScheme}
-      />
       {/* ========================================================================= */}
       {/* 8️⃣ تبويب جداول الامتحانات النهائية الفاينل (Final Exam Schedules CRUD) */}
       {/* ========================================================================= */}

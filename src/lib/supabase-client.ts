@@ -2359,6 +2359,18 @@ export async function saveScheduleConfigToSupabase(config: DepartmentScheduleCon
   }
 }
 
+// ☁️ حفظ ومزامنة مجموعة إعدادات جداول في Supabase دفعة واحدة
+export async function saveMultipleScheduleConfigsToSupabase(configs: DepartmentScheduleConfig[]): Promise<boolean> {
+  try {
+    const { error } = await supabase.from('department_schedule_configs').upsert(configs); // 📦 رفع جماعي مباشر وسريع
+    if (!error) invalidateCacheKey('supabase_schedule_configs'); // 🔄 إبطال كاش الإعدادات فوراً للتحديث
+    return !error; // ✅ إرجاع حالة النجاح
+  } catch (err: unknown) { // 🛡️ معالجة الأخطاء الآمنة
+    console.error('خطأ أثناء حفظ حزمة إعدادات الجداول في Supabase:', err); // ❌ تسجيل الخطأ
+    return false; // 🚫 إرجاع فشل
+  }
+}
+
 // ==============================================================================
 // 📋 دوال مزامنة وحفظ سجلات الحضور والغيابات (student_attendance_records)
 // ==============================================================================
@@ -3121,8 +3133,9 @@ export async function syncAuditLogsFromSupabase(): Promise<AuditLog[]> {
 // 🧹 تفريغ أو أرشفة سجل التدقيق الأمني في السحابة للمسؤول العام
 export async function clearAuditLogsInSupabase(): Promise<boolean> {
   try {
-    const { error } = await supabase.from('audit_logs').delete().neq('id', 'keep-dummy-000'); // 🗑️ نمسح السجلات القديمة بالسحابة
-    if (!error) invalidateCacheKey('supabase_audit_logs'); // 🧹 نصفّر كاش سجلات التدقيق
+    // 🗑️ تفريغ كافة سجلات التدقيق الأمني من جدول audit_logs بشكل قياسي ونظيف
+    const { error } = await supabase.from('audit_logs').delete().not('id', 'is', null);
+    if (!error) invalidateCacheKey('supabase_audit_logs'); // 🧹 تصفير كاش سجلات التدقيق
     return !error; // ✅ تم التفريغ بنجاح
   } catch {
     return false; // ❌ رجع فشل

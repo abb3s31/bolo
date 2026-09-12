@@ -14,6 +14,7 @@ import {
   INITIAL_GRADES, 
   INITIAL_FINAL_EXAM_SCHEDULES, 
   INITIAL_FINAL_EXAM_SLOTS, 
+  INITIAL_SCHEDULE_CONFIGS, // ⚙️ الإعدادات الافتراضية للجداول
   saveStoredData, 
   getAcademicYear, 
   saveAcademicYear,
@@ -32,14 +33,19 @@ import {
   syncGradesFromSupabase,
   syncAuditLogsFromSupabase,
   syncFinalExamSchedulesFromSupabase,
-  syncFinalExamSlotsFromSupabase
+  syncFinalExamSlotsFromSupabase,
+  syncScheduleConfigsFromSupabase, // ☁️ مزامنة إعدادات التقويم والجداول
+  saveScheduleConfigToSupabase, // ☁️ حفظ إعدادات التقويم الفردية في سوبابيز
+  saveMultipleScheduleConfigsToSupabase // ☁️ حفظ حزمة إعدادات التقويم الجماعية في سوبابيز
 } from '@/lib/supabase-client'; // 🔌 جلب بيانات الجلسة والمزامنة الحية من Supabase
-import { UserProfile, Department, Course, AuditLog, Grade, FinalExamSchedule, FinalExamSlot } from '@/types'; // 🔗 الأنواع الصريحة
+import { UserProfile, Department, Course, AuditLog, Grade, FinalExamSchedule, FinalExamSlot, DepartmentScheduleConfig } from '@/types'; // 🔗 الأنواع الصريحة
 import { StudentDemographicsMatrix } from '@/components/analytics/StudentDemographicsMatrix'; // 👥 مصفوفة الإحصائيات الديموغرافية الشاملة للطلاب
 import { TeacherDemographicsMatrix } from '@/components/analytics/TeacherDemographicsMatrix'; //  مصفوفة إحصائيات الكادر التدريسي وتوزيع الذكور والإناث
 import { calculateStudentDemographics, calculateTeacherDemographics, detectArabicGender } from '@/lib/demographics-utils'; // 🧮 دوال حساب الإحصائيات الديموغرافية والتعرف الذكي على الجنس
 import SuperAdminExamApprovalModal from '@/components/exams/SuperAdminExamApprovalModal'; // 📝 نافذة مصادقة جداول الامتحانات
 import MasterCampusExamMatrixModal from '@/components/exams/MasterCampusExamMatrixModal'; // 🏛️ مصفوفة إشغال القاعات الامتحانية المركزية
+import ArabicDatePicker from '@/components/schedule/ArabicDatePicker'; // 📅 مكون التقويم العربي الفاخر
+import { getDepartmentEffectiveStartDate, DEFAULT_WORKING_DAYS, DEFAULT_OFF_DAYS, formatDateArabicWithDay } from '@/lib/schedule-utils'; // 🕒 حساب التواريخ وأيام الدوام
 import { 
   Users, 
   GraduationCap, 
@@ -47,8 +53,10 @@ import {
   Layers, 
   ShieldCheck, 
   Calendar, 
+  CalendarDays, // 🗓️ أيقونة التقويم
   Edit3, 
   Check, 
+  CheckCircle2, // ✅ أيقونة التأكيد والاعتماد
   Building2, 
   ArrowLeft, 
   FileSpreadsheet, 
@@ -58,7 +66,10 @@ import {
   ChevronLeft,
   Sun,
   Moon,
-  FileText
+  FileText,
+  Save, // 💾 أيقونة الحفظ
+  Copy, // 📋 أيقونة النسخ والتعميم
+  Sparkles // ✨ أيقونة التمييز
 } from 'lucide-react'; // 🎨 الأيقونات الرسمية
 import ZeroTrustGuard from '@/components/security/ZeroTrustGuard'; // 🛡️ حارس أمان Zero Trust
 import { formatEnglishDateTime, getTranslatedAuditAction, translateAuditDetails } from '@/lib/date-utils'; // 📅 دوال تنسيق التواريخ بالأرقام الإنجليزية وترجمة التدقيق
@@ -84,6 +95,19 @@ export default function SuperAdminDashboard() {
   const [yearInput, setYearInput] = useState<string>(() => getAcademicYear()); // ✍️ نص السنة المدخل
   const [successYearMsg, setSuccessYearMsg] = useState<string>(''); // 📢 رسالة نجاح حفظ السنة
 
+  // 🗓️ حالات تقويم انطلاق الدوام المركزي لكل مرحلة وكورس وسنة دراسية (مسار بولونيا)
+  const [scheduleConfigs, setScheduleConfigs] = useState<DepartmentScheduleConfig[]>([]); // ⚙️ قائمة إعدادات الجداول والتقويم
+  const [calendarSemester, setCalendarSemester] = useState<1 | 2>(1); // 🗓️ الكورس المختار لإدارة التقويم (1 أو 2)
+  const [calendarYear, setCalendarYear] = useState<string>(() => getAcademicYear()); // 🎓 العام الدراسي المختار للتقويم
+  const [stageStartDates, setStageStartDates] = useState<{ [stage: number]: string }>({
+    1: '2026-09-20',
+    2: '2026-09-20',
+    3: '2026-09-20',
+    4: '2026-09-20',
+  }); // 📅 تواريخ انطلاق المراحل الـ 4 للكورس والسنة المختارة
+  const [calendarSuccessMsg, setCalendarSuccessMsg] = useState<string>(''); // 📢 رسالة نجاح حفظ التقويم
+  const [savingStage, setSavingStage] = useState<number | 'all' | null>(null); // ⏳ مؤشر حفظ مرحلة محددة أو الكل
+
   // 🎛️ حالة التبديل بين مصفوفة أعداد الطلاب ومصفوفة الكادر التدريسي
   const [activeMatrixTab, setActiveMatrixTab] = useState<'students' | 'teachers'>('students');
 
@@ -104,10 +128,12 @@ export default function SuperAdminDashboard() {
     setAuditLogs(getStoredData<AuditLog[]>('audit_logs', INITIAL_AUDIT_LOGS));
     setExamSchedules(getStoredData<FinalExamSchedule[]>('final_exam_schedules', INITIAL_FINAL_EXAM_SCHEDULES));
     setExamSlots(getStoredData<FinalExamSlot[]>('final_exam_slots', INITIAL_FINAL_EXAM_SLOTS));
+    setScheduleConfigs(getStoredData<DepartmentScheduleConfig[]>('department_schedule_configs', INITIAL_SCHEDULE_CONFIGS));
     
     const curYear = getAcademicYear();
     setAcademicYearState(curYear);
     setYearInput(curYear);
+    setCalendarYear(curYear);
 
     // 🗓️ جلب ومزامنة السنة الدراسية المعتمدة من Supabase فوراً
     if (typeof syncAcademicYearFromSupabase === 'function') {
@@ -115,6 +141,7 @@ export default function SuperAdminDashboard() {
         if (liveYear) {
           setAcademicYearState(liveYear);
           setYearInput(liveYear);
+          setCalendarYear(liveYear);
         }
       }).catch(() => {});
     }
@@ -125,6 +152,7 @@ export default function SuperAdminDashboard() {
       unsubscribeYear = subscribeToAcademicYearChanges((liveYear) => {
         setAcademicYearState(liveYear);
         setYearInput(liveYear);
+        setCalendarYear(liveYear);
       });
     }
 
@@ -150,11 +178,146 @@ export default function SuperAdminDashboard() {
     syncFinalExamSlotsFromSupabase().then((liveSlots) => {
       if (liveSlots && liveSlots.length > 0) setExamSlots(liveSlots);
     }).catch(() => {});
+    syncScheduleConfigsFromSupabase().then((liveConfigs) => {
+      if (liveConfigs && liveConfigs.length > 0) setScheduleConfigs(liveConfigs);
+    }).catch(() => {});
+
+    // 👂 الاستماع للتحديثات المحلية عبر النوافذ
+    const handleConfigsUpdated = () => {
+      setScheduleConfigs(getStoredData<DepartmentScheduleConfig[]>('department_schedule_configs', INITIAL_SCHEDULE_CONFIGS));
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('schedule_configs_updated', handleConfigsUpdated);
+      window.addEventListener('storage', handleConfigsUpdated);
+    }
 
     return () => {
       if (unsubscribeYear) unsubscribeYear();
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('schedule_configs_updated', handleConfigsUpdated);
+        window.removeEventListener('storage', handleConfigsUpdated);
+      }
     };
   }, [router]);
+
+  // 🔄 مزامنة تواريخ المراحل الأربعة عند تغيير الكورس أو العام الدراسي أو تحديث الإعدادات
+  useEffect(() => {
+    const dates: { [stage: number]: string } = {};
+    for (let stg = 1; stg <= 4; stg++) {
+      dates[stg] = getDepartmentEffectiveStartDate(
+        scheduleConfigs,
+        'central',
+        stg,
+        calendarSemester,
+        calendarYear
+      );
+    }
+    setStageStartDates(dates);
+  }, [scheduleConfigs, calendarSemester, calendarYear]);
+
+  // 💾 دالة حفظ واعتماد تاريخ انطلاق الدوام لمرحلة معينة في Supabase والتخزين المحلي
+  const handleSaveStageCalendar = async (stage: number) => {
+    setSavingStage(stage);
+    const dateToSave = stageStartDates[stage] || '2026-09-20';
+    const configId = `cfg-central-stage${stage}-sem${calendarSemester}-${calendarYear}`;
+
+    const newConfig: DepartmentScheduleConfig = {
+      id: configId,
+      department_id: 'central',
+      stage_number: stage,
+      semester: calendarSemester,
+      academic_year: calendarYear,
+      start_date: dateToSave,
+      working_days: [...DEFAULT_WORKING_DAYS],
+      off_days: [...DEFAULT_OFF_DAYS],
+      updated_at: new Date().toISOString(),
+    };
+
+    const existingIndex = scheduleConfigs.findIndex((c) => c.id === configId);
+    let updatedList: DepartmentScheduleConfig[];
+    if (existingIndex >= 0) {
+      updatedList = [...scheduleConfigs];
+      updatedList[existingIndex] = newConfig;
+    } else {
+      updatedList = [newConfig, ...scheduleConfigs];
+    }
+
+    setScheduleConfigs(updatedList);
+    saveStoredData('department_schedule_configs', updatedList);
+
+    await saveScheduleConfigToSupabase(newConfig);
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('semester-start-date-updated', { detail: { departmentId: 'central', startDate: dateToSave } })); // 📡 إشعار لوحات التدريسيين والطلبة والأقسام بالتحديث فورياً
+      window.dispatchEvent(new Event('schedule_configs_updated')); // 🔄 إشعار تحديث إعدادات الجدول
+      window.dispatchEvent(new Event('storage')); // 💾 مزامنة التخزين المحلي بين التبويبات المفتوحة
+    }
+
+    setCalendarSuccessMsg(`تم بنجاح حفظ وتثبيت انطلاق دوام المرحلة (${stage}) للكورس (${calendarSemester === 2 ? 'الثاني' : 'الأول'}) للعام الدراسي (${calendarYear}) في سحابة Supabase! 🏛️✨`);
+    setTimeout(() => setCalendarSuccessMsg(''), 4500);
+    setSavingStage(null);
+  };
+
+  // 📋 دالة تعميم تاريخ انطلاق المرحلة الأولى على المراحل العليا (2 و 3 و 4)
+  const handleCloneStageOneToAll = () => {
+    const stage1Date = stageStartDates[1] || '2026-09-20';
+    setStageStartDates({
+      1: stage1Date,
+      2: stage1Date,
+      3: stage1Date,
+      4: stage1Date,
+    });
+    setCalendarSuccessMsg(`تم نسخ تاريخ انطلاق المرحلة الأولى (${stage1Date}) على المراحل (2 و 3 و 4) — اضغط زر حفظ لاعتمادها سحابياً! 📋✨`);
+    setTimeout(() => setCalendarSuccessMsg(''), 4500);
+  };
+
+  // ☁️ دالة حفظ واعتماد تقويم كافة المراحل الـ 4 دفعة واحدة في Supabase
+  const handleSaveAllStagesCalendar = async () => {
+    setSavingStage('all'); // ⏳ تفعيل مؤشر الحفظ العام
+    let updatedList = [...scheduleConfigs]; // 📋 استنساخ قائمة الإعدادات الحالية
+    const configsToSave: DepartmentScheduleConfig[] = []; // 📦 حزمة الإعدادات المراد رفعها لسوبابيز
+
+    for (let stg = 1; stg <= 4; stg++) {
+      const dateToSave = stageStartDates[stg] || '2026-09-20'; // 📅 تاريخ الانطلاق للمرحلة
+      const configId = `cfg-central-stage${stg}-sem${calendarSemester}-${calendarYear}`; // 🆔 المعرف الفريد للتقويم
+
+      const configItem: DepartmentScheduleConfig = {
+        id: configId, // 🆔 معرف الإعداد
+        department_id: 'central', // 🏛️ رئاسة الجامعة / مركزي
+        stage_number: stg, // 🎓 رقم المرحلة (1-4)
+        semester: calendarSemester, // 🗓️ رقم الكورس
+        academic_year: calendarYear, // 🎓 العام الدراسي
+        start_date: dateToSave, // 📅 تاريخ بداية الدوام
+        working_days: [...DEFAULT_WORKING_DAYS], // 📋 أيام الدوام
+        off_days: [...DEFAULT_OFF_DAYS], // 🛑 أيام العطل
+        updated_at: new Date().toISOString(), // 🕒 توقيت التحديث
+      };
+
+      const idx = updatedList.findIndex((c) => c.id === configId);
+      if (idx >= 0) {
+        updatedList[idx] = configItem; // 🔄 تحديث الموجود
+      } else {
+        updatedList.push(configItem); // ➕ إضافة جديد
+      }
+
+      configsToSave.push(configItem); // 📦 إضافة للحزمة السحابية
+    }
+
+    setScheduleConfigs(updatedList); // 🔄 تحديث الحالة بالواجهة
+    saveStoredData('department_schedule_configs', updatedList); // 💾 حفظ محلي فوري
+
+    await saveMultipleScheduleConfigsToSupabase(configsToSave); // ☁️ رفع الحزمة بالكامل لسوبابيز دفعة واحدة
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('semester-start-date-updated', { detail: { departmentId: 'central', startDate: stageStartDates[1] || '2026-09-20' } })); // 📡 إشعار لوحات التدريسيين والطلبة والأقسام بالتحديث فورياً
+      window.dispatchEvent(new Event('schedule_configs_updated')); // 🔄 إشعار تحديث إعدادات الجدول
+      window.dispatchEvent(new Event('storage')); // 💾 مزامنة التخزين المحلي بين التبويبات المفتوحة
+    }
+
+    setCalendarSuccessMsg(`تم بنجاح حفظ وتثبيت تقويم انطلاق الدوام لكافة المراحل الأربعة في قاعدة بيانات Supabase! 🏛️✨`);
+    setTimeout(() => setCalendarSuccessMsg(''), 4500);
+    setSavingStage(null);
+  };
 
   // 🌐 1. مزامنة تبويب المصفوفة مع الرابط URL
   useEffect(() => {
@@ -622,6 +785,169 @@ export default function SuperAdminDashboard() {
           <p className="text-base text-slate-950 mt-1.5 font-black">مادة وفق مسار بولونيا</p>
         </div>
 
+      </div>
+
+      {/* ========================================================================= */}
+      {/* 📅 التقويم الجامعي المركزي وتواريخ انطلاق الدوام (مسار بولونيا) لكل مرحلة وكورس وسنة */}
+      {/* ========================================================================= */}
+      <div className="bg-white border border-slate-200 p-6 sm:p-7 rounded-3xl shadow-xs space-y-6">
+        {/* 🏷️ الرأس والأزرار العلوية للتقويم */}
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 border-b border-slate-200 pb-5">
+          <div className="flex items-center gap-3.5">
+            <div className="p-3 bg-[#0F2942] text-cyan-300 rounded-2xl border border-[#1e4570] shadow-xs">
+              <CalendarDays className="w-7 h-7" /> {/* 🗓️ أيقونة التقويم المركزي */}
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-xl sm:text-2xl font-black text-slate-950">
+                  التقويم الجامعي المركزي وتواريخ انطلاق الدوام (مسار بولونيا)
+                </h2>
+                <span className="px-3 py-0.5 bg-emerald-100 text-emerald-950 border border-emerald-300 font-black text-xs rounded-full shadow-2xs flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
+                  <span>معتمد مركزياً لرئاسة الجامعة</span>
+                </span>
+              </div>
+              <p className="text-sm sm:text-base font-black text-slate-800 mt-1">
+                تحديد واعتماد تاريخ انطلاق الفصل الدراسي (الأسبوع 1) لكل مرحلة ولكل كورس ولكل عام دراسي بشكل مستقل، مع الحفظ الفوري في سحابة Supabase والتخزين المحلي.
+              </p>
+            </div>
+          </div>
+
+          {/* 🎛️ أدوات تبديل العام الدراسي والكورس الدراسي وأزرار الحفظ والتعميم */}
+          <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto justify-start lg:justify-end">
+            {/* 🗓️ محدد الكورس الدراسي */}
+            <div className="bg-slate-100 p-1.5 rounded-2xl border border-slate-200 flex items-center gap-1.5 shadow-2xs">
+              <button
+                type="button"
+                onClick={() => setCalendarSemester(1)}
+                className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer ${
+                  calendarSemester === 1
+                    ? 'bg-[#0F2942] text-white shadow-xs'
+                    : 'bg-white text-slate-800 hover:bg-slate-200/80 border border-slate-200'
+                }`}
+              >
+                الكورس الأول
+              </button>
+              <button
+                type="button"
+                onClick={() => setCalendarSemester(2)}
+                className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer ${
+                  calendarSemester === 2
+                    ? 'bg-[#0F2942] text-white shadow-xs'
+                    : 'bg-white text-slate-800 hover:bg-slate-200/80 border border-slate-200'
+                }`}
+              >
+                الكورس الثاني
+              </button>
+            </div>
+
+            {/* 📋 زر تعميم تاريخ المرحلة الأولى على المراحل العليا */}
+            <button
+              type="button"
+              onClick={handleCloneStageOneToAll}
+              className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-900 border border-slate-300 rounded-2xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center gap-1.5 shadow-2xs active:scale-95"
+              title="نسخ تاريخ انطلاق المرحلة الأولى على المراحل (2 و 3 و 4)"
+            >
+              <Copy className="w-4 h-4 text-indigo-700" />
+              <span>تعميم تاريخ الأولى على العليا (2، 3، 4)</span>
+            </button>
+
+            {/* ☁️ زر حفظ واعتماد كافة المراحل دفعة واحدة */}
+            <button
+              type="button"
+              onClick={handleSaveAllStagesCalendar}
+              disabled={savingStage !== null}
+              className="px-5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-2xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center gap-2 shadow-xs border border-[#1e4570] active:scale-95 disabled:opacity-50"
+            >
+              <Save className="w-4 h-4 text-emerald-300" />
+              <span>{savingStage === 'all' ? 'جاري الاعتماد السحابي...' : 'اعتماد وحفظ كافة المراحل (Supabase)'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 🌟 رسالة نجاح حفظ التقويم */}
+        {calendarSuccessMsg && (
+          <div className="p-3.5 bg-emerald-50 border-2 border-emerald-400 rounded-2xl shadow-xs animate-in fade-in flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5 text-emerald-950 font-black text-sm sm:text-base">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+              <span>{calendarSuccessMsg}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setCalendarSuccessMsg('')}
+              className="text-xs font-black text-emerald-900 hover:text-emerald-950 underline cursor-pointer"
+            >
+              إغلاق
+            </button>
+          </div>
+        )}
+
+        {/* 🎓 شبكة كروت المراحل الأربعة (1 إلى 4) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map((stg) => {
+            const stageDate = stageStartDates[stg] || '2026-09-20';
+            const isSavingThis = savingStage === stg;
+
+            return (
+              <div
+                key={stg}
+                className="bg-slate-50/80 border-2 border-slate-200 hover:border-slate-300 rounded-3xl p-5 shadow-2xs hover:shadow-xs transition-all space-y-4 flex flex-col justify-between"
+              >
+                <div className="space-y-3">
+                  {/* شارة المرحلة */}
+                  <div className="flex items-center justify-between">
+                    <span className="px-3.5 py-1 bg-[#0F2942] text-white text-sm font-black rounded-xl shadow-2xs">
+                      المرحلة {stg === 1 ? 'الأولى' : stg === 2 ? 'الثانية' : stg === 3 ? 'الثالثة' : 'الرابعة'}
+                    </span>
+                    <span className="text-xs font-black px-2.5 py-0.5 rounded-lg border bg-blue-50 text-blue-950 border-blue-200">
+                      {calendarSemester === 1 ? 'الكورس الأول' : 'الكورس الثاني'}
+                    </span>
+                  </div>
+
+                  {/* تفاصيل التسمية */}
+                  <div className="space-y-0.5">
+                    <h3 className="text-base font-black text-slate-950">
+                      تاريخ انطلاق الدوام (الأسبوع 1)
+                    </h3>
+                    <p className="text-xs font-black text-slate-600">
+                      العام الدراسي: {formatAcademicYearDisplay(calendarYear)}
+                    </p>
+                  </div>
+
+                  {/* منتقي التاريخ الأكاديمي */}
+                  <div className="pt-1">
+                    <ArabicDatePicker
+                      value={stageDate}
+                      onChange={(newDate) => {
+                        if (!newDate) return;
+                        setStageStartDates((prev) => ({ ...prev, [stg]: newDate }));
+                      }}
+                      placeholder="حدد تاريخ الانطلاق"
+                      variant="royal-navy"
+                    />
+                  </div>
+
+                  {/* معاينة اليوم والتاريخ بالعربي العراقي */}
+                  <div className="p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-black text-slate-900 flex items-center justify-between">
+                    <span className="text-slate-600">الموعد المحسوب:</span>
+                    <span className="text-blue-950 font-bold">{formatDateArabicWithDay(stageDate)}</span>
+                  </div>
+                </div>
+
+                {/* زر حفظ المرحلة الفردية */}
+                <button
+                  type="button"
+                  onClick={() => handleSaveStageCalendar(stg)}
+                  disabled={isSavingThis}
+                  className="w-full py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white text-xs sm:text-sm font-black rounded-xl transition cursor-pointer flex items-center justify-center gap-2 shadow-2xs border border-[#1e4570] active:scale-95 disabled:opacity-50 mt-2"
+                >
+                  <Save className="w-4 h-4 text-cyan-300" />
+                  <span>{isSavingThis ? 'جاري الحفظ...' : `حفظ سجل المرحلة ${stg} (سحابياً)`}</span>
+                </button>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {/* 🗂️ وحدات الإدارة المركزية الرئيسية للمسؤول العام */}

@@ -18,7 +18,7 @@ import {
 import { reconcileCoursesWithTeacherCourses } from '@/app/admin/department-portal/page'; // 🔄 دالة التوفيق والتزامن المركزي بين المواد والتكليفات
 import { getStoredData, saveStoredData, INITIAL_GRADES, INITIAL_COURSES, INITIAL_DEPARTMENTS, INITIAL_TEACHER_COURSES, INITIAL_AUDIT_LOGS, INITIAL_SCHEDULE_LECTURES, INITIAL_ATTENDANCE_RECORDS, INITIAL_PROFILES, getAcademicYear } from '@/lib/mock-data'; // 💾 البيانات
 import { Grade, Course, Department, TeacherCourse, UserProfile, AuditLog, ScheduleLecture, StudentAttendanceRecord, AttendanceStatus } from '@/types'; // 🔗 الأنواع الرسمية
-import { calculateCourseworkTotal, calculateFinalTotal, getLetterGrade, getCourseAssessmentScheme, getCourseGradeLimits, isStudentPassedFirstRound } from '@/lib/grade-utils'; // 🧮 الحسابات والحدود وفحص استحقاق الدور الثاني
+import { calculateCourseworkTotal, calculateFinalTotal, getLetterGrade, getCourseAssessmentScheme, getCourseGradeLimits, isStudentPassedFirstRound, isAssessmentItemActive } from '@/lib/grade-utils'; // 🧮 الحسابات والحدود وفحص استحقاق الدور الثاني والبند النشط
 import { detectArabicGender } from '@/lib/demographics-utils'; // 🧮 التعرف الذكي على جنس الطالب
 import { downloadTeacherGradeTemplate, downloadTeacherAttendanceTemplate, parseExcelFile, exportCustomGradesList } from '@/lib/excel-utils'; // 📊 ميزة الجداول المجدولة وتصدير سعي بولونيا الفاخر
 import { sendAppNotification } from '@/lib/notification-utils'; // 🔔 مركز الإشعارات التفاعلي
@@ -262,8 +262,9 @@ export default function TeacherCourseGradesPage({ params }: { params: Promise<{ 
       const courseGrades = allGrades
         .filter((g) => g.course_id === foundCourse.id)
         .map((g) => {
-          const coursework = calculateCourseworkTotal(g); // 📝 حساب السعي التكويني
-          const finalTot = isCourseFinalActive ? calculateFinalTotal(g, isCourseSupActive) : coursework; // 💯 احتساب المجموع
+          const courseScheme = getCourseAssessmentScheme(foundCourse); // 🎛️ جلب مخطط التقييم المعتمد للمادة
+          const coursework = calculateCourseworkTotal(g, courseScheme); // 📝 حساب السعي التكويني للبند المفتوح فقط
+          const finalTot = isCourseFinalActive ? calculateFinalTotal(g, isCourseSupActive, courseScheme) : coursework; // 💯 احتساب المجموع للبند المفتوح بالمخطط
           const letter = isCourseFinalActive ? getLetterGrade(finalTot) : 'بانتظار الفاينل'; // 🅰️ التقدير الأكاديمي
           return {
             ...g,
@@ -554,7 +555,7 @@ export default function TeacherCourseGradesPage({ params }: { params: Promise<{ 
       stage_number: course?.stage_number || 1,
       university_number: g.university_number,
       is_active: true,
-      created_at: '2025-01-01',
+      created_at: '2026-09-01',
     }));
   }, [course, currentUser, grades]);
 
@@ -615,7 +616,7 @@ export default function TeacherCourseGradesPage({ params }: { params: Promise<{ 
     // 🔒 منع إدخال أو تعديل درجة دور ثاني لطالب ناجح ومجتاز بالدور الأول
     if (fieldName === 'supplementary_exam') {
       const targetG = grades.find((g) => g.id === gradeId);
-      if (targetG && isStudentPassedFirstRound(targetG)) {
+      if (targetG && isStudentPassedFirstRound(targetG, assessmentScheme)) {
         setErrorMessage('⛔ لا يمكن رصد درجة دور ثاني لطالب ناجح ومجتاز في الدور الأول!');
         setTimeout(() => setErrorMessage(''), 4000);
         return;
@@ -652,9 +653,9 @@ export default function TeacherCourseGradesPage({ params }: { params: Promise<{ 
           updatedG.theory_updated_at = nowIso;
         }
 
-        // 🧮 إعادة حساب السعي والنهائي والتقدير الحرفي تلقائياً في المسودة وفق حالة الدور الثاني
-        updatedG.final_coursework_total = calculateCourseworkTotal(updatedG);
-        updatedG.final_total = calculateFinalTotal(updatedG, isSupplementaryEnabled);
+        // 🧮 إعادة حساب السعي والنهائي والتقدير الحرفي تلقائياً في المسودة وفق حالة الدور الثاني والبند المفتوح
+        updatedG.final_coursework_total = calculateCourseworkTotal(updatedG, assessmentScheme);
+        updatedG.final_total = calculateFinalTotal(updatedG, isSupplementaryEnabled, assessmentScheme); // 💯 حساب النهائي للبند المفتوح
         updatedG.letter_grade = getLetterGrade(updatedG.final_total);
 
         return updatedG;
@@ -785,8 +786,8 @@ export default function TeacherCourseGradesPage({ params }: { params: Promise<{ 
           ...g,
           [diff.fieldName]: origG[diff.fieldName],
         };
-        restoredG.final_coursework_total = calculateCourseworkTotal(restoredG);
-        restoredG.final_total = calculateFinalTotal(restoredG, isSupplementaryEnabled);
+        restoredG.final_coursework_total = calculateCourseworkTotal(restoredG, assessmentScheme); // 🧮 إعادة حساب السعي للمخطط
+        restoredG.final_total = calculateFinalTotal(restoredG, isSupplementaryEnabled, assessmentScheme); // 💯 حساب النهائي للبند المفتوح
         restoredG.letter_grade = getLetterGrade(restoredG.final_total);
         return restoredG;
       }
@@ -842,7 +843,7 @@ export default function TeacherCourseGradesPage({ params }: { params: Promise<{ 
     const updatedCourseGrades = grades.map((g) => {
       if (selectedGradeStudentIds.includes(g.student_id)) {
         // 🔒 إذا كان الحقل المختار هو الدور الثاني وكان الطالب ناجحاً بالدور الأول، يتم تخطيه تلقائياً
-        if (bulkSelectedField === 'supplementary_exam' && isStudentPassedFirstRound(g)) {
+        if (bulkSelectedField === 'supplementary_exam' && isStudentPassedFirstRound(g, assessmentScheme)) {
           return g;
         }
 
@@ -863,8 +864,8 @@ export default function TeacherCourseGradesPage({ params }: { params: Promise<{ 
           updatedG.theory_updated_at = nowIso;
         }
 
-        updatedG.final_coursework_total = calculateCourseworkTotal(updatedG);
-        updatedG.final_total = calculateFinalTotal(updatedG, isSupplementaryEnabled);
+        updatedG.final_coursework_total = calculateCourseworkTotal(updatedG, assessmentScheme); // 🧮 إعادة حساب السعي للمخطط
+        updatedG.final_total = calculateFinalTotal(updatedG, isSupplementaryEnabled, assessmentScheme); // 💯 حساب النهائي للبند المفتوح
         updatedG.letter_grade = getLetterGrade(updatedG.final_total);
 
         const diffKey = `${g.id}-${String(bulkSelectedField)}`;
@@ -1052,22 +1053,34 @@ export default function TeacherCourseGradesPage({ params }: { params: Promise<{ 
           }
         };
 
-        // تحديث حقول النظري فقط إذا كان مسموحاً له
+        // تحديث حقول النظري فقط إذا كان مسموحاً له وكان البند مفتوحاً وغير معطل
         if (isTheoryTeacher) {
-          const q1 = extractVal(matchRow, 'الكويز1 (5)', assessmentScheme.quiz1.title_ar, assessmentScheme.quiz1.max_score, g.quiz1);
-          const q2 = extractVal(matchRow, 'الكويز2 (5)', assessmentScheme.quiz2.title_ar, assessmentScheme.quiz2.max_score, g.quiz2);
-          const a1 = extractVal(matchRow, 'الواجب1 (5)', assessmentScheme.assignment1.title_ar, assessmentScheme.assignment1.max_score, g.assignment1);
-          const a2 = extractVal(matchRow, 'الواجب2 (5)', assessmentScheme.assignment2.title_ar, assessmentScheme.assignment2.max_score, g.assignment2);
-          const rep = extractVal(matchRow, 'التقرير (10)', assessmentScheme.report.title_ar, assessmentScheme.report.max_score, g.report);
-          const mid = extractVal(matchRow, 'الميدترم (10)', assessmentScheme.midterm.title_ar, assessmentScheme.midterm.max_score, g.midterm);
-          newG.quiz1 = q1; checkAndAddDiff('quiz1', q1); // 📝 تعيين الكويز 1
-          newG.quiz2 = q2; checkAndAddDiff('quiz2', q2); // 📝 تعيين الكويز 2
-          newG.assignment1 = a1; checkAndAddDiff('assignment1', a1); // 📋 تعيين الواجب 1
-          newG.assignment2 = a2; checkAndAddDiff('assignment2', a2); // 📋 تعيين الواجب 2
-          newG.report = rep; checkAndAddDiff('report', rep); // 📑 تعيين التقرير
-          newG.midterm = mid; checkAndAddDiff('midterm', mid); // 📊 تعيين الميدترم
+          if (isAssessmentItemActive(assessmentScheme.quiz1)) {
+            const q1 = extractVal(matchRow, 'الكويز1 (5)', assessmentScheme.quiz1.title_ar, assessmentScheme.quiz1.max_score, g.quiz1);
+            newG.quiz1 = q1; checkAndAddDiff('quiz1', q1); // 📝 تعيين الكويز 1
+          }
+          if (isAssessmentItemActive(assessmentScheme.quiz2)) {
+            const q2 = extractVal(matchRow, 'الكويز2 (5)', assessmentScheme.quiz2.title_ar, assessmentScheme.quiz2.max_score, g.quiz2);
+            newG.quiz2 = q2; checkAndAddDiff('quiz2', q2); // 📝 تعيين الكويز 2
+          }
+          if (isAssessmentItemActive(assessmentScheme.assignment1)) {
+            const a1 = extractVal(matchRow, 'الواجب1 (5)', assessmentScheme.assignment1.title_ar, assessmentScheme.assignment1.max_score, g.assignment1);
+            newG.assignment1 = a1; checkAndAddDiff('assignment1', a1); // 📋 تعيين الواجب 1
+          }
+          if (isAssessmentItemActive(assessmentScheme.assignment2)) {
+            const a2 = extractVal(matchRow, 'الواجب2 (5)', assessmentScheme.assignment2.title_ar, assessmentScheme.assignment2.max_score, g.assignment2);
+            newG.assignment2 = a2; checkAndAddDiff('assignment2', a2); // 📋 تعيين الواجب 2
+          }
+          if (isAssessmentItemActive(assessmentScheme.report)) {
+            const rep = extractVal(matchRow, 'التقرير (10)', assessmentScheme.report.title_ar, assessmentScheme.report.max_score, g.report);
+            newG.report = rep; checkAndAddDiff('report', rep); // 📑 تعيين التقرير
+          }
+          if (isAssessmentItemActive(assessmentScheme.midterm)) {
+            const mid = extractVal(matchRow, 'الميدترم (10)', assessmentScheme.midterm.title_ar, assessmentScheme.midterm.max_score, g.midterm);
+            newG.midterm = mid; checkAndAddDiff('midterm', mid); // 📊 تعيين الميدترم
+          }
           // 🎯 استيراد وتحديث درجات الفاينل فقط وفقط إذا كان الامتحان النهائي مفعلاً ومفتوحاً بالقسم
-          if (isFinalExamEnabled) {
+          if (isFinalExamEnabled && isAssessmentItemActive(assessmentScheme.final_exam)) {
             const fnl = extractVal(matchRow, 'النهائي (50)', assessmentScheme.final_exam.title_ar, assessmentScheme.final_exam.max_score, g.final_exam); // 🔍 استخراج الفاينل
             newG.final_exam = fnl; // 📥 تعيين درجة الفاينل
             checkAndAddDiff('final_exam', fnl); // 🔄 تسجيل الفارق بالمسودة
@@ -1084,8 +1097,8 @@ export default function TeacherCourseGradesPage({ params }: { params: Promise<{ 
           newG.theory_updated_at = nowIso; // ⏰ وقت التحديث للنظري
         }
 
-        // تحديث حقل العملي فقط إذا كان مسموحاً له
-        if (isPracticalTeacher && isPracticalCourse) {
+        // تحديث حقل العملي فقط إذا كان مسموحاً له وكان البند مفتوحاً
+        if (isPracticalTeacher && isPracticalCourse && isAssessmentItemActive(assessmentScheme.practical)) {
           const prac = extractVal(matchRow, 'العملي (10)', assessmentScheme.practical.title_ar, assessmentScheme.practical.max_score, g.practical);
           newG.practical = prac; checkAndAddDiff('practical', prac);
           newG.practical_updated_by = currentUser?.full_name || 'أستاذ العملي';
@@ -1093,8 +1106,8 @@ export default function TeacherCourseGradesPage({ params }: { params: Promise<{ 
         }
 
         newG.updated_at = nowIso;
-        newG.final_coursework_total = calculateCourseworkTotal(newG);
-        newG.final_total = calculateFinalTotal(newG, isSupplementaryEnabled);
+        newG.final_coursework_total = calculateCourseworkTotal(newG, assessmentScheme); // 🧮 حساب السعي للمخطط المعتمد للبند المفتوح
+        newG.final_total = calculateFinalTotal(newG, isSupplementaryEnabled, assessmentScheme); // 💯 حساب النهائي للبند المفتوح بالمخطط
         newG.letter_grade = getLetterGrade(newG.final_total);
 
         return newG;
@@ -1206,29 +1219,34 @@ export default function TeacherCourseGradesPage({ params }: { params: Promise<{ 
     if (!course || grades.length === 0) return;
     setIsExportingExcel(true);
     try {
-      const formattedGrades = grades.map((g) => ({
-        student_name: g.student_name,
-        university_number: g.university_number,
-        course_name: course.name,
-        quiz1: g.quiz1 || 0,
-        quiz2: g.quiz2 || 0,
-        assignment1: g.assignment1 || 0,
-        assignment2: g.assignment2 || 0,
-        report: g.report || 0,
-        midterm: g.midterm || 0,
-        practical: g.practical || 0,
-        final_coursework_total: g.final_coursework_total || 0,
-        final_exam: g.final_exam || 0,
-        supplementary_exam: g.supplementary_exam,
-        final_total: g.final_total,
-        letter_grade: g.letter_grade,
-        is_locked: g.is_locked || false,
-      }));
+      const formattedGrades = grades.map((g) => {
+        const cw = calculateCourseworkTotal(g, assessmentScheme);
+        const finTot = calculateFinalTotal(g, isSupplementaryEnabled, assessmentScheme);
+        return {
+          student_name: g.student_name,
+          university_number: g.university_number,
+          course_name: course.name,
+          quiz1: g.quiz1 || 0,
+          quiz2: g.quiz2 || 0,
+          assignment1: g.assignment1 || 0,
+          assignment2: g.assignment2 || 0,
+          report: g.report || 0,
+          midterm: g.midterm || 0,
+          practical: g.practical || 0,
+          final_coursework_total: cw,
+          final_exam: g.final_exam || 0,
+          supplementary_exam: g.supplementary_exam,
+          final_total: isFinalExamEnabled ? finTot : cw,
+          letter_grade: isFinalExamEnabled ? getLetterGrade(finTot) : 'بانتظار الفاينل',
+          is_locked: g.is_locked || false,
+        };
+      });
 
       await exportCustomGradesList(
         formattedGrades,
         course.department_name || 'القسم الأكاديمي',
-        course.name
+        course.name,
+        assessmentScheme // 🎛️ تمرير المخطط لإخفاء البنود المعطلة تلقائياً في الإكسل
       );
       setSuccessMessage('✅ تم بنجاح تصدير سجل درجات وسعي المادة إلى Excel!');
       setTimeout(() => setSuccessMessage(''), 3500);
@@ -1502,6 +1520,7 @@ export default function TeacherCourseGradesPage({ params }: { params: Promise<{ 
           isOpen={showAssessmentInstructions}
           onClose={() => setShowAssessmentInstructions(false)}
           courseName={course?.name || ''}
+          assessmentScheme={assessmentScheme}
         />
 
         {/* 🛡️ 13. نافذة معايير الأمان والتدقيق الأكاديمي */}

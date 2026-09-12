@@ -3,7 +3,8 @@
 // 📊 مودال معاينة وتأكيد استيراد ملف Excel لدرجات المادة
 import React from 'react'; // 🔗 مكتبة رياكت
 import { FileText, X, CheckCircle2 } from 'lucide-react'; // 🎨 أيقونات التفاعل SVG
-import { getCourseAssessmentScheme } from '@/lib/grade-utils'; // 🎛️ أدوات معايير التقييم
+// 🎛️ أدوات معايير التقييم والتحقق من كون البند مفعل
+import { getCourseAssessmentScheme, isAssessmentItemActive } from '@/lib/grade-utils'; // 🧮 استيراد فحص البند النشط
 
 // 📋 واجهة خصائص المودال
 interface CourseGradeExcelPreviewModalProps {
@@ -34,6 +35,35 @@ export default function CourseGradeExcelPreviewModal({
 }: CourseGradeExcelPreviewModalProps) {
   // 🛡️ إذا لم تكن هناك بيانات لا نرسم المودال
   if (!rows) return null;
+
+  // 🔍 دالة ذكية لمطابقة واستخراج قيمة الدرجة للخلية في المعاينة كما في دالة الاستيراد
+  const getCellDisplay = (
+    row: Record<string, string | number | null | undefined>,
+    customTitle: string,
+    maxScore: number,
+    standardKey: string
+  ): string => {
+    const dynamicKey = `${customTitle} (${maxScore})`;
+    if (row[dynamicKey] !== undefined && row[dynamicKey] !== null && row[dynamicKey] !== '') {
+      return String(row[dynamicKey]);
+    }
+    if (row[standardKey] !== undefined && row[standardKey] !== null && row[standardKey] !== '') {
+      return String(row[standardKey]);
+    }
+    const standardBase = standardKey.split(' ')[0];
+    for (const k of Object.keys(row)) {
+      if ((customTitle && k.includes(customTitle)) || (standardBase && k.includes(standardBase))) {
+        const val = row[k];
+        if (val !== undefined && val !== null && val !== '') return String(val);
+      }
+    }
+    return '-';
+  };
+
+  // 🔍 فحص هل يحتوي ملف الإكسل على عمود الرقم الجامعي
+  const hasUniNumber = rows.some(
+    (r) => r['الرقم الجامعي'] || r['university_number'] || r['uni_num'] || r['الرقم_الجامعي']
+  );
 
   return (
     // 🌌 خلفية معتمة تملأ كامل الشاشة مع تأثير زجاجي ناعم
@@ -79,41 +109,121 @@ export default function CourseGradeExcelPreviewModal({
             <thead>
               <tr className="bg-[#0F2942] text-white font-black text-xs sm:text-sm sticky top-0 z-10">
                 <th className="p-3 border-l border-[#1e4570] text-center w-12">ت</th>
-                <th className="p-3 border-l border-[#1e4570]">اسم الطالب الرباعي</th>
-                <th className="p-3 border-l border-[#1e4570] text-center">{assessmentScheme.quiz1.title_ar}</th>
-                <th className="p-3 border-l border-[#1e4570] text-center">{assessmentScheme.quiz2.title_ar}</th>
-                <th className="p-3 border-l border-[#1e4570] text-center">{assessmentScheme.assignment1.title_ar}</th>
-                <th className="p-3 border-l border-[#1e4570] text-center">{assessmentScheme.assignment2.title_ar}</th>
-                <th className="p-3 border-l border-[#1e4570] text-center">{assessmentScheme.report.title_ar}</th>
-                <th className="p-3 border-l border-[#1e4570] text-center">{assessmentScheme.midterm.title_ar}</th>
-                {isPracticalCourse && <th className="p-3 border-l border-[#1e4570] text-center">{assessmentScheme.practical.title_ar}</th>}
-                {isFinalExamEnabled && (
-                  <th className={`p-3 text-center ${isSupplementaryEnabled ? 'border-l border-[#1e4570]' : ''}`}>{assessmentScheme.final_exam.title_ar}</th>
+                {hasUniNumber && (
+                  <th className="p-3 border-l border-[#1e4570] text-center font-mono">الرقم الجامعي</th>
                 )}
+                <th className="p-3 border-l border-[#1e4570]">اسم الطالب الرباعي</th>
+                {/* 📝 إظهار عمود الكويز 1 فقط إذا كان البند مفتوحاً وغير معطل */}
+                {isAssessmentItemActive(assessmentScheme.quiz1) && (
+                  <th className="p-3 border-l border-[#1e4570] text-center">
+                    <div>{assessmentScheme.quiz1.title_ar}</div>
+                    <div className="text-[11px] font-mono font-bold text-emerald-300">({assessmentScheme.quiz1.max_score})</div>
+                  </th>
+                )}
+                {/* 📝 إظهار عمود الكويز 2 فقط إذا كان البند مفتوحاً وغير معطل */}
+                {isAssessmentItemActive(assessmentScheme.quiz2) && (
+                  <th className="p-3 border-l border-[#1e4570] text-center">
+                    <div>{assessmentScheme.quiz2.title_ar}</div>
+                    <div className="text-[11px] font-mono font-bold text-emerald-300">({assessmentScheme.quiz2.max_score})</div>
+                  </th>
+                )}
+                {/* 📝 إظهار عمود الواجب 1 فقط إذا كان البند مفتوحاً وغير معطل */}
+                {isAssessmentItemActive(assessmentScheme.assignment1) && (
+                  <th className="p-3 border-l border-[#1e4570] text-center">
+                    <div>{assessmentScheme.assignment1.title_ar}</div>
+                    <div className="text-[11px] font-mono font-bold text-emerald-300">({assessmentScheme.assignment1.max_score})</div>
+                  </th>
+                )}
+                {/* 📝 إظهار عمود الواجب 2 فقط إذا كان البند مفتوحاً وغير معطل */}
+                {isAssessmentItemActive(assessmentScheme.assignment2) && (
+                  <th className="p-3 border-l border-[#1e4570] text-center">
+                    <div>{assessmentScheme.assignment2.title_ar}</div>
+                    <div className="text-[11px] font-mono font-bold text-emerald-300">({assessmentScheme.assignment2.max_score})</div>
+                  </th>
+                )}
+                {/* 📝 إظهار عمود التقرير فقط إذا كان البند مفتوحاً وغير معطل */}
+                {isAssessmentItemActive(assessmentScheme.report) && (
+                  <th className="p-3 border-l border-[#1e4570] text-center">
+                    <div>{assessmentScheme.report.title_ar}</div>
+                    <div className="text-[11px] font-mono font-bold text-emerald-300">({assessmentScheme.report.max_score})</div>
+                  </th>
+                )}
+                {/* 📝 إظهار عمود النصفي فقط إذا كان البند مفتوحاً وغير معطل */}
+                {isAssessmentItemActive(assessmentScheme.midterm) && (
+                  <th className="p-3 border-l border-[#1e4570] text-center">
+                    <div>{assessmentScheme.midterm.title_ar}</div>
+                    <div className="text-[11px] font-mono font-bold text-emerald-300">({assessmentScheme.midterm.max_score})</div>
+                  </th>
+                )}
+                {/* 🔬 إظهار عمود العملي فقط إذا كانت المادة عملية والبند مفتوح */}
+                {isPracticalCourse && isAssessmentItemActive(assessmentScheme.practical) && (
+                  <th className="p-3 border-l border-[#1e4570] text-center">
+                    <div>{assessmentScheme.practical.title_ar}</div>
+                    <div className="text-[11px] font-mono font-bold text-emerald-300">({assessmentScheme.practical.max_score})</div>
+                  </th>
+                )}
+                {/* 📝 إظهار عمود النهائي فقط إذا كان مفعلاً والبند مفتوح */}
+                {isFinalExamEnabled && isAssessmentItemActive(assessmentScheme.final_exam) && (
+                  <th className={`p-3 text-center ${isSupplementaryEnabled ? 'border-l border-[#1e4570]' : ''}`}>
+                    <div>{assessmentScheme.final_exam.title_ar}</div>
+                    <div className="text-[11px] font-mono font-bold text-emerald-300">({assessmentScheme.final_exam.max_score})</div>
+                  </th>
+                )}
+                {/* 🔄 عمود الدور الثاني */}
                 {isSupplementaryEnabled && (
-                  <th className="p-3 text-center">امتحان الدور الثاني (50)</th>
+                  <th className="p-3 text-center">
+                    <div>امتحان الدور الثاني</div>
+                    <div className="text-[11px] font-mono font-bold text-emerald-300">(50)</div>
+                  </th>
                 )}
               </tr>
             </thead>
             <tbody>
               {rows.map((row, idx) => {
                 const stdName = String(row['اسم الطالب الرباعي'] || row['اسم الطالب'] || row['student_name'] || row['الاسم'] || row['std_name'] || '').trim();
+                const uniNum = String(row['الرقم الجامعي'] || row['university_number'] || row['uni_num'] || row['الرقم_الجامعي'] || '').trim();
                 return (
                   <tr key={idx} className={`border-b border-slate-200 font-black ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}`}>
-                    <td className="p-2.5 border-l border-slate-200 text-center text-slate-700">{idx + 1}</td>
-                    <td className="p-2.5 border-l border-slate-200 text-slate-950 font-bold">{stdName || '—'}</td>
-                    <td className="p-2.5 border-l border-slate-200 text-center">{String(row[`${assessmentScheme.quiz1.title_ar} (${assessmentScheme.quiz1.max_score})`] ?? row['الكويز1 (5)'] ?? row['كويز1'] ?? '-')}</td>
-                    <td className="p-2.5 border-l border-slate-200 text-center">{String(row[`${assessmentScheme.quiz2.title_ar} (${assessmentScheme.quiz2.max_score})`] ?? row['الكويز2 (5)'] ?? row['كويز2'] ?? '-')}</td>
-                    <td className="p-2.5 border-l border-slate-200 text-center">{String(row[`${assessmentScheme.assignment1.title_ar} (${assessmentScheme.assignment1.max_score})`] ?? row['الواجب1 (5)'] ?? row['واجب1'] ?? '-')}</td>
-                    <td className="p-2.5 border-l border-slate-200 text-center">{String(row[`${assessmentScheme.assignment2.title_ar} (${assessmentScheme.assignment2.max_score})`] ?? row['الواجب2 (5)'] ?? row['واجب2'] ?? '-')}</td>
-                    <td className="p-2.5 border-l border-slate-200 text-center">{String(row[`${assessmentScheme.report.title_ar} (${assessmentScheme.report.max_score})`] ?? row['التقرير (10)'] ?? row['تقرير'] ?? '-')}</td>
-                    <td className="p-2.5 border-l border-slate-200 text-center">{String(row[`${assessmentScheme.midterm.title_ar} (${assessmentScheme.midterm.max_score})`] ?? row['الميدترم (10)'] ?? row['نصفي'] ?? '-')}</td>
-                    {isPracticalCourse && <td className="p-2.5 border-l border-slate-200 text-center">{String(row[`${assessmentScheme.practical.title_ar} (${assessmentScheme.practical.max_score})`] ?? row['العملي (10)'] ?? row['عملي'] ?? '-')}</td>}
-                    {isFinalExamEnabled && (
-                      <td className={`p-2.5 text-center ${isSupplementaryEnabled ? 'border-l border-slate-200' : ''}`}>{String(row[`${assessmentScheme.final_exam.title_ar} (${assessmentScheme.final_exam.max_score})`] ?? row['النهائي (50)'] ?? row['نهائي'] ?? '-')}</td>
+                    <td className="p-2.5 border-l border-slate-200 text-center text-slate-700 font-mono">{idx + 1}</td>
+                    {hasUniNumber && (
+                      <td className="p-2.5 border-l border-slate-200 text-center font-mono font-bold text-slate-700">{uniNum || '—'}</td>
                     )}
+                    <td className="p-2.5 border-l border-slate-200 text-slate-950 font-bold">{stdName || '—'}</td>
+                    {/* 📝 خلية الكويز 1 تظهر فقط إذا كان البند مفتوحاً */}
+                    {isAssessmentItemActive(assessmentScheme.quiz1) && (
+                      <td className="p-2.5 border-l border-slate-200 text-center">{getCellDisplay(row, assessmentScheme.quiz1.title_ar, assessmentScheme.quiz1.max_score, 'الكويز1 (5)')}</td>
+                    )}
+                    {/* 📝 خلية الكويز 2 تظهر فقط إذا كان البند مفتوحاً */}
+                    {isAssessmentItemActive(assessmentScheme.quiz2) && (
+                      <td className="p-2.5 border-l border-slate-200 text-center">{getCellDisplay(row, assessmentScheme.quiz2.title_ar, assessmentScheme.quiz2.max_score, 'الكويز2 (5)')}</td>
+                    )}
+                    {/* 📝 خلية الواجب 1 تظهر فقط إذا كان البند مفتوحاً */}
+                    {isAssessmentItemActive(assessmentScheme.assignment1) && (
+                      <td className="p-2.5 border-l border-slate-200 text-center">{getCellDisplay(row, assessmentScheme.assignment1.title_ar, assessmentScheme.assignment1.max_score, 'الواجب1 (5)')}</td>
+                    )}
+                    {/* 📝 خلية الواجب 2 تظهر فقط إذا كان البند مفتوحاً */}
+                    {isAssessmentItemActive(assessmentScheme.assignment2) && (
+                      <td className="p-2.5 border-l border-slate-200 text-center">{getCellDisplay(row, assessmentScheme.assignment2.title_ar, assessmentScheme.assignment2.max_score, 'الواجب2 (5)')}</td>
+                    )}
+                    {/* 📝 خلية التقرير تظهر فقط إذا كان البند مفتوحاً */}
+                    {isAssessmentItemActive(assessmentScheme.report) && (
+                      <td className="p-2.5 border-l border-slate-200 text-center">{getCellDisplay(row, assessmentScheme.report.title_ar, assessmentScheme.report.max_score, 'التقرير (10)')}</td>
+                    )}
+                    {/* 📝 خلية النصفي تظهر فقط إذا كان البند مفتوحاً */}
+                    {isAssessmentItemActive(assessmentScheme.midterm) && (
+                      <td className="p-2.5 border-l border-slate-200 text-center">{getCellDisplay(row, assessmentScheme.midterm.title_ar, assessmentScheme.midterm.max_score, 'الميدترم (10)')}</td>
+                    )}
+                    {/* 🔬 خلية العملي تظهر فقط إذا كانت المادة عملية والبند مفتوح */}
+                    {isPracticalCourse && isAssessmentItemActive(assessmentScheme.practical) && (
+                      <td className="p-2.5 border-l border-slate-200 text-center">{getCellDisplay(row, assessmentScheme.practical.title_ar, assessmentScheme.practical.max_score, 'العملي (10)')}</td>
+                    )}
+                    {/* 📝 خلية النهائي تظهر فقط إذا كان مفعلاً والبند مفتوح */}
+                    {isFinalExamEnabled && isAssessmentItemActive(assessmentScheme.final_exam) && (
+                      <td className={`p-2.5 text-center ${isSupplementaryEnabled ? 'border-l border-slate-200' : ''}`}>{getCellDisplay(row, assessmentScheme.final_exam.title_ar, assessmentScheme.final_exam.max_score, 'النهائي (50)')}</td>
+                    )}
+                    {/* 🔄 خلية الدور الثاني */}
                     {isSupplementaryEnabled && (
-                      <td className="p-2.5 text-center">{String(row['امتحان الدور الثاني (50)'] ?? row['الدور الثاني (50)'] ?? row['دور ثاني'] ?? row['sup'] ?? '-')}</td>
+                      <td className="p-2.5 text-center">{getCellDisplay(row, 'الدور الثاني', 50, 'امتحان الدور الثاني (50)')}</td>
                     )}
                   </tr>
                 );

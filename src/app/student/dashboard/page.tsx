@@ -21,7 +21,7 @@ import {
 } from '@/lib/supabase-client'; // 🔌 الجلسة والمزامنة السحابية الشاملة لكافة الجداول
 import { getStoredData, INITIAL_GRADES, INITIAL_COURSES, INITIAL_SCHEDULE_LECTURES, INITIAL_SCHEDULE_CONFIGS, INITIAL_ATTENDANCE_RECORDS, INITIAL_FINAL_EXAM_SCHEDULES, INITIAL_FINAL_EXAM_SLOTS, INITIAL_TUITION_RECORDS, INITIAL_ACADEMIC_TASKS, INITIAL_STUDENT_SUBMISSIONS, INITIAL_PROFILES, INITIAL_TEACHER_COURSES, getAcademicYear, formatAcademicYearDisplay } from '@/lib/mock-data'; // 💾 البيانات والملفات الشخصية
 import { UserProfile, Grade, Course, TeacherCourse, ScheduleLecture, DepartmentScheduleConfig, StudentAttendanceRecord, FinalExamSchedule, FinalExamSlot, StudentTuitionRecord, CourseAcademicTask, StudentTaskSubmission, CampusAnnouncement } from '@/types'; // 🔗 الأنواع الرسمية
-import { calculateCourseworkTotal, calculateFinalTotal, getLetterGrade, getStageNameInArabic, getCourseAssessmentScheme, isStudentPassedFirstRound } from '@/lib/grade-utils'; // 🧮 الحسابات وأسماء المراحل والمخطط وفحص الدور الأول
+import { calculateCourseworkTotal, calculateFinalTotal, getLetterGrade, getStageNameInArabic, getCourseAssessmentScheme, isStudentPassedFirstRound, isAssessmentItemActive } from '@/lib/grade-utils'; // 🧮 الحسابات وأسماء المراحل والمخطط وفحص الدور الأول والبند المفتوح
 import { detectArabicGender } from '@/lib/demographics-utils'; // 🧮 التعرف الذكي على جنس الطالب
 import { exportStudentTranscriptPDF } from '@/lib/pdf-export'; // 📄 مولد وثيقة السعي PDF
 import { exportStudentTranscriptExcel } from '@/lib/excel-utils'; // 📊 مولد وثيقة السعي والدرجات الفاخرة Excel
@@ -312,6 +312,7 @@ export default function StudentDashboard() {
       await exportStudentTranscriptPDF({
         student: currentUser,
         grades: filteredGrades,
+        courses: courses, // 📚 قائمة المقررات ومخططاتها التقييمية
         semester: activeSemester,
         academicYear: academicYear || getAcademicYear(),
         departmentHeadName: headUser?.full_name?.trim() || 'رئاسة القسم العلمي',
@@ -330,11 +331,13 @@ export default function StudentDashboard() {
       // 📝 نحول كل مادة وسعيها ودرجاتها إلى التنسيق الدقيق المطلوب للإكسل
       const mappedCourses = filteredGrades.map((g) => {
         const cObj = courses.find((c) => c.id === g.course_id || c.name === g.course_name); // 🔍 ندور على بيانات المادة وساعاتها
-        const coursework = calculateCourseworkTotal(g); // 💯 نحسب سعي الكورس من 50 درجة
+        const courseScheme = cObj ? getCourseAssessmentScheme(cObj) : undefined; // 🎛️ جلب مخطط التقييم للمادة
+        const coursework = calculateCourseworkTotal(g, courseScheme); // 💯 نحسب سعي الكورس من 50 درجة للبند المفتوح فقط
+        const isSupActive = cObj?.is_supplementary_exam_enabled === true; // 🔄 هل الدور الثاني مفعل
         const finalEx = g.final_exam !== undefined && g.final_exam !== null ? g.final_exam : null; // 📝 درجة امتحان الفاينل إذا مضافة
-        const finalTot = calculateFinalTotal(g); // 🎯 نجمع النهائي والسعي ليطلع المجموع من 100
+        const finalTot = calculateFinalTotal(g, isSupActive, courseScheme); // 🎯 نجمع النهائي والسعي ليطلع المجموع من 100 للبند المفتوح
         const letter = getLetterGrade(finalTot); // 🅰️ نطلع التقدير الحرفي الأكاديمي (A, B, C...)
-        const passed = isStudentPassedFirstRound(g); // ✅ نشيك الطالب ناجح بالدور الأول لو لا
+        const passed = isStudentPassedFirstRound(g, courseScheme); // ✅ نشيك الطالب ناجح بالدور الأول لو لا
         return {
           course_code: cObj?.code || g.course_id || '—', // 🏷️ رمز وكود المادة
           course_name: g.course_name, // 📘 اسم المادة الرسمي
@@ -922,9 +925,9 @@ export default function StudentDashboard() {
               const isPractical = courseObj?.course_type === 'theory_and_practical' || courseObj?.has_practical; // 🔬 هل المادة نظرية وعملية مشتركة؟
               const isFinalActive = courseObj?.is_final_exam_enabled === true; // 🎯 هل درجات الامتحان النهائي الدور الأول معتمدة ومفعلة من رئاسة القسم أو المقرر؟
               const isSupActive = courseObj?.is_supplementary_exam_enabled === true; // 🔄 هل الدور الثاني مفعل؟
-              const finalTot = isFinalActive ? calculateFinalTotal(g, isSupActive) : g.final_coursework_total; // 💯 احتساب المجموع
+              const finalTot = isFinalActive ? calculateFinalTotal(g, isSupActive, scheme) : g.final_coursework_total; // 💯 احتساب المجموع للبند المفتوح
               const letterGrad = isFinalActive ? getLetterGrade(finalTot) : 'بانتظار الفاينل'; // 🅰️ التقدير الأكاديمي
-              const isPassedFirstRound = isFinalActive && isStudentPassedFirstRound(g); // 🛡️ التحقق من النجاح بالدور الأول
+              const isPassedFirstRound = isFinalActive && isStudentPassedFirstRound(g, scheme); // 🛡️ التحقق من النجاح بالدور الأول
 
               // 👨‍🏫 أساتذة المادة مع إسناد بديل فوري من جدول التكليفات المباشر
               const assignedTCs = teacherCourses.filter(
@@ -1070,135 +1073,183 @@ export default function StudentDashboard() {
 
                       </div>
 
-                      {/* 🧮 شبكة بنود التقييم الـ 7 التفصيلية مع العناوين ثنائية اللغة والأوزان المخصصة */}
-                      <div className={`grid grid-cols-1 sm:grid-cols-2 ${isPractical ? 'lg:grid-cols-5' : 'lg:grid-cols-4'} gap-4`}>
-                        
-                        {/* 1️⃣ قائمة الكويزات (Quizzes) بحدود ناعمة */}
-                        <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
-                          <div className="flex items-center justify-between text-sm font-black text-slate-950 border-b border-slate-200 pb-2">
-                            <div className="flex items-center gap-1.5">
-                              <FileText className="w-4 h-4 text-slate-950" />
-                              <span>الكويزات (Quizzes)</span>
-                            </div>
-                          </div>
-                          <div className="space-y-2 text-sm font-black pt-1">
-                            <div className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-200">
-                              <div>
-                                <div className="text-slate-950 font-black">{scheme.quiz1.title_ar}</div>
-                                <div className="text-sm font-black text-slate-950 font-black" dir="ltr">{scheme.quiz1.title_en}</div>
-                              </div>
-                              <span className={`px-3 py-1 rounded-lg text-sm font-black sm:text-sm font-black ${getGradeBadgeStyle(g.quiz1, scheme.quiz1.max_score)}`}>
-                                {g.quiz1} / {scheme.quiz1.max_score}
-                              </span>
-                            </div>
-                            <div className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-200">
-                              <div>
-                                <div className="text-slate-950 font-black">{scheme.quiz2.title_ar}</div>
-                                <div className="text-sm font-black text-slate-950 font-black" dir="ltr">{scheme.quiz2.title_en}</div>
-                              </div>
-                              <span className={`px-3 py-1 rounded-lg text-sm font-black sm:text-sm font-black ${getGradeBadgeStyle(g.quiz2, scheme.quiz2.max_score)}`}>
-                                {g.quiz2} / {scheme.quiz2.max_score}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
+                      {/* 🧮 فحص البنود المفتوحة والمغلقة لإخفاء أي بند معطل بالكامل */}
+                      {(() => {
+                        // 🔍 فحص هل كويز 1 مفتوح
+                        const hasQuiz1 = isAssessmentItemActive(scheme.quiz1);
+                        // 🔍 فحص هل كويز 2 مفتوح
+                        const hasQuiz2 = isAssessmentItemActive(scheme.quiz2);
+                        // 🔍 فحص هل بطاقة الكويزات تحتوي بند مفتوح على الأقل
+                        const showQuizzesCard = hasQuiz1 || hasQuiz2;
 
-                        {/* 2️⃣ قائمة الواجبات (Homeworks) بحدود ناعمة */}
-                        <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
-                          <div className="flex items-center justify-between text-sm font-black text-slate-950 border-b border-slate-200 pb-2">
-                            <div className="flex items-center gap-1.5">
-                              <FileSpreadsheet className="w-4 h-4 text-slate-950" />
-                              <span>الواجبات (Assignments)</span>
-                            </div>
-                          </div>
-                          <div className="space-y-2 text-sm font-black pt-1">
-                            <div className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-200">
-                              <div>
-                                <div className="text-slate-950 font-black">{scheme.assignment1.title_ar}</div>
-                                <div className="text-sm font-black text-slate-950 font-black" dir="ltr">{scheme.assignment1.title_en}</div>
-                              </div>
-                              <span className={`px-3 py-1 rounded-lg text-sm font-black sm:text-sm font-black ${getGradeBadgeStyle(g.assignment1, scheme.assignment1.max_score)}`}>
-                                {g.assignment1} / {scheme.assignment1.max_score}
-                              </span>
-                            </div>
-                            <div className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-200">
-                              <div>
-                                <div className="text-slate-950 font-black">{scheme.assignment2.title_ar}</div>
-                                <div className="text-sm font-black text-slate-950 font-black" dir="ltr">{scheme.assignment2.title_en}</div>
-                              </div>
-                              <span className={`px-3 py-1 rounded-lg text-sm font-black sm:text-sm font-black ${getGradeBadgeStyle(g.assignment2, scheme.assignment2.max_score)}`}>
-                                {g.assignment2} / {scheme.assignment2.max_score}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
+                        // 🔍 فحص هل واجب 1 مفتوح
+                        const hasAssignment1 = isAssessmentItemActive(scheme.assignment1);
+                        // 🔍 فحص هل واجب 2 مفتوح
+                        const hasAssignment2 = isAssessmentItemActive(scheme.assignment2);
+                        // 🔍 فحص هل بطاقة الواجبات تحتوي بند مفتوح على الأقل
+                        const showAssignmentsCard = hasAssignment1 || hasAssignment2;
 
-                        {/* 3️⃣ قائمة التقرير / النشاط (Report) بحدود ناعمة */}
-                        <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
-                          <div className="flex items-center justify-between text-sm font-black text-slate-950 border-b border-slate-200 pb-2">
-                            <div className="flex items-center gap-1.5">
-                              <FileText className="w-4 h-4 text-slate-950" />
-                              <span>التقارير والنشاط</span>
-                            </div>
-                          </div>
-                          <div className="space-y-2 text-sm font-black pt-1">
-                            <div className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-200">
-                              <div>
-                                <div className="text-slate-950 font-black">{scheme.report.title_ar}</div>
-                                <div className="text-sm font-black text-slate-950 font-black" dir="ltr">{scheme.report.title_en}</div>
-                              </div>
-                              <span className={`px-3 py-1 rounded-lg text-sm font-black sm:text-sm font-black ${getGradeBadgeStyle(g.report, scheme.report.max_score)}`}>
-                                {g.report} / {scheme.report.max_score}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
+                        // 🔍 فحص هل التقرير مفتوح
+                        const showReportCard = isAssessmentItemActive(scheme.report);
 
-                        {/* 4️⃣ قائمة الميدتيرم (Midterm Exam) بحدود ناعمة */}
-                        <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
-                          <div className="flex items-center justify-between text-sm font-black text-slate-950 border-b border-slate-200 pb-2">
-                            <div className="flex items-center gap-1.5">
-                              <Target className="w-4 h-4 text-slate-950" />
-                              <span>الامتحان النصفي</span>
-                            </div>
-                          </div>
-                          <div className="space-y-2 text-sm font-black pt-1">
-                            <div className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-200">
-                              <div>
-                                <div className="text-slate-950 font-black">{scheme.midterm.title_ar}</div>
-                                <div className="text-sm font-black text-slate-950 font-black" dir="ltr">{scheme.midterm.title_en}</div>
-                              </div>
-                              <span className={`px-3 py-1 rounded-lg text-sm font-black sm:text-sm font-black ${getGradeBadgeStyle(g.midterm, scheme.midterm.max_score)}`}>
-                                {g.midterm} / {scheme.midterm.max_score}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
+                        // 🔍 فحص هل الامتحان النصفي مفتوح
+                        const showMidtermCard = isAssessmentItemActive(scheme.midterm);
 
-                        {/* 5️⃣ قائمة العملي (Practical) - تظهر إذا كانت المادة تحتوي عملي بحدود ناعمة */}
-                        {isPractical && (
-                          <div className="p-4 bg-emerald-50/60 border border-emerald-300 rounded-2xl space-y-2">
-                            <div className="flex items-center justify-between text-sm font-black text-emerald-950 border-b border-emerald-200 pb-2">
-                              <div className="flex items-center gap-1.5">
-                                <FlaskConical className="w-4 h-4 text-emerald-700" />
-                                <span>التقييم المختبري</span>
-                              </div>
-                            </div>
-                            <div className="space-y-2 text-sm font-black pt-1">
-                              <div className="flex justify-between items-center bg-white p-3 rounded-xl border border-emerald-200">
-                                <div>
-                                  <div className="text-emerald-950 font-black">{scheme.practical.title_ar}</div>
-                                  <div className="text-sm text-emerald-950 font-black" dir="ltr">{scheme.practical.title_en}</div>
+                        // 🔍 فحص هل العملي مفتوح
+                        const showPracticalCard = isPractical && isAssessmentItemActive(scheme.practical);
+
+                        return (
+                          /* 🧮 شبكة بنود التقييم التكويني مع إخفاء تام لأي بند مغلق */
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                            
+                            {/* 1️⃣ كارد الكويزات - يختفي تماماً إذا الاثنين مغلقين */}
+                            {showQuizzesCard && (
+                              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+                                <div className="flex items-center justify-between text-sm font-black text-slate-950 border-b border-slate-200 pb-2">
+                                  <div className="flex items-center gap-1.5">
+                                    <FileText className="w-4 h-4 text-slate-950" />
+                                    <span>الكويزات (Quizzes)</span>
+                                  </div>
                                 </div>
-                                <span className={`px-3 py-1 rounded-lg text-sm font-black ${getGradeBadgeStyle(g.practical, scheme.practical.max_score)}`}>
-                                  {g.practical} / {scheme.practical.max_score}
-                                </span>
+                                <div className="space-y-2 text-sm font-black pt-1">
+                                  {/* 📝 كويز 1 يظهر فقط إذا كان مفتوح */}
+                                  {hasQuiz1 && (
+                                    <div className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-200">
+                                      <div>
+                                        <div className="text-slate-950 font-black">{scheme.quiz1.title_ar}</div>
+                                        <div className="text-sm font-black text-slate-950 font-black" dir="ltr">{scheme.quiz1.title_en}</div>
+                                      </div>
+                                      <span className={`px-3 py-1 rounded-lg text-sm font-black sm:text-sm font-black ${getGradeBadgeStyle(g.quiz1, scheme.quiz1.max_score)}`}>
+                                        {g.quiz1} / {scheme.quiz1.max_score}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {/* 📝 كويز 2 يظهر فقط إذا كان مفتوح */}
+                                  {hasQuiz2 && (
+                                    <div className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-200">
+                                      <div>
+                                        <div className="text-slate-950 font-black">{scheme.quiz2.title_ar}</div>
+                                        <div className="text-sm font-black text-slate-950 font-black" dir="ltr">{scheme.quiz2.title_en}</div>
+                                      </div>
+                                      <span className={`px-3 py-1 rounded-lg text-sm font-black sm:text-sm font-black ${getGradeBadgeStyle(g.quiz2, scheme.quiz2.max_score)}`}>
+                                        {g.quiz2} / {scheme.quiz2.max_score}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
-                            </div>
-                          </div>
-                        )}
+                            )}
 
-                      </div>
+                            {/* 2️⃣ كارد الواجبات - يختفي تماماً إذا الاثنين مغلقين */}
+                            {showAssignmentsCard && (
+                              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+                                <div className="flex items-center justify-between text-sm font-black text-slate-950 border-b border-slate-200 pb-2">
+                                  <div className="flex items-center gap-1.5">
+                                    <FileSpreadsheet className="w-4 h-4 text-slate-950" />
+                                    <span>الواجبات (Assignments)</span>
+                                  </div>
+                                </div>
+                                <div className="space-y-2 text-sm font-black pt-1">
+                                  {/* 📑 واجب 1 يظهر فقط إذا كان مفتوح */}
+                                  {hasAssignment1 && (
+                                    <div className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-200">
+                                      <div>
+                                        <div className="text-slate-950 font-black">{scheme.assignment1.title_ar}</div>
+                                        <div className="text-sm font-black text-slate-950 font-black" dir="ltr">{scheme.assignment1.title_en}</div>
+                                      </div>
+                                      <span className={`px-3 py-1 rounded-lg text-sm font-black sm:text-sm font-black ${getGradeBadgeStyle(g.assignment1, scheme.assignment1.max_score)}`}>
+                                        {g.assignment1} / {scheme.assignment1.max_score}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {/* 📑 واجب 2 يظهر فقط إذا كان مفتوح */}
+                                  {hasAssignment2 && (
+                                    <div className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-200">
+                                      <div>
+                                        <div className="text-slate-950 font-black">{scheme.assignment2.title_ar}</div>
+                                        <div className="text-sm font-black text-slate-950 font-black" dir="ltr">{scheme.assignment2.title_en}</div>
+                                      </div>
+                                      <span className={`px-3 py-1 rounded-lg text-sm font-black sm:text-sm font-black ${getGradeBadgeStyle(g.assignment2, scheme.assignment2.max_score)}`}>
+                                        {g.assignment2} / {scheme.assignment2.max_score}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* 3️⃣ كارد التقرير / النشاط - يختفي تماماً إذا كان مغلق */}
+                            {showReportCard && (
+                              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+                                <div className="flex items-center justify-between text-sm font-black text-slate-950 border-b border-slate-200 pb-2">
+                                  <div className="flex items-center gap-1.5">
+                                    <FileText className="w-4 h-4 text-slate-950" />
+                                    <span>التقارير والنشاط</span>
+                                  </div>
+                                </div>
+                                <div className="space-y-2 text-sm font-black pt-1">
+                                  <div className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-200">
+                                    <div>
+                                      <div className="text-slate-950 font-black">{scheme.report.title_ar}</div>
+                                      <div className="text-sm font-black text-slate-950 font-black" dir="ltr">{scheme.report.title_en}</div>
+                                    </div>
+                                    <span className={`px-3 py-1 rounded-lg text-sm font-black sm:text-sm font-black ${getGradeBadgeStyle(g.report, scheme.report.max_score)}`}>
+                                      {g.report} / {scheme.report.max_score}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* 4️⃣ كارد الامتحان النصفي - يختفي تماماً إذا كان مغلق */}
+                            {showMidtermCard && (
+                              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+                                <div className="flex items-center justify-between text-sm font-black text-slate-950 border-b border-slate-200 pb-2">
+                                  <div className="flex items-center gap-1.5">
+                                    <Target className="w-4 h-4 text-slate-950" />
+                                    <span>الامتحان النصفي</span>
+                                  </div>
+                                </div>
+                                <div className="space-y-2 text-sm font-black pt-1">
+                                  <div className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-200">
+                                    <div>
+                                      <div className="text-slate-950 font-black">{scheme.midterm.title_ar}</div>
+                                      <div className="text-sm font-black text-slate-950 font-black" dir="ltr">{scheme.midterm.title_en}</div>
+                                    </div>
+                                    <span className={`px-3 py-1 rounded-lg text-sm font-black sm:text-sm font-black ${getGradeBadgeStyle(g.midterm, scheme.midterm.max_score)}`}>
+                                      {g.midterm} / {scheme.midterm.max_score}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* 5️⃣ كارد العملي والمختبري - يختفي تماماً إذا كان مغلق أو المادة نظرية فقط */}
+                            {showPracticalCard && (
+                              <div className="p-4 bg-emerald-50/60 border border-emerald-300 rounded-2xl space-y-2">
+                                <div className="flex items-center justify-between text-sm font-black text-emerald-950 border-b border-emerald-200 pb-2">
+                                  <div className="flex items-center gap-1.5">
+                                    <FlaskConical className="w-4 h-4 text-emerald-700" />
+                                    <span>التقييم المختبري</span>
+                                  </div>
+                                </div>
+                                <div className="space-y-2 text-sm font-black pt-1">
+                                  <div className="flex justify-between items-center bg-white p-3 rounded-xl border border-emerald-200">
+                                    <div>
+                                      <div className="text-emerald-950 font-black">{scheme.practical.title_ar}</div>
+                                      <div className="text-sm text-emerald-950 font-black" dir="ltr">{scheme.practical.title_en}</div>
+                                    </div>
+                                    <span className={`px-3 py-1 rounded-lg text-sm font-black ${getGradeBadgeStyle(g.practical, scheme.practical.max_score)}`}>
+                                      {g.practical} / {scheme.practical.max_score}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                          </div>
+                        );
+                      })()}
 
                       {/* 🏁 بطاقة الامتحان النهائي والدور الثاني والنتيجة الكلية تظهر حصراً إذا كان الفاينل مفعلاً ومفتوحاً */}
                       {isFinalActive && (

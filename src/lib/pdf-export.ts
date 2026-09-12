@@ -3,8 +3,8 @@
 // 📄 محرك ومولد وثيقة السعي والدرجات الرسمية بصيغة PDF الأكاديمية - جامعة الإمام جعفر الصادق (ع) - فرع ميسان
 import jsPDF from 'jspdf'; // 📦 مكتبة توليد PDF
 import html2canvas from 'html2canvas'; // 🖼️ مكتبة تحويل عناصر HTML لكانفاس عالي الدقة
-import { Grade, UserProfile, FinalExamSchedule, FinalExamSlot, StudentTuitionRecord, TuitionInstallmentItem, CourseAcademicTask, StudentTaskSubmission, AssessmentScheme } from '@/types'; // 🔗 الأنواع الرسمية والمخطط التقييمي
-import { calculateFinalTotal, getLetterGrade } from './grade-utils'; // 🧮 دوال حساب الدرجات والتقديرات
+import { Grade, Course, UserProfile, FinalExamSchedule, FinalExamSlot, StudentTuitionRecord, TuitionInstallmentItem, CourseAcademicTask, StudentTaskSubmission, AssessmentScheme } from '@/types'; // 🔗 الأنواع الرسمية والمخطط التقييمي
+import { calculateFinalTotal, getLetterGrade, isAssessmentItemActive, calculateCourseworkTotal, getCourseAssessmentScheme, DEFAULT_THEORY_PRACTICAL_SCHEME, DEFAULT_THEORY_ONLY_SCHEME } from './grade-utils'; // 🧮 دوال حساب الدرجات والمخططات وفحص البنود المفتوحة
 import { getAcademicYear } from './mock-data'; // 🗓️ العام الدراسي المعتمد بالنظام
 import { escapeHtml } from './security/xss-guard'; // 🛡️ ترميز وتطهير نصوص HTML ضد XSS
 import { checkRateLimit, acquireHeavyTaskLock, releaseHeavyTaskLock } from './security/ddos-guard'; // 🛡️ حارس DDoS ومحدد العمليات الثقيلة
@@ -16,6 +16,7 @@ export interface PDFExportOptions {
   academicYear?: string; // 📅 السنة الدراسية
   departmentHeadName?: string; // 👤 اسم رئيس القسم
   rapporteurName?: string; // 👤 اسم مقرر القسم
+  courses?: Course[]; // 📚 المواد الأكاديمية ومخططاتها التقييمية
 }
 
 // 🗓️ دالة مساعدة لتوحيد وتثبيت العام الدراسي بصيغة (2026 - 2027) دائماً في كافة وثائق PDF
@@ -112,32 +113,48 @@ export async function exportStudentTranscriptPDF(options: PDFExportOptions): Pro
     day: 'numeric',
   });
 
-  // 🧮 حساب المعدل التراكمي ومجموع السعي
+  // 🧮 حساب المعدل التراكمي ومجموع السعي للبنود المفتوحة بالمخطط
   let totalCoursework = 0;
   let totalCredits = 0;
   grades.forEach((g) => {
-    totalCoursework += g.final_coursework_total || 0;
-    totalCredits += 3;
+    const courseObj = options.courses?.find((c) => c.id === g.course_id || c.name === g.course_name);
+    const scheme = courseObj ? getCourseAssessmentScheme(courseObj) : null;
+    const cwScore = scheme ? calculateCourseworkTotal(g, scheme) : (g.final_coursework_total || 0);
+    totalCoursework += cwScore;
+    totalCredits += (courseObj?.credit_hours || 3);
   });
   const avgCoursework = grades.length > 0 ? (totalCoursework / grades.length).toFixed(1) : '0';
 
   // 🏛️ بناء جدول بنود مسار بولونيا الـ 7
   const tableRowsHtml = grades.map((g, idx) => {
-    const finalScore = calculateFinalTotal(g);
+    const courseObj = options.courses?.find((c) => c.id === g.course_id || c.name === g.course_name);
+    const scheme = courseObj ? getCourseAssessmentScheme(courseObj) : null;
+    const isPractical = courseObj ? (courseObj.course_type === 'theory_and_practical' || courseObj.has_practical) : true;
+    const isSupActive = courseObj?.is_supplementary_exam_enabled === true;
+    const finalScore = calculateFinalTotal(g, isSupActive, scheme);
     const letter = getLetterGrade(finalScore);
+    const courseworkScore = scheme ? calculateCourseworkTotal(g, scheme) : (g.final_coursework_total || 0);
+
+    const q1Val = (!scheme || isAssessmentItemActive(scheme.quiz1)) ? g.quiz1 : '—';
+    const q2Val = (!scheme || isAssessmentItemActive(scheme.quiz2)) ? g.quiz2 : '—';
+    const a1Val = (!scheme || isAssessmentItemActive(scheme.assignment1)) ? g.assignment1 : '—';
+    const a2Val = (!scheme || isAssessmentItemActive(scheme.assignment2)) ? g.assignment2 : '—';
+    const repVal = (!scheme || isAssessmentItemActive(scheme.report)) ? g.report : '—';
+    const midVal = (!scheme || isAssessmentItemActive(scheme.midterm)) ? g.midterm : '—';
+    const pracVal = (!scheme || (isPractical && isAssessmentItemActive(scheme.practical))) ? g.practical : '—';
 
     return `
       <tr style="border-bottom: 1px solid #000000; text-align: center; vertical-align: middle; font-size: 11px; color: #000000; height: 36px;">
         <td style="padding: 0 2px; font-weight: 900; border: 1.5px solid #000000; width: 26px; color: #000000; text-align: center; vertical-align: middle; height: 36px; line-height: 36px;">${idx + 1}</td>
         <td style="padding: 0 8px; font-weight: 900; text-align: right; border: 1.5px solid #000000; color: #000000; font-size: 11.5px; vertical-align: middle; height: 36px; line-height: 36px;">${escapeHtml(g.course_name)}</td>
-        <td style="padding: 0 2px; border: 1.5px solid #000000; color: #000000; font-weight: 800; text-align: center; vertical-align: middle; height: 36px; line-height: 36px;">${g.quiz1}</td>
-        <td style="padding: 0 2px; border: 1.5px solid #000000; color: #000000; font-weight: 800; text-align: center; vertical-align: middle; height: 36px; line-height: 36px;">${g.quiz2}</td>
-        <td style="padding: 0 2px; border: 1.5px solid #000000; color: #000000; font-weight: 800; text-align: center; vertical-align: middle; height: 36px; line-height: 36px;">${g.assignment1}</td>
-        <td style="padding: 0 2px; border: 1.5px solid #000000; color: #000000; font-weight: 800; text-align: center; vertical-align: middle; height: 36px; line-height: 36px;">${g.assignment2}</td>
-        <td style="padding: 0 2px; border: 1.5px solid #000000; color: #000000; font-weight: 800; text-align: center; vertical-align: middle; height: 36px; line-height: 36px;">${g.report}</td>
-        <td style="padding: 0 2px; border: 1.5px solid #000000; color: #000000; font-weight: 800; text-align: center; vertical-align: middle; height: 36px; line-height: 36px;">${g.midterm}</td>
-        <td style="padding: 0 2px; border: 1.5px solid #000000; color: #000000; font-weight: 800; text-align: center; vertical-align: middle; height: 36px; line-height: 36px;">${g.practical}</td>
-        <td style="padding: 0 2px; font-weight: 900; background-color: #ffffff; border: 2.5px solid #000000; color: #000000; font-size: 12.5px; text-align: center; vertical-align: middle; height: 36px; line-height: 36px;">${g.final_coursework_total}</td>
+        <td style="padding: 0 2px; border: 1.5px solid #000000; color: #000000; font-weight: 800; text-align: center; vertical-align: middle; height: 36px; line-height: 36px;">${q1Val}</td>
+        <td style="padding: 0 2px; border: 1.5px solid #000000; color: #000000; font-weight: 800; text-align: center; vertical-align: middle; height: 36px; line-height: 36px;">${q2Val}</td>
+        <td style="padding: 0 2px; border: 1.5px solid #000000; color: #000000; font-weight: 800; text-align: center; vertical-align: middle; height: 36px; line-height: 36px;">${a1Val}</td>
+        <td style="padding: 0 2px; border: 1.5px solid #000000; color: #000000; font-weight: 800; text-align: center; vertical-align: middle; height: 36px; line-height: 36px;">${a2Val}</td>
+        <td style="padding: 0 2px; border: 1.5px solid #000000; color: #000000; font-weight: 800; text-align: center; vertical-align: middle; height: 36px; line-height: 36px;">${repVal}</td>
+        <td style="padding: 0 2px; border: 1.5px solid #000000; color: #000000; font-weight: 800; text-align: center; vertical-align: middle; height: 36px; line-height: 36px;">${midVal}</td>
+        <td style="padding: 0 2px; border: 1.5px solid #000000; color: #000000; font-weight: 800; text-align: center; vertical-align: middle; height: 36px; line-height: 36px;">${pracVal}</td>
+        <td style="padding: 0 2px; font-weight: 900; background-color: #ffffff; border: 2.5px solid #000000; color: #000000; font-size: 12.5px; text-align: center; vertical-align: middle; height: 36px; line-height: 36px;">${courseworkScore}</td>
         <td style="padding: 0 2px; border: 1.5px solid #000000; color: #000000; font-weight: 900; text-align: center; vertical-align: middle; height: 36px; line-height: 36px;">${g.final_exam || '-'}</td>
         <td style="padding: 0 2px; font-weight: 900; background-color: #ffffff; border: 2.5px solid #000000; color: #000000; font-size: 12.5px; text-align: center; vertical-align: middle; height: 36px; line-height: 36px;">${finalScore > 0 ? finalScore : '-'}</td>
         <td style="padding: 0 2px; font-weight: 900; color: #000000; border: 1.5px solid #000000; width: 95px; min-width: 95px; text-align: center; vertical-align: middle; height: 36px; line-height: 36px;">
@@ -400,22 +417,35 @@ export async function exportCourseGradeSheetPDF(options: CourseGradeSheetPDFOpti
   const stageArabicName = stageNumber === 1 ? 'الأولى' : stageNumber === 2 ? 'الثانية' : stageNumber === 3 ? 'الثالثة' : stageNumber === 4 ? 'الرابعة' : `${stageNumber}`;
   const semesterArabicName = semester === 1 ? 'الكورس الأول' : 'الكورس الثاني';
 
+  // 🎛️ اعتماد المخطط التقييمي للمادة أو المخطط الافتراضي بحسب نوع المادة
+  const effectiveScheme: AssessmentScheme = options.scheme || (isPractical ? DEFAULT_THEORY_PRACTICAL_SCHEME : DEFAULT_THEORY_ONLY_SCHEME);
+
+  // 🔍 فحص حالة كل بند هل هو مفتوح أم مغلق لإخفائه بالكامل من جدول الـ PDF
+  const hasQuiz1 = isAssessmentItemActive(effectiveScheme.quiz1);
+  const hasQuiz2 = isAssessmentItemActive(effectiveScheme.quiz2);
+  const hasAssignment1 = isAssessmentItemActive(effectiveScheme.assignment1);
+  const hasAssignment2 = isAssessmentItemActive(effectiveScheme.assignment2);
+  const hasReport = isAssessmentItemActive(effectiveScheme.report);
+  const hasMidterm = isAssessmentItemActive(effectiveScheme.midterm);
+  const hasPracticalActive = isPractical && isAssessmentItemActive(effectiveScheme.practical);
+
   const tableRowsHtml = grades.map((g, idx) => {
-    const finalScore = calculateFinalTotal(g);
+    const finalScore = calculateFinalTotal(g, false, effectiveScheme);
     const letter = getLetterGrade(finalScore);
+    const calculatedCoursework = calculateCourseworkTotal(g, effectiveScheme);
 
     return `
       <tr style="border-bottom: 1px solid #000000; text-align: center; vertical-align: middle; font-size: 11px; color: #000000; height: 36px;">
         <td style="padding: 0 2px; font-weight: 900; border: 1.5px solid #000000; width: 26px; color: #000000; text-align: center; vertical-align: middle; height: 36px; line-height: 36px;">${idx + 1}</td>
         <td style="padding: 0 8px; font-weight: 900; text-align: right; border: 1.5px solid #000000; font-size: 11.5px; color: #000000; vertical-align: middle; height: 36px; line-height: 36px;">${g.student_name}</td>
-        <td style="padding: 0 2px; border: 1.5px solid #000000; font-weight: 800; color: #000000; text-align: center; vertical-align: middle; height: 36px; line-height: 36px;">${g.quiz1}</td>
-        <td style="padding: 0 2px; border: 1.5px solid #000000; font-weight: 800; color: #000000; text-align: center; vertical-align: middle; height: 36px; line-height: 36px;">${g.quiz2}</td>
-        <td style="padding: 0 2px; border: 1.5px solid #000000; font-weight: 800; color: #000000; text-align: center; vertical-align: middle; height: 36px; line-height: 36px;">${g.assignment1}</td>
-        <td style="padding: 0 2px; border: 1.5px solid #000000; font-weight: 800; color: #000000; text-align: center; vertical-align: middle; height: 36px; line-height: 36px;">${g.assignment2}</td>
-        <td style="padding: 0 2px; border: 1.5px solid #000000; font-weight: 800; color: #000000; text-align: center; vertical-align: middle; height: 36px; line-height: 36px;">${g.report}</td>
-        <td style="padding: 0 2px; border: 1.5px solid #000000; font-weight: 800; color: #000000; text-align: center; vertical-align: middle; height: 36px; line-height: 36px;">${g.midterm}</td>
-        ${isPractical ? `<td style="padding: 0 2px; border: 1.5px solid #000000; font-weight: 800; color: #000000; text-align: center; vertical-align: middle; height: 36px; line-height: 36px;">${g.practical}</td>` : ''}
-        <td style="padding: 0 2px; font-weight: 900; background-color: #ffffff; border: 2.5px solid #000000; color: #000000; font-size: 13px; text-align: center; vertical-align: middle; height: 36px; line-height: 36px;">${g.final_coursework_total}</td>
+        ${hasQuiz1 ? `<td style="padding: 0 2px; border: 1.5px solid #000000; font-weight: 800; color: #000000; text-align: center; vertical-align: middle; height: 36px; line-height: 36px;">${g.quiz1}</td>` : ''}
+        ${hasQuiz2 ? `<td style="padding: 0 2px; border: 1.5px solid #000000; font-weight: 800; color: #000000; text-align: center; vertical-align: middle; height: 36px; line-height: 36px;">${g.quiz2}</td>` : ''}
+        ${hasAssignment1 ? `<td style="padding: 0 2px; border: 1.5px solid #000000; font-weight: 800; color: #000000; text-align: center; vertical-align: middle; height: 36px; line-height: 36px;">${g.assignment1}</td>` : ''}
+        ${hasAssignment2 ? `<td style="padding: 0 2px; border: 1.5px solid #000000; font-weight: 800; color: #000000; text-align: center; vertical-align: middle; height: 36px; line-height: 36px;">${g.assignment2}</td>` : ''}
+        ${hasReport ? `<td style="padding: 0 2px; border: 1.5px solid #000000; font-weight: 800; color: #000000; text-align: center; vertical-align: middle; height: 36px; line-height: 36px;">${g.report}</td>` : ''}
+        ${hasMidterm ? `<td style="padding: 0 2px; border: 1.5px solid #000000; font-weight: 800; color: #000000; text-align: center; vertical-align: middle; height: 36px; line-height: 36px;">${g.midterm}</td>` : ''}
+        ${hasPracticalActive ? `<td style="padding: 0 2px; border: 1.5px solid #000000; font-weight: 800; color: #000000; text-align: center; vertical-align: middle; height: 36px; line-height: 36px;">${g.practical}</td>` : ''}
+        <td style="padding: 0 2px; font-weight: 900; background-color: #ffffff; border: 2.5px solid #000000; color: #000000; font-size: 13px; text-align: center; vertical-align: middle; height: 36px; line-height: 36px;">${calculatedCoursework}</td>
         ${isFinalExamActive ? `
           <td style="padding: 0 2px; border: 1.5px solid #000000; font-weight: 900; color: #000000; text-align: center; vertical-align: middle; height: 36px; line-height: 36px;">${g.final_exam || '-'}</td>
           <td style="padding: 0 2px; font-weight: 900; background-color: #ffffff; border: 2.5px solid #000000; color: #000000; font-size: 12.5px; text-align: center; vertical-align: middle; height: 36px; line-height: 36px;">${finalScore > 0 ? finalScore : '-'}</td>
@@ -478,16 +508,16 @@ export async function exportCourseGradeSheetPDF(options: CourseGradeSheetPDFOpti
             <tr style="background-color: #000000; color: #ffffff; font-size: 10px; font-weight: 900; text-align: center; vertical-align: middle;">
               <th style="padding: 8px 2px; width: 26px; border: 1.5px solid #000000; color: #ffffff; text-align: center; vertical-align: middle;">ت</th>
               <th style="padding: 8px 6px; text-align: right; min-width: 145px; border: 1.5px solid #000000; color: #ffffff; vertical-align: middle;">اسم الطالب الرباعي</th>
-              <th style="padding: 8px 2px; border: 1.5px solid #000000; color: #ffffff; width: 32px; text-align: center; vertical-align: middle;">${options.scheme?.quiz1.title_ar || 'ك1'}<br/>(${options.scheme?.quiz1.max_score || 5})</th>
-              <th style="padding: 8px 2px; border: 1.5px solid #000000; color: #ffffff; width: 32px; text-align: center; vertical-align: middle;">${options.scheme?.quiz2.title_ar || 'ك2'}<br/>(${options.scheme?.quiz2.max_score || 5})</th>
-              <th style="padding: 8px 2px; border: 1.5px solid #000000; color: #ffffff; width: 32px; text-align: center; vertical-align: middle;">${options.scheme?.assignment1.title_ar || 'و1'}<br/>(${options.scheme?.assignment1.max_score || 5})</th>
-              <th style="padding: 8px 2px; border: 1.5px solid #000000; color: #ffffff; width: 32px; text-align: center; vertical-align: middle;">${options.scheme?.assignment2.title_ar || 'و2'}<br/>(${options.scheme?.assignment2.max_score || 5})</th>
-              <th style="padding: 8px 2px; border: 1.5px solid #000000; color: #ffffff; width: 35px; text-align: center; vertical-align: middle;">${options.scheme?.report.title_ar || 'تقرير'}<br/>(${options.scheme?.report.max_score || 10})</th>
-              <th style="padding: 8px 2px; border: 1.5px solid #000000; color: #ffffff; width: 35px; text-align: center; vertical-align: middle;">${options.scheme?.midterm.title_ar || 'نصف'}<br/>(${options.scheme?.midterm.max_score || 10})</th>
-              ${isPractical ? `<th style="padding: 8px 2px; border: 1.5px solid #000000; color: #ffffff; width: 35px; text-align: center; vertical-align: middle;">${options.scheme?.practical.title_ar || 'عملي'}<br/>(${options.scheme?.practical.max_score || 10})</th>` : ''}
+              ${hasQuiz1 ? `<th style="padding: 8px 2px; border: 1.5px solid #000000; color: #ffffff; width: 32px; text-align: center; vertical-align: middle;">${effectiveScheme.quiz1.title_ar || 'ك1'}<br/>(${effectiveScheme.quiz1.max_score || 5})</th>` : ''}
+              ${hasQuiz2 ? `<th style="padding: 8px 2px; border: 1.5px solid #000000; color: #ffffff; width: 32px; text-align: center; vertical-align: middle;">${effectiveScheme.quiz2.title_ar || 'ك2'}<br/>(${effectiveScheme.quiz2.max_score || 5})</th>` : ''}
+              ${hasAssignment1 ? `<th style="padding: 8px 2px; border: 1.5px solid #000000; color: #ffffff; width: 32px; text-align: center; vertical-align: middle;">${effectiveScheme.assignment1.title_ar || 'و1'}<br/>(${effectiveScheme.assignment1.max_score || 5})</th>` : ''}
+              ${hasAssignment2 ? `<th style="padding: 8px 2px; border: 1.5px solid #000000; color: #ffffff; width: 32px; text-align: center; vertical-align: middle;">${effectiveScheme.assignment2.title_ar || 'و2'}<br/>(${effectiveScheme.assignment2.max_score || 5})</th>` : ''}
+              ${hasReport ? `<th style="padding: 8px 2px; border: 1.5px solid #000000; color: #ffffff; width: 35px; text-align: center; vertical-align: middle;">${effectiveScheme.report.title_ar || 'تقرير'}<br/>(${effectiveScheme.report.max_score || 10})</th>` : ''}
+              ${hasMidterm ? `<th style="padding: 8px 2px; border: 1.5px solid #000000; color: #ffffff; width: 35px; text-align: center; vertical-align: middle;">${effectiveScheme.midterm.title_ar || 'نصف'}<br/>(${effectiveScheme.midterm.max_score || 10})</th>` : ''}
+              ${hasPracticalActive ? `<th style="padding: 8px 2px; border: 1.5px solid #000000; color: #ffffff; width: 35px; text-align: center; vertical-align: middle;">${effectiveScheme.practical.title_ar || 'عملي'}<br/>(${effectiveScheme.practical.max_score || 10})</th>` : ''}
               <th style="padding: 8px 4px; border: 2.5px solid #000000; background-color: #000000; color: #ffffff; width: 65px; font-weight: 900; text-align: center; vertical-align: middle;">${isFinalExamActive ? 'السعي' : 'السعي المعتمد'}<br/>(50)</th>
               ${isFinalExamActive ? `
-                <th style="padding: 8px 2px; border: 1.5px solid #000000; color: #ffffff; width: 40px; text-align: center; vertical-align: middle;">${options.scheme?.final_exam.title_ar || 'نهائي'}<br/>(${options.scheme?.final_exam.max_score || 50})</th>
+                <th style="padding: 8px 2px; border: 1.5px solid #000000; color: #ffffff; width: 40px; text-align: center; vertical-align: middle;">${effectiveScheme.final_exam.title_ar || 'نهائي'}<br/>(${effectiveScheme.final_exam.max_score || 50})</th>
                 <th style="padding: 8px 2px; border: 2.5px solid #000000; background-color: #000000; color: #ffffff; width: 58px; font-weight: 900; text-align: center; vertical-align: middle;">المجموع<br/>(100)</th>
                 <th style="padding: 8px 2px; border: 1.5px solid #000000; color: #ffffff; width: 95px; min-width: 95px; white-space: nowrap; text-align: center; vertical-align: middle;">التقدير</th>
               ` : `
@@ -2662,17 +2692,17 @@ export async function exportBolognaAttendanceReportPDF(options: ExportBolognaAtt
     let badgeBg = '#ecfdf5';
 
     if (s.warningStatus === 'warning_1') {
-      badgeLabel = 'إنذار أولي (5%)';
-      badgeColor = '#b45309';
-      badgeBg = '#fef3c7';
+      badgeLabel = 'إنذار أولي (5%)'; // ⚠️ إنذار أولي
+      badgeColor = '#334155'; // 🎨 لون رمادي كحلي داكن بدون برتقالي وبدون بنفسجي
+      badgeBg = '#f1f5f9'; // 🎨 خلفية رمادية هادئة
     } else if (s.warningStatus === 'warning_2') {
-      badgeLabel = 'إنذار نهائي (7%)';
-      badgeColor = '#c2410c';
-      badgeBg = '#ffedd5';
+      badgeLabel = 'إنذار نهائي (7%)'; // ⚠️ إنذار نهائي
+      badgeColor = '#be123c'; // 🎨 لون وردي قرمزي صريح
+      badgeBg = '#ffe4e6'; // 🎨 خلفية وردية فاتحة
     } else if (s.warningStatus === 'banned') {
-      badgeLabel = 'حرمان رسمي (10%)';
-      badgeColor = '#b91c1c';
-      badgeBg = '#fee2e2';
+      badgeLabel = 'حرمان رسمي (10%)'; // 🚫 حرمان رسمي
+      badgeColor = '#b91c1c'; // 🎨 أحمر قرمزي رسمي
+      badgeBg = '#fee2e2'; // 🎨 خلفية حمراء
     }
 
     return `
@@ -2683,7 +2713,7 @@ export async function exportBolognaAttendanceReportPDF(options: ExportBolognaAtt
         <td style="border: 1.5px solid #000000; font-weight: 900; width: 70px;">${s.studyType === 'evening' ? 'مسائي' : 'صباحي'}</td>
         <td style="border: 1.5px solid #000000; font-weight: 900; color: #047857; width: 55px;">${s.presentCount}</td>
         <td style="border: 1.5px solid #000000; font-weight: 900; color: #0369a1; width: 55px;">${s.excusedAbsenceCount}</td>
-        <td style="border: 1.5px solid #000000; font-weight: 900; color: #b45309; width: 55px;">${s.lateCount}</td>
+        <td style="border: 1.5px solid #000000; font-weight: 900; color: #475569; width: 55px;">${s.lateCount}</td>
         <td style="border: 1.5px solid #000000; font-weight: 900; color: #b91c1c; font-size: 12px; width: 75px;">${s.totalUnexcusedHours} س</td>
         <td style="border: 1.5px solid #000000; font-weight: 900; font-size: 12px; font-family: monospace; width: 75px;">${s.absencePercentage}%</td>
         <td style="border: 1.5px solid #000000; font-weight: 900; width: 130px; background-color: ${badgeBg}; color: ${badgeColor};">

@@ -2,54 +2,15 @@
 -- 🛡️ متوافق مع معايير Zero Trust ومسار بولونيا والتحقق اللحظي عبر QR
 
 -- ==============================================================================
--- 🧹 1. تنظيف وإعادة تعيين الجداول القديمة بأمان لضمان التوافقية وبناء القيود السليمة
+-- 🛡️ سكربت بناء وتهيئة قاعدة البيانات بشكل آمن وغير تدميري (Idempotent & Safe Bootstrapping)
+-- ⚠️ تم تحصين هذا الملف بالكامل: لا يحتوي على أي أمر حذف (DROP TABLE / DROP VIEW) إطلاقاً!
+-- 🌟 آمن للاستخدام عند تأسيس قاعدة بيانات جديدة لأي جامعة، وآمن عند إعادة التشغيل دون فقدان البيانات.
 -- ==============================================================================
--- 🧹 إزالة العروض القديمة إن وجدت
-DROP VIEW IF EXISTS public.vw_student_final_exam_timetable CASCADE;
-DROP VIEW IF EXISTS public.vw_student_progression_status CASCADE;
-DROP VIEW IF EXISTS public.vw_department_analytics_summary CASCADE;
-DROP VIEW IF EXISTS public.vw_student_transcripts CASCADE;
-DROP VIEW IF EXISTS public.vw_all_profiles CASCADE;
-
--- 🧹 إزالة جدول أو عرض profiles بأمان تام مهما كان نوعه (Table أو View)
-DO $$ 
-BEGIN
-  IF EXISTS (SELECT 1 FROM information_schema.views WHERE table_schema = 'public' AND table_name = 'profiles') THEN
-    EXECUTE 'DROP VIEW public.profiles CASCADE';
-  ELSIF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'profiles') THEN
-    EXECUTE 'DROP TABLE public.profiles CASCADE';
-  END IF;
-END $$;
-
-DROP TABLE IF EXISTS public.document_verifications CASCADE;
-DROP TABLE IF EXISTS public.notifications CASCADE;
-DROP TABLE IF EXISTS public.audit_logs CASCADE;
-DROP TABLE IF EXISTS public.grades CASCADE;
-DROP TABLE IF EXISTS public.teacher_courses CASCADE;
-DROP TABLE IF EXISTS public.courses CASCADE;
-DROP TABLE IF EXISTS public.task_student_submissions CASCADE;
-DROP TABLE IF EXISTS public.course_academic_tasks CASCADE;
-DROP TABLE IF EXISTS public.campus_official_announcements CASCADE;
-DROP TABLE IF EXISTS public.student_tuition_records CASCADE;
-DROP TABLE IF EXISTS public.final_exam_slots CASCADE;
-DROP TABLE IF EXISTS public.final_exam_schedules CASCADE;
-DROP TABLE IF EXISTS public.attendance_excuse_requests CASCADE;
-DROP TABLE IF EXISTS public.student_attendance_records CASCADE;
-DROP TABLE IF EXISTS public.schedule_lectures CASCADE;
-DROP TABLE IF EXISTS public.department_schedule_configs CASCADE;
-DROP TABLE IF EXISTS public.students CASCADE;
-DROP TABLE IF EXISTS public.teachers CASCADE;
-DROP TABLE IF EXISTS public.department_rapporteurs CASCADE;
-DROP TABLE IF EXISTS public.department_heads CASCADE;
-DROP TABLE IF EXISTS public.super_admins CASCADE;
-DROP TABLE IF EXISTS public.stages CASCADE;
-DROP TABLE IF EXISTS public.academic_years CASCADE;
-DROP TABLE IF EXISTS public.departments CASCADE;
 
 -- ==============================================================================
--- 🏢 2. جدول الأقسام العلمية (departments)
+-- 🏢 1. جدول الأقسام العلمية (departments) - محصن بـ IF NOT EXISTS
 -- ==============================================================================
-CREATE TABLE public.departments (
+CREATE TABLE IF NOT EXISTS public.departments (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   code TEXT NOT NULL UNIQUE,
@@ -65,7 +26,7 @@ CREATE TABLE public.departments (
 -- ==============================================================================
 -- 🗓️ 3. جدول السنوات الدراسية (academic_years)
 -- ==============================================================================
-CREATE TABLE public.academic_years (
+CREATE TABLE IF NOT EXISTS public.academic_years (
   id TEXT PRIMARY KEY,
   label TEXT NOT NULL,
   is_current BOOLEAN DEFAULT FALSE,
@@ -75,7 +36,7 @@ CREATE TABLE public.academic_years (
 -- ==============================================================================
 -- 🎓 4. جدول المراحل الدراسية (stages)
 -- ==============================================================================
-CREATE TABLE public.stages (
+CREATE TABLE IF NOT EXISTS public.stages (
   id TEXT PRIMARY KEY,
   department_id TEXT NOT NULL REFERENCES public.departments(id) ON DELETE CASCADE,
   stage_number INT NOT NULL CHECK (stage_number BETWEEN 1 AND 6),
@@ -86,7 +47,7 @@ CREATE TABLE public.stages (
 -- ==============================================================================
 -- 👑 5.1 جدول المسؤولين العامين (super_admins) - مرتبط بـ Supabase Authentication
 -- ==============================================================================
-CREATE TABLE public.super_admins (
+CREATE TABLE IF NOT EXISTS public.super_admins (
   id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
   auth_user_id TEXT,
   full_name TEXT NOT NULL,
@@ -99,7 +60,7 @@ CREATE TABLE public.super_admins (
 -- ==============================================================================
 -- 🏢 5.2 جدول رؤساء الأقسام (department_heads) - مرتبط بالقسم و Supabase Auth
 -- ==============================================================================
-CREATE TABLE public.department_heads (
+CREATE TABLE IF NOT EXISTS public.department_heads (
   id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
   auth_user_id TEXT,
   department_id TEXT NOT NULL REFERENCES public.departments(id) ON DELETE CASCADE,
@@ -115,7 +76,7 @@ CREATE TABLE public.department_heads (
 -- ==============================================================================
 -- 📝 5.3 جدول مقرري الأقسام (department_rapporteurs) - مرتبط بالقسم و Supabase Auth
 -- ==============================================================================
-CREATE TABLE public.department_rapporteurs (
+CREATE TABLE IF NOT EXISTS public.department_rapporteurs (
   id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
   auth_user_id TEXT,
   department_id TEXT NOT NULL REFERENCES public.departments(id) ON DELETE CASCADE,
@@ -131,7 +92,7 @@ CREATE TABLE public.department_rapporteurs (
 -- ==============================================================================
 -- 👨‍🏫 5.4 جدول الأساتذة والتدريسيين (teachers) - مرتبط بالقسم و Supabase Auth
 -- ==============================================================================
-CREATE TABLE public.teachers (
+CREATE TABLE IF NOT EXISTS public.teachers (
   id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
   auth_user_id TEXT,
   department_id TEXT NOT NULL REFERENCES public.departments(id) ON DELETE CASCADE,
@@ -148,7 +109,7 @@ CREATE TABLE public.teachers (
 -- ==============================================================================
 -- 🎓 5.5 جدول الطلاب (students) - مرتبط بالقسم والمرحلة و Supabase Auth
 -- ==============================================================================
-CREATE TABLE public.students (
+CREATE TABLE IF NOT EXISTS public.students (
   id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
   auth_user_id TEXT,
   department_id TEXT NOT NULL REFERENCES public.departments(id) ON DELETE CASCADE,
@@ -305,7 +266,7 @@ FOR EACH ROW EXECUTE FUNCTION public.fn_profiles_view_router();
 -- ==============================================================================
 -- 📘 6. جدول المواد والكورسات (courses)
 -- ==============================================================================
-CREATE TABLE public.courses (
+CREATE TABLE IF NOT EXISTS public.courses (
   id TEXT PRIMARY KEY,
   stage_id TEXT NOT NULL,
   academic_year_id TEXT NOT NULL,
@@ -331,7 +292,7 @@ CREATE TABLE public.courses (
 -- ==============================================================================
 -- 🔗 7. جدول تكليف المواد للأساتذة (teacher_courses)
 -- ==============================================================================
-CREATE TABLE public.teacher_courses (
+CREATE TABLE IF NOT EXISTS public.teacher_courses (
   id TEXT PRIMARY KEY,
   teacher_id TEXT NOT NULL,
   teacher_name TEXT,
@@ -345,7 +306,7 @@ CREATE TABLE public.teacher_courses (
 -- ==============================================================================
 -- 📊 8. جدول الدرجات والبنود الـ 7 للسعي وفق مسار بولونيا (grades)
 -- ==============================================================================
-CREATE TABLE public.grades (
+CREATE TABLE IF NOT EXISTS public.grades (
   id TEXT PRIMARY KEY,
   student_id TEXT NOT NULL REFERENCES public.students(id) ON DELETE CASCADE,
   student_name TEXT NOT NULL,
@@ -379,7 +340,7 @@ CREATE TABLE public.grades (
 -- ==============================================================================
 -- 🛡️ 9. جدول سجل التدقيق والمراقبة الحصين (audit_logs)
 -- ==============================================================================
-CREATE TABLE public.audit_logs (
+CREATE TABLE IF NOT EXISTS public.audit_logs (
   id TEXT PRIMARY KEY,
   user_id TEXT,
   user_name TEXT,
@@ -402,7 +363,7 @@ CREATE TABLE public.audit_logs (
 -- ==============================================================================
 -- 🔔 10. جدول مركز الإشعارات والتنبيهات الأكاديمية الحية (notifications)
 -- ==============================================================================
-CREATE TABLE public.notifications (
+CREATE TABLE IF NOT EXISTS public.notifications (
   id TEXT PRIMARY KEY,
   recipient_id TEXT NOT NULL,
   recipient_role TEXT,
@@ -417,7 +378,7 @@ CREATE TABLE public.notifications (
 -- ==============================================================================
 -- 🔲 10.5. جدول توثيق الشهادات والوثائق الرسمية بالـ QR Code (document_verifications)
 -- ==============================================================================
-CREATE TABLE public.document_verifications (
+CREATE TABLE IF NOT EXISTS public.document_verifications (
   id TEXT PRIMARY KEY,
   document_type TEXT NOT NULL DEFAULT 'bologna_transcript',
   student_id TEXT NOT NULL,
@@ -426,7 +387,7 @@ CREATE TABLE public.document_verifications (
   department_id TEXT NOT NULL,
   department_name TEXT NOT NULL,
   stage_number INTEGER NOT NULL DEFAULT 1,
-  academic_year TEXT NOT NULL DEFAULT '2025-2026',
+  academic_year TEXT NOT NULL DEFAULT '2026-2027',
   verification_code TEXT UNIQUE NOT NULL,
   qr_data TEXT NOT NULL,
   is_valid BOOLEAN DEFAULT TRUE,
@@ -437,7 +398,7 @@ CREATE TABLE public.document_verifications (
 -- ==============================================================================
 -- 🗓️ 10.6. جدول إعدادات الجداول الدراسية للأقسام والمراحل (department_schedule_configs)
 -- ==============================================================================
-CREATE TABLE public.department_schedule_configs (
+CREATE TABLE IF NOT EXISTS public.department_schedule_configs (
   id TEXT PRIMARY KEY,
   department_id TEXT NOT NULL REFERENCES public.departments(id) ON DELETE CASCADE,
   department_name TEXT,
@@ -457,7 +418,7 @@ CREATE TABLE public.department_schedule_configs (
 -- ==============================================================================
 -- 🕒 10.7. جدول المحاضرات الأسبوعية المجدولة (schedule_lectures)
 -- ==============================================================================
-CREATE TABLE public.schedule_lectures (
+CREATE TABLE IF NOT EXISTS public.schedule_lectures (
   id TEXT PRIMARY KEY,
   department_id TEXT NOT NULL REFERENCES public.departments(id) ON DELETE CASCADE,
   stage_number INT NOT NULL CHECK (stage_number BETWEEN 1 AND 6),
@@ -487,7 +448,7 @@ CREATE TABLE public.schedule_lectures (
 -- ==============================================================================
 -- 📋 10.8. جدول سجلات حضور وغياب الطلاب (student_attendance_records)
 -- ==============================================================================
-CREATE TABLE public.student_attendance_records (
+CREATE TABLE IF NOT EXISTS public.student_attendance_records (
   id TEXT PRIMARY KEY,
   student_id TEXT NOT NULL REFERENCES public.students(id) ON DELETE CASCADE,
   student_name TEXT NOT NULL,
@@ -498,7 +459,7 @@ CREATE TABLE public.student_attendance_records (
   department_id TEXT NOT NULL REFERENCES public.departments(id) ON DELETE CASCADE,
   stage_number INT NOT NULL CHECK (stage_number BETWEEN 1 AND 6),
   semester INT NOT NULL CHECK (semester IN (1, 2)),
-  academic_year_id TEXT NOT NULL DEFAULT 'year-2025',
+  academic_year_id TEXT NOT NULL DEFAULT 'year-2026',
   week_number INT NOT NULL CHECK (week_number BETWEEN 1 AND 15),
   lecture_slot INT DEFAULT 1 CHECK (lecture_slot IN (1, 2)),
   lecture_id TEXT REFERENCES public.schedule_lectures(id) ON DELETE SET NULL,
@@ -522,7 +483,7 @@ CREATE TABLE public.student_attendance_records (
 -- ==============================================================================
 -- 📑 10.9. جدول طلبات الإجازات والأعذار الرسمية (attendance_excuse_requests)
 -- ==============================================================================
-CREATE TABLE public.attendance_excuse_requests (
+CREATE TABLE IF NOT EXISTS public.attendance_excuse_requests (
   id TEXT PRIMARY KEY,
   student_id TEXT NOT NULL REFERENCES public.students(id) ON DELETE CASCADE,
   student_name TEXT NOT NULL,
@@ -548,14 +509,14 @@ CREATE TABLE public.attendance_excuse_requests (
 -- ==============================================================================
 -- 🏛️ 10.10. جدول جداول الامتحانات النهائية (final_exam_schedules)
 -- ==============================================================================
-CREATE TABLE public.final_exam_schedules (
+CREATE TABLE IF NOT EXISTS public.final_exam_schedules (
   id TEXT PRIMARY KEY,
   department_id TEXT NOT NULL REFERENCES public.departments(id) ON DELETE CASCADE,
   department_name TEXT NOT NULL,
   stage_number INT NOT NULL CHECK (stage_number BETWEEN 1 AND 6),
   semester INT NOT NULL CHECK (semester IN (1, 2)),
-  academic_year_id TEXT NOT NULL DEFAULT 'year-2025',
-  academic_year_label TEXT NOT NULL DEFAULT '2025-2026',
+  academic_year_id TEXT NOT NULL DEFAULT 'year-2026',
+  academic_year_label TEXT NOT NULL DEFAULT '2026-2027',
   attempt_type TEXT NOT NULL DEFAULT 'first_attempt',
   status TEXT NOT NULL DEFAULT 'draft',
   instructions JSONB DEFAULT '[]'::JSONB,
@@ -574,7 +535,7 @@ CREATE TABLE public.final_exam_schedules (
 -- ==============================================================================
 -- 📋 10.11. جدول بنود ومواعيد الامتحانات النهائية (final_exam_slots)
 -- ==============================================================================
-CREATE TABLE public.final_exam_slots (
+CREATE TABLE IF NOT EXISTS public.final_exam_slots (
   id TEXT PRIMARY KEY,
   schedule_id TEXT NOT NULL REFERENCES public.final_exam_schedules(id) ON DELETE CASCADE,
   course_id TEXT NOT NULL REFERENCES public.courses(id) ON DELETE CASCADE,
@@ -595,14 +556,14 @@ CREATE TABLE public.final_exam_slots (
 -- ==============================================================================
 -- 💳 10.12. جدول سجلات تسديد الأقساط الدراسية (student_tuition_records)
 -- ==============================================================================
-CREATE TABLE public.student_tuition_records (
+CREATE TABLE IF NOT EXISTS public.student_tuition_records (
   id TEXT PRIMARY KEY,
   student_id TEXT NOT NULL REFERENCES public.students(id) ON DELETE CASCADE,
   student_name TEXT NOT NULL,
   student_code TEXT,
   department_id TEXT NOT NULL REFERENCES public.departments(id) ON DELETE CASCADE,
   stage_number INT NOT NULL CHECK (stage_number BETWEEN 1 AND 6),
-  academic_year TEXT NOT NULL DEFAULT '2025-2026',
+  academic_year TEXT NOT NULL DEFAULT '2026-2027',
   study_type TEXT DEFAULT 'morning' CHECK (study_type IN ('morning', 'evening')),
   total_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
   installments_count INT NOT NULL DEFAULT 3,
@@ -619,7 +580,7 @@ CREATE TABLE public.student_tuition_records (
 -- ==============================================================================
 -- 📢 10.13. جدول التبليغات والتعميمات الرسمية (campus_official_announcements)
 -- ==============================================================================
-CREATE TABLE public.campus_official_announcements (
+CREATE TABLE IF NOT EXISTS public.campus_official_announcements (
   id TEXT PRIMARY KEY,
   department_id TEXT NOT NULL REFERENCES public.departments(id) ON DELETE CASCADE,
   department_name TEXT NOT NULL,
@@ -639,7 +600,7 @@ CREATE TABLE public.campus_official_announcements (
 -- ==============================================================================
 -- 📚 10.14. جدول التكليفات الأكاديمية للمواد (course_academic_tasks)
 -- ==============================================================================
-CREATE TABLE public.course_academic_tasks (
+CREATE TABLE IF NOT EXISTS public.course_academic_tasks (
   id TEXT PRIMARY KEY,
   course_id TEXT NOT NULL REFERENCES public.courses(id) ON DELETE CASCADE,
   course_name TEXT NOT NULL,
@@ -648,7 +609,7 @@ CREATE TABLE public.course_academic_tasks (
   department_name TEXT,
   stage_number INT NOT NULL CHECK (stage_number BETWEEN 1 AND 6),
   semester INT NOT NULL CHECK (semester IN (1, 2)),
-  academic_year TEXT NOT NULL DEFAULT '2025-2026',
+  academic_year TEXT NOT NULL DEFAULT '2026-2027',
   teacher_id TEXT NOT NULL REFERENCES public.teachers(id) ON DELETE CASCADE,
   teacher_name TEXT NOT NULL,
   task_type TEXT NOT NULL,
@@ -677,7 +638,7 @@ CREATE TABLE public.course_academic_tasks (
 -- ==============================================================================
 -- 📤 10.15. جدول تسليمات الطلاب للتكليفات والتقارير (task_student_submissions)
 -- ==============================================================================
-CREATE TABLE public.task_student_submissions (
+CREATE TABLE IF NOT EXISTS public.task_student_submissions (
   id TEXT PRIMARY KEY,
   task_id TEXT NOT NULL REFERENCES public.course_academic_tasks(id) ON DELETE CASCADE,
   course_id TEXT NOT NULL REFERENCES public.courses(id) ON DELETE CASCADE,
@@ -710,60 +671,60 @@ CREATE TABLE public.task_student_submissions (
 -- ==============================================================================
 -- ⚡ 11. الفهارس المتقدمة لتسريع الاستعلامات اللحظية (High-Performance Indexes)
 -- ==============================================================================
-CREATE INDEX idx_super_admins_email ON public.super_admins(email);
-CREATE INDEX idx_super_admins_auth ON public.super_admins(auth_user_id);
+CREATE INDEX IF NOT EXISTS idx_super_admins_email ON public.super_admins(email);
+CREATE INDEX IF NOT EXISTS idx_super_admins_auth ON public.super_admins(auth_user_id);
 
-CREATE INDEX idx_department_heads_dept ON public.department_heads(department_id);
-CREATE INDEX idx_department_heads_email ON public.department_heads(email);
-CREATE INDEX idx_department_heads_auth ON public.department_heads(auth_user_id);
+CREATE INDEX IF NOT EXISTS idx_department_heads_dept ON public.department_heads(department_id);
+CREATE INDEX IF NOT EXISTS idx_department_heads_email ON public.department_heads(email);
+CREATE INDEX IF NOT EXISTS idx_department_heads_auth ON public.department_heads(auth_user_id);
 
-CREATE INDEX idx_department_rap_dept ON public.department_rapporteurs(department_id);
-CREATE INDEX idx_department_rap_email ON public.department_rapporteurs(email);
-CREATE INDEX idx_department_rap_auth ON public.department_rapporteurs(auth_user_id);
+CREATE INDEX IF NOT EXISTS idx_department_rap_dept ON public.department_rapporteurs(department_id);
+CREATE INDEX IF NOT EXISTS idx_department_rap_email ON public.department_rapporteurs(email);
+CREATE INDEX IF NOT EXISTS idx_department_rap_auth ON public.department_rapporteurs(auth_user_id);
 
-CREATE INDEX idx_teachers_dept ON public.teachers(department_id);
-CREATE INDEX idx_teachers_email ON public.teachers(email);
-CREATE INDEX idx_teachers_auth ON public.teachers(auth_user_id);
+CREATE INDEX IF NOT EXISTS idx_teachers_dept ON public.teachers(department_id);
+CREATE INDEX IF NOT EXISTS idx_teachers_email ON public.teachers(email);
+CREATE INDEX IF NOT EXISTS idx_teachers_auth ON public.teachers(auth_user_id);
 
-CREATE INDEX idx_students_dept ON public.students(department_id);
-CREATE INDEX idx_students_stage ON public.students(stage_id);
-CREATE INDEX idx_students_stage_num ON public.students(stage_number);
-CREATE INDEX idx_students_uni_num ON public.students(university_number);
-CREATE INDEX idx_students_email ON public.students(email);
-CREATE INDEX idx_students_auth ON public.students(auth_user_id);
+CREATE INDEX IF NOT EXISTS idx_students_dept ON public.students(department_id);
+CREATE INDEX IF NOT EXISTS idx_students_stage ON public.students(stage_id);
+CREATE INDEX IF NOT EXISTS idx_students_stage_num ON public.students(stage_number);
+CREATE INDEX IF NOT EXISTS idx_students_uni_num ON public.students(university_number);
+CREATE INDEX IF NOT EXISTS idx_students_email ON public.students(email);
+CREATE INDEX IF NOT EXISTS idx_students_auth ON public.students(auth_user_id);
 
-CREATE INDEX idx_stages_department ON public.stages(department_id);
-CREATE INDEX idx_courses_department ON public.courses(department_id);
-CREATE INDEX idx_courses_stage ON public.courses(stage_number);
-CREATE INDEX idx_courses_semester ON public.courses(semester);
-CREATE INDEX idx_teacher_courses_teacher ON public.teacher_courses(teacher_id);
-CREATE INDEX idx_teacher_courses_course ON public.teacher_courses(course_id);
-CREATE INDEX idx_grades_student ON public.grades(student_id);
-CREATE INDEX idx_grades_course ON public.grades(course_id);
-CREATE INDEX idx_grades_teacher ON public.grades(teacher_id);
-CREATE INDEX idx_grades_department ON public.grades(department_id);
-CREATE INDEX idx_grades_semester ON public.grades(semester);
-CREATE INDEX idx_audit_logs_actor ON public.audit_logs(actor_id);
-CREATE INDEX idx_audit_logs_created_at ON public.audit_logs(created_at DESC);
-CREATE INDEX idx_notifications_recipient ON public.notifications(recipient_id);
-CREATE INDEX idx_notifications_created_at ON public.notifications(created_at DESC);
-CREATE INDEX idx_document_verifications_code ON public.document_verifications(verification_code);
-CREATE INDEX idx_document_verifications_student ON public.document_verifications(student_id);
+CREATE INDEX IF NOT EXISTS idx_stages_department ON public.stages(department_id);
+CREATE INDEX IF NOT EXISTS idx_courses_department ON public.courses(department_id);
+CREATE INDEX IF NOT EXISTS idx_courses_stage ON public.courses(stage_number);
+CREATE INDEX IF NOT EXISTS idx_courses_semester ON public.courses(semester);
+CREATE INDEX IF NOT EXISTS idx_teacher_courses_teacher ON public.teacher_courses(teacher_id);
+CREATE INDEX IF NOT EXISTS idx_teacher_courses_course ON public.teacher_courses(course_id);
+CREATE INDEX IF NOT EXISTS idx_grades_student ON public.grades(student_id);
+CREATE INDEX IF NOT EXISTS idx_grades_course ON public.grades(course_id);
+CREATE INDEX IF NOT EXISTS idx_grades_teacher ON public.grades(teacher_id);
+CREATE INDEX IF NOT EXISTS idx_grades_department ON public.grades(department_id);
+CREATE INDEX IF NOT EXISTS idx_grades_semester ON public.grades(semester);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_actor ON public.audit_logs(actor_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON public.audit_logs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notifications_recipient ON public.notifications(recipient_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON public.notifications(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_document_verifications_code ON public.document_verifications(verification_code);
+CREATE INDEX IF NOT EXISTS idx_document_verifications_student ON public.document_verifications(student_id);
 
-CREATE INDEX idx_schedule_lectures_dept ON public.schedule_lectures(department_id, stage_number, semester);
-CREATE INDEX idx_schedule_lectures_teacher ON public.schedule_lectures(teacher_id);
-CREATE INDEX idx_schedule_lectures_study_type ON public.schedule_lectures(study_type);
-CREATE INDEX idx_student_attendance_student ON public.student_attendance_records(student_id, course_id);
-CREATE INDEX idx_student_attendance_date ON public.student_attendance_records(date);
-CREATE INDEX idx_attendance_excuse_student ON public.attendance_excuse_requests(student_id);
-CREATE INDEX idx_final_exam_schedules_dept ON public.final_exam_schedules(department_id, stage_number);
-CREATE INDEX idx_final_exam_slots_schedule ON public.final_exam_slots(schedule_id);
-CREATE INDEX idx_student_tuition_student ON public.student_tuition_records(student_id);
-CREATE INDEX idx_student_tuition_study_type ON public.student_tuition_records(study_type);
-CREATE INDEX idx_announcements_dept ON public.campus_official_announcements(department_id);
-CREATE INDEX idx_academic_tasks_course ON public.course_academic_tasks(course_id);
-CREATE INDEX idx_task_submissions_task ON public.task_student_submissions(task_id, student_id);
-CREATE INDEX idx_students_study_type ON public.students(study_type);
+CREATE INDEX IF NOT EXISTS idx_schedule_lectures_dept ON public.schedule_lectures(department_id, stage_number, semester);
+CREATE INDEX IF NOT EXISTS idx_schedule_lectures_teacher ON public.schedule_lectures(teacher_id);
+CREATE INDEX IF NOT EXISTS idx_schedule_lectures_study_type ON public.schedule_lectures(study_type);
+CREATE INDEX IF NOT EXISTS idx_student_attendance_student ON public.student_attendance_records(student_id, course_id);
+CREATE INDEX IF NOT EXISTS idx_student_attendance_date ON public.student_attendance_records(date);
+CREATE INDEX IF NOT EXISTS idx_attendance_excuse_student ON public.attendance_excuse_requests(student_id);
+CREATE INDEX IF NOT EXISTS idx_final_exam_schedules_dept ON public.final_exam_schedules(department_id, stage_number);
+CREATE INDEX IF NOT EXISTS idx_final_exam_slots_schedule ON public.final_exam_slots(schedule_id);
+CREATE INDEX IF NOT EXISTS idx_student_tuition_student ON public.student_tuition_records(student_id);
+CREATE INDEX IF NOT EXISTS idx_student_tuition_study_type ON public.student_tuition_records(study_type);
+CREATE INDEX IF NOT EXISTS idx_announcements_dept ON public.campus_official_announcements(department_id);
+CREATE INDEX IF NOT EXISTS idx_academic_tasks_course ON public.course_academic_tasks(course_id);
+CREATE INDEX IF NOT EXISTS idx_task_submissions_task ON public.task_student_submissions(task_id, student_id);
+CREATE INDEX IF NOT EXISTS idx_students_study_type ON public.students(study_type);
 
 -- ==============================================================================
 -- 🔓 12. تفعيل وبناء سياسات السماح الشاملة لجميع الجداول (RLS Policies)
@@ -1178,7 +1139,7 @@ BEGIN
       v_item->>'course_name',
       v_item->>'teacher_id',
       v_item->>'department_id',
-      COALESCE(v_item->>'academic_year_id', 'year-2025'),
+      COALESCE(v_item->>'academic_year_id', 'year-2026'),
       COALESCE((v_item->>'semester')::INT, 1),
       COALESCE((v_item->>'quiz1')::NUMERIC, 0),
       COALESCE((v_item->>'quiz2')::NUMERIC, 0),
@@ -1303,7 +1264,7 @@ BEGIN
       p_student_id,
       'student',
       '🎓 مبارك التخرج والنجاح!',
-      'تم اعتماد تخرجك بنجاح للعام الدراسي 2025-2026. تهانينا لك!',
+      'تم اعتماد تخرجك بنجاح للعام الدراسي 2026-2027. تهانينا لك!',
       'system_announcement',
       FALSE,
       '/student/dashboard'
@@ -1327,7 +1288,7 @@ BEGIN
       p_student_id,
       'student',
       '🚀 تهانينا بالنجاح! تم ترحيلك للمرحلة التالية',
-      'تم اعتماد ترحيلك بنجاح إلى المرحلة ' || v_stage_name || ' للعام الدراسي 2025-2026.',
+      'تم اعتماد ترحيلك بنجاح إلى المرحلة ' || v_stage_name || ' للعام الدراسي 2026-2027.',
       'system_announcement',
       FALSE,
       '/student/dashboard'
@@ -1515,13 +1476,15 @@ END $$;
 -- 🗓️ 17. إدراج السنة الدراسية الافتراضية
 -- ==============================================================================
 INSERT INTO public.academic_years (id, label, is_current) VALUES
-  ('year-2025', '2025-2026', TRUE);
+  ('year-2026', '2026-2027', TRUE)
+ON CONFLICT (id) DO NOTHING;
 
 
 -- ==============================================================================
 -- 🏢 19. إدراج الأقسام الأكاديمية الـ 12 الرسمية الحقيقية لفرع ميسان
 -- ==============================================================================
 INSERT INTO public.departments (id, name, code, head_name, head_email, rapporteur_name, rapporteur_email) VALUES
+  ('central', 'رئاسة الجامعة والتقويم الأكاديمي المركزي', 'CENTRAL', 'المسؤول العام', 'sadmin@uomis.edu.iq', '', ''),
   ('dept-1', 'هندسة تقنيات الحاسوب', 'CCE', '', '', '', ''),
   ('dept-2', 'القانون', 'LAW', '', '', '', ''),
   ('dept-3', 'العلوم المالية والمصرفية', 'FIN', '', '', '', ''),
@@ -1589,7 +1552,8 @@ INSERT INTO public.stages (id, department_id, stage_number, department_name) VAL
   ('stage-dept-12-1', 'dept-12', 1, 'التصميم الداخلي والديكور'),
   ('stage-dept-12-2', 'dept-12', 2, 'التصميم الداخلي والديكور'),
   ('stage-dept-12-3', 'dept-12', 3, 'التصميم الداخلي والديكور'),
-  ('stage-dept-12-4', 'dept-12', 4, 'التصميم الداخلي والديكور');
+  ('stage-dept-12-4', 'dept-12', 4, 'التصميم الداخلي والديكور')
+ON CONFLICT (id) DO NOTHING;
 
 -- ==============================================================================
 
@@ -1599,36 +1563,36 @@ INSERT INTO public.stages (id, department_id, stage_number, department_name) VAL
 INSERT INTO public.courses (
   id, stage_id, academic_year_id, department_id, name, code, credit_hours, semester, stage_number, department_name, course_type, has_practical
 ) VALUES
-  ('course-1', 'stage-dept-1-2', 'year-2025', 'dept-1', 'البرمجة الهيكلية بلغة C++', 'CS201', 4, 1, 2, 'هندسة تقنيات الحاسوب', 'theory_and_practical', true),
-  ('course-2', 'stage-dept-1-2', 'year-2025', 'dept-1', 'الدوائر الرقمية والمنطق', 'CS202', 3, 1, 2, 'هندسة تقنيات الحاسوب', 'theory_and_practical', true),
-  ('course-3', 'stage-dept-1-2', 'year-2025', 'dept-1', 'تركيب البيانات والخوارزميات', 'CS203', 4, 2, 2, 'هندسة تقنيات الحاسوب', 'theory_and_practical', true),
-  ('course-4', 'stage-dept-1-2', 'year-2025', 'dept-1', 'شبكات الحاسوب المتقدمة', 'CS204', 3, 2, 2, 'هندسة تقنيات الحاسوب', 'theory_and_practical', true),
-  ('course-5', 'stage-dept-1-1', 'year-2025', 'dept-1', 'أساسيات الحاسوب والبرمجة', 'CCE101', 3, 1, 1, 'هندسة تقنيات الحاسوب', 'theory_and_practical', true),
-  ('course-6', 'stage-dept-1-1', 'year-2025', 'dept-1', 'الفيزياء الإلكترونية', 'CCE102', 3, 2, 1, 'هندسة تقنيات الحاسوب', 'theory_only', false),
-  ('course-7', 'stage-dept-2-1', 'year-2025', 'dept-2', 'مبادئ القانون الدستوري', 'LAW101', 3, 1, 1, 'القانون', 'theory_only', false),
-  ('course-8', 'stage-dept-2-1', 'year-2025', 'dept-2', 'المدخل لدراسة الشريعة الإسلامية', 'LAW102', 3, 2, 1, 'القانون', 'theory_only', false),
-  ('course-9', 'stage-dept-2-2', 'year-2025', 'dept-2', 'أحكام الالتزام والعقود', 'LAW201', 4, 1, 2, 'القانون', 'theory_only', false),
-  ('course-10', 'stage-dept-3-1', 'year-2025', 'dept-3', 'مبادئ العلوم المصرفية والائتمان', 'FIN101', 3, 1, 1, 'العلوم المالية والمصرفية', 'theory_only', false),
-  ('course-11', 'stage-dept-3-2', 'year-2025', 'dept-3', 'إدارة الاستثمار والمحافظ المالية', 'FIN201', 4, 1, 2, 'العلوم المالية والمصرفية', 'theory_only', false),
-  ('course-12', 'stage-dept-4-1', 'year-2025', 'dept-4', 'مقدمة في هندسة البرمجيات', 'CE101', 3, 1, 1, 'هندسة الحاسوب والبرمجيات', 'theory_and_practical', true),
-  ('course-13', 'stage-dept-4-2', 'year-2025', 'dept-4', 'هندسة المنظومات المدمجة', 'CE201', 4, 1, 2, 'هندسة الحاسوب والبرمجيات', 'theory_and_practical', true),
-  ('course-14', 'stage-dept-5-1', 'year-2025', 'dept-5', 'مبادئ إدارة الأعمال الحديثة', 'BUS101', 3, 1, 1, 'إدارة الأعمال', 'theory_only', false),
-  ('course-15', 'stage-dept-5-1', 'year-2025', 'dept-5', 'مبادئ الاقتصاد الجزئي', 'BUS102', 3, 2, 1, 'إدارة الأعمال', 'theory_only', false),
-  ('course-16', 'stage-dept-5-2', 'year-2025', 'dept-5', 'التسويق الرقمي وإدارة العمليات', 'BUS201', 4, 1, 2, 'إدارة الأعمال', 'theory_only', false),
-  ('course-17', 'stage-dept-6-1', 'year-2025', 'dept-6', 'مبادئ المحاسبة المالية (1)', 'ACC101', 3, 1, 1, 'المحاسبة', 'theory_only', false),
-  ('course-18', 'stage-dept-6-2', 'year-2025', 'dept-6', 'محاسبة التكاليف والشركات', 'ACC201', 4, 1, 2, 'المحاسبة', 'theory_only', false),
-  ('course-19', 'stage-dept-7-1', 'year-2025', 'dept-7', 'مدخل إلى الصحافة والإعلام الرقمي', 'MED101', 3, 1, 1, 'الإعلام', 'theory_and_practical', true),
-  ('course-20', 'stage-dept-7-2', 'year-2025', 'dept-7', 'التحرير الإخباري والإنتاج التلفزيوني', 'MED201', 4, 1, 2, 'الإعلام', 'theory_and_practical', true),
-  ('course-21', 'stage-dept-8-1', 'year-2025', 'dept-8', 'قواعد اللغة الإنجليزية والصوتيات', 'ENG101', 3, 1, 1, 'اللغة الإنجليزية', 'theory_and_practical', true),
-  ('course-22', 'stage-dept-8-2', 'year-2025', 'dept-8', 'الأدب الإنجليزي ومناهج الترجمة', 'ENG201', 4, 1, 2, 'اللغة الإنجليزية', 'theory_only', false),
-  ('course-23', 'stage-dept-9-1', 'year-2025', 'dept-9', 'علوم القرآن والتفسير التحليلي', 'ISL101', 3, 1, 1, 'علوم القرآن والتربية الإسلامية', 'theory_only', false),
-  ('course-24', 'stage-dept-9-2', 'year-2025', 'dept-9', 'الفقه المقارن وأصول الاستنباط', 'ISL201', 4, 1, 2, 'علوم القرآن والتربية الإسلامية', 'theory_only', false),
-  ('course-25', 'stage-dept-10-1', 'year-2025', 'dept-10', 'مقدمة في الأجهزة الطبية الحيوية', 'BME101', 3, 1, 1, 'هندسة تقنيات الأجهزة الطبية', 'theory_and_practical', true),
-  ('course-26', 'stage-dept-10-2', 'year-2025', 'dept-10', 'صيانة ومعايرة الأجهزة الطبية', 'BME201', 4, 1, 2, 'هندسة تقنيات الأجهزة الطبية', 'theory_and_practical', true),
-  ('course-27', 'stage-dept-11-1', 'year-2025', 'dept-11', 'علم التشريح والفسلجة الرياضية', 'PE101', 3, 1, 1, 'التربية البدنية وعلوم الرياضة', 'theory_and_practical', true),
-  ('course-28', 'stage-dept-11-2', 'year-2025', 'dept-11', 'طرق التدريب الرياضي واللياقة', 'PE201', 4, 1, 2, 'التربية البدنية وعلوم الرياضة', 'theory_and_practical', true),
-  ('course-29', 'stage-dept-12-1', 'year-2025', 'dept-12', 'أسس التصميم الداخلي ونظريات اللون', 'ID101', 3, 1, 1, 'التصميم الداخلي والديكور', 'theory_and_practical', true),
-  ('course-30', 'stage-dept-12-2', 'year-2025', 'dept-12', 'التصميم المعماري الرقمي ثلاثي الأبعاد', 'ID201', 4, 1, 2, 'التصميم الداخلي والديكور', 'theory_and_practical', true)
+  ('course-1', 'stage-dept-1-2', 'year-2026', 'dept-1', 'البرمجة الهيكلية بلغة C++', 'CS201', 4, 1, 2, 'هندسة تقنيات الحاسوب', 'theory_and_practical', true),
+  ('course-2', 'stage-dept-1-2', 'year-2026', 'dept-1', 'الدوائر الرقمية والمنطق', 'CS202', 3, 1, 2, 'هندسة تقنيات الحاسوب', 'theory_and_practical', true),
+  ('course-3', 'stage-dept-1-2', 'year-2026', 'dept-1', 'تركيب البيانات والخوارزميات', 'CS203', 4, 2, 2, 'هندسة تقنيات الحاسوب', 'theory_and_practical', true),
+  ('course-4', 'stage-dept-1-2', 'year-2026', 'dept-1', 'شبكات الحاسوب المتقدمة', 'CS204', 3, 2, 2, 'هندسة تقنيات الحاسوب', 'theory_and_practical', true),
+  ('course-5', 'stage-dept-1-1', 'year-2026', 'dept-1', 'أساسيات الحاسوب والبرمجة', 'CCE101', 3, 1, 1, 'هندسة تقنيات الحاسوب', 'theory_and_practical', true),
+  ('course-6', 'stage-dept-1-1', 'year-2026', 'dept-1', 'الفيزياء الإلكترونية', 'CCE102', 3, 2, 1, 'هندسة تقنيات الحاسوب', 'theory_only', false),
+  ('course-7', 'stage-dept-2-1', 'year-2026', 'dept-2', 'مبادئ القانون الدستوري', 'LAW101', 3, 1, 1, 'القانون', 'theory_only', false),
+  ('course-8', 'stage-dept-2-1', 'year-2026', 'dept-2', 'المدخل لدراسة الشريعة الإسلامية', 'LAW102', 3, 2, 1, 'القانون', 'theory_only', false),
+  ('course-9', 'stage-dept-2-2', 'year-2026', 'dept-2', 'أحكام الالتزام والعقود', 'LAW201', 4, 1, 2, 'القانون', 'theory_only', false),
+  ('course-10', 'stage-dept-3-1', 'year-2026', 'dept-3', 'مبادئ العلوم المصرفية والائتمان', 'FIN101', 3, 1, 1, 'العلوم المالية والمصرفية', 'theory_only', false),
+  ('course-11', 'stage-dept-3-2', 'year-2026', 'dept-3', 'إدارة الاستثمار والمحافظ المالية', 'FIN201', 4, 1, 2, 'العلوم المالية والمصرفية', 'theory_only', false),
+  ('course-12', 'stage-dept-4-1', 'year-2026', 'dept-4', 'مقدمة في هندسة البرمجيات', 'CE101', 3, 1, 1, 'هندسة الحاسوب والبرمجيات', 'theory_and_practical', true),
+  ('course-13', 'stage-dept-4-2', 'year-2026', 'dept-4', 'هندسة المنظومات المدمجة', 'CE201', 4, 1, 2, 'هندسة الحاسوب والبرمجيات', 'theory_and_practical', true),
+  ('course-14', 'stage-dept-5-1', 'year-2026', 'dept-5', 'مبادئ إدارة الأعمال الحديثة', 'BUS101', 3, 1, 1, 'إدارة الأعمال', 'theory_only', false),
+  ('course-15', 'stage-dept-5-1', 'year-2026', 'dept-5', 'مبادئ الاقتصاد الجزئي', 'BUS102', 3, 2, 1, 'إدارة الأعمال', 'theory_only', false),
+  ('course-16', 'stage-dept-5-2', 'year-2026', 'dept-5', 'التسويق الرقمي وإدارة العمليات', 'BUS201', 4, 1, 2, 'إدارة الأعمال', 'theory_only', false),
+  ('course-17', 'stage-dept-6-1', 'year-2026', 'dept-6', 'مبادئ المحاسبة المالية (1)', 'ACC101', 3, 1, 1, 'المحاسبة', 'theory_only', false),
+  ('course-18', 'stage-dept-6-2', 'year-2026', 'dept-6', 'محاسبة التكاليف والشركات', 'ACC201', 4, 1, 2, 'المحاسبة', 'theory_only', false),
+  ('course-19', 'stage-dept-7-1', 'year-2026', 'dept-7', 'مدخل إلى الصحافة والإعلام الرقمي', 'MED101', 3, 1, 1, 'الإعلام', 'theory_and_practical', true),
+  ('course-20', 'stage-dept-7-2', 'year-2026', 'dept-7', 'التحرير الإخباري والإنتاج التلفزيوني', 'MED201', 4, 1, 2, 'الإعلام', 'theory_and_practical', true),
+  ('course-21', 'stage-dept-8-1', 'year-2026', 'dept-8', 'قواعد اللغة الإنجليزية والصوتيات', 'ENG101', 3, 1, 1, 'اللغة الإنجليزية', 'theory_and_practical', true),
+  ('course-22', 'stage-dept-8-2', 'year-2026', 'dept-8', 'الأدب الإنجليزي ومناهج الترجمة', 'ENG201', 4, 1, 2, 'اللغة الإنجليزية', 'theory_only', false),
+  ('course-23', 'stage-dept-9-1', 'year-2026', 'dept-9', 'علوم القرآن والتفسير التحليلي', 'ISL101', 3, 1, 1, 'علوم القرآن والتربية الإسلامية', 'theory_only', false),
+  ('course-24', 'stage-dept-9-2', 'year-2026', 'dept-9', 'الفقه المقارن وأصول الاستنباط', 'ISL201', 4, 1, 2, 'علوم القرآن والتربية الإسلامية', 'theory_only', false),
+  ('course-25', 'stage-dept-10-1', 'year-2026', 'dept-10', 'مقدمة في الأجهزة الطبية الحيوية', 'BME101', 3, 1, 1, 'هندسة تقنيات الأجهزة الطبية', 'theory_and_practical', true),
+  ('course-26', 'stage-dept-10-2', 'year-2026', 'dept-10', 'صيانة ومعايرة الأجهزة الطبية', 'BME201', 4, 1, 2, 'هندسة تقنيات الأجهزة الطبية', 'theory_and_practical', true),
+  ('course-27', 'stage-dept-11-1', 'year-2026', 'dept-11', 'علم التشريح والفسلجة الرياضية', 'PE101', 3, 1, 1, 'التربية البدنية وعلوم الرياضة', 'theory_and_practical', true),
+  ('course-28', 'stage-dept-11-2', 'year-2026', 'dept-11', 'طرق التدريب الرياضي واللياقة', 'PE201', 4, 1, 2, 'التربية البدنية وعلوم الرياضة', 'theory_and_practical', true),
+  ('course-29', 'stage-dept-12-1', 'year-2026', 'dept-12', 'أسس التصميم الداخلي ونظريات اللون', 'ID101', 3, 1, 1, 'التصميم الداخلي والديكور', 'theory_and_practical', true),
+  ('course-30', 'stage-dept-12-2', 'year-2026', 'dept-12', 'التصميم المعماري الرقمي ثلاثي الأبعاد', 'ID201', 4, 1, 2, 'التصميم الداخلي والديكور', 'theory_and_practical', true)
 ON CONFLICT (id) DO NOTHING;
 
 -- ==============================================================================

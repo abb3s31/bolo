@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { Course, CourseAcademicTask, AcademicTaskType, ReportTopicItem, TeacherCourse, StudentTaskSubmission, UserProfile } from '@/types';
 import { getAcademicYear, INITIAL_COURSES, INITIAL_TEACHER_COURSES, INITIAL_ACADEMIC_TASKS, INITIAL_STUDENT_SUBMISSIONS, INITIAL_PROFILES, getStoredData, saveStoredData } from '@/lib/mock-data'; // 🗓️ العام الدراسي المعتمد والبيانات الأولية
+import { getCourseAssessmentScheme, isAssessmentItemActive } from '@/lib/grade-utils'; // 🎛️ أدوات فحص البنود النشطة ومخطط التقييم للمادة
 import { 
   syncAcademicYearFromSupabase, 
   subscribeToAcademicYearChanges,
@@ -281,10 +282,19 @@ export function TeacherAssessmentsManager({
     }));
   }, [assignedCourses, teacherId, teacherName]);
 
-  // ➕ فتح نافذة الإنشاء مع القيم الافتراضية المناسبة لنوع التكليف
+  // ➕ فتح نافذة الإنشاء مع القيم الافتراضية المناسبة لنوع التكليف وفق مخطط المادة
   const handleOpenCreateModal = (type: AcademicTaskType = 'quiz') => {
     const course = effectiveCourses.find((c) => c.course_id === selectedCourseId) || effectiveCourses[0];
-    const defaultScore = type === 'quiz' ? 5 : type === 'assignment' ? 5 : 10;
+    const allStoredCourses = getStoredData<Course[]>('courses', INITIAL_COURSES);
+    const targetCourse = course ? allStoredCourses.find((c) => c.id === course.course_id) : undefined;
+    const scheme = targetCourse ? getCourseAssessmentScheme(targetCourse) : undefined;
+
+    let defaultScore = 5;
+    if (type === 'quiz') defaultScore = scheme && isAssessmentItemActive(scheme.quiz1) ? scheme.quiz1.max_score : 5;
+    else if (type === 'assignment') defaultScore = scheme && isAssessmentItemActive(scheme.assignment1) ? scheme.assignment1.max_score : 5;
+    else if (type === 'report') defaultScore = scheme && isAssessmentItemActive(scheme.report) ? scheme.report.max_score : 10;
+    else if (type === 'midterm_exam') defaultScore = scheme && isAssessmentItemActive(scheme.midterm) ? scheme.midterm.max_score : 10;
+    else if (type === 'practical_exam') defaultScore = scheme && isAssessmentItemActive(scheme.practical) ? scheme.practical.max_score : 10;
     
     setEditingTask(null);
     setFormData({
@@ -333,6 +343,54 @@ export function TeacherAssessmentsManager({
     });
     setIsCreateModalOpen(true);
   };
+
+  // 🧮 جلب قائمة بنود التقييم المتاحة للمادة المحددة في النموذج وفق مخططها المعتمد واستبعاد البنود المعطلة
+  const availableTaskTypes = useMemo(() => {
+    const allStoredCourses = getStoredData<Course[]>('courses', INITIAL_COURSES);
+    const targetCourse = allStoredCourses.find((c) => c.id === formData.course_id || c.name === formData.course_id);
+    if (!targetCourse) {
+      return [
+        { key: 'quiz' as AcademicTaskType, label: 'كويز (5 درجات)', score: 5, defaultTitle: 'كويز رقم (1): ' },
+        { key: 'assignment' as AcademicTaskType, label: 'واجب بيتي (5 درجات)', score: 5, defaultTitle: 'واجب رقم (1): ' },
+        { key: 'report' as AcademicTaskType, label: 'تقرير وبحث (10 درجات)', score: 10, defaultTitle: 'تقرير وبحث فصلي: ' },
+        { key: 'midterm_exam' as AcademicTaskType, label: 'مدتيرم (10 درجات)', score: 10, defaultTitle: 'امتحان منتصف الفصل الدراسي (مدتيرم)' },
+        { key: 'practical_exam' as AcademicTaskType, label: 'عملي (10 درجات)', score: 10, defaultTitle: 'الامتحان العملي والمختبري الفصلي' },
+      ];
+    }
+    const scheme = getCourseAssessmentScheme(targetCourse);
+    const list: { key: AcademicTaskType; label: string; score: number; defaultTitle: string }[] = [];
+
+    const q1Active = isAssessmentItemActive(scheme.quiz1);
+    const q2Active = isAssessmentItemActive(scheme.quiz2);
+    if (q1Active || q2Active) {
+      const defaultScore = q1Active ? scheme.quiz1.max_score : scheme.quiz2.max_score;
+      list.push({ key: 'quiz', label: `كويز (${defaultScore} درجات)`, score: defaultScore, defaultTitle: 'كويز رقم (1): ' });
+    }
+
+    const a1Active = isAssessmentItemActive(scheme.assignment1);
+    const a2Active = isAssessmentItemActive(scheme.assignment2);
+    if (a1Active || a2Active) {
+      const defaultScore = a1Active ? scheme.assignment1.max_score : scheme.assignment2.max_score;
+      list.push({ key: 'assignment', label: `واجب بيتي (${defaultScore} درجات)`, score: defaultScore, defaultTitle: 'واجب رقم (1): ' });
+    }
+
+    if (isAssessmentItemActive(scheme.report)) {
+      list.push({ key: 'report', label: `تقرير وبحث (${scheme.report.max_score} درجات)`, score: scheme.report.max_score, defaultTitle: 'تقرير وبحث فصلي: ' });
+    }
+
+    if (isAssessmentItemActive(scheme.midterm)) {
+      list.push({ key: 'midterm_exam', label: `مدتيرم (${scheme.midterm.max_score} درجات)`, score: scheme.midterm.max_score, defaultTitle: 'امتحان منتصف الفصل الدراسي (مدتيرم)' });
+    }
+
+    const isPrac = targetCourse.course_type === 'theory_and_practical' || targetCourse.has_practical;
+    if (isPrac && isAssessmentItemActive(scheme.practical)) {
+      list.push({ key: 'practical_exam', label: `عملي (${scheme.practical.max_score} درجات)`, score: scheme.practical.max_score, defaultTitle: 'الامتحان العملي والمختبري الفصلي' });
+    }
+
+    return list.length > 0 ? list : [
+      { key: 'quiz' as AcademicTaskType, label: 'كويز فصلي', score: 5, defaultTitle: 'كويز رقم (1): ' },
+    ];
+  }, [formData.course_id]);
 
   // ➕ إضافة عنوان تقرير إلى القائمة
   const handleAddReportTopic = () => {
@@ -1157,15 +1215,16 @@ export function TeacherAssessmentsManager({
                     <div className="flex items-center gap-2 truncate">
                       <Layers className="w-4 h-4 text-sky-400 shrink-0" />
                       <span className="truncate">
-                        {formData.task_type === 'quiz'
-                          ? 'كويز (5 درجات)'
-                          : formData.task_type === 'assignment'
-                          ? 'واجب بيتي (5 درجات)'
-                          : formData.task_type === 'report'
-                          ? 'تقرير وبحث (10 درجات)'
-                          : formData.task_type === 'midterm_exam'
-                          ? 'مدتيرم (10 درجات)'
-                          : 'عملي (10 درجات)'}
+                        {availableTaskTypes.find((t) => t.key === formData.task_type)?.label ||
+                          (formData.task_type === 'quiz'
+                            ? 'كويز'
+                            : formData.task_type === 'assignment'
+                            ? 'واجب بيتي'
+                            : formData.task_type === 'report'
+                            ? 'تقرير وبحث'
+                            : formData.task_type === 'midterm_exam'
+                            ? 'مدتيرم'
+                            : 'عملي')}
                       </span>
                     </div>
                     <ChevronDown className={`w-4 h-4 text-slate-400 shrink-0 transition-transform ${isFormTypeDropdownOpen ? 'rotate-180 text-cyan-400' : ''}`} />
@@ -1173,13 +1232,7 @@ export function TeacherAssessmentsManager({
 
                   {isFormTypeDropdownOpen && (
                     <div className="absolute top-full right-0 left-0 mt-2 bg-slate-900 border-2 border-slate-700 rounded-2xl shadow-2xl z-50 p-2 space-y-1 max-h-52 overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
-                      {[
-                        { key: 'quiz' as AcademicTaskType, label: 'كويز (5 درجات)', score: 5, defaultTitle: 'كويز رقم (1): ' },
-                        { key: 'assignment' as AcademicTaskType, label: 'واجب بيتي (5 درجات)', score: 5, defaultTitle: 'واجب رقم (1): ' },
-                        { key: 'report' as AcademicTaskType, label: 'تقرير وبحث (10 درجات)', score: 10, defaultTitle: 'تقرير وبحث فصلي: ' },
-                        { key: 'midterm_exam' as AcademicTaskType, label: 'مدتيرم (10 درجات)', score: 10, defaultTitle: 'امتحان منتصف الفصل الدراسي (مدتيرم)' },
-                        { key: 'practical_exam' as AcademicTaskType, label: 'عملي (10 درجات)', score: 10, defaultTitle: 'الامتحان العملي والمختبري الفصلي' },
-                      ].map((t) => {
+                      {availableTaskTypes.map((t) => {
                         const isSel = formData.task_type === t.key;
                         return (
                           <button

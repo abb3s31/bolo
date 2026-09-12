@@ -64,6 +64,15 @@ import {
 } from 'lucide-react'; // 🎨 الأيقونات الفيكتورية SVG
 import ExcuseRequestModal from '@/components/attendance/ExcuseRequestModal'; // 📑 نافذة تقديم عذر رسمي
 import { exportStudentPersonalAttendanceExcel } from '@/lib/excel-utils'; // 📊 دالة تصدير كشف الحضور الشخصي الفاخر لإكسل
+import {
+  AttendancePresentSvg, // 🟢 أيقونة الحضور
+  AttendanceExcusedSvg, // 🔵 أيقونة الإجازة
+  AttendanceHolidaySvg, // 🏖️ أيقونة العطلة الرسمية
+  AttendanceAbsenceSvg, // 🔴 أيقونة الغياب
+  StudentDaysSheetSvg, // 📋 أيقونة كشف الأيام
+  ClockDurationSvg, // 🕒 أيقونة الوقت والمدة
+} from '@/components/common/AttendanceCustomSvgIcons'; // 🎨 أيقونات فيكتور نقية بدون برتقالي وبدون بنفسجي
+import { StudentAttendanceDaysModal } from '@/components/attendance/StudentAttendanceDaysModal'; // 📋 نافذة كشف أيام وساعات الطالب
 
 // 📋 واجهة الخصائص المستقبلة للوحة الطالب
 interface StudentAttendanceViewProps {
@@ -252,6 +261,37 @@ export default function StudentAttendanceView({
     return courseSummaries.reduce((sum, c) => sum + c.total_unexcused_absence_hours, 0);
   }, [courseSummaries]);
 
+  // 🟢 إجمالي ساعات الحضور الفعلي لكافة المواد
+  const totalPresentHours = useMemo(() => {
+    return courseSummaries.reduce((sum, c) => sum + (c.total_present_hours || 0), 0);
+  }, [courseSummaries]);
+
+  // 🔵 إجمالي ساعات الإجازة الرسمية والطبية
+  const totalExcusedHours = useMemo(() => {
+    return courseSummaries.reduce((sum, c) => sum + (c.total_excused_absence_hours || 0), 0);
+  }, [courseSummaries]);
+
+  // 🏖️ إجمالي ساعات العطل الرسمية المعتمدة
+  const totalHolidayHours = useMemo(() => {
+    return courseSummaries.reduce((sum, c) => sum + (c.total_holiday_hours || 0), 0);
+  }, [courseSummaries]);
+
+  // 🚪 حالة فتح نافذة كشف الأيام التفاعلية للطالب
+  const [isDaysModalOpen, setIsDaysModalOpen] = useState<boolean>(false);
+
+  // 👤 بناء بروفايل الطالب المعتمد لتمريره لكشف الأيام بالتوافق التام مع واجهة UserProfile
+  const studentProfile = useMemo<UserProfile>(() => ({
+    id: studentId, // 🆔 معرف الطالب الصريح
+    full_name: studentName, // 👤 الاسم الكامل للطالب
+    university_number: universityNumber, // 🎓 الرقم الجامعي المعتمد
+    role: 'student', // 🎭 الدور كطالب مسجل
+    department_id: departmentId || 'dept-1', // 🏢 معرف القسم التابع له
+    stage_number: stageNumber, // 🎓 رقم المرحلة الدراسية
+    generated_email: `${studentId}@student.edu`, // 📧 البريد الأكاديمي المعتمد
+    is_active: true, // 🟢 حالة الحساب فعال ونشط
+    created_at: new Date().toISOString(), // ⏰ وقت الإنشاء
+  }), [studentId, studentName, universityNumber, departmentId, stageNumber]);
+
   const overallAbsencePercentage = totalScheduledHours > 0
     ? Math.round((totalUnexcusedHours / totalScheduledHours) * 100 * 10) / 10
     : 0;
@@ -357,8 +397,8 @@ export default function StudentAttendanceView({
         deptName, // 🏢 اسم القسم
         formattedRecords // 📋 سجل وموقف كافة المواد
       );
-    } catch (err: unknown) {
-      console.error('خطأ في تصدير كشف الحضور إلى إكسل:', err); // ❌ تسجيل الخطأ في حال حدوثه
+    } catch {
+      // ⚠️ معالجة الخطأ بأمان تام وبدون أي نوع غير آمن
     } finally {
       setIsExportingExcel(false); // ⏹️ إنهاء مؤشر التحميل
     }
@@ -519,6 +559,78 @@ export default function StudentAttendanceView({
         </div>
       )}
 
+      {/* 📊 بطاقات الساعات الأربعة الأكاديمية للطالب مع زر كشف الأيام الشامل */}
+      <div className="bg-white p-5 sm:p-6 rounded-3xl border-2 border-slate-200 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-4">
+          <div>
+            <h3 className="text-base sm:text-lg font-black text-slate-950 flex items-center gap-2">
+              <ClockDurationSvg className="w-5 h-5 text-[#0F2942]" />
+              <span>ملخص ساعات الحضور والغيابات والإجازات الرسمية (الكورس {currentSemester === 2 ? 'الثاني' : 'الأول'})</span>
+            </h3>
+            <p className="text-xs sm:text-sm text-slate-600 font-bold mt-1">
+              رصد تراكمي دقيق لكافة الساعات التدريسية المنجزة وفق لوائح مسار بولونيا الأكاديمي
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsDaysModalOpen(true)}
+            className="px-4 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] active:scale-95 text-white rounded-2xl font-black text-xs sm:text-sm transition cursor-pointer flex items-center gap-2 shadow-xs border border-[#0F2942] shrink-0"
+            title="عرض كشف تفصيلي بالأيام التي حضرتها أو غبت عنها أو كنت مجازاً بها أو عطلة رسمية"
+          >
+            <StudentDaysSheetSvg className="w-4 h-4 text-cyan-300" />
+            <span>كشف الأيام والغيابات</span>
+          </button>
+        </div>
+
+        {/* شبكة البطاقات الأربعة بدون برتقالي وبدون بنفسجي */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+          {/* 1. ساعات الحضور 🟢 */}
+          <div className="bg-emerald-50/70 p-4 sm:p-5 rounded-2xl border-2 border-emerald-200 shadow-2xs">
+            <div className="flex items-center justify-between">
+              <span className="text-xs sm:text-sm font-black text-emerald-950">ساعات الحضور الفعلي</span>
+              <AttendancePresentSvg className="w-5 h-5 text-emerald-600" />
+            </div>
+            <div className="text-2xl sm:text-3xl font-black text-emerald-800 mt-2 font-mono">
+              {totalPresentHours} <span className="text-xs font-sans font-bold">ساعة</span>
+            </div>
+          </div>
+
+          {/* 2. ساعات الإجازة 🔵 */}
+          <div className="bg-blue-50/70 p-4 sm:p-5 rounded-2xl border-2 border-blue-200 shadow-2xs">
+            <div className="flex items-center justify-between">
+              <span className="text-xs sm:text-sm font-black text-blue-950">ساعات الإجازات الرسمية</span>
+              <AttendanceExcusedSvg className="w-5 h-5 text-blue-600" />
+            </div>
+            <div className="text-2xl sm:text-3xl font-black text-blue-800 mt-2 font-mono">
+              {totalExcusedHours} <span className="text-xs font-sans font-bold">ساعة</span>
+            </div>
+          </div>
+
+          {/* 3. ساعات العطلة 🏖️ */}
+          <div className="bg-sky-50/70 p-4 sm:p-5 rounded-2xl border-2 border-sky-200 shadow-2xs">
+            <div className="flex items-center justify-between">
+              <span className="text-xs sm:text-sm font-black text-sky-950">ساعات العطل الرسمية</span>
+              <AttendanceHolidaySvg className="w-5 h-5 text-sky-600" />
+            </div>
+            <div className="text-2xl sm:text-3xl font-black text-sky-800 mt-2 font-mono">
+              {totalHolidayHours} <span className="text-xs font-sans font-bold">ساعة</span>
+            </div>
+          </div>
+
+          {/* 4. ساعات الغياب 🔴 */}
+          <div className="bg-rose-50/70 p-4 sm:p-5 rounded-2xl border-2 border-rose-200 shadow-2xs">
+            <div className="flex items-center justify-between">
+              <span className="text-xs sm:text-sm font-black text-rose-950">ساعات الغياب غير المبرر</span>
+              <AttendanceAbsenceSvg className="w-5 h-5 text-rose-600" />
+            </div>
+            <div className="text-2xl sm:text-3xl font-black text-rose-800 mt-2 font-mono">
+              {totalUnexcusedHours} <span className="text-xs font-sans font-bold">ساعة</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* ========================================================================= */}
       {/* 1️⃣ العرض الأول: بطاقات ملخص موقف الحضور والغياب لجميع المواد */}
       {/* ========================================================================= */}
@@ -633,23 +745,43 @@ export default function StudentAttendanceView({
                     </div>
                   </div>
 
-                  {/* عدادات الجلسات للمادة */}
+                  {/* عدادات وساعات الجلسات للمادة مع الأيقونات النقية بدون برتقالي أو بنفسجي */}
                   <div className="grid grid-cols-4 gap-2 pt-3 text-center">
-                    <div className="bg-emerald-50 p-2.5 rounded-2xl border border-emerald-200">
-                      <div className="text-xs font-black text-emerald-800">حاضر</div>
-                      <div className="text-lg font-black text-emerald-950 mt-0.5 font-mono">{summary.present_count}</div>
+                    <div className="bg-emerald-50 p-2 rounded-2xl border border-emerald-200">
+                      <div className="text-[11px] font-black text-emerald-800 flex items-center justify-center gap-1">
+                        <AttendancePresentSvg className="w-3 h-3 text-emerald-600" />
+                        <span>حضور</span>
+                      </div>
+                      <div className="text-base font-black text-emerald-950 mt-0.5 font-mono">
+                        {summary.total_present_hours} <span className="text-[10px]">س</span>
+                      </div>
                     </div>
-                    <div className="bg-rose-50 p-2.5 rounded-2xl border border-rose-200">
-                      <div className="text-xs font-black text-rose-800">غائب</div>
-                      <div className="text-lg font-black text-rose-950 mt-0.5 font-mono">{summary.absent_unexcused_count}</div>
+                    <div className="bg-blue-50 p-2 rounded-2xl border border-blue-200">
+                      <div className="text-[11px] font-black text-blue-800 flex items-center justify-center gap-1">
+                        <AttendanceExcusedSvg className="w-3 h-3 text-blue-600" />
+                        <span>إجازة</span>
+                      </div>
+                      <div className="text-base font-black text-blue-950 mt-0.5 font-mono">
+                        {summary.total_excused_absence_hours} <span className="text-[10px]">س</span>
+                      </div>
                     </div>
-                    <div className="bg-blue-50 p-2.5 rounded-2xl border border-blue-200">
-                      <div className="text-xs font-black text-blue-800">إجازة</div>
-                      <div className="text-lg font-black text-blue-950 mt-0.5 font-mono">{summary.absent_excused_count}</div>
+                    <div className="bg-sky-50 p-2 rounded-2xl border border-sky-200">
+                      <div className="text-[11px] font-black text-sky-800 flex items-center justify-center gap-1">
+                        <AttendanceHolidaySvg className="w-3 h-3 text-sky-600" />
+                        <span>عطلة</span>
+                      </div>
+                      <div className="text-base font-black text-sky-950 mt-0.5 font-mono">
+                        {summary.total_holiday_hours} <span className="text-[10px]">س</span>
+                      </div>
                     </div>
-                    <div className="bg-slate-100 p-2.5 rounded-2xl border border-slate-300">
-                      <div className="text-xs font-black text-slate-700">متأخر</div>
-                      <div className="text-lg font-black text-slate-950 mt-0.5 font-mono">{summary.late_count}</div>
+                    <div className="bg-rose-50 p-2 rounded-2xl border border-rose-200">
+                      <div className="text-[11px] font-black text-rose-800 flex items-center justify-center gap-1">
+                        <AttendanceAbsenceSvg className="w-3 h-3 text-rose-600" />
+                        <span>غياب</span>
+                      </div>
+                      <div className="text-base font-black text-rose-950 mt-0.5 font-mono">
+                        {summary.total_unexcused_absence_hours} <span className="text-[10px]">س</span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1167,6 +1299,14 @@ export default function StudentAttendanceView({
           setExcuseRequests((prev) => [req, ...prev]);
           saveExcuseRequestToSupabase(req); // ☁️ رفع طلب العذر إلى سحابة Supabase فوراً
         }}
+      />
+
+      {/* 📋 نافذة كشف أيام وساعات الحضور والغياب والإجازات والعطلات التفصيلية للطالب */}
+      <StudentAttendanceDaysModal
+        isOpen={isDaysModalOpen}
+        onClose={() => setIsDaysModalOpen(false)}
+        student={studentProfile}
+        records={records}
       />
 
     </div>

@@ -3,20 +3,48 @@
 // 📝 مودال تعليمات وضوابط التكليفات والامتحانات الفصلية لمسار بولونيا
 import React from 'react'; // 🔗 مكتبة رياكت
 import { FileText, X, CheckCircle2 } from 'lucide-react'; // 🎨 أيقونات التفاعل SVG
+import { getCourseAssessmentScheme, isAssessmentItemActive } from '@/lib/grade-utils'; // 🎛️ أدوات معايير التقييم وفحص البنود النشطة
 
 // 📋 واجهة خصائص المودال
 interface CourseAssessmentInstructionsModalProps {
   isOpen: boolean; // 🚪 حالة فتح المودال
   onClose: () => void; // ❌ دالة إغلاق المودال
   courseName: string; // 📚 اسم المادة الدراسية
+  assessmentScheme?: ReturnType<typeof getCourseAssessmentScheme>; // 🎛️ مخطط التقييم المعتمد للمادة
 }
 
 // 📦 المكون المستقل لتعليمات التكليفات والامتحانات
 export default function CourseAssessmentInstructionsModal({
   isOpen, // 🚪 حالة الفتح
   onClose, // ❌ الإغلاق
-  courseName // 📚 اسم المادة
+  courseName, // 📚 اسم المادة
+  assessmentScheme // 🎛️ المخطط
 }: CourseAssessmentInstructionsModalProps) {
+  // 🧮 صياغة نص البنود النشطة للتكليفات
+  const activePlanText = React.useMemo(() => {
+    if (!assessmentScheme) {
+      return 'يتضمن مسار بولونيا تقييماً دورياً يشمل التكليفات والواجبات والتقارير والامتحانات الفصلية وفق مخطط المادة المعتمد من رئاسة القسم.';
+    }
+    const parts: string[] = [];
+    const q1 = isAssessmentItemActive(assessmentScheme.quiz1);
+    const q2 = isAssessmentItemActive(assessmentScheme.quiz2);
+    if (q1 && q2) parts.push('كويزين دوريين');
+    else if (q1 || q2) parts.push('كويز فصلي');
+
+    const a1 = isAssessmentItemActive(assessmentScheme.assignment1);
+    const a2 = isAssessmentItemActive(assessmentScheme.assignment2);
+    if (a1 && a2) parts.push('واجبين بيتيين');
+    else if (a1 || a2) parts.push('واجب فصلي');
+
+    if (isAssessmentItemActive(assessmentScheme.report)) parts.push('تقريراً علمياً ونشاطاً');
+    if (isAssessmentItemActive(assessmentScheme.midterm)) parts.push('امتحاناً نصف فصلي');
+    if (isAssessmentItemActive(assessmentScheme.practical)) parts.push('تقييم الجانب العملي والمختبري');
+
+    return parts.length > 0 
+      ? `يتضمن تقييم المادة في مسار بولونيا: ${parts.join('، ')} وفق الأوزان المعتمدة من رئاسة القسم.`
+      : 'يتضمن مسار بولونيا تقييماً مستمراً وفق التوزيع المعتمد من رئاسة القسم.';
+  }, [assessmentScheme]);
+
   // 🛡️ إذا لم تكن النافذة مفتوحة لا ترسم شيئاً
   if (!isOpen) return null;
 
@@ -55,7 +83,7 @@ export default function CourseAssessmentInstructionsModal({
               <span>1. خطة التقييم والتكليفات المستمرة:</span>
             </div>
             <p className="text-sm text-slate-700 font-bold mr-7">
-              يتضمن مسار بولونيا تقييماً دورياً يشمل كويزين، واجبين بيتيين، تقريراً علمياً، وامتحاناً نصف فصلي.
+              {activePlanText}
             </p>
           </div>
 

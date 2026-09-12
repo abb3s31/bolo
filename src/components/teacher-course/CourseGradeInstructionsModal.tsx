@@ -3,7 +3,8 @@
 // ℹ️ نافذة تعليمات وضوابط رصد واستيراد درجات مادة الأستاذ لمسار بولونيا
 import React from 'react'; // 🔗 مكتبة رياكت
 import { BookOpen, X, CheckCircle2, Download } from 'lucide-react'; // 🎨 أيقونات التفاعل SVG
-import { getCourseAssessmentScheme } from '@/lib/grade-utils'; // 🎛️ أدوات معايير التقييم
+// 🎛️ أدوات معايير التقييم وفحص البنود النشطة
+import { getCourseAssessmentScheme, isAssessmentItemActive } from '@/lib/grade-utils'; // 🧮 أدوات معايير التقييم
 
 // 📋 واجهة خصائص المودال
 interface CourseGradeInstructionsModalProps {
@@ -24,6 +25,37 @@ export default function CourseGradeInstructionsModal({
   isPracticalCourse, // 🔬 عملي
   onDownloadTemplate // 📥 التحميل
 }: CourseGradeInstructionsModalProps) {
+  // 🧮 بناء نص البنود المفتوحة فقط واستبعاد أي بند مغلق أو معطل نهائياً
+  const activeItemsText = React.useMemo(() => {
+    const parts: string[] = []; // 📝 قائمة أجزاء البنود النشطة
+    const q1Active = isAssessmentItemActive(assessmentScheme.quiz1); // ❓ فحص كويز 1
+    const q2Active = isAssessmentItemActive(assessmentScheme.quiz2); // ❓ فحص كويز 2
+    const quizTotal = (q1Active ? assessmentScheme.quiz1.max_score : 0) + (q2Active ? assessmentScheme.quiz2.max_score : 0); // 🧮 مجموع الكويزات المفتوحة
+    if (quizTotal > 0) parts.push(`الكويزات (${quizTotal} درجات)`); // ➕ إضافة الكويزات إذا كانت مفعلة
+
+    const a1Active = isAssessmentItemActive(assessmentScheme.assignment1); // ❓ فحص واجب 1
+    const a2Active = isAssessmentItemActive(assessmentScheme.assignment2); // ❓ فحص واجب 2
+    const hwTotal = (a1Active ? assessmentScheme.assignment1.max_score : 0) + (a2Active ? assessmentScheme.assignment2.max_score : 0); // 🧮 مجموع الواجبات المفتوحة
+    if (hwTotal > 0) parts.push(`الواجبات (${hwTotal} درجات)`); // ➕ إضافة الواجبات إذا كانت مفعلة
+
+    // 📄 التقرير إن كان مفتوحاً ودرجته أكبر من 0
+    if (isAssessmentItemActive(assessmentScheme.report) && assessmentScheme.report.max_score > 0) {
+      parts.push(`${assessmentScheme.report.title_ar} (${assessmentScheme.report.max_score} درجات)`);
+    }
+
+    // 📝 النصفي إن كان مفتوحاً ودرجته أكبر من 0
+    if (isAssessmentItemActive(assessmentScheme.midterm) && assessmentScheme.midterm.max_score > 0) {
+      parts.push(`${assessmentScheme.midterm.title_ar} (${assessmentScheme.midterm.max_score} درجات)`);
+    }
+
+    // 🔬 العملي إن كانت المادة عملية والبند مفتوحاً
+    if (isPracticalCourse && isAssessmentItemActive(assessmentScheme.practical) && assessmentScheme.practical.max_score > 0) {
+      parts.push(`${assessmentScheme.practical.title_ar} (${assessmentScheme.practical.max_score} درجات)`);
+    }
+
+    return parts.length > 0 ? parts.join('، ') : 'وفق التوزيع المعتمد من رئاسة القسم'; // 🔗 ربط البنود النشطة بفواصل أنيقة
+  }, [assessmentScheme, isPracticalCourse]); // 🔄 إعادة الحساب عند تغير المخطط
+
   // 🛡️ إذا لم تكن النافذة مفتوحة لا ترسم شيئاً
   if (!isOpen) return null;
 
@@ -62,8 +94,7 @@ export default function CourseGradeInstructionsModal({
               <span>1. توزيع أوزان درجات مسار بولونيا للمادة:</span>
             </div>
             <p className="text-sm text-slate-700 font-bold mr-7">
-              يتم احتساب السعي الفصلي (من 50) والامتحان النهائي (من 50) وفق الأوزان المحددة من رئاسة القسم:
-              الكويزات ({assessmentScheme.quiz1.max_score + assessmentScheme.quiz2.max_score} درجات)، الواجبات ({assessmentScheme.assignment1.max_score + assessmentScheme.assignment2.max_score} درجات)، التقرير ({assessmentScheme.report.max_score} درجات)، النصفي ({assessmentScheme.midterm.max_score} درجات) {isPracticalCourse ? `، والعملي (${assessmentScheme.practical.max_score} درجات)` : ''}.
+              يتم احتساب السعي الفصلي (من 50) والامتحان النهائي (من 50) وفق الأوزان المحددة من رئاسة القسم: {activeItemsText}.
             </p>
           </div>
 

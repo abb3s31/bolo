@@ -27,6 +27,7 @@ import {
   Sun, // ☀️ أيقونة الفترة الصباحية
   Moon, // 🌙 أيقونة الفترة المسائية
   CalendarDays, // 🗓️ أيقونة التقويم والأسابيع
+  Calendar, // 📅 أيقونة العام الدراسي والتقويم
   GraduationCap, // 🎓 أيقونة المرحلة الدراسية
 } from 'lucide-react'; // 🎨 استيراد أيقونات لوسيد
 import type {
@@ -42,6 +43,16 @@ import {
   GroupAttendanceSvg, // 📋 أيقونة سجل الحضور والغياب الخاص بالكروب
   GroupBadgeSvg, // 🏷️ أيقونة بادج الكروب
 } from '@/components/common/GroupSvgIcons'; // 🎨 أيقونات الكروبات النقية SVG
+import {
+  AttendancePresentSvg, // 🟢 أيقونة ساعات الحضور الفعلي
+  AttendanceExcusedSvg, // 🔵 أيقونة ساعات الإجازة الرسمية
+  AttendanceHolidaySvg, // 🏖️ أيقونة ساعات العطلة الرسمية
+  AttendanceAbsenceSvg, // 🔴 أيقونة ساعات الغياب
+  StudentDaysSheetSvg, // 📋 أيقونة زر كشف الأيام
+  DeclareHolidaySvg, // 📢 أيقونة إعلان وتعطيل الدوام
+} from '@/components/common/AttendanceCustomSvgIcons'; // 🎨 أيقونات SVG النقية بدون برتقالي وبدون بنفسجي
+import { DepartmentHolidayModal } from '@/components/attendance/DepartmentHolidayModal'; // 🏖️ نافذة إعلان وتعطيل الدوام الرسمي
+import { StudentAttendanceDaysModal } from '@/components/attendance/StudentAttendanceDaysModal'; // 📋 نافذة كشف الأيام التفاعلية للطالب
 import { AttendanceNoticeCategory } from '@/components/attendance/AttendanceNoticeModal'; // 📢 تصنيف التبليغات
 import AttendanceAnalyticsCharts from '@/components/attendance/AttendanceAnalyticsCharts'; // 📊 لوحة التحليلات
 import AdminPagination from '@/components/AdminPagination'; // 📄 مكون الترقيم الموحد
@@ -54,11 +65,15 @@ import {
   formatDateArabicWithDay, // 🏷️ تنسيق التاريخ بالعربية
   IRAQI_ARABIC_MONTHS, // 🗓️ مصفوفة الأشهر العراقية
 } from '@/lib/schedule-utils'; // 🕒 أدوات الجدول الأكاديمي
+import { getAcademicYear, formatAcademicYearDisplay } from '@/lib/mock-data'; // 📅 دوال العام الدراسي المعتمد
 
 // 📋 واجهة خصائص تبويب الحضور والغيابات والإنذارات الأكاديمية
 export interface DepartmentAttendanceTabProps {
   deptName: string; // 🏢 اسم القسم
   currentDeptId: string; // 🆔 معرف القسم الحالي
+  academicYear?: string; // 📅 العام الدراسي المعتمد (مثال: 2026-2027)
+  filterAttendanceAcademicYear?: string; // 📅 فلتر العام الدراسي المختار لحفظ واسترجاع سجل كل سنة
+  setFilterAttendanceAcademicYear?: (year: string) => void; // 🔄 دالة تحديث فلتر العام الدراسي
   deptCourses: Course[]; // 📚 مواد القسم
   deptStudents: UserProfile[]; // 🎓 طلاب القسم
   attendanceRecords: StudentAttendanceRecord[]; // 📋 سجلات الحضور
@@ -167,13 +182,51 @@ export const DepartmentAttendanceTab: React.FC<DepartmentAttendanceTabProps> = (
   filterAttendanceGroup, // 👥 تصفية كروب الحضور
   setFilterAttendanceGroup, // 🔄 تحديث تصفية كروب الحضور
   stageGroupConfigs, // ⚙️ إعدادات كروبات المراحل
+  academicYear, // 📅 العام الدراسي المعتمد
+  filterAttendanceAcademicYear, // 📅 فلتر العام الدراسي
+  setFilterAttendanceAcademicYear, // 🔄 دالة تحديث فلتر العام الدراسي
 }) => {
+  // 📅 حالة الفلترة بالعام الدراسي مع إمكانية استعراض أرشيف الأعوام السابقة باحترافية وتطهير عام 2025-2026
+  const [internalYearFilter, setInternalYearFilter] = React.useState<string>(
+    academicYear && !academicYear.includes('2025') ? academicYear : '2026-2027'
+  ); // 🗓️ ضبط العام الدراسي الداخلي حصراً على 2026-2027
+  const rawYearFilter = filterAttendanceAcademicYear !== undefined ? filterAttendanceAcademicYear : internalYearFilter; // 📌 قراءة العام الممرر
+  const currentYearFilter = rawYearFilter && !rawYearFilter.includes('2025') ? rawYearFilter : '2026-2027'; // 🛡️ ضمان عدم اعتماد أي عام قديم 2025
+  const baseYearFilterChange = setFilterAttendanceAcademicYear || setInternalYearFilter; // ⚡ دالة التغيير الأساسية
+  const handleYearFilterChange = React.useCallback((targetYear: string) => {
+    const cleanYear = targetYear && !targetYear.includes('2025') ? targetYear : '2026-2027'; // 🧹 تنظيف فوري لأي اختيار قديم
+    baseYearFilterChange(cleanYear); // ⚡ تطبيق التغيير النظيف
+  }, [baseYearFilterChange]);
+
   // 👥 حالة محلية احتياطية لتصفية الكروب إذا لم تُمرر من المكون الأب
   const [internalGroupFilter, setInternalGroupFilter] = React.useState<string>('all'); // 🎯 فلتر الكروب الداخلي
   // 🎯 تحديد الفلتر الفعال سواء كان ممرراً أو داخلياً
   const currentGroupFilter = filterAttendanceGroup !== undefined ? filterAttendanceGroup : internalGroupFilter; // 📌 الكروب النشط
   // 🔄 دالة تغيير فلتر الكروب المتوافقة
   const handleGroupFilterChange = setFilterAttendanceGroup || setInternalGroupFilter; // ⚡ دالة التغيير
+
+  // 🗓️ استخراج قائمة الأعوام الدراسية المتاحة للأرشيف والسجلات مع مسح عام 2025-2026 نهائياً
+  const availableAcademicYears = React.useMemo<string[]>(() => {
+    const yearsSet = new Set<string>(); // 📦 مجموعة فريدة للأعوام
+    const currentYear = getAcademicYear(); // 📅 جلب العام الرسمي الحالي
+    if (currentYear && !currentYear.includes('2025')) yearsSet.add(currentYear); // ➕ إضافة العام الحالي
+    yearsSet.add('2026-2027'); // ➕ اعتماد 2026-2027 كثابت رسمي أساسي
+    // 🧹 فحص سجلات الحضور وإضافة الأعوام غير القديمة حصراً
+    attendanceRecords.forEach((r) => {
+      const yrId = r.academic_year_id; // 🆔 معرف العام بالسجل
+      if (yrId && !yrId.includes('2025') && yrId !== '2025-2026' && yrId !== 'year-2025') {
+        yearsSet.add(yrId); // ➕ إضافة الأعوام المعتمدة حصراً
+      }
+    });
+    return Array.from(yearsSet).sort().reverse(); // 🔠 ترتيب تنازلي للأعوام
+  }, [attendanceRecords]);
+
+  // 🏖️ حالة فتح نافذة إعلان وتعطيل الدوام الرسمي للقسم
+  const [isHolidayModalOpen, setIsHolidayModalOpen] = React.useState<boolean>(false); // 🚪 نافذة العطلة
+  // 📋 حالة فتح نافذة كشف أيام وساعات الحضور للطالب
+  const [isStudentDaysModalOpen, setIsStudentDaysModalOpen] = React.useState<boolean>(false); // 🚪 نافذة كشف الأيام
+  // 🎓 بيانات الطالب المختار لعرض كشف الأيام
+  const [selectedStudentForDaysModal, setSelectedStudentForDaysModal] = React.useState<UserProfile | null>(null); // 👤 الطالب المختار
 
   // 👥 استخراج الكروبات المتوفرة للمرحلة أو القسم ككل
   const availableGroups = React.useMemo<string[]>(() => {
@@ -206,67 +259,73 @@ export const DepartmentAttendanceTab: React.FC<DepartmentAttendanceTabProps> = (
           
           {/* 📋 الهيدر الرئيسي لسجلات الحضور والغيابات مع أزرار العمليات بسطر خاص */}
           <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-5">
-            {/* 🏷️ العنوان والبادجات التعريفية */}
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="px-3.5 py-1 bg-[#0F2942] text-white text-sm font-black rounded-xl flex items-center gap-1.5 shadow-2xs">
-                  <Sparkles className="w-3.5 h-3.5 text-cyan-300" /> {/* ✨ أيقونة الضوابط الأكاديمية */}
-                  <span>ضوابط الحضور والإنذارات الأكاديمية</span> {/* 🏷️ عنوان البادج */}
-                </span>
-                <span className="px-3 py-1 bg-blue-50 text-blue-950 border border-blue-200 font-black text-sm rounded-xl">
-                  قسم {deptName} {/* 🏢 القسم الحالي */}
-                </span>
+            {/* 🏷️ العنوان والبادجات التعريفية + وحدة تبديل نمط العرض الفاخرة المدمجة (مفصولة بالكامل عن شريط العمليات) */}
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="px-3.5 py-1 bg-[#0F2942] text-white text-sm font-black rounded-xl flex items-center gap-1.5 shadow-2xs">
+                    <Sparkles className="w-3.5 h-3.5 text-cyan-300" /> {/* ✨ أيقونة الضوابط الأكاديمية */}
+                    <span>ضوابط الحضور والإنذارات الأكاديمية</span> {/* 🏷️ عنوان البادج */}
+                  </span>
+                  <span className="px-3 py-1 bg-blue-50 text-blue-950 border border-blue-200 font-black text-sm rounded-xl">
+                    قسم {deptName} {/* 🏢 القسم الحالي */}
+                  </span>
+                </div>
+                <h2 className="text-2xl sm:text-3xl font-black text-slate-950 flex items-center gap-2.5 tracking-tight">
+                  <ClipboardList className="w-7 h-7 text-[#0F2942]" /> {/* 📋 أيقونة السجلات */}
+                  <span>سجلات الحضور والغيابات والإنذارات الأكاديمية لمسار بولونيا</span> {/* 📌 عنوان الصفحة الرئيسي */}
+                </h2>
+                <p className="text-base sm:text-lg font-black text-slate-800 mt-1 leading-relaxed">
+                  متابعة مركزية لنسب غياب طلبة القسم ورصد تجاوزات الحدود القانونية (5% إنذار أولي | 7% إنذار نهائي | 10% حرمان رسمي) {/* 📝 الوصف القانوني للغيابات */}
+                </p>
               </div>
-              <h2 className="text-2xl sm:text-3xl font-black text-slate-950 flex items-center gap-2.5 tracking-tight">
-                <ClipboardList className="w-7 h-7 text-[#0F2942]" /> {/* 📋 أيقونة السجلات */}
-                <span>سجلات الحضور والغيابات والإنذارات الأكاديمية لمسار بولونيا</span> {/* 📌 عنوان الصفحة الرئيسي */}
-              </h2>
-              <p className="text-base sm:text-lg font-black text-slate-800 mt-1 leading-relaxed">
-                متابعة مركزية لنسب غياب طلبة القسم ورصد تجاوزات الحدود القانونية (5% إنذار أولي | 7% إنذار نهائي | 10% حرمان رسمي) {/* 📝 الوصف القانوني للغيابات */}
-              </p>
+
+              {/* 🎛️ كبسولة التبديل المدمجة الفاخرة بين جدول الطلاب والتحليلات (مفصولة بالكامل عن أزرار العمليات) */}
+              <div className="bg-slate-100 p-1.5 rounded-2xl border border-slate-200/90 flex items-center gap-1.5 shadow-2xs shrink-0 self-start lg:self-center">
+                {/* 1️⃣ زر جدول الطلاب */}
+                <button
+                  type="button" // 🔘 نوع الزر
+                  onClick={() => setAttendanceViewMode('list')} // ⚡ تفعيل نمط جدول الطلاب
+                  className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer flex items-center gap-2 shrink-0 ${
+                    attendanceViewMode === 'list'
+                      ? 'bg-[#0F2942] text-white shadow-md border border-[#0F2942]' // 🎨 نشط: كحلي ملكي راقٍ وظل ناعم
+                      : 'bg-transparent hover:bg-slate-200/70 text-slate-700 hover:text-slate-950 border border-transparent' // 🎨 غير نشط: رمادي تفاعلي ناعم
+                  }`}
+                  title="عرض جدول كشف حضور وغياب الطلاب" // 💡 تلميح الزر
+                >
+                  <Users className={`w-4 h-4 sm:w-5 sm:h-5 ${attendanceViewMode === 'list' ? 'text-cyan-300' : 'text-[#0F2942]'}`} /> {/* 👥 أيقونة الطلاب */}
+                  <span>جدول الطلاب</span> {/* 📝 نص الزر */}
+                </button>
+
+                {/* 2️⃣ زر التحليلات والرسوم البيانية */}
+                <button
+                  type="button" // 🔘 نوع الزر
+                  onClick={() => setAttendanceViewMode('analytics')} // ⚡ تفعيل نمط التحليلات
+                  className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer flex items-center gap-2 shrink-0 ${
+                    attendanceViewMode === 'analytics'
+                      ? 'bg-[#0F2942] text-white shadow-md border border-[#0F2942]' // 🎨 نشط: كحلي ملكي راقٍ وظل ناعم
+                      : 'bg-transparent hover:bg-slate-200/70 text-slate-700 hover:text-slate-950 border border-transparent' // 🎨 غير نشط: رمادي تفاعلي ناعم
+                  }`}
+                  title="عرض الرسوم البيانية ومؤشرات الغياب" // 💡 تلميح الزر
+                >
+                  <BarChart3 className={`w-4 h-4 sm:w-5 sm:h-5 ${attendanceViewMode === 'analytics' ? 'text-cyan-300' : 'text-[#0F2942]'}`} /> {/* 📊 أيقونة الرسوم البيانية */}
+                  <span>التحليلات والرسوم البيانية</span> {/* 📝 نص الزر */}
+                </button>
+              </div>
             </div>
 
-            {/* 🛠️ شريط أزرار العمليات المنسقة بالكامل بسطر خاص بها بلون الكحلي الملكي وفق ترتيب المستخدم */}
-            <div className="pt-4 border-t border-slate-200/80 flex flex-wrap items-center gap-3">
-              {/* 1️⃣ زر جدول الطلاب */}
-              <button
-                type="button" // 🔘 نوع الزر
-                onClick={() => setAttendanceViewMode('list')} // ⚡ تفعيل نمط جدول الطلاب
-                className={`px-5 py-3 rounded-2xl text-base font-black transition-all cursor-pointer flex items-center gap-2.5 shadow-md active:scale-95 border shrink-0 ${
-                  attendanceViewMode === 'list'
-                    ? 'bg-[#0F2942] hover:bg-[#163a5f] text-white border-[#0F2942] ring-2 ring-cyan-400/40' // 🎨 مظهر نشط كحلي ملكي
-                    : 'bg-[#0F2942] hover:bg-[#163a5f] text-white/80 hover:text-white border-[#0F2942]' // 🎨 كحلي ملكي أنيق
-                }`}
-                title="عرض جدول كشف حضور وغياب الطلاب" // 💡 تلميح الزر
-              >
-                <Users className="w-5 h-5 text-cyan-300" /> {/* 👥 أيقونة الطلاب الزرقاء */}
-                <span>جدول الطلاب</span> {/* 📝 نص الزر */}
-              </button>
-
-              {/* 2️⃣ زر التحليلات والرسوم البيانية */}
-              <button
-                type="button" // 🔘 نوع الزر
-                onClick={() => setAttendanceViewMode('analytics')} // ⚡ تفعيل نمط التحليلات
-                className={`px-5 py-3 rounded-2xl text-base font-black transition-all cursor-pointer flex items-center gap-2.5 shadow-md active:scale-95 border shrink-0 ${
-                  attendanceViewMode === 'analytics'
-                    ? 'bg-[#0F2942] hover:bg-[#163a5f] text-white border-[#0F2942] ring-2 ring-cyan-400/40' // 🎨 مظهر نشط كحلي ملكي
-                    : 'bg-[#0F2942] hover:bg-[#163a5f] text-white/80 hover:text-white border-[#0F2942]' // 🎨 كحلي ملكي أنيق
-                }`}
-                title="عرض الرسوم البيانية ومؤشرات الغياب" // 💡 تلميح الزر
-              >
-                <BarChart3 className="w-5 h-5 text-cyan-300" /> {/* 📊 أيقونة الرسوم البيانية */}
-                <span>التحليلات والرسوم البيانية</span> {/* 📝 نص الزر */}
-              </button>
+            {/* 🛠️ شريط أزرار العمليات والإجراءات المنسقة بالكامل بسطر خاص بها بلون الكحلي الملكي الموحد */}
+            <div className="pt-4 border-t border-slate-200/80 flex flex-wrap items-center gap-2.5 sm:gap-3">
 
               {/* 3️⃣ زر تصدير الحضور (Excel) */}
               <button
                 type="button" // 🔘 نوع الزر لمنع أي إرسال تلقائي
                 onClick={handleExportAttendanceExcel} // ⚡ تشغيل دالة تصدير كشف الحضور للإكسل
                 disabled={isExportingAttendanceExcel} // 🛑 تعطيل الزر أثناء عملية التصدير
-                className="px-5 py-3 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-2xl text-base font-black transition-all cursor-pointer flex items-center gap-2.5 border border-[#0F2942] shadow-md hover:shadow-lg active:scale-95 disabled:opacity-50 whitespace-nowrap shrink-0" // 🎨 تصميم كحلي ملكي راقٍ
+                className="px-3.5 sm:px-4 py-2 sm:py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-2xl text-xs sm:text-sm font-black transition-all cursor-pointer flex items-center gap-2 border border-[#0F2942] shadow-md hover:shadow-lg active:scale-95 disabled:opacity-50 whitespace-nowrap shrink-0" // 🎨 تصميم كحلي ملكي راقٍ
                 title="تصدير كشف الحضور والغيابات والإنذارات الأكاديمية لمسار بولونيا إلى ملف Excel" // 💡 نص التلميح
               >
-                <FileSpreadsheet className="w-5 h-5 text-emerald-300" /> {/* 📊 أيقونة الإكسل باللون الزمردي الزاهي */}
+                <FileSpreadsheet className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-300" /> {/* 📊 أيقونة الإكسل باللون الزمردي الزاهي */}
                 <span>{isExportingAttendanceExcel ? 'جاري التصدير...' : selectedAttendanceStudentIds.length > 0 ? `تصدير المحدد (${selectedAttendanceStudentIds.length}) Excel` : 'تصدير الحضور (Excel)'}</span> {/* 🏷️ نص الزر التفاعلي الذكي */}
               </button>
 
@@ -274,10 +333,10 @@ export const DepartmentAttendanceTab: React.FC<DepartmentAttendanceTabProps> = (
               <button
                 type="button" // 🔘 نوع الزر
                 onClick={() => setIsDurationSettingsModalOpen(true)} // ⚡ فتح نافذة تخصيص ساعات المحاضرات
-                className="px-5 py-3 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-2xl text-base font-black transition-all cursor-pointer flex items-center gap-2.5 border border-[#0F2942] shadow-md hover:shadow-lg active:scale-95 shrink-0" // 🎨 تصميم كحلي ملكي راقٍ
+                className="px-3.5 sm:px-4 py-2 sm:py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-2xl text-xs sm:text-sm font-black transition-all cursor-pointer flex items-center gap-2 border border-[#0F2942] shadow-md hover:shadow-lg active:scale-95 shrink-0" // 🎨 تصميم كحلي ملكي راقٍ
                 title="تخصيص وإعداد مدد وساعات المحاضرات للقسم ومواده" // 💡 نص التلميح
               >
-                <SlidersHorizontal className="w-5 h-5 text-cyan-300" /> {/* ⚙️ أيقونة التخصيص */}
+                <SlidersHorizontal className="w-4 h-4 sm:w-5 sm:h-5 text-cyan-300" /> {/* ⚙️ أيقونة التخصيص */}
                 <span>تخصيص ساعات المحاضرات</span> {/* 📝 نص الزر */}
               </button>
 
@@ -290,10 +349,10 @@ export const DepartmentAttendanceTab: React.FC<DepartmentAttendanceTabProps> = (
                   setAttendanceNoticeDefaultCategory('general_announcement'); // 📢 تصنيف التبليغ العام
                   setIsAttendanceNoticeModalOpen(true); // 🚀 فتح نافذة إرسال التبليغ
                 }}
-                className="px-5 py-3 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-2xl text-base font-black transition-all cursor-pointer flex items-center gap-2.5 border border-[#0F2942] shadow-md hover:shadow-lg active:scale-95 shrink-0" // 🎨 تصميم كحلي ملكي راقٍ
+                className="px-3.5 sm:px-4 py-2 sm:py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-2xl text-xs sm:text-sm font-black transition-all cursor-pointer flex items-center gap-2 border border-[#0F2942] shadow-md hover:shadow-lg active:scale-95 shrink-0" // 🎨 تصميم كحلي ملكي راقٍ
                 title="إرسال تبليغ عام أو تنبيه لطلبة المرحلة" // 💡 نص التلميح
               >
-                <Send className="w-5 h-5 text-cyan-300" /> {/* 📤 أيقونة الإرسال الزرقاء */}
+                <Send className="w-4 h-4 sm:w-5 sm:h-5 text-cyan-300" /> {/* 📤 أيقونة الإرسال الزرقاء */}
                 <span>إرسال تبليغ عام للمرحلة</span> {/* 📝 نص الزر */}
               </button>
 
@@ -301,65 +360,134 @@ export const DepartmentAttendanceTab: React.FC<DepartmentAttendanceTabProps> = (
               <button
                 type="button" // 🔘 نوع الزر
                 onClick={() => setIsDeptExcuseReviewOpen(true)} // ⚡ فتح نافذة مراجعة الإجازات
-                className="px-5 py-3 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-2xl text-base font-black transition-all cursor-pointer flex items-center gap-2.5 border border-[#0F2942] shadow-md hover:shadow-lg active:scale-95 shrink-0" // 🎨 تصميم كحلي ملكي راقٍ
+                className="px-3.5 sm:px-4 py-2 sm:py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-2xl text-xs sm:text-sm font-black transition-all cursor-pointer flex items-center gap-2 border border-[#0F2942] shadow-md hover:shadow-lg active:scale-95 shrink-0" // 🎨 تصميم كحلي ملكي راقٍ
                 title="تدقيق ومراجعة طلبات الإجازات والأعذار الرسمية" // 💡 نص التلميح
               >
-                <FileText className="w-5 h-5 text-cyan-300" /> {/* 📑 أيقونة طلبات الإجازات */}
+                <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-cyan-300" /> {/* 📑 أيقونة طلبات الإجازات */}
                 <span>تدقيق ومراجعة طلبات الإجازات ({excuseRequests.filter((e: AttendanceExcuseRequest) => e.department_id === currentDeptId && e.status === 'pending').length})</span> {/* 📝 نص الزر مع العداد */}
+              </button>
+
+              {/* 7️⃣ زر تعطيل الدوام الرسمي وإعلان عطلة رسمية */}
+              <button
+                type="button" // 🔘 نوع الزر لمنع أي إرسال غير مقصود
+                onClick={() => setIsHolidayModalOpen(true)} // ⚡ فتح نافذة إعلان عطلة رسمية للقسم أو المرحلة
+                className="px-3.5 sm:px-4 py-2 sm:py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-2xl text-xs sm:text-sm font-black transition-all cursor-pointer flex items-center gap-2 border border-[#0F2942] shadow-md hover:shadow-lg active:scale-95 shrink-0" // 🎨 تصميم كحلي ملكي متناسق بدون برتقالي وبدون بنفسجي
+                title="إعلان عطلة رسمية وتعطيل الدوام الرسمي للطلبة مع تثبيت السجلات تلقائياً" // 💡 تلميح الزر
+              >
+                <DeclareHolidaySvg className="w-4 h-4 sm:w-5 sm:h-5 text-cyan-300" /> {/* 📢 أيقونة إعلان العطلة بصيغة SVG نقية */}
+                <span>تعطيل الدوام / إعلان عطلة رسمية</span> {/* 📝 نص الزر الرسمي */}
               </button>
             </div>
           </div>
 
-          {/* 🎛️ شريط الفلاتر المتقدم والشامل لتبويب الحضور: المرحلة + الكورس + الفترة + المادة + البحث الفوري */}
-          <div className="bg-white p-5 rounded-3xl border border-slate-300 shadow-sm space-y-4">
-            <div className="flex flex-wrap xl:flex-nowrap items-center justify-between gap-4">
+          {/* 📋 عرض محتوى جدول الطلاب مع فلاتره وإحصائياته فقط في نمط القائمة */}
+          {attendanceViewMode === 'list' && (
+            <div className="space-y-6">
+              {/* 🎛️ شريط الفلاتر المتقدم والشامل لتبويب الحضور: المرحلة + الكورس + الفترة + المادة + البحث الفوري */}
+              {/* 🎛️ شريط الفلاتر والتبويبات الأكاديمية الاحترافي الموحد لمسار بولونيا */}
+              <div className="bg-white p-5 rounded-3xl border border-slate-300 shadow-xs space-y-4"> {/* 📦 بطاقة التبويبات البيضاء الرئيسية */}
+            
+            {/* 📍 السطر الأول: التبويبات الأكاديمية التأسيسية (العام الدراسي ⬅️ المرحلة ⬅️ الكورس ⬅️ الفترة) */}
+            <div className="flex flex-wrap items-center gap-3.5"> {/* 🔄 صف مرن يحتوي على التبويبات الأساسية بتجاوب كامل */}
               
-              {/* 🎓 تصفية المرحلة الدراسية */}
-              <div className="flex items-center gap-2.5 flex-wrap">
-                <span className="text-sm sm:text-base font-black text-slate-950 flex items-center gap-1.5 shrink-0">
-                  <GraduationCap className="w-5 h-5 text-[#0F2942]" />
-                  <span>المرحلة:</span>
+              {/* 📅 0. تبويب العام الدراسي وأرشيف السجلات */}
+              <div className="bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200/90 flex items-center gap-2 shadow-2xs shrink-0"> {/* 🏷️ كبسولة تبويبات العام الدراسي */}
+                <span className="px-2.5 py-1 text-xs sm:text-sm font-black text-slate-800 flex items-center gap-1.5 shrink-0 select-none"> {/* 📌 عنوان قسم العام */}
+                  <Calendar className="w-4 h-4 text-[#0F2942]" /> {/* 📅 أيقونة التقويم السنوي */}
+                  <span>العام الدراسي:</span> {/* 📝 نص العنوان */}
                 </span>
-                <div className="flex items-center gap-1.5 flex-wrap">
+                <div className="flex items-center gap-1.5 flex-nowrap"> {/* 🔘 حاوية أزرار الأعوام الأفقية */}
                   <button
                     type="button"
-                    onClick={() => setFilterAttendanceStage('all')}
-                    className={`px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-                      filterAttendanceStage === 'all'
+                    onClick={() => handleYearFilterChange('all')}
+                    className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer whitespace-nowrap ${
+                      currentYearFilter === 'all'
                         ? 'bg-[#0F2942] text-white shadow-xs'
-                        : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300'
+                        : 'bg-white text-slate-900 hover:bg-slate-200/80 border border-slate-200'
                     }`}
                   >
-                    <span>كافة المراحل</span>
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-mono font-black border transition-all ${
-                      filterAttendanceStage === 'all' ? 'bg-white/20 text-white border-white/30' : 'bg-slate-200 text-slate-900 border-slate-300'
-                    }`}>
-                      {deptStudents.length}
-                    </span>
+                    كافة الأعوام
                   </button>
-                  {[1, 2, 3, 4].map((stg) => {
-                    const stgCount = deptStudents.filter((s) => (s.stage_number || 1) === stg).length;
-                    const stgLabel = stg === 1 ? 'المرحلة الأولى' : stg === 2 ? 'المرحلة الثانية' : stg === 3 ? 'المرحلة الثالثة' : 'المرحلة الرابعة';
+                  {availableAcademicYears.map((yr) => {
+                    const isSelected = currentYearFilter === yr; // 🔍 هل هذا العام هو المختار حالياً
+                    const isCurrent = yr === getAcademicYear() || yr === '2026-2027'; // 🌟 هل هذا العام هو العام الأكاديمي الحالي
                     return (
                       <button
-                        key={stg}
-                        type="button"
-                        onClick={() => setFilterAttendanceStage(stg)}
-                        className={`px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-                          filterAttendanceStage === stg
-                            ? 'bg-[#0F2942] text-white shadow-xs'
-                            : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300'
+                        key={yr} // 🔑 مفتاح العام
+                        type="button" // 🔘 نوع الزر للنموذج
+                        onClick={() => handleYearFilterChange(yr)} // ⚡ تفعيل فلتر هذا العام
+                        className={`px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${
+                          isSelected
+                            ? 'bg-[#0F2942] text-white shadow-xs' // 🎨 كحلي ملكي راقٍ للعام المختار
+                            : 'bg-white text-slate-900 hover:bg-slate-200/80 border border-slate-200' // ⚪ مظهر ناصع ومريح للعام غير المختار
                         }`}
                       >
-                        <span>{stgLabel}</span>
+                        <span>{formatAcademicYearDisplay(yr)}</span> {/* 📅 اسم العام الدراسي */}
+                        {isCurrent && ( // 🎯 شارة العام الحالي بأيقونة SVG فيكتور واضحة وبدون أي برتقالي
+                          <span className={`px-2 py-0.5 rounded-lg text-xs font-black border transition-all flex items-center gap-1 shadow-2xs ${
+                            isSelected
+                              ? 'bg-cyan-400/20 text-cyan-200 border-cyan-300/40' // 🌟 كحلي وسماوي ناصع فخم
+                              : 'bg-blue-50 text-[#0F2942] border-blue-200' // 💎 أزرق ملكي واضح جداً وعالي التباين
+                          }`}>
+                            <Sparkles className={`w-3.5 h-3.5 shrink-0 ${isSelected ? 'text-cyan-300' : 'text-[#0F2942]'}`} /> {/* ✨ أيقونة SVG فيكتور ناصعة */}
+                            <span>الحالي</span> {/* 🏷️ كلمة الحالي واضحة وبارزة بخط عريض */}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 🎓 1. تبويب المرحلة الدراسية */}
+              <div className="bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200/90 flex items-center gap-2 shadow-2xs shrink-0"> {/* 🏷️ كبسولة تبويبات المرحلة */}
+                <span className="px-2.5 py-1 text-xs sm:text-sm font-black text-slate-800 flex items-center gap-1.5 shrink-0 select-none"> {/* 📌 عنوان قسم المرحلة */}
+                  <GraduationCap className="w-4 h-4 text-[#0F2942]" /> {/* 🎓 أيقونة قبعة التخرج */}
+                  <span>المرحلة:</span> {/* 📝 نص عنوان المرحلة */}
+                </span>
+                <div className="flex items-center gap-1.5 flex-nowrap"> {/* 🔘 حاوية أزرار المراحل الأفقية دون انكسار */}
+                  {/* زر كافة المراحل */}
+                  <button
+                    type="button" // 🔘 نوع الزر
+                    onClick={() => setFilterAttendanceStage('all')} // ⚡ تفعيل خيار كافة المراحل
+                    className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                      filterAttendanceStage === 'all' // 🔍 فحص هل كافة المراحل مختارة حالياً
+                        ? 'bg-[#0F2942] text-white shadow-xs' // 🎨 مظهر نشط كحلي ملكي
+                        : 'bg-white text-slate-900 hover:bg-slate-200/80 border border-slate-200' // 🎨 مظهر هادئ غير نشط
+                    }`}
+                  >
+                    <span>كافة المراحل</span> {/* 📝 نص الزر */}
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-mono font-black border transition-all ${
+                      filterAttendanceStage === 'all' ? 'bg-white/20 text-white border-white/30' : 'bg-slate-100 text-slate-800 border-slate-300' // 🎨 تمييز بادج العداد
+                    }`}>
+                      {deptStudents.length} {/* 🔢 إجمالي عدد طلبة القسم */}
+                    </span>
+                  </button>
+
+                  {/* أزرار المراحل الدراسية من الأولى إلى الرابعة */}
+                  {[1, 2, 3, 4].map((stg) => { // 🔄 تكرار المراحل الأربعة
+                    const stgCount = deptStudents.filter((s) => (s.stage_number || 1) === stg).length; // 🔢 حساب عدد طلبة هذه المرحلة
+                    const stgLabel = stg === 1 ? 'المرحلة الأولى' : stg === 2 ? 'المرحلة الثانية' : stg === 3 ? 'المرحلة الثالثة' : 'المرحلة الرابعة'; // 🏷️ اسم المرحلة
+                    return (
+                      <button
+                        key={stg} // 🔑 مفتاح الزر
+                        type="button" // 🔘 نوع الزر
+                        onClick={() => setFilterAttendanceStage(stg)} // ⚡ تحديد المرحلة عند الضغط
+                        className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                          filterAttendanceStage === stg // 🔍 فحص هل المرحلة مختارة حالياً
+                            ? 'bg-[#0F2942] text-white shadow-xs' // 🎨 مظهر نشط كحلي ملكي
+                            : 'bg-white text-slate-900 hover:bg-slate-200/80 border border-slate-200' // 🎨 مظهر هادئ غير نشط
+                        }`}
+                      >
+                        <span>{stgLabel}</span> {/* 📝 نص اسم المرحلة */}
                         <span className={`px-2 py-0.5 rounded-full text-xs font-mono font-black border transition-all ${
-                          filterAttendanceStage === stg
-                            ? 'bg-white/20 text-white border-white/30'
-                            : stgCount > 0
-                            ? 'bg-blue-100 text-blue-950 border-blue-300'
-                            : 'bg-slate-200 text-slate-600 border-slate-300'
+                          filterAttendanceStage === stg // 🔍 تلوين البادج حسب حالة التحديد
+                            ? 'bg-white/20 text-white border-white/30' // 🎨 بادج النشط
+                            : stgCount > 0 // 🔍 إذا بيها طلبة
+                            ? 'bg-blue-50 text-blue-950 border-blue-200' // 🎨 أزرق خفيف
+                            : 'bg-slate-100 text-slate-600 border-slate-300' // 🎨 رمادي
                         }`}>
-                          {stgCount}
+                          {stgCount} {/* 🔢 عرض عدد الطلبة */}
                         </span>
                       </button>
                     );
@@ -367,365 +495,270 @@ export const DepartmentAttendanceTab: React.FC<DepartmentAttendanceTabProps> = (
                 </div>
               </div>
 
-              {/* 📚 تصفية الكورس الدراسي */}
-              <div className="flex items-center gap-2.5 shrink-0">
-                <span className="text-sm sm:text-base font-black text-slate-950 flex items-center gap-1.5 shrink-0">
-                  <Layers className="w-5 h-5 text-[#0F2942]" />
-                  <span>الكورس:</span>
+              {/* 📚 2. تبويب الكورس الدراسي (الفصل) */}
+              <div className="bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200/90 flex items-center gap-2 shadow-2xs shrink-0"> {/* 🏷️ كبسولة تبويبات الكورس */}
+                <span className="px-2.5 py-1 text-xs sm:text-sm font-black text-slate-800 flex items-center gap-1.5 shrink-0 select-none"> {/* 📌 عنوان قسم الكورس */}
+                  <Layers className="w-4 h-4 text-[#0F2942]" /> {/* 📚 أيقونة طبقات الفصول */}
+                  <span>الكورس:</span> {/* 📝 نص عنوان الكورس */}
                 </span>
-                <div className="flex items-center gap-1.5 flex-nowrap">
+                <div className="flex items-center gap-1.5 flex-nowrap"> {/* 🔘 حاوية أزرار الكورس الأفقية */}
                   <button
-                    type="button"
-                    onClick={() => setFilterAttendanceSemester('all')}
-                    className={`px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer whitespace-nowrap ${
-                      filterAttendanceSemester === 'all'
-                        ? 'bg-[#0F2942] text-white shadow-xs'
-                        : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300'
+                    type="button" // 🔘 نوع الزر
+                    onClick={() => setFilterAttendanceSemester('all')} // ⚡ تفعيل كافة الكورسات
+                    className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer whitespace-nowrap ${
+                      filterAttendanceSemester === 'all' // 🔍 فحص خيار الكل
+                        ? 'bg-[#0F2942] text-white shadow-xs' // 🎨 مظهر نشط كحلي ملكي
+                        : 'bg-white text-slate-900 hover:bg-slate-200/80 border border-slate-200' // 🎨 مظهر غير نشط
                     }`}
                   >
-                    كافة الكورسات
+                    كافة الكورسات {/* 📝 نص كافة الكورسات */}
                   </button>
                   <button
-                    type="button"
-                    onClick={() => setFilterAttendanceSemester(1)}
-                    className={`px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer whitespace-nowrap ${
-                      filterAttendanceSemester === 1
-                        ? 'bg-[#0F2942] text-white shadow-xs'
-                        : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300'
+                    type="button" // 🔘 نوع الزر
+                    onClick={() => setFilterAttendanceSemester(1)} // ⚡ اختيار الكورس الأول
+                    className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer whitespace-nowrap ${
+                      filterAttendanceSemester === 1 // 🔍 فحص هل الأول مختار
+                        ? 'bg-[#0F2942] text-white shadow-xs' // 🎨 مظهر نشط
+                        : 'bg-white text-slate-900 hover:bg-slate-200/80 border border-slate-200' // 🎨 مظهر غير نشط
                     }`}
                   >
-                    الكورس الأول
+                    الكورس الأول {/* 📝 نص الكورس الأول */}
                   </button>
                   <button
-                    type="button"
-                    onClick={() => setFilterAttendanceSemester(2)}
-                    className={`px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer whitespace-nowrap ${
-                      filterAttendanceSemester === 2
-                        ? 'bg-[#0F2942] text-white shadow-xs'
-                        : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300'
+                    type="button" // 🔘 نوع الزر
+                    onClick={() => setFilterAttendanceSemester(2)} // ⚡ اختيار الكورس الثاني
+                    className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer whitespace-nowrap ${
+                      filterAttendanceSemester === 2 // 🔍 فحص هل الثاني مختار
+                        ? 'bg-[#0F2942] text-white shadow-xs' // 🎨 مظهر نشط
+                        : 'bg-white text-slate-900 hover:bg-slate-200/80 border border-slate-200' // 🎨 مظهر غير نشط
                     }`}
                   >
-                    الكورس الثاني
+                    الكورس الثاني {/* 📝 نص الكورس الثاني */}
                   </button>
                 </div>
               </div>
 
-              {/* ☀️🌙 تصفية الفترة الدراسية (الصباحي / المسائي) */}
-              <div className="flex items-center gap-2.5 shrink-0">
-                <span className="text-sm sm:text-base font-black text-slate-950 flex items-center gap-1.5 shrink-0">
-                  <Clock className="w-5 h-5 text-[#0F2942]" />
-                  <span>الفترة:</span>
+              {/* ☀️🌙 3. تبويب الفترة الدراسية (الصباحي / المسائي) */}
+              <div className="bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200/90 flex items-center gap-2 shadow-2xs shrink-0"> {/* 🏷️ كبسولة تبويبات الفترة */}
+                <span className="px-2.5 py-1 text-xs sm:text-sm font-black text-slate-800 flex items-center gap-1.5 shrink-0 select-none"> {/* 📌 عنوان قسم الفترة */}
+                  <Clock className="w-4 h-4 text-[#0F2942]" /> {/* 🕒 أيقونة ساعة الفترة */}
+                  <span>الفترة:</span> {/* 📝 نص عنوان الفترة */}
                 </span>
-                <div className="flex items-center gap-1.5 flex-nowrap">
+                <div className="flex items-center gap-1.5 flex-nowrap"> {/* 🔘 حاوية أزرار الفترة الأفقية */}
                   <button
-                    type="button"
-                    onClick={() => setFilterAttendanceStudyType('all')}
-                    className={`px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-                      filterAttendanceStudyType === 'all'
-                        ? 'bg-[#0F2942] text-white shadow-xs'
-                        : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300'
+                    type="button" // 🔘 نوع الزر
+                    onClick={() => setFilterAttendanceStudyType('all')} // ⚡ تفعيل كافة الفترات
+                    className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                      filterAttendanceStudyType === 'all' // 🔍 فحص هل الكل مختار
+                        ? 'bg-[#0F2942] text-white shadow-xs' // 🎨 مظهر نشط كحلي ملكي
+                        : 'bg-white text-slate-900 hover:bg-slate-200/80 border border-slate-200' // 🎨 مظهر غير نشط
                     }`}
                   >
-                    <span>كافة الفترات</span>
+                    <span>كافة الفترات</span> {/* 📝 نص كافة الفترات */}
                     <span className={`px-2 py-0.5 rounded-full text-xs font-mono font-black border transition-all ${
-                      filterAttendanceStudyType === 'all' ? 'bg-white/20 text-white border-white/30' : 'bg-slate-200 text-slate-900 border-slate-300'
+                      filterAttendanceStudyType === 'all' ? 'bg-white/20 text-white border-white/30' : 'bg-slate-100 text-slate-800 border-slate-300' // 🎨 تلوين البادج
                     }`}>
-                      {deptStudents.length}
+                      {deptStudents.filter((s) => filterAttendanceStage === 'all' || (s.stage_number || 1) === filterAttendanceStage).length} {/* 🔢 إجمالي طلبة المرحلة المختارة */}
                     </span>
                   </button>
-                  {/* ☀️ زر تصفية الفترة الصباحية بتصميم كحلي فاخر #0F2942 */}
                   <button
-                    type="button"
-                    onClick={() => setFilterAttendanceStudyType('morning')}
-                    className={`px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-                      filterAttendanceStudyType === 'morning'
-                        ? 'bg-[#0F2942] text-white shadow-xs'
-                        : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300'
+                    type="button" // 🔘 نوع الزر
+                    onClick={() => setFilterAttendanceStudyType('morning')} // ⚡ تفعيل الفترة الصباحية
+                    className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                      filterAttendanceStudyType === 'morning' // 🔍 فحص اختيار الصباحي
+                        ? 'bg-[#0F2942] text-white shadow-xs' // 🎨 مظهر نشط
+                        : 'bg-white text-slate-900 hover:bg-slate-200/80 border border-slate-200' // 🎨 مظهر غير نشط
                     }`}
                   >
-                    <Sun className="w-3.5 h-3.5" />
-                    <span>الصباحي</span>
+                    <Sun className="w-3.5 h-3.5" /> {/* ☀️ أيقونة الشمس للصباحي */}
+                    <span>الصباحي</span> {/* 📝 نص الصباحي */}
                     <span className={`px-2 py-0.5 rounded-full text-xs font-mono font-black border transition-all ${
-                      filterAttendanceStudyType === 'morning'
-                        ? 'bg-white/20 text-white border-white/30'
-                        : 'bg-slate-200 text-slate-900 border-slate-300'
+                      filterAttendanceStudyType === 'morning' ? 'bg-white/20 text-white border-white/30' : 'bg-slate-100 text-slate-800 border-slate-300' // 🎨 بادج عداد الصباحي
                     }`}>
-                      {deptStudents.filter((s) => (s.study_type || 'morning') === 'morning').length}
+                      {deptStudents.filter((s) => (filterAttendanceStage === 'all' || (s.stage_number || 1) === filterAttendanceStage) && (s.study_type || 'morning') === 'morning').length} {/* 🔢 عدد طلبة الصباحي */}
                     </span>
                   </button>
-                  {/* 🌙 زر تصفية الفترة المسائية بتصميم كحلي فاخر #0F2942 */}
                   <button
-                    type="button"
-                    onClick={() => setFilterAttendanceStudyType('evening')}
-                    className={`px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-                      filterAttendanceStudyType === 'evening'
-                        ? 'bg-[#0F2942] text-white shadow-xs'
-                        : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300'
+                    type="button" // 🔘 نوع الزر
+                    onClick={() => setFilterAttendanceStudyType('evening')} // ⚡ تفعيل الفترة المسائية
+                    className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                      filterAttendanceStudyType === 'evening' // 🔍 فحص اختيار المسائي
+                        ? 'bg-[#0F2942] text-white shadow-xs' // 🎨 مظهر نشط
+                        : 'bg-white text-slate-900 hover:bg-slate-200/80 border border-slate-200' // 🎨 مظهر غير نشط
                     }`}
                   >
-                    <Moon className="w-3.5 h-3.5" />
-                    <span>المسائي</span>
+                    <Moon className="w-3.5 h-3.5" /> {/* 🌙 أيقونة الهلال للمسائي */}
+                    <span>المسائي</span> {/* 📝 نص المسائي */}
                     <span className={`px-2 py-0.5 rounded-full text-xs font-mono font-black border transition-all ${
-                      filterAttendanceStudyType === 'evening'
-                        ? 'bg-white/20 text-white border-white/30'
-                        : 'bg-slate-200 text-slate-900 border-slate-300'
+                      filterAttendanceStudyType === 'evening' ? 'bg-white/20 text-white border-white/30' : 'bg-slate-100 text-slate-800 border-slate-300' // 🎨 بادج عداد المسائي
                     }`}>
-                      {deptStudents.filter((s) => s.study_type === 'evening').length}
+                      {deptStudents.filter((s) => (filterAttendanceStage === 'all' || (s.stage_number || 1) === filterAttendanceStage) && s.study_type === 'evening').length} {/* 🔢 عدد طلبة المسائي */}
                     </span>
                   </button>
                 </div>
               </div>
-
-              {/* 🗓️ تصفية الأسبوع الدراسي (1 إلى 15) المعتمد لمسار بولونيا */}
-              <div className="flex items-center gap-2.5 shrink-0 relative">
-                <span className="text-sm sm:text-base font-black text-slate-950 flex items-center gap-1.5 shrink-0">
-                  <CalendarDays className="w-5 h-5 text-[#0F2942]" />
-                  <span>الأسبوع:</span>
-                </span>
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setIsAttendanceWeekDropdownOpen(!isAttendanceWeekDropdownOpen)}
-                    className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-xl text-xs sm:text-sm font-black text-slate-950 flex items-center gap-2 cursor-pointer shadow-2xs"
-                  >
-                    <span>
-                      {filterAttendanceWeek === 'all'
-                        ? 'كافة الأسابيع (1 - 15)'
-                        : (() => {
-                            const baseD = currentScheduleConfig.start_date || '2026-09-20'; // 📅 تاريخ انطلاق الفصل
-                            const baseDayKey = getDayOfWeekFromDateString(baseD); // 🗓️ اليوم الأكاديمي المعتمد
-                            const weekDate = calculateDateForAnyDayInWeek(baseD, 1, filterAttendanceWeek, baseDayKey); // 📅 تاريخ الأسبوع
-                            return `الأسبوع ${filterAttendanceWeek} (${formatDateArabicWithDay(weekDate)})`;
-                          })()}
-                    </span>
-                    <ChevronDown className={`w-3.5 h-3.5 text-slate-600 transition-transform ${isAttendanceWeekDropdownOpen ? 'rotate-180' : ''}`} />
-                  </button>
-
-                  {isAttendanceWeekDropdownOpen && (
-                    <>
-                      <div className="fixed inset-0 z-20" onClick={() => setIsAttendanceWeekDropdownOpen(false)} />
-                      <div className="absolute right-0 top-full mt-1.5 w-72 max-h-60 overflow-y-auto bg-white border border-slate-200 rounded-2xl shadow-xl z-30 p-1.5 space-y-1">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setFilterAttendanceWeek('all');
-                            setIsAttendanceWeekDropdownOpen(false);
-                          }}
-                          className={`w-full p-2 rounded-xl text-right text-xs sm:text-sm font-black flex items-center justify-between transition cursor-pointer ${
-                            filterAttendanceWeek === 'all' ? 'bg-[#0F2942] text-white' : 'text-slate-950 hover:bg-slate-100'
-                          }`}
-                        >
-                          <span>كافة الأسابيع (1 - 15)</span>
-                          {filterAttendanceWeek === 'all' && <Check className="w-3.5 h-3.5 text-cyan-300" />}
-                        </button>
-                        {Array.from({ length: 15 }, (_, i) => i + 1).map((wNum) => {
-                          const isSel = filterAttendanceWeek === wNum;
-                          const isCurr = scheduleCurrentAcademicWeek === wNum;
-                          const baseD = currentScheduleConfig.start_date || '2026-09-20'; // 📅 تاريخ انطلاق الفصل
-                          const baseDayKey = getDayOfWeekFromDateString(baseD); // 🗓️ اليوم الأكاديمي المعتمد
-                          const weekD = calculateDateForAnyDayInWeek(baseD, 1, wNum, baseDayKey); // 📅 تاريخ الأسبوع المتطابق مع يوم الانطلاق
-                          const p = weekD.split('-');
-                          const dNum = p.length === 3 ? parseInt(p[2], 10) : '';
-                          const mName = p.length === 3 ? (IRAQI_ARABIC_MONTHS[parseInt(p[1], 10) - 1] || '') : '';
-
-                          return (
-                            <button
-                              key={wNum}
-                              type="button"
-                              onClick={() => {
-                                setFilterAttendanceWeek(wNum);
-                                setIsAttendanceWeekDropdownOpen(false);
-                              }}
-                              className={`w-full p-2 rounded-xl text-right text-xs sm:text-sm font-black flex items-center justify-between transition cursor-pointer ${
-                                isSel ? 'bg-[#0F2942] text-white' : 'text-slate-950 hover:bg-slate-100'
-                              }`}
-                            >
-                              <div className="flex items-center gap-1.5">
-                                <span>الأسبوع {wNum}</span>
-                                <span className={`text-[11px] ${isSel ? 'text-cyan-200' : 'text-slate-500'}`}>
-                                  ({dNum} {mName})
-                                </span>
-                                {isCurr && (
-                                  <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black ${
-                                    isSel ? 'bg-cyan-400 text-slate-950' : 'bg-emerald-100 text-emerald-900 border border-emerald-300'
-                                  }`}>
-                                    الحالي
-                                  </span>
-                                )}
-                              </div>
-                              {isSel && <Check className="w-3.5 h-3.5 text-cyan-300" />}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {/* 👥 شريط فلترة وتحديد سجل غياب الكروب المخصص لمسار بولونيا */}
-              {availableGroups.length > 0 && (
-                <div className="flex items-center gap-2.5 shrink-0 pt-2 border-t border-slate-200/80 w-full flex-wrap">
-                  <span className="text-sm sm:text-base font-black text-slate-950 flex items-center gap-1.5 shrink-0">
-                    <GroupAttendanceSvg className="w-5 h-5 text-[#0F2942]" /> {/* 📋 أيقونة سجل غياب الكروب */}
-                    <span>سجل كروب:</span> {/* 🏷️ عنوان التصفية */}
-                  </span>
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {/* 🌐 زر كافة الكروبات */}
-                    <button
-                      type="button" // 🔘 نوع الزر
-                      onClick={() => handleGroupFilterChange('all')} // ⚡ تفعيل كافة الكروبات
-                      className={`px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-                        currentGroupFilter === 'all'
-                          ? 'bg-[#0F2942] text-white shadow-xs' // 🎨 مظهر نشط كحلي ملكي
-                          : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300' // 🎨 مظهر هادئ
-                      }`}
-                    >
-                      <span>كافة الكروبات</span> {/* 📝 النص */}
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-mono font-black border transition-all ${
-                        currentGroupFilter === 'all' ? 'bg-white/20 text-white border-white/30' : 'bg-slate-200 text-slate-900 border-slate-300'
-                      }`}>
-                        {deptStudents.filter((s) => filterAttendanceStage === 'all' || (s.stage_number || 1) === filterAttendanceStage).length}
-                      </span>
-                    </button>
-
-                    {/* 🏛️ زر شعبة موحدة (بدون تقسيم كروبات) */}
-                    <button
-                      type="button" // 🔘 نوع الزر
-                      onClick={() => handleGroupFilterChange('unassigned')} // ⚡ تفعيل بدون كروب
-                      className={`px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-                        currentGroupFilter === 'unassigned'
-                          ? 'bg-[#0F2942] text-white shadow-xs' // 🎨 مظهر نشط كحلي ملكي
-                          : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300' // 🎨 مظهر هادئ
-                      }`}
-                    >
-                      <span>شعبة موحدة</span> {/* 📝 استبدال مشتركة بـ شعبة موحدة */}
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-mono font-black border transition-all ${
-                        currentGroupFilter === 'unassigned' ? 'bg-white/20 text-white border-white/30' : 'bg-slate-200 text-slate-900 border-slate-300'
-                      }`}>
-                        {deptStudents.filter((s) => (filterAttendanceStage === 'all' || (s.stage_number || 1) === filterAttendanceStage) && !s.student_group).length}
-                      </span>
-                    </button>
-
-                    {/* 🔠 أزرار الكروبات المخصصة (كروب A, كروب B, كروب C, كروب D...) */}
-                    {availableGroups.map((grpName) => {
-                      const grpCount = deptStudents.filter((s) => (filterAttendanceStage === 'all' || (s.stage_number || 1) === filterAttendanceStage) && s.student_group === grpName).length; // 🔢 عدد طلبة الكروب
-                      return (
-                        <button
-                          key={grpName} // 🔑 مفتاح الكروب الفريد
-                          type="button" // 🔘 نوع الزر
-                          onClick={() => handleGroupFilterChange(grpName)} // ⚡ تفعيل هذا الكروب
-                          className={`px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-                            currentGroupFilter === grpName
-                              ? 'bg-[#0F2942] text-white shadow-xs ring-2 ring-cyan-400/40' // 🎨 مظهر نشط كحلي ملكي مع حلقة سماوية
-                              : 'bg-slate-100 text-slate-950 hover:bg-slate-200 border border-slate-300' // 🎨 مظهر غير نشط
-                          }`}
-                        >
-                          <GroupBadgeSvg className="w-3.5 h-3.5 text-cyan-300" /> {/* 🏷️ بادج الكروب النقي */}
-                          <span>سجل كروب {grpName}</span> {/* 📝 نص الزر */}
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-mono font-black border transition-all ${
-                            currentGroupFilter === grpName
-                              ? 'bg-white/20 text-white border-white/30' // 🎨 كحلي نشط
-                              : grpCount > 0
-                              ? 'bg-blue-100 text-blue-950 border-blue-300' // 🎨 أزرق معتدل
-                              : 'bg-slate-200 text-slate-600 border-slate-300' // 🎨 رمادي فارغ
-                          }`}>
-                            {grpCount}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
 
             </div>
 
-            {/* السطر الثاني: تصفية المادة + حالة الإنذار + البحث اللحظي + زر المزامنة */}
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-3 pt-3 border-t border-slate-200 items-center">
+            {/* 📍 السطر الثاني: التخصيص التفصيلي (الكروب ⬅️ الكورس (المادة) ⬅️ الأسابيع) */}
+            <div className="flex flex-wrap items-center gap-3.5 pt-3 border-t border-slate-200/80"> {/* 🔄 صف التخصيص الدقيق المتجاوب */}
               
-              {/* البحث اللحظي */}
-              <div className="md:col-span-4 relative">
-                {/* 🔍 أيقونة البحث SVG */}
-                <Search className="w-5 h-5 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2" />
-                {/* ✍️ حقل البحث باسم الطالب حصراً بعد إزالة الرقم الجامعي */}
-                <input
-                  type="text"
-                  value={attendanceSearch}
-                  onChange={(e) => setAttendanceSearch(e.target.value)}
-                  placeholder="بحث باسم الطالب..."
-                  className="w-full pr-10 pl-3 py-2.5 bg-slate-50 border border-slate-300 rounded-2xl text-sm sm:text-base font-black text-slate-950 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0F2942]/20"
-                />
-              </div>
-
-              {/* 📚 تصفية المادة الدراسية المخصصة */}
-              <div className="md:col-span-4 relative">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsAttendanceCourseDropdownOpen(!isAttendanceCourseDropdownOpen);
-                    setIsAttendanceStatusDropdownOpen(false);
-                  }}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded-2xl text-sm sm:text-base font-black text-slate-950 flex items-center justify-between gap-2 transition cursor-pointer shadow-2xs"
-                >
-                  <div className="flex items-center gap-2 truncate">
-                    <BookOpen className="w-4 h-4 text-blue-600 shrink-0" />
-                    <span className="truncate">
-                      {filterAttendanceCourse === 'all'
-                        ? `كافة مواد القسم (${deptCourses.length} مادة)`
-                        : deptCourses.find((c) => c.id === filterAttendanceCourse)?.name || 'اختر المادة'}
+              {/* 👥 4. تبويب الكروب (المجموعات والشعب) */}
+              <div className="bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200/90 flex items-center gap-2 shadow-2xs shrink-0"> {/* 🏷️ كبسولة تبويبات الكروب */}
+                <span className="px-2.5 py-1 text-xs sm:text-sm font-black text-slate-800 flex items-center gap-1.5 shrink-0 select-none"> {/* 📌 عنوان قسم الكروب */}
+                  <GroupAttendanceSvg className="w-4 h-4 text-[#0F2942]" /> {/* 👥 أيقونة الكروبات الرسمية */}
+                  <span>الكروب:</span> {/* 📝 نص عنوان الكروب */}
+                </span>
+                <div className="flex items-center gap-1.5 flex-nowrap"> {/* 🔘 حاوية أزرار الكروبات الأفقية */}
+                  {/* زر كافة الكروبات */}
+                  <button
+                    type="button" // 🔘 نوع الزر
+                    onClick={() => handleGroupFilterChange('all')} // ⚡ تفعيل كافة الكروبات
+                    className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                      currentGroupFilter === 'all' // 🔍 فحص هل كافة الكروبات مختارة
+                        ? 'bg-[#0F2942] text-white shadow-xs' // 🎨 مظهر نشط كحلي ملكي
+                        : 'bg-white text-slate-900 hover:bg-slate-200/80 border border-slate-200' // 🎨 مظهر غير نشط
+                    }`}
+                  >
+                    <span>كافة الكروبات</span> {/* 📝 نص كافة الكروبات */}
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-mono font-black border transition-all ${
+                      currentGroupFilter === 'all' ? 'bg-white/20 text-white border-white/30' : 'bg-slate-100 text-slate-800 border-slate-300' // 🎨 تلوين البادج
+                    }`}>
+                      {deptStudents.filter((s) => filterAttendanceStage === 'all' || (s.stage_number || 1) === filterAttendanceStage).length} {/* 🔢 عدد الطلبة الكلي */}
                     </span>
-                  </div>
-                  <ChevronDown className={`w-4 h-4 text-slate-500 shrink-0 transition-transform duration-200 ${isAttendanceCourseDropdownOpen ? 'rotate-180' : ''}`} />
-                </button>
+                  </button>
 
-                {isAttendanceCourseDropdownOpen && (
-                  <>
-                    <div
-                      className="fixed inset-0 z-20"
-                      onClick={() => setIsAttendanceCourseDropdownOpen(false)}
-                    />
-                    <div className="absolute right-0 top-full mt-1.5 w-full max-h-60 overflow-y-auto bg-white border border-slate-200 rounded-2xl shadow-xl z-30 p-1.5 space-y-1">
+                  {/* زر شعبة موحدة */}
+                  <button
+                    type="button" // 🔘 نوع الزر
+                    onClick={() => handleGroupFilterChange('unassigned')} // ⚡ اختيار شعبة موحدة
+                    className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                      currentGroupFilter === 'unassigned' // 🔍 فحص اختيار شعبة موحدة
+                        ? 'bg-[#0F2942] text-white shadow-xs' // 🎨 مظهر نشط
+                        : 'bg-white text-slate-900 hover:bg-slate-200/80 border border-slate-200' // 🎨 مظهر غير نشط
+                    }`}
+                  >
+                    <span>شعبة موحدة</span> {/* 📝 نص شعبة موحدة */}
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-mono font-black border transition-all ${
+                      currentGroupFilter === 'unassigned' ? 'bg-white/20 text-white border-white/30' : 'bg-slate-100 text-slate-800 border-slate-300' // 🎨 تلوين البادج
+                    }`}>
+                      {deptStudents.filter((s) => (filterAttendanceStage === 'all' || (s.stage_number || 1) === filterAttendanceStage) && !s.student_group).length} {/* 🔢 عدد طلبة الشعبة الموحدة */}
+                    </span>
+                  </button>
+
+                  {/* أزرار الكروبات المتوفرة مثل كروب A, كروب B... */}
+                  {availableGroups.map((grpName) => { // 🔄 تكرار الكروبات الفعلية
+                    const grpCount = deptStudents.filter((s) => (filterAttendanceStage === 'all' || (s.stage_number || 1) === filterAttendanceStage) && s.student_group === grpName).length; // 🔢 عدد طلبة الكروب
+                    return (
                       <button
-                        type="button"
-                        onClick={() => {
-                          setFilterAttendanceCourse('all');
-                          setIsAttendanceCourseDropdownOpen(false);
-                        }}
-                        className={`w-full p-2.5 rounded-xl text-right text-sm font-black flex items-center justify-between transition cursor-pointer ${
-                          filterAttendanceCourse === 'all'
-                            ? 'bg-[#0F2942] text-white'
-                            : 'text-slate-950 hover:bg-slate-100'
+                        key={grpName} // 🔑 مفتاح الكروب
+                        type="button" // 🔘 نوع الزر
+                        onClick={() => handleGroupFilterChange(grpName)} // ⚡ تحديد هذا الكروب
+                        className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                          currentGroupFilter === grpName // 🔍 فحص هل هذا الكروب هو النشط
+                            ? 'bg-[#0F2942] text-white shadow-xs ring-2 ring-cyan-400/40' // 🎨 كحلي ملكي مع حلقة سماوية
+                            : 'bg-white text-slate-900 hover:bg-slate-200/80 border border-slate-200' // 🎨 مظهر هادئ
                         }`}
                       >
-                        <span>كافة مواد القسم ({deptCourses.length} مادة)</span>
-                        {filterAttendanceCourse === 'all' && <Check className="w-4 h-4 text-cyan-300" />}
+                        <GroupBadgeSvg className="w-3.5 h-3.5 text-cyan-300" /> {/* 🏷️ بادج الكروب الصغير */}
+                        <span>كروب {grpName}</span> {/* 📝 اسم الكروب */}
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-mono font-black border transition-all ${
+                          currentGroupFilter === grpName // 🔍 تلوين العداد
+                            ? 'bg-white/20 text-white border-white/30' // 🎨 نشط
+                            : grpCount > 0 // 🔍 غير فارغ
+                            ? 'bg-blue-50 text-blue-950 border-blue-200' // 🎨 أزرق هادئ
+                            : 'bg-slate-100 text-slate-600 border-slate-300' // 🎨 رمادي
+                        }`}>
+                          {grpCount} {/* 🔢 عدد طلبة هذا الكروب */}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 📖 5. تبويب الكورس (المادة الدراسية المخصصة) */}
+              <div className="relative shrink-0"> {/* 📦 حاوية منسدلة المادة الدراسية كبسولية */}
+                <div className="bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200/90 flex items-center gap-2 shadow-2xs"> {/* 🏷️ إطار كبسولة المادة المتناسق */}
+                  <span className="px-2.5 py-1 text-xs sm:text-sm font-black text-slate-800 flex items-center gap-1.5 shrink-0 select-none"> {/* 📌 عنوان قسم المادة */}
+                    <BookOpen className="w-4 h-4 text-[#0F2942]" /> {/* 📖 أيقونة الكتاب للمادة */}
+                    <span>المادة:</span> {/* 📝 نص عنوان المادة */}
+                  </span>
+                  <button
+                    type="button" // 🔘 نوع الزر
+                    onClick={() => { // ⚡ فتح أو إغلاق منسدلة المواد
+                      setIsAttendanceCourseDropdownOpen(!isAttendanceCourseDropdownOpen); // 🔄 تبديل الحالة
+                      setIsAttendanceWeekDropdownOpen(false); // 🔒 إغلاق منسدلة الأسابيع
+                      setIsAttendanceStatusDropdownOpen(false); // 🔒 إغلاق منسدلة الحالات
+                    }}
+                    className={`px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap shadow-xs ${
+                      filterAttendanceCourse !== 'all' // 🔍 هل تم اختيار مادة معينة
+                        ? 'bg-[#0F2942] text-white ring-2 ring-cyan-400/40' // 🎨 مظهر نشط كحلي ملكي
+                        : 'bg-white text-slate-900 hover:bg-slate-200/80 border border-slate-200' // 🎨 مظهر هادئ
+                    }`}
+                  >
+                    <span className="max-w-[200px] truncate"> {/* ✂️ قص النص إذا كان طويلاً */}
+                      {filterAttendanceCourse === 'all' // 🔍 إذا الكل مختار
+                        ? `كافة المواد (${deptCourses.filter((c) => { // 🔢 احتساب عدد المواد المفلترة
+                            if (filterAttendanceStage !== 'all' && c.stage_number !== filterAttendanceStage) return false; // 🚫 استبعاد مرحلة أخرى
+                            if (filterAttendanceSemester !== 'all' && c.semester !== filterAttendanceSemester) return false; // 🚫 استبعاد كورس آخر
+                            return true; // ✅ مطابقة المادة
+                          }).length} مادة)`
+                        : deptCourses.find((c) => c.id === filterAttendanceCourse)?.name || 'اختر المادة'} {/* 🏷️ اسم المادة المختارة */}
+                    </span>
+                    <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isAttendanceCourseDropdownOpen ? 'rotate-180' : ''} ${filterAttendanceCourse !== 'all' ? 'text-cyan-300' : 'text-slate-600'}`} /> {/* 🔽 سهم المنسدلة */}
+                  </button>
+                </div>
+
+                {/* 📋 القائمة المنسدلة لاختيار المادة الدراسية */}
+                {isAttendanceCourseDropdownOpen && ( // 🔍 إظهار القائمة فقط عند الفتح
+                  <>
+                    <div
+                      className="fixed inset-0 z-20" // 🛡️ طبقة خلفية للنقر خارج القائمة
+                      onClick={() => setIsAttendanceCourseDropdownOpen(false)} // ⚡ إغلاق القائمة عند النقر خارجها
+                    />
+                    <div className="absolute right-0 top-full mt-1.5 w-80 max-h-64 overflow-y-auto bg-white border border-slate-200 rounded-2xl shadow-xl z-30 p-1.5 space-y-1"> {/* 📦 صندوق القائمة المنسدلة */}
+                      <button
+                        type="button" // 🔘 نوع الزر
+                        onClick={() => { // ⚡ اختيار كافة المواد
+                          setFilterAttendanceCourse('all'); // 🔄 تعيين الكل
+                          setIsAttendanceCourseDropdownOpen(false); // 🔒 إغلاق القائمة
+                        }}
+                        className={`w-full p-2.5 rounded-xl text-right text-xs sm:text-sm font-black flex items-center justify-between transition cursor-pointer ${
+                          filterAttendanceCourse === 'all' // 🔍 هل الكل مختار
+                            ? 'bg-[#0F2942] text-white' // 🎨 نشط
+                            : 'text-slate-950 hover:bg-slate-100' // 🎨 غير نشط
+                        }`}
+                      >
+                        <span>كافة مواد القسم ({deptCourses.length} مادة)</span> {/* 📝 نص كافة المواد */}
+                        {filterAttendanceCourse === 'all' && <Check className="w-4 h-4 text-cyan-300" />} {/* ✔️ علامة الصح للنشط */}
                       </button>
 
+                      {/* قائمة المواد المفلترة حسب المرحلة والكورس المختارين */}
                       {deptCourses
-                        .filter((c) => {
-                          if (filterAttendanceStage !== 'all' && c.stage_number !== filterAttendanceStage) return false;
-                          if (filterAttendanceSemester !== 'all' && c.semester !== filterAttendanceSemester) return false;
-                          return true;
+                        .filter((c) => { // 🔍 تصفية المواد حسب المعايير المختارة
+                          if (filterAttendanceStage !== 'all' && c.stage_number !== filterAttendanceStage) return false; // 🚫 تصفية المرحلة
+                          if (filterAttendanceSemester !== 'all' && c.semester !== filterAttendanceSemester) return false; // 🚫 تصفية الكورس
+                          return true; // ✅ إضافة المادة
                         })
-                        .map((c) => (
+                        .map((c) => ( // 🔄 رسم أزرار المواد
                           <button
-                            key={c.id}
-                            type="button"
-                            onClick={() => {
-                              setFilterAttendanceCourse(c.id);
-                              setIsAttendanceCourseDropdownOpen(false);
+                            key={c.id} // 🔑 معرف المادة
+                            type="button" // 🔘 نوع الزر
+                            onClick={() => { // ⚡ اختيار المادة المحددة
+                              setFilterAttendanceCourse(c.id); // 🔄 تعيين معرف المادة
+                              setIsAttendanceCourseDropdownOpen(false); // 🔒 إغلاق القائمة
                             }}
-                            className={`w-full p-2.5 rounded-xl text-right text-sm font-black flex items-center justify-between transition cursor-pointer ${
-                              filterAttendanceCourse === c.id
-                                ? 'bg-[#0F2942] text-white'
-                                : 'text-slate-950 hover:bg-slate-100'
+                            className={`w-full p-2.5 rounded-xl text-right text-xs sm:text-sm font-black flex items-center justify-between transition cursor-pointer ${
+                              filterAttendanceCourse === c.id // 🔍 هل هي المادة المختارة
+                                ? 'bg-[#0F2942] text-white' // 🎨 نشط
+                                : 'text-slate-950 hover:bg-slate-100' // 🎨 غير نشط
                             }`}
                           >
-                            <span className="truncate">
-                              {c.name} ({c.code}) — المرحلة {getStageNameInArabic(c.stage_number || 1)} (الكورس {c.semester === 2 ? 'الثاني' : 'الأول'})
+                            <span className="truncate"> {/* ✂️ قص الاسم عند الضرورة */}
+                              {c.name} ({c.code}) — المرحلة {getStageNameInArabic(c.stage_number || 1)} (الكورس {c.semester === 2 ? 'الثاني' : 'الأول'}) {/* 🏷️ تفاصيل المادة الكاملة */}
                             </span>
-                            {filterAttendanceCourse === c.id && <Check className="w-4 h-4 text-cyan-300 shrink-0" />}
+                            {filterAttendanceCourse === c.id && <Check className="w-4 h-4 text-cyan-300 shrink-0" />} {/* ✔️ علامة الصح للمادة النشطة */}
                           </button>
                         ))}
                     </div>
@@ -733,75 +766,191 @@ export const DepartmentAttendanceTab: React.FC<DepartmentAttendanceTabProps> = (
                 )}
               </div>
 
-              {/* ⚠️ تصفية حالة الإنذار المخصصة */}
-              <div className="md:col-span-3 relative">
+              {/* 🗓️ 6. تبويب الأسابيع الدراسية (1 إلى 15) لمسار بولونيا */}
+              <div className="relative shrink-0"> {/* 📦 حاوية منسدلة الأسابيع الدراسية */}
+                <div className="bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200/90 flex items-center gap-2 shadow-2xs"> {/* 🏷️ إطار كبسولة الأسابيع المتناسق */}
+                  <span className="px-2.5 py-1 text-xs sm:text-sm font-black text-slate-800 flex items-center gap-1.5 shrink-0 select-none"> {/* 📌 عنوان قسم الأسابيع */}
+                    <CalendarDays className="w-4 h-4 text-[#0F2942]" /> {/* 🗓️ أيقونة التقويم للأسبوع */}
+                    <span>الأسابيع:</span> {/* 📝 نص عنوان الأسابيع */}
+                  </span>
+                  <button
+                    type="button" // 🔘 نوع الزر
+                    onClick={() => { // ⚡ فتح أو إغلاق منسدلة الأسابيع
+                      setIsAttendanceWeekDropdownOpen(!isAttendanceWeekDropdownOpen); // 🔄 تبديل الحالة
+                      setIsAttendanceCourseDropdownOpen(false); // 🔒 إغلاق منسدلة المواد
+                      setIsAttendanceStatusDropdownOpen(false); // 🔒 إغلاق منسدلة الحالات
+                    }}
+                    className={`px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap shadow-xs ${
+                      filterAttendanceWeek !== 'all' // 🔍 هل تم اختيار أسبوع محدد
+                        ? 'bg-[#0F2942] text-white ring-2 ring-cyan-400/40' // 🎨 مظهر نشط كحلي ملكي
+                        : 'bg-white text-slate-900 hover:bg-slate-200/80 border border-slate-200' // 🎨 مظهر هادئ
+                    }`}
+                  >
+                    <span>
+                      {filterAttendanceWeek === 'all' // 🔍 هل كافة الأسابيع مختارة
+                        ? 'كافة الأسابيع (1 - 15)' // 📝 نص الكل
+                        : (() => { // 📅 دالة فورية لحساب تاريخ واسم الأسبوع المحدد
+                            const baseD = currentScheduleConfig.start_date || '2026-09-20'; // 📅 تاريخ بدء الفصل الأكاديمي
+                            const baseDayKey = getDayOfWeekFromDateString(baseD); // 🗓️ اليوم الأكاديمي المعتمد
+                            const weekDate = calculateDateForAnyDayInWeek(baseD, 1, filterAttendanceWeek, baseDayKey); // 📅 تاريخ الأسبوع
+                            return `الأسبوع ${filterAttendanceWeek} (${formatDateArabicWithDay(weekDate)})`; // 🏷️ نص الأسبوع وتاريخه
+                          })()}
+                    </span>
+                    <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isAttendanceWeekDropdownOpen ? 'rotate-180' : ''} ${filterAttendanceWeek !== 'all' ? 'text-cyan-300' : 'text-slate-600'}`} /> {/* 🔽 سهم المنسدلة */}
+                  </button>
+                </div>
+
+                {/* 📋 القائمة المنسدلة للأسابيع الـ 15 */}
+                {isAttendanceWeekDropdownOpen && ( // 🔍 إظهار القائمة فقط عند فتحها
+                  <>
+                    <div className="fixed inset-0 z-20" onClick={() => setIsAttendanceWeekDropdownOpen(false)} /> {/* 🛡️ طبقة إغلاق خارجية */}
+                    <div className="absolute right-0 top-full mt-1.5 w-72 max-h-60 overflow-y-auto bg-white border border-slate-200 rounded-2xl shadow-xl z-30 p-1.5 space-y-1"> {/* 📦 صندوق منسدلة الأسابيع */}
+                      <button
+                        type="button" // 🔘 نوع الزر
+                        onClick={() => { // ⚡ اختيار كافة الأسابيع
+                          setFilterAttendanceWeek('all'); // 🔄 تعيين كافة الأسابيع
+                          setIsAttendanceWeekDropdownOpen(false); // 🔒 إغلاق القائمة
+                        }}
+                        className={`w-full p-2 rounded-xl text-right text-xs sm:text-sm font-black flex items-center justify-between transition cursor-pointer ${
+                          filterAttendanceWeek === 'all' ? 'bg-[#0F2942] text-white' : 'text-slate-950 hover:bg-slate-100' // 🎨 تلوين النشط
+                        }`}
+                      >
+                        <span>كافة الأسابيع (1 - 15)</span> {/* 📝 نص كافة الأسابيع */}
+                        {filterAttendanceWeek === 'all' && <Check className="w-3.5 h-3.5 text-cyan-300" />} {/* ✔️ علامة الصح */}
+                      </button>
+                      {/* تكرار الأسابيع من 1 إلى 15 لمسار بولونيا */}
+                      {Array.from({ length: 15 }, (_, i) => i + 1).map((wNum) => { // 🔄 تكرار 15 أسبوعاً
+                        const isSel = filterAttendanceWeek === wNum; // 🔍 هل هذا الأسبوع هو المختار
+                        const isCurr = scheduleCurrentAcademicWeek === wNum; // 🔍 هل هو الأسبوع الأكاديمي الجاري
+                        const baseD = currentScheduleConfig.start_date || '2026-09-20'; // 📅 تاريخ البداية
+                        const baseDayKey = getDayOfWeekFromDateString(baseD); // 🗓️ اليوم المعتمد
+                        const weekD = calculateDateForAnyDayInWeek(baseD, 1, wNum, baseDayKey); // 📅 تاريخ الأسبوع
+                        const p = weekD.split('-'); // ✂️ تقسيم أجزاء التاريخ
+                        const dNum = p.length === 3 ? parseInt(p[2], 10) : ''; // 🔢 رقم اليوم
+                        const mName = p.length === 3 ? (IRAQI_ARABIC_MONTHS[parseInt(p[1], 10) - 1] || '') : ''; // 🏷️ اسم الشهر بالعراقية
+
+                        return (
+                          <button
+                            key={wNum} // 🔑 رقم الأسبوع
+                            type="button" // 🔘 نوع الزر
+                            onClick={() => { // ⚡ تحديد هذا الأسبوع
+                              setFilterAttendanceWeek(wNum); // 🔄 تعيين رقم الأسبوع
+                              setIsAttendanceWeekDropdownOpen(false); // 🔒 إغلاق القائمة
+                            }}
+                            className={`w-full p-2 rounded-xl text-right text-xs sm:text-sm font-black flex items-center justify-between transition cursor-pointer ${
+                              isSel ? 'bg-[#0F2942] text-white' : 'text-slate-950 hover:bg-slate-100' // 🎨 تلوين الزر
+                            }`}
+                          >
+                            <div className="flex items-center gap-1.5"> {/* 🏷️ تفاصيل الأسبوع */}
+                              <span>الأسبوع {wNum}</span> {/* 📝 رقم الأسبوع */}
+                              <span className={`text-[11px] ${isSel ? 'text-cyan-200' : 'text-slate-500'}`}> {/* 📅 تاريخ الأسبوع الهادئ */}
+                                ({dNum} {mName})
+                              </span>
+                              {isCurr && ( // 🌟 بادج الأسبوع الجاري
+                                <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black ${
+                                  isSel ? 'bg-cyan-400 text-slate-950' : 'bg-emerald-100 text-emerald-900 border border-emerald-300' // 🎨 تمييز الأسبوع الحالي
+                                }`}>
+                                  الحالي
+                                </span>
+                              )}
+                            </div>
+                            {isSel && <Check className="w-3.5 h-3.5 text-cyan-300" />} {/* ✔️ علامة الصح للنشط */}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+              </div>
+
+            </div>
+
+            {/* 📍 السطر الثالث: أدوات البحث اللحظي + تصفية حالات الإنذار + زر التحديث والمزامنة */}
+            <div className="flex flex-wrap items-center gap-3 pt-3 border-t border-slate-200/80"> {/* 🔄 شريط البحث والإنذار المتجاوب */}
+              
+              {/* 🔍 حقل البحث اللحظي باسم الطالب */}
+              <div className="flex-1 min-w-[260px] relative"> {/* 📦 حاوية حقل البحث المرنة */}
+                <Search className="w-5 h-5 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" /> {/* 🔍 أيقونة البحث */}
+                <input
+                  type="text" // ✍️ نوع الحقل نصي
+                  value={attendanceSearch} // 📌 قيمة البحث الحالية
+                  onChange={(e) => setAttendanceSearch(e.target.value)} // ⚡ تحديث نص البحث لحظياً
+                  placeholder="بحث فوري باسم الطالب..." // 💡 النص الإرشادي
+                  className="w-full pr-10 pl-4 py-2.5 bg-slate-50 border border-slate-300 rounded-2xl text-sm sm:text-base font-black text-slate-950 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0F2942]/20 transition-all" // 🎨 تصميم أنيق للحقل
+                />
+              </div>
+
+              {/* ⚠️ تصفية حالة الإنذار الأكاديمي */}
+              <div className="w-full sm:w-72 relative"> {/* 📦 حاوية منسدلة حالات الإنذار */}
                 <button
-                  type="button"
-                  onClick={() => {
-                    setIsAttendanceStatusDropdownOpen(!isAttendanceStatusDropdownOpen);
-                    setIsAttendanceCourseDropdownOpen(false);
+                  type="button" // 🔘 نوع الزر
+                  onClick={() => { // ⚡ فتح أو إغلاق منسدلة الإنذارات
+                    setIsAttendanceStatusDropdownOpen(!isAttendanceStatusDropdownOpen); // 🔄 تبديل الحالة
+                    setIsAttendanceCourseDropdownOpen(false); // 🔒 إغلاق منسدلة المواد
+                    setIsAttendanceWeekDropdownOpen(false); // 🔒 إغلاق منسدلة الأسابيع
                   }}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded-2xl text-sm sm:text-base font-black text-slate-950 flex items-center justify-between gap-2 transition cursor-pointer shadow-2xs"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded-2xl text-sm sm:text-base font-black text-slate-950 flex items-center justify-between gap-2 transition cursor-pointer shadow-2xs" // 🎨 مظهر زر المنسدلة
                 >
-                  <div className="flex items-center gap-2 truncate">
-                    {filterAttendanceStatus === 'safe' ? (
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                    ) : filterAttendanceStatus === 'warning_1' ? (
-                      <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
-                    ) : filterAttendanceStatus === 'warning_2' ? (
-                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                    ) : filterAttendanceStatus === 'banned' ? (
-                      <Ban className="w-4 h-4 text-red-600 shrink-0" />
+                  <div className="flex items-center gap-2 truncate"> {/* 🏷️ أيقونة ونص الحالة المختارة */}
+                    {filterAttendanceStatus === 'safe' ? ( // 🔍 حالة الوضع آمن
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" /> // ✅ أيقونة الوضع الآمن
+                    ) : filterAttendanceStatus === 'warning_1' ? ( // 🔍 حالة الإنذار الأولي
+                      <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" /> // ⚠️ أيقونة الإنذار الأولي
+                    ) : filterAttendanceStatus === 'warning_2' ? ( // 🔍 حالة الإنذار النهائي
+                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" /> // 🛑 أيقونة الإنذار النهائي
+                    ) : filterAttendanceStatus === 'banned' ? ( // 🔍 حالة تجاوز الحرمان
+                      <Ban className="w-4 h-4 text-red-600 shrink-0" /> // 🚫 أيقونة الحرمان
                     ) : (
-                      <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0" />
+                      <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0" /> // 🛡️ أيقونة الدرع لكافة الحالات
                     )}
-                    <span className="truncate">
-                      {filterAttendanceStatus === 'all'
-                        ? 'كافة حالات الحضور والإنذار'
-                        : filterAttendanceStatus === 'safe'
-                        ? 'الوضع آمن (أقل من 5%)'
-                        : filterAttendanceStatus === 'warning_1'
-                        ? 'إنذار أولي (5% - 6.9%)'
-                        : filterAttendanceStatus === 'warning_2'
-                        ? 'إنذار نهائي (7% - 9.9%)'
-                        : 'تجاوز الحرمان (10%+)'}
+                    <span className="truncate"> {/* ✂️ نص الحالة */}
+                      {filterAttendanceStatus === 'all' // 🔍 فحص الحالة الحالية
+                        ? 'كافة حالات الحضور والإنذار' // 📝 الكل
+                        : filterAttendanceStatus === 'safe' // 🔍 آمن
+                        ? 'الوضع آمن (أقل من 5%)' // 📝 آمن
+                        : filterAttendanceStatus === 'warning_1' // 🔍 إنذار 1
+                        ? 'إنذار أولي (5% - 6.9%)' // 📝 إنذار أول
+                        : filterAttendanceStatus === 'warning_2' // 🔍 إنذار 2
+                        ? 'إنذار نهائي (7% - 9.9%)' // 📝 إنذار نهائي
+                        : 'تجاوز الحرمان (10%+)'} {/* 📝 حرمان */}
                     </span>
                   </div>
-                  <ChevronDown className={`w-4 h-4 text-slate-500 shrink-0 transition-transform duration-200 ${isAttendanceStatusDropdownOpen ? 'rotate-180' : ''}`} />
+                  <ChevronDown className={`w-4 h-4 text-slate-500 shrink-0 transition-transform duration-200 ${isAttendanceStatusDropdownOpen ? 'rotate-180' : ''}`} /> {/* 🔽 سهم المنسدلة */}
                 </button>
 
-                {isAttendanceStatusDropdownOpen && (
+                {/* 📋 القائمة المنسدلة لحالات الإنذار الأكاديمي */}
+                {isAttendanceStatusDropdownOpen && ( // 🔍 إظهار عند الفتح فقط
                   <>
                     <div
-                      className="fixed inset-0 z-20"
-                      onClick={() => setIsAttendanceStatusDropdownOpen(false)}
+                      className="fixed inset-0 z-20" // 🛡️ طبقة إغلاق خارجية
+                      onClick={() => setIsAttendanceStatusDropdownOpen(false)} // ⚡ إغلاق القائمة
                     />
-                    <div className="absolute right-0 top-full mt-1.5 w-full bg-white border border-slate-200 rounded-2xl shadow-xl z-30 p-1.5 space-y-1">
-                      {[
-                        { val: 'all', label: 'كافة حالات الحضور والإنذار', icon: <ShieldCheck className="w-4 h-4 text-blue-600" /> },
-                        { val: 'safe', label: 'الوضع آمن (أقل من 5%)', icon: <CheckCircle2 className="w-4 h-4 text-emerald-600" /> },
-                        { val: 'warning_1', label: 'إنذار أولي (5% - 6.9%)', icon: <AlertTriangle className="w-4 h-4 text-rose-500" /> },
-                        { val: 'warning_2', label: 'إنذار نهائي (7% - 9.9%)', icon: <AlertCircle className="w-4 h-4 text-rose-600" /> },
-                        { val: 'banned', label: 'تجاوز الحرمان (10%+)', icon: <Ban className="w-4 h-4 text-red-600" /> },
-                      ].map((item) => (
+                    <div className="absolute right-0 top-full mt-1.5 w-full bg-white border border-slate-200 rounded-2xl shadow-xl z-30 p-1.5 space-y-1"> {/* 📦 صندوق القائمة */}
+                      {[ // 📋 مصفوفة خيارات الإنذار الخمسة
+                        { val: 'all', label: 'كافة حالات الحضور والإنذار', icon: <ShieldCheck className="w-4 h-4 text-blue-600" /> }, // 🛡️ الكل
+                        { val: 'safe', label: 'الوضع آمن (أقل من 5%)', icon: <CheckCircle2 className="w-4 h-4 text-emerald-600" /> }, // ✅ آمن
+                        { val: 'warning_1', label: 'إنذار أولي (5% - 6.9%)', icon: <AlertTriangle className="w-4 h-4 text-rose-500" /> }, // ⚠️ أولي
+                        { val: 'warning_2', label: 'إنذار نهائي (7% - 9.9%)', icon: <AlertCircle className="w-4 h-4 text-rose-600" /> }, // 🛑 نهائي
+                        { val: 'banned', label: 'تجاوز الحرمان (10%+)', icon: <Ban className="w-4 h-4 text-red-600" /> }, // 🚫 حرمان
+                      ].map((item) => ( // 🔄 رسم خيارات القائمة
                         <button
-                          key={item.val}
-                          type="button"
-                          onClick={() => {
-                            setFilterAttendanceStatus(item.val as AttendanceWarningStatus | 'all');
-                            setIsAttendanceStatusDropdownOpen(false);
+                          key={item.val} // 🔑 قيمة الخيار
+                          type="button" // 🔘 نوع الزر
+                          onClick={() => { // ⚡ تفعيل خيار الإنذار المحدد
+                            setFilterAttendanceStatus(item.val as AttendanceWarningStatus | 'all'); // 🔄 تعيين الحالة
+                            setIsAttendanceStatusDropdownOpen(false); // 🔒 إغلاق القائمة
                           }}
                           className={`w-full p-2.5 rounded-xl text-right text-sm font-black flex items-center justify-between transition cursor-pointer ${
-                            filterAttendanceStatus === item.val
-                              ? 'bg-[#0F2942] text-white'
-                              : 'text-slate-950 hover:bg-slate-100'
+                            filterAttendanceStatus === item.val // 🔍 هل هذا الخيار هو النشط
+                              ? 'bg-[#0F2942] text-white' // 🎨 نشط
+                              : 'text-slate-950 hover:bg-slate-100' // 🎨 غير نشط
                           }`}
                         >
-                          <div className="flex items-center gap-2">
-                            {item.icon}
-                            <span>{item.label}</span>
+                          <div className="flex items-center gap-2"> {/* 🏷️ أيقونة واسم الحالة */}
+                            {item.icon} {/* 🎨 أيقونة الحالة */}
+                            <span>{item.label}</span> {/* 📝 نص الحالة */}
                           </div>
-                          {filterAttendanceStatus === item.val && <Check className="w-4 h-4 text-cyan-300" />}
+                          {filterAttendanceStatus === item.val && <Check className="w-4 h-4 text-cyan-300" />} {/* ✔️ علامة الصح للنشط */}
                         </button>
                       ))}
                     </div>
@@ -809,27 +958,28 @@ export const DepartmentAttendanceTab: React.FC<DepartmentAttendanceTabProps> = (
                 )}
               </div>
 
-              {/* زر مزامنة السحابة الحية */}
-              <div className="md:col-span-1 flex justify-end">
+              {/* 🔄 زر المزامنة السحابية الحية لحظياً */}
+              <div className="shrink-0"> {/* 📦 حاوية زر التحديث */}
                 <button
-                  type="button"
-                  onClick={async () => {
-                    setIsSyncingAttendance(true);
-                    const freshRecords = await syncAttendanceRecordsFromSupabase();
-                    setAttendanceRecords(freshRecords);
-                    setIsSyncingAttendance(false);
-                    setSuccessMessage('تمت مزامنة سجلات الحضور الحية من السحابة بنجاح! ☁️');
-                    setTimeout(() => setSuccessMessage(''), 3500);
+                  type="button" // 🔘 نوع الزر
+                  onClick={async () => { // ⚡ دالة المزامنة عند النقر
+                    setIsSyncingAttendance(true); // ⏳ بدء حالة التحميل
+                    const freshRecords = await syncAttendanceRecordsFromSupabase(); // ☁️ جلب السجلات الحية من سوبابيس
+                    setAttendanceRecords(freshRecords); // 🔄 تحديث السجلات في الواجهة
+                    setIsSyncingAttendance(false); // ⏹️ إنهاء حالة التحميل
+                    setSuccessMessage('تمت مزامنة سجلات الحضور الحية من السحابة بنجاح! ☁️'); // 💬 إشعار النجاح
+                    setTimeout(() => setSuccessMessage(''), 3500); // ⏱️ إخفاء الإشعار بعد 3.5 ثانية
                   }}
-                  disabled={isSyncingAttendance}
-                  className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-2xl border border-slate-300 transition cursor-pointer shadow-2xs flex items-center justify-center"
-                  title="مزامنة وتحديث سجلات الحضور لحظياً من قاعدة البيانات السحابية"
+                  disabled={isSyncingAttendance} // 🔒 تعطيل الزر أثناء المزامنة
+                  className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-2xl border border-slate-300 transition cursor-pointer shadow-2xs flex items-center justify-center disabled:opacity-50" // 🎨 تصميم الزر
+                  title="مزامنة وتحديث سجلات الحضور لحظياً من قاعدة البيانات السحابية" // 💡 تلميح المزامنة
                 >
-                  <RefreshCw className={`w-5 h-5 text-blue-700 ${isSyncingAttendance ? 'animate-spin' : ''}`} />
+                  <RefreshCw className={`w-5 h-5 text-blue-700 ${isSyncingAttendance ? 'animate-spin' : ''}`} /> {/* 🔄 أيقونة التحديث مع دوران تفاعلي */}
                 </button>
               </div>
 
             </div>
+
           </div>
 
           {/* 📊 بطاقات إحصائيات الغياب للقسم مع الحساب الديناميكي للتصفية وبدون اللون البرتقالي */}
@@ -876,9 +1026,14 @@ export const DepartmentAttendanceTab: React.FC<DepartmentAttendanceTabProps> = (
               let highestRank = 0;
               let worstStatus: AttendanceWarningStatus = 'safe';
 
-              const effectiveRecordsForStats = filterAttendanceWeek === 'all'
-                ? attendanceRecords
-                : attendanceRecords.filter((r) => r.week_number === filterAttendanceWeek);
+              // 📅 السجلات الفعالة المصفاة بدقة بحسب الأسبوع والكورس والمرحلة والعام الدراسي المعتمد
+              const effectiveRecordsForStats = attendanceRecords.filter((r) => {
+                if (filterAttendanceWeek !== 'all' && r.week_number !== filterAttendanceWeek) return false;
+                if (filterAttendanceSemester !== 'all' && r.semester && r.semester !== filterAttendanceSemester) return false;
+                if (filterAttendanceStage !== 'all' && r.stage_number && r.stage_number !== filterAttendanceStage) return false;
+                if (currentYearFilter !== 'all' && r.academic_year_id && r.academic_year_id !== currentYearFilter && !currentYearFilter.includes(r.academic_year_id)) return false;
+                return true;
+              });
 
               for (const c of relevantCoursesForStats) {
                 const s = calculateStudentCourseAttendance(st.id, c.id, effectiveRecordsForStats, c.name, c.code, c.credit_hours || 3);
@@ -932,9 +1087,8 @@ export const DepartmentAttendanceTab: React.FC<DepartmentAttendanceTabProps> = (
             );
           })()}
 
-          {/* 📋 جدول طلاب القسم مع تفاصيل الحضور والإنذارات المحدثة ونظام التحديد */}
-          {attendanceViewMode === 'list' && (
-            <div className="border border-slate-200 rounded-3xl overflow-hidden bg-white shadow-sm">
+              {/* 📋 جدول طلاب القسم مع تفاصيل الحضور والإنذارات المحدثة ونظام التحديد */}
+              <div className="border border-slate-200 rounded-3xl overflow-hidden bg-white shadow-sm">
             {(() => {
               const rankMap: Record<AttendanceWarningStatus, number> = {
                 safe: 0,
@@ -970,17 +1124,29 @@ export const DepartmentAttendanceTab: React.FC<DepartmentAttendanceTabProps> = (
                   return true;
                 })
                 .map((st) => {
-                  let highestRank = 0;
-                  let worstStatus: AttendanceWarningStatus = 'safe';
-                  let totalUnexcused = 0;
+                  let highestRank = 0; // 🔢 أعلى رتبة إنذار للطالب
+                  let worstStatus: AttendanceWarningStatus = 'safe'; // 🛡️ أسوأ حالة إنذار مسجلة
+                  let totalPresent = 0; // 🟢 إجمالي ساعات الحضور الفعلي
+                  let totalExcused = 0; // 🔵 إجمالي ساعات الإجازة الرسمية
+                  let totalHoliday = 0; // 🏖️ إجمالي ساعات العطل الرسمية
+                  let totalUnexcused = 0; // 🔴 إجمالي ساعات الغياب غير المبرر
 
-                  const effectiveRecordsForTable = filterAttendanceWeek === 'all'
-                    ? attendanceRecords
-                    : attendanceRecords.filter((r) => r.week_number === filterAttendanceWeek);
+                  // 📅 السجلات الفعالة المصفاة بدقة بحسب الأسبوع والكورس والمرحلة والعام الدراسي المعتمد
+                  const effectiveRecordsForTable = attendanceRecords.filter((r) => {
+                    if (filterAttendanceWeek !== 'all' && r.week_number !== filterAttendanceWeek) return false;
+                    if (filterAttendanceSemester !== 'all' && r.semester && r.semester !== filterAttendanceSemester) return false;
+                    if (filterAttendanceStage !== 'all' && r.stage_number && r.stage_number !== filterAttendanceStage) return false;
+                    if (currentYearFilter !== 'all' && r.academic_year_id && r.academic_year_id !== currentYearFilter && !currentYearFilter.includes(r.academic_year_id)) return false;
+                    return true;
+                  });
 
+                  // 🔄 احتساب غيابات وساعات كافة المواد المشمولة بالجدول
                   for (const c of relevantCoursesForTable) {
                     const s = calculateStudentCourseAttendance(st.id, c.id, effectiveRecordsForTable, c.name, c.code, c.credit_hours || 3);
-                    totalUnexcused += s.total_unexcused_absence_hours;
+                    totalPresent += s.total_present_hours || 0; // 🟢 تجميع ساعات الحضور بأمان
+                    totalExcused += s.total_excused_absence_hours || 0; // 🔵 تجميع ساعات الإجازة بأمان
+                    totalHoliday += s.total_holiday_hours || 0; // 🏖️ تجميع ساعات العطلة بأمان
+                    totalUnexcused += s.total_unexcused_absence_hours || 0; // 🔴 تجميع ساعات الغياب بأمان
                     const currentRank = rankMap[s.warning_status] || 0;
                     if (currentRank > highestRank) {
                       highestRank = currentRank;
@@ -989,10 +1155,13 @@ export const DepartmentAttendanceTab: React.FC<DepartmentAttendanceTabProps> = (
                   }
 
                   return {
-                    student: st,
-                    worstStatus,
-                    totalUnexcused,
-                    badge: getAttendanceWarningBadgeMeta(worstStatus),
+                    student: st, // 🎓 بروفايل الطالب
+                    worstStatus, // 🛡️ الحالة الأكاديمية الأسوأ
+                    totalPresent, // 🟢 ساعات الحضور
+                    totalExcused, // 🔵 ساعات الإجازة
+                    totalHoliday, // 🏖️ ساعات العطلة
+                    totalUnexcused, // 🔴 ساعات الغياب
+                    badge: getAttendanceWarningBadgeMeta(worstStatus), // 🏷️ بيانات بادج الإنذار
                   };
                 })
                 .filter((item) => {
@@ -1005,10 +1174,12 @@ export const DepartmentAttendanceTab: React.FC<DepartmentAttendanceTabProps> = (
 
               return (
                 <div>
-                  {/* رأس الجدول مع مربع تحديد الكل والأعمدة المفصولة */}
-                  <div className="grid grid-cols-12 bg-slate-100 text-slate-900 border-b border-slate-200 text-sm sm:text-base font-black p-3.5 text-center items-center">
+                  <div className="overflow-x-auto">
+                    <div className="min-w-[1100px]">
+                  {/* 📋 رأس الجدول مع مربع تحديد الكل والأعمدة المنفصلة بوضوح ودقة وفق ترتيب المستخدم */}
+                  <div className="grid grid-cols-[48px_minmax(140px,1.8fr)_minmax(80px,1fr)_minmax(75px,0.9fr)_minmax(85px,1fr)_minmax(105px,1.2fr)_minmax(110px,1.2fr)_minmax(75px,1fr)_minmax(75px,1fr)_minmax(75px,1fr)_minmax(75px,1fr)_minmax(140px,1.5fr)] bg-slate-100 text-black border-b border-slate-200 text-xs sm:text-sm font-black p-3.5 text-center items-center">
                     {/* 🔢 تحديد الكل وتسلسل الطالب */}
-                    <div className="col-span-1 flex items-center justify-center gap-1.5">
+                    <div className="flex items-center justify-center gap-1.5">
                       <button
                         type="button"
                         onClick={() => {
@@ -1018,39 +1189,47 @@ export const DepartmentAttendanceTab: React.FC<DepartmentAttendanceTabProps> = (
                             setSelectedAttendanceStudentIds(Array.from(new Set([...selectedAttendanceStudentIds, ...allFilteredIds])));
                           }
                         }}
-                        className="cursor-pointer text-slate-700 hover:text-slate-950 transition"
+                        className="cursor-pointer text-black hover:text-slate-800 transition"
                         title={isAllFilteredSelected ? 'إلغاء تحديد الكل' : 'تحديد كافة طلاب الجدول'}
                       >
                         {isAllFilteredSelected ? (
                           <CheckSquare className="w-5 h-5 text-blue-600" />
                         ) : (
-                          <Square className="w-5 h-5 text-slate-500" />
+                          <Square className="w-5 h-5 text-black" />
                         )}
                       </button>
-                      <span className="font-mono text-sm">#</span>
+                      <span className="font-mono text-sm text-black">#</span>
                     </div>
 
                     {/* 👤 اسم الطالب */}
-                    <div className="col-span-2 text-right pr-2">اسم الطالب</div>
-                    {/* 🎓 المرحلة */}
-                    <div className="col-span-2">المرحلة</div>
-                    {/* 📚 الكورس */}
-                    <div className="col-span-1">الكورس</div>
-                    {/* ☀️🌙 الفترة الدراسية */}
-                    <div className="col-span-1">الفترة الدراسية</div>
+                    <div className="text-right pr-2 text-black">اسم الطالب</div>
+                    {/* 🎓 1. المرحلة */}
+                    <div className="text-black">المرحلة</div>
+                    {/* 👥 2. الكروب */}
+                    <div className="text-black">الكروب</div>
+                    {/* ☀️ 3. الفترة */}
+                    <div className="text-black">الفترة</div>
+                    {/* 📚 4. الكورس */}
+                    <div className="text-black">الكورس</div>
                     {/* 🛡️ الموقف الأكاديمي */}
-                    <div className="col-span-2">الموقف الأكاديمي</div>
-                    {/* ⏱️ ساعات الغياب */}
-                    <div className="col-span-1">ساعات الغياب</div>
-                    {/* 🔔 الإجراء والتنبيه */}
-                    <div className="col-span-2">الإجراء والتنبيه</div>
+                    <div className="text-black">الموقف</div>
+                    {/* 🟢 ساعات الحضور */}
+                    <div className="text-black">ساعات الحضور</div>
+                    {/* 🔵 ساعات الإجازة */}
+                    <div className="text-black">ساعات الإجازة</div>
+                    {/* 🏖️ ساعات العطلة */}
+                    <div className="text-black">ساعات العطلة</div>
+                    {/* 🔴 ساعات الغياب */}
+                    <div className="text-black">ساعات الغياب</div>
+                    {/* ⚡ الإجراءات */}
+                    <div className="text-black">الإجراءات</div>
                   </div>
 
                   {filteredStudents.length === 0 ? (
-                    <div className="p-12 text-center text-slate-500 font-black space-y-2">
-                      <ClipboardList className="w-12 h-12 text-slate-300 mx-auto" />
-                      <p className="text-base text-slate-700 font-black">لا يوجد طلاب يطابقون معايير التصفية والبحث المحددة حالياً.</p>
-                      <p className="text-xs text-slate-400">جرب تعديل المرحلة أو الكورس أو الفترة الدراسية لرؤية النتائج.</p>
+                    <div className="p-12 text-center text-black font-black space-y-2">
+                      <ClipboardList className="w-12 h-12 text-black mx-auto" />
+                      <p className="text-base text-black font-black">لا يوجد طلاب يطابقون معايير التصفية والبحث المحددة حالياً.</p>
+                      <p className="text-xs text-black font-bold">جرب تعديل المرحلة أو الكورس أو الفترة الدراسية لرؤية النتائج.</p>
                     </div>
                   ) : (
                     <div className="divide-y divide-slate-200">
@@ -1061,7 +1240,7 @@ export const DepartmentAttendanceTab: React.FC<DepartmentAttendanceTabProps> = (
                         const paginatedAttendanceStudents = filteredStudents.slice((safeAttendancePage - 1) * attendancePageSize, safeAttendancePage * attendancePageSize);
 
                         // 🔄 نعمل خريطة لعرض الطلاب في الصفحة الحالية
-                        return paginatedAttendanceStudents.map(({ student: st, worstStatus, totalUnexcused, badge }, idx) => {
+                        return paginatedAttendanceStudents.map(({ student: st, worstStatus, totalPresent, totalExcused, totalHoliday, totalUnexcused, badge }, idx) => {
                           // 🔢 نحسب التسلسل التراكمي الحقيقي للطالب
                           const actualIndex = (safeAttendancePage - 1) * attendancePageSize + idx;
                           // ✅ فحص هل الطالب محدد
@@ -1093,97 +1272,155 @@ export const DepartmentAttendanceTab: React.FC<DepartmentAttendanceTabProps> = (
                           return (
                             <div
                               key={st.id}
-                              className={`grid grid-cols-12 items-center p-3.5 text-sm sm:text-base font-black transition ${
+                              className={`grid grid-cols-[48px_minmax(140px,1.8fr)_minmax(80px,1fr)_minmax(75px,0.9fr)_minmax(85px,1fr)_minmax(105px,1.2fr)_minmax(110px,1.2fr)_minmax(75px,1fr)_minmax(75px,1fr)_minmax(75px,1fr)_minmax(75px,1fr)_minmax(140px,1.5fr)] items-center p-3.5 text-sm sm:text-base font-black transition ${
                                 isRowSelected ? 'bg-blue-50/80 border-r-4 border-r-blue-600' : 'hover:bg-slate-50'
                               }`}
                             >
-                              {/* مربع الاختيار والتسلسل */}
-                              <div className="col-span-1 flex items-center justify-center gap-1.5">
+                              {/* 🔢 مربع الاختيار وتسلسل الطالب بالجدول */}
+                              <div className="flex items-center justify-center gap-1.5">
+                                {/* 🔘 زر تحديد الطالب */}
                                 <button
-                                  type="button"
+                                  type="button" // 🛑 نوع الزر لمنع الإرسال التلقائي
                                   onClick={() => {
+                                    // 🔄 فحص التحديد وإضافة أو حذف معرف الطالب
                                     if (isRowSelected) {
-                                      setSelectedAttendanceStudentIds(selectedAttendanceStudentIds.filter((id) => id !== st.id));
+                                      setSelectedAttendanceStudentIds(selectedAttendanceStudentIds.filter((id) => id !== st.id)); // ❌ إلغاء التحديد
                                     } else {
-                                      setSelectedAttendanceStudentIds([...selectedAttendanceStudentIds, st.id]);
+                                      setSelectedAttendanceStudentIds([...selectedAttendanceStudentIds, st.id]); // ✅ تحديد الطالب
                                     }
                                   }}
-                                  className="cursor-pointer text-slate-950 hover:text-black transition"
+                                  className="cursor-pointer text-black hover:text-slate-800 transition" // 🎨 أيقونة الاختيار بلون أسود صريح
                                 >
                                   {isRowSelected ? (
-                                    <CheckSquare className="w-5 h-5 text-blue-600" />
+                                    <CheckSquare className="w-5 h-5 text-blue-600" /> // 🟦 مربع محدد بلون أزرق نقي
                                   ) : (
-                                    <Square className="w-5 h-5 text-slate-950" />
+                                    <Square className="w-5 h-5 text-black" /> // ⬛ مربع فارغ بلون أسود واضح
                                   )}
                                 </button>
-                                <span className="font-mono text-sm font-black text-slate-950">{actualIndex + 1}</span>
+                                {/* 🔢 تسلسل الطالب التراكمي برقم أسود واضح */}
+                                <span className="font-mono text-sm font-black text-black">{actualIndex + 1}</span>
                               </div>
                             
-                            {/* 👤 اسم الطالب الثلاثي بدون رقم جامعي */}
-                            <div className="col-span-2 text-right pr-2">
-                              <h4 className="font-black text-slate-950 text-base leading-tight truncate">{st.full_name}</h4>
+                            {/* 👤 اسم الطالب الثلاثي الكامل بلون أسود واضح وبدون أي رماديات */}
+                            <div className="text-right pr-2">
+                              {/* 📝 اسم الطالب الكامل بخط أسود عريض وبارز */}
+                              <h4 className="font-black text-black text-base leading-tight truncate">{st.full_name}</h4>
                             </div>
 
-                            {/* 🎓 المرحلة الدراسية مع بادج الكروب المخصص */}
-                            <div className="col-span-2 text-center flex flex-col items-center justify-center gap-1">
-                              <span className="px-2.5 py-0.5 bg-slate-100 text-slate-950 border border-slate-300 rounded-xl text-xs sm:text-sm font-black inline-block">
-                                المرحلة {getStageNameInArabic(st.stage_number || 1)}
+                            {/* 🎓 1. المرحلة الدراسية بحجم خط أكبر قليلاً وبادج واضح بلون أسود */}
+                            <div className="text-center">
+                              {/* 🏷️ بادج المرحلة مكبر وواضح بنص أسود صريح */}
+                              <span className="px-2.5 py-1 bg-slate-100 text-black border border-slate-300 rounded-xl text-xs sm:text-sm font-black inline-block whitespace-nowrap shadow-2xs">
+                                {getStageNameInArabic(st.stage_number || 1)} {/* 🎓 اسم المرحلة مثل الرابعة */}
                               </span>
+                            </div>
+
+                            {/* 👥 2. الكروب الدراسي بحجم أكبر وبادج واضح ولون أسود بدون رمادي */}
+                            <div className="text-center">
                               {st.student_group ? (
-                                <span className="px-2 py-0.5 bg-blue-50 text-blue-950 border border-blue-300 rounded-lg text-xs font-black inline-flex items-center gap-1 shadow-2xs">
-                                  <GroupBadgeSvg className="w-3 h-3 text-blue-700" />
-                                  <span>كروب {st.student_group}</span>
+                                // 🔠 بادج الكروب المخصص مكبر بنص أسود صريح
+                                <span className="px-2.5 py-1 bg-blue-50 text-black border border-blue-200 rounded-xl text-xs sm:text-sm font-black inline-flex items-center justify-center gap-1 shadow-2xs whitespace-nowrap">
+                                  <GroupBadgeSvg className="w-3.5 h-3.5 text-blue-700 shrink-0" /> {/* 🎨 أيقونة الكروب النقية */}
+                                  <span className="text-black font-black">{st.student_group}</span> {/* 🔤 حرف الكروب مثل C */}
                                 </span>
                               ) : (
-                                <span className="px-1.5 py-0.5 bg-slate-50 text-slate-600 border border-slate-200 rounded-lg text-[10px] font-medium">
-                                  شعبة عامة
+                                // 🏛️ في حال الشعبة العامة يظهر النص أسود وليس رمادي
+                                <span className="px-2.5 py-1 bg-slate-100 text-black border border-slate-300 rounded-xl text-xs sm:text-sm font-black inline-block whitespace-nowrap shadow-2xs">
+                                  عامة {/* 🏛️ شعبة عامة بلون أسود صريح */}
                                 </span>
                               )}
                             </div>
 
-                            {/* 📚 الكورس الدراسي المسجل به الغياب */}
-                            <div className="col-span-1 text-center">
-                              <span className="px-2 py-1 bg-indigo-50 text-indigo-950 border border-indigo-200 rounded-xl text-xs sm:text-sm font-black inline-block whitespace-nowrap">
-                                {studentSemesterLabel}
-                              </span>
-                            </div>
-
-                            {/* ☀️🌙 الفترة الدراسية */}
-                            <div className="col-span-1 text-center">
-                              <span className={`px-2 py-1 rounded-xl text-xs sm:text-sm font-black border inline-flex items-center gap-1 whitespace-nowrap ${
+                            {/* ☀️🌙 3. الفترة الدراسية صباحي أو مسائي بنص أسود مكبر وواضح */}
+                            <div className="text-center">
+                              {/* 🏷️ بادج الفترة بحجم أكبر وأيقونة واضحة ونص أسود */}
+                              <span className={`px-2.5 py-1 rounded-xl text-xs sm:text-sm font-black border inline-flex items-center justify-center gap-1 shadow-2xs whitespace-nowrap ${
                                 (st.study_type || 'morning') === 'evening'
-                                  ? 'bg-indigo-50 text-indigo-950 border-indigo-200'
-                                  : 'bg-sky-50 text-sky-950 border-sky-200'
+                                  ? 'bg-blue-50 text-black border-blue-200' // 🌙 مسائي
+                                  : 'bg-sky-50 text-black border-sky-200' // ☀️ صباحي
                               }`}>
                                 {(st.study_type || 'morning') === 'evening' ? (
-                                  <Moon className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                                  <Moon className="w-3.5 h-3.5 text-blue-700 shrink-0" /> // 🌙 أيقونة المسائي
                                 ) : (
-                                  <Sun className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                                  <Sun className="w-3.5 h-3.5 text-sky-600 shrink-0" /> // ☀️ أيقونة الصباحي
                                 )}
-                                <span>{(st.study_type || 'morning') === 'evening' ? 'مسائي' : 'صباحي'}</span>
+                                <span className="text-black font-black">{(st.study_type || 'morning') === 'evening' ? 'مسائي' : 'صباحي'}</span> {/* ☀️ نص الفترة أسود صريح */}
                               </span>
                             </div>
 
-                            {/* 🛡️ الموقف الأكاديمي للغياب مع أيقونة SVG صريحة */}
-                            <div className="col-span-2 text-center">
-                              <span className={`px-2.5 py-1 rounded-xl text-xs sm:text-sm font-black inline-flex items-center justify-center gap-1.5 ${badge.badgeClass}`}>
-                                {worstStatus === 'safe' && <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />}
-                                {worstStatus === 'warning_1' && <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />}
-                                {worstStatus === 'warning_2' && <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />}
-                                {worstStatus === 'banned' && <Ban className="w-4 h-4 text-white shrink-0" />}
-                                <span>{badge.label_ar}</span>
+                            {/* 📚 4. الكورس الدراسي بصيغة الكورس الأول أو الثاني بحجم أكبر ونص أسود */}
+                            <div className="text-center">
+                              {/* 🏷️ بادج الكورس مكبر وواضح بنص أسود صريح */}
+                              <span className="px-2.5 py-1 bg-slate-100 text-black border border-slate-300 rounded-xl text-xs sm:text-sm font-black inline-block whitespace-nowrap shadow-2xs">
+                                {studentSemesterLabel} {/* 📚 يظهر الكورس الأول أو الكورس الثاني */}
                               </span>
                             </div>
 
-                            {/* ⏱️ ساعات الغياب غير المبرر في عمود مستقل */}
-                            <div className="col-span-1 text-center">
-                              <span className="px-2 py-1 bg-slate-50 text-slate-950 border border-slate-200 rounded-xl text-xs sm:text-sm font-black inline-block whitespace-nowrap">
-                                <strong className="font-mono text-sm font-black text-slate-950">{totalUnexcused}</strong> <span className="text-slate-950 font-black">س</span>
+                            {/* 🛡️ 5. الموقف الأكاديمي للإنذار */}
+                            <div className="text-center">
+                              {/* 🏷️ بادج حالة الإنذار مع الأيقونة واللون المخصص */}
+                              <span className={`px-2 py-0.5 rounded-lg text-xs font-black inline-flex items-center justify-center gap-1 ${badge.badgeClass}`}>
+                                {worstStatus === 'safe' && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />} {/* 🟢 وضع آمن */}
+                                {worstStatus === 'warning_1' && <AlertTriangle className="w-3.5 h-3.5 text-black shrink-0" />} {/* ⚠️ إنذار أولي بنص وأيقونة سوداء */}
+                                {worstStatus === 'warning_2' && <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />} {/* 🛑 إنذار نهائي */}
+                                {worstStatus === 'banned' && <Ban className="w-3.5 h-3.5 text-red-600 shrink-0" />} {/* 🚫 تجاوز الحرمان */}
+                                <span className="truncate">{badge.label_ar}</span> {/* 🏷️ نص حالة الإنذار */}
                               </span>
                             </div>
 
-                            {/* 🔔 الإجراء والتنبيه */}
-                            <div className="col-span-2 text-center flex flex-wrap items-center justify-center gap-1.5">
+                            {/* 6️⃣ ساعات الحضور الفعلي 🟢 */}
+                            <div className="text-center">
+                              <span className="px-2 py-1 bg-emerald-50 text-emerald-950 border border-emerald-200 rounded-xl text-xs font-black inline-flex items-center justify-center gap-1 shadow-2xs whitespace-nowrap" title={`ساعات الحضور: ${totalPresent} ساعة`}>
+                                <AttendancePresentSvg className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                <strong className="font-mono text-xs text-emerald-900">{totalPresent}</strong>
+                                <span className="text-[10px] text-emerald-800">س</span>
+                              </span>
+                            </div>
+
+                            {/* 7️⃣ ساعات الإجازة الرسمية 🔵 */}
+                            <div className="text-center">
+                              <span className="px-2 py-1 bg-blue-50 text-blue-950 border border-blue-200 rounded-xl text-xs font-black inline-flex items-center justify-center gap-1 shadow-2xs whitespace-nowrap" title={`ساعات الإجازة: ${totalExcused} ساعة`}>
+                                <AttendanceExcusedSvg className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                                <strong className="font-mono text-xs text-blue-900">{totalExcused}</strong>
+                                <span className="text-[10px] text-blue-800">س</span>
+                              </span>
+                            </div>
+
+                            {/* 8️⃣ ساعات العطلة الرسمية 🏖️ */}
+                            <div className="text-center">
+                              <span className="px-2 py-1 bg-sky-50 text-sky-950 border border-sky-200 rounded-xl text-xs font-black inline-flex items-center justify-center gap-1 shadow-2xs whitespace-nowrap" title={`ساعات العطلة: ${totalHoliday} ساعة`}>
+                                <AttendanceHolidaySvg className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                                <strong className="font-mono text-xs text-sky-900">{totalHoliday}</strong>
+                                <span className="text-[10px] text-sky-800">س</span>
+                              </span>
+                            </div>
+
+                            {/* 9️⃣ ساعات الغياب غير المبرر 🔴 */}
+                            <div className="text-center">
+                              <span className="px-2 py-1 bg-rose-50 text-rose-950 border border-rose-200 rounded-xl text-xs font-black inline-flex items-center justify-center gap-1 shadow-2xs whitespace-nowrap" title={`ساعات الغياب: ${totalUnexcused} ساعة`}>
+                                <AttendanceAbsenceSvg className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                                <strong className="font-mono text-xs text-rose-900">{totalUnexcused}</strong>
+                                <span className="text-[10px] text-rose-800">س</span>
+                              </span>
+                            </div>
+
+                            {/* 🔟 أزرار الإجراءات: كشف الأيام + إرسال تنبيه + كتاب الإنذار PDF */}
+                            <div className="text-center flex flex-wrap items-center justify-center gap-1">
+                              {/* زر كشف الأيام الشامل للتحقق من كافة أيام الطالب */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedStudentForDaysModal(st);
+                                  setIsStudentDaysModalOpen(true);
+                                }}
+                                className="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-950 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-1 border border-blue-200 shadow-2xs active:scale-95"
+                                title="عرض كشف تفصيلي بالأيام التي حضرها أو غاب عنها أو كان مجازاً أو في عطلة رسمية"
+                              >
+                                <StudentDaysSheetSvg className="w-3.5 h-3.5 text-blue-700" />
+                                <span>كشف الأيام</span>
+                              </button>
+
+                              {/* زر إرسال تنبيه للطالب */}
                               <button
                                 type="button"
                                 onClick={() => {
@@ -1197,13 +1434,14 @@ export const DepartmentAttendanceTab: React.FC<DepartmentAttendanceTabProps> = (
                                   setAttendanceNoticeDefaultCategory(defaultCat);
                                   setIsAttendanceNoticeModalOpen(true);
                                 }}
-                                className="px-3 py-1.5 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center gap-1 shadow-xs border border-[#0F2942] active:scale-95"
+                                className="px-2 py-1 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-1 shadow-2xs border border-[#0F2942] active:scale-95"
                                 title="إرسال تنبيه مخصص للطالب"
                               >
-                                <Send className="w-3.5 h-3.5 text-cyan-300" />
-                                <span>إرسال تنبيه</span>
+                                <Send className="w-3 h-3 text-cyan-300" />
+                                <span>تنبيه</span>
                               </button>
 
+                              {/* زر كتاب الإنذار PDF للطلبة المتجاوزين للحدود */}
                               {worstStatus !== 'safe' && (
                                 <button
                                   type="button"
@@ -1236,11 +1474,11 @@ export const DepartmentAttendanceTab: React.FC<DepartmentAttendanceTabProps> = (
                                     setSuccessMessage(`تم توليد وتحميل كتاب الأمر الإداري الرسمي للطالب (${st.full_name}) بصيغة PDF بنجاح!`);
                                     setTimeout(() => setSuccessMessage(''), 4000);
                                   }}
-                                  className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs sm:text-sm font-black transition cursor-pointer flex items-center gap-1 shadow-xs active:scale-95"
+                                  className="px-2 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-1 shadow-2xs active:scale-95"
                                   title="توليد كتاب أمر إداري رسمي بالإنذار / الحرمان PDF"
                                 >
-                                  <FileText className="w-3.5 h-3.5 text-rose-200" />
-                                  <span>كتاب الإنذار PDF</span>
+                                  <FileText className="w-3 h-3 text-rose-200" />
+                                  <span>PDF</span>
                                 </button>
                               )}
                             </div>
@@ -1251,6 +1489,8 @@ export const DepartmentAttendanceTab: React.FC<DepartmentAttendanceTabProps> = (
                     })()}
                   </div>
                 )}
+                    </div>
+                  </div>
 
                 {/* 📑 شريط التنقل بين صفحات سجلات الحضور والغيابات */}
                 <AdminPagination
@@ -1312,13 +1552,18 @@ export const DepartmentAttendanceTab: React.FC<DepartmentAttendanceTabProps> = (
                 </div>
               );
             })()}
-          </div>
+              </div>
+            </div>
           )}
 
-          {/* عرض الرسوم البيانية عند اختيار التبويب مع تمرير الطلبة المفلترين بالكروب */}
+          {/* 📊 عرض لوحة الرسوم البيانية والتحليلات مباشرة دون حجبها بفلاتر الجدول */}
           {attendanceViewMode === 'analytics' && (
             <AttendanceAnalyticsCharts
-              courses={deptCourses}
+              courses={deptCourses.filter((c) => {
+                if (filterAttendanceStage !== 'all' && c.stage_number !== filterAttendanceStage) return false;
+                if (filterAttendanceSemester !== 'all' && c.semester !== filterAttendanceSemester) return false;
+                return true;
+              })}
               students={deptStudents.filter((st) => {
                 if (filterAttendanceStage !== 'all' && (st.stage_number || 1) !== filterAttendanceStage) return false;
                 if (filterAttendanceStudyType !== 'all' && (st.study_type || 'morning') !== filterAttendanceStudyType) return false;
@@ -1331,11 +1576,51 @@ export const DepartmentAttendanceTab: React.FC<DepartmentAttendanceTabProps> = (
                 }
                 return true;
               })}
-              records={attendanceRecords}
+              records={attendanceRecords.filter((r) => {
+                if (filterAttendanceSemester !== 'all' && r.semester && r.semester !== filterAttendanceSemester) return false;
+                if (filterAttendanceStage !== 'all' && r.stage_number && r.stage_number !== filterAttendanceStage) return false;
+                if (currentYearFilter !== 'all' && r.academic_year_id && r.academic_year_id !== currentYearFilter && !currentYearFilter.includes(r.academic_year_id)) return false;
+                return true;
+              })}
               departmentName={deptName}
               startDate={currentScheduleConfig.start_date || '2026-09-20'}
+              initialStage={filterAttendanceStage}
+              initialSemester={filterAttendanceSemester === 'all' ? 1 : filterAttendanceSemester}
             />
           )}
+
+          {/* 🏖️ نافذة إعلان وتعطيل الدوام الرسمي من قبل رئاسة أو مقررية القسم */}
+          <DepartmentHolidayModal
+            isOpen={isHolidayModalOpen}
+            onClose={() => setIsHolidayModalOpen(false)}
+            currentDeptId={currentDeptId}
+            currentHeadName={currentHead?.full_name}
+            currentRapName={currentRap?.full_name}
+            deptStudents={deptStudents}
+            deptCourses={deptCourses}
+            attendanceRecords={attendanceRecords}
+            setAttendanceRecords={setAttendanceRecords}
+            onHolidaySaved={(holiday) => {
+              setSuccessMessage(`تم إعلان عطلة (${holiday.title}) وتطبيقها على سجلات الطلبة بنجاح! 🏖️`);
+              setTimeout(() => setSuccessMessage(''), 4000);
+            }}
+          />
+
+          {/* 📋 نافذة كشف أيام وساعات الحضور والغياب والإجازات والعطلات التفصيلية للطالب المصفاة بالعام والكورس */}
+          <StudentAttendanceDaysModal
+            isOpen={isStudentDaysModalOpen}
+            onClose={() => {
+              setIsStudentDaysModalOpen(false);
+              setSelectedStudentForDaysModal(null);
+            }}
+            student={selectedStudentForDaysModal}
+            records={attendanceRecords.filter((r) => {
+              if (filterAttendanceSemester !== 'all' && r.semester && r.semester !== filterAttendanceSemester) return false;
+              if (filterAttendanceStage !== 'all' && r.stage_number && r.stage_number !== filterAttendanceStage) return false;
+              if (currentYearFilter !== 'all' && r.academic_year_id && r.academic_year_id !== currentYearFilter && !currentYearFilter.includes(r.academic_year_id)) return false;
+              return true;
+            })}
+          />
 
         </div>
 

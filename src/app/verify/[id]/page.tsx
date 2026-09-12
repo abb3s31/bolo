@@ -7,7 +7,7 @@ import Link from 'next/link'; // 🔗 روابط نكست
 import { getStoredData, INITIAL_PROFILES, INITIAL_GRADES, INITIAL_COURSES } from '@/lib/mock-data'; // 💾 التخزين
 import { fetchVerificationProfileAndGrades } from '@/lib/supabase-client'; // ☁️ فحص الوثيقة وسجل الدرجات من سحابة Supabase مباشرة
 import { UserProfile, Grade, Course } from '@/types'; // 🔗 الأنواع الرسمية
-import { calculateFinalTotal, getLetterGrade, getStageNameInArabic, isStudentPassedFirstRound } from '@/lib/grade-utils'; // 🧮 دوال حساب الدرجات
+import { calculateFinalTotal, getLetterGrade, getStageNameInArabic, isStudentPassedFirstRound, getCourseAssessmentScheme, calculateCourseworkTotal } from '@/lib/grade-utils'; // 🧮 دوال حساب الدرجات والمخططات والسعي
 import { 
   CheckCircle2, 
   AlertCircle, 
@@ -73,15 +73,19 @@ export default function PublicVerifyTranscriptPage({ params }: { params: Promise
   const totalCourses = studentGrades.length;
   const totalScoreSum = studentGrades.reduce((sum, g) => {
     const cObj = courses.find((c) => c.id === g.course_id);
+    const courseScheme = cObj ? getCourseAssessmentScheme(cObj) : undefined;
     const isFinalActive = cObj?.is_final_exam_enabled === true;
     const isSupActive = cObj?.is_supplementary_exam_enabled === true;
-    return sum + (isFinalActive ? calculateFinalTotal(g, isSupActive) : (g.final_coursework_total || 0));
+    const cw = courseScheme ? calculateCourseworkTotal(g, courseScheme) : (g.final_coursework_total || 0);
+    return sum + (isFinalActive ? calculateFinalTotal(g, isSupActive, courseScheme) : cw);
   }, 0);
   const completedGrades = studentGrades.filter((g) => {
     const cObj = courses.find((c) => c.id === g.course_id);
+    const courseScheme = cObj ? getCourseAssessmentScheme(cObj) : undefined;
     const isFinalActive = cObj?.is_final_exam_enabled === true;
     const isSupActive = cObj?.is_supplementary_exam_enabled === true;
-    return isFinalActive ? calculateFinalTotal(g, isSupActive) >= 50 : (g.final_coursework_total || 0) >= 25;
+    const cw = courseScheme ? calculateCourseworkTotal(g, courseScheme) : (g.final_coursework_total || 0);
+    return isFinalActive ? calculateFinalTotal(g, isSupActive, courseScheme) >= 50 : cw >= 25;
   });
   const avgScore = totalCourses > 0 ? (totalScoreSum / totalCourses).toFixed(1) : '0.0';
 
@@ -215,53 +219,59 @@ export default function PublicVerifyTranscriptPage({ params }: { params: Promise
               <span>المواد الدراسية والسعيات المعتمدة رسمياً (مسار بولونيا)</span>
             </h3>
 
-            <div className="overflow-x-auto border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
-              <table className="w-full text-right text-base font-black">
-                <thead className="bg-slate-100 text-slate-900 border-b border-slate-200">
-                  <tr>
-                    <th className="p-3.5">المادة الدراسية</th>
-                    <th className="p-3.5 text-center">السعي (50)</th>
-                    {/* 🎯 عمود النهائي يظهر فقط إذا كان مفعلاً */}
-                    {studentGrades.some((g) => courses.find((c) => c.id === g.course_id)?.is_final_exam_enabled === true) && (
-                      <th className="p-3.5 text-center">النهائي (50)</th>
-                    )}
-                    <th className="p-3.5 text-center">
-                      {studentGrades.some((g) => courses.find((c) => c.id === g.course_id)?.is_final_exam_enabled === true) ? 'المجموع (100)' : 'المجموع'}
-                    </th>
-                    <th className="p-3.5 text-center">التقدير</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200">
-                  {studentGrades.map((g) => {
-                    const cObj = courses.find((c) => c.id === g.course_id);
-                    const isFinalActive = cObj?.is_final_exam_enabled === true;
-                    const isSupActive = cObj?.is_supplementary_exam_enabled === true;
-                    const finalScore = isFinalActive ? calculateFinalTotal(g, isSupActive) : (g.final_coursework_total || 0);
-                    const letter = isFinalActive ? getLetterGrade(finalScore) : 'سعي فقط';
-                    const isPassed1st = isStudentPassedFirstRound(g);
-                    const examText = !isFinalActive
-                      ? 'مغلق'
-                      : (isSupActive && !isPassed1st && g.supplementary_exam != null && g.supplementary_exam > 0)
-                        ? `${g.supplementary_exam} (دور 2)`
-                        : `${g.final_exam != null ? g.final_exam : '-'}`;
-                    const hasAnyFinal = studentGrades.some((sg) => courses.find((c) => c.id === sg.course_id)?.is_final_exam_enabled === true);
-
-                    return (
-                      <tr key={g.id} className="hover:bg-slate-50 transition">
-                        <td className="p-3.5 font-black text-slate-950">{g.course_name}</td>
-                        <td className="p-3.5 text-center font-black text-slate-900 bg-slate-50 font-mono">{g.final_coursework_total}</td>
-                        {/* 🎯 خلية الفاينل تظهر فقط إذا كان الفاينل مفعلاً لأي مادة */}
-                        {hasAnyFinal && <td className="p-3.5 text-center font-bold text-slate-700 font-mono">{examText}</td>}
-                        <td className="p-3.5 text-center font-black text-emerald-950 bg-emerald-50 font-mono">
-                          {isFinalActive ? (finalScore > 0 ? finalScore : '-') : `${g.final_coursework_total || 0} (سعي)`}
-                        </td>
-                        <td className="p-3.5 text-center font-black whitespace-nowrap">{letter}</td>
+            {(() => {
+              const hasAnyFinalActive = studentGrades.some((g) => courses.find((c) => c.id === g.course_id)?.is_final_exam_enabled === true);
+              return (
+                <div className="overflow-x-auto border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+                  <table className="w-full text-right text-base font-black">
+                    <thead className="bg-slate-100 text-slate-900 border-b border-slate-200">
+                      <tr>
+                        <th className="p-3.5">المادة الدراسية</th>
+                        <th className="p-3.5 text-center">السعي (50)</th>
+                        {/* 🎯 عمود النهائي يظهر فقط إذا كان مفعلاً */}
+                        {hasAnyFinalActive && (
+                          <th className="p-3.5 text-center">النهائي (50)</th>
+                        )}
+                        <th className="p-3.5 text-center">
+                          {hasAnyFinalActive ? 'المجموع (100)' : 'المجموع'}
+                        </th>
+                        <th className="p-3.5 text-center">التقدير</th>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {studentGrades.map((g) => {
+                        const cObj = courses.find((c) => c.id === g.course_id);
+                        const courseScheme = cObj ? getCourseAssessmentScheme(cObj) : undefined;
+                        const isFinalActive = cObj?.is_final_exam_enabled === true;
+                        const isSupActive = cObj?.is_supplementary_exam_enabled === true;
+                        const cwTotal = courseScheme ? calculateCourseworkTotal(g, courseScheme) : (g.final_coursework_total || 0);
+                        const finalScore = isFinalActive ? calculateFinalTotal(g, isSupActive, courseScheme) : cwTotal;
+                        const letter = isFinalActive ? getLetterGrade(finalScore) : 'سعي فقط';
+                        const isPassed1st = isStudentPassedFirstRound(g, courseScheme);
+                        const examText = !isFinalActive
+                          ? 'مغلق'
+                          : (isSupActive && !isPassed1st && g.supplementary_exam != null && g.supplementary_exam > 0)
+                            ? `${g.supplementary_exam} (دور 2)`
+                            : `${g.final_exam != null ? g.final_exam : '-'}`;
+
+                        return (
+                          <tr key={g.id} className="hover:bg-slate-50 transition">
+                            <td className="p-3.5 font-black text-slate-950">{g.course_name}</td>
+                            <td className="p-3.5 text-center font-black text-slate-900 bg-slate-50 font-mono">{cwTotal}</td>
+                            {/* 🎯 خلية الفاينل تظهر فقط إذا كان الفاينل مفعلاً لأي مادة */}
+                            {hasAnyFinalActive && <td className="p-3.5 text-center font-bold text-slate-700 font-mono">{examText}</td>}
+                            <td className="p-3.5 text-center font-black text-emerald-950 bg-emerald-50 font-mono">
+                              {isFinalActive ? (finalScore > 0 ? finalScore : '-') : `${cwTotal} (سعي)`}
+                            </td>
+                            <td className="p-3.5 text-center font-black whitespace-nowrap">{letter}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
           </div>
         )}
 

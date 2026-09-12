@@ -4,7 +4,7 @@
 import Image from 'next/image'; // 🖼️ الصور
 import { QRCodeSVG } from 'qrcode.react'; // 🔲 رمز التوثيق
 import { UserProfile, Grade, Course } from '@/types'; // 🔗 الأنواع
-import { calculateFinalTotal, getLetterGrade, calculateStudentGPA, getStageNameInArabic, isStudentPassedFirstRound } from '@/lib/grade-utils'; // 🧮 الحسابات
+import { calculateFinalTotal, getLetterGrade, calculateStudentGPA, getStageNameInArabic, isStudentPassedFirstRound, getCourseAssessmentScheme, calculateCourseworkTotal } from '@/lib/grade-utils'; // 🧮 الحسابات
 
 interface OfficialTranscriptProps {
   student: UserProfile;
@@ -13,17 +13,20 @@ interface OfficialTranscriptProps {
 }
 
 export default function OfficialTranscript({ student, grades, courses }: OfficialTranscriptProps) {
-  // 🧮 حساب المعدل التراكمي الكلي مع مراعاة حالة الدور الثاني لكل مادة
+  // 🧮 حساب المعدل التراكمي الكلي مع مراعاة حالة الدور الثاني والمخطط لكل مادة
   const gradesWithCredits = grades.map((g) => {
     const courseObj = courses.find((c) => c.id === g.course_id);
     const isSupActive = courseObj?.is_supplementary_exam_enabled === true;
-    const finalScore = calculateFinalTotal(g, isSupActive);
+    const courseScheme = courseObj ? getCourseAssessmentScheme(courseObj) : undefined;
+    const finalScore = calculateFinalTotal(g, isSupActive, courseScheme);
     return {
       grade: {
         ...g,
         final_total: finalScore,
       },
       creditHours: courseObj?.credit_hours || 3,
+      scheme: courseScheme,
+      isSupplementaryActive: isSupActive,
     };
   });
   const currentGPA = calculateStudentGPA(gradesWithCredits);
@@ -96,11 +99,13 @@ export default function OfficialTranscript({ student, grades, courses }: Officia
           <tbody className="divide-y divide-slate-300 text-base font-black">
             {grades.map((g, index) => {
               const cObj = courses.find((c) => c.id === g.course_id);
+              const courseScheme = cObj ? getCourseAssessmentScheme(cObj) : undefined;
               const isFinalActive = cObj?.is_final_exam_enabled === true;
               const isSupActive = cObj?.is_supplementary_exam_enabled === true;
-              const finalTot = isFinalActive ? calculateFinalTotal(g, isSupActive) : (g.final_coursework_total || 0);
+              const courseworkTotal = courseScheme ? calculateCourseworkTotal(g, courseScheme) : (g.final_coursework_total || 0);
+              const finalTot = isFinalActive ? calculateFinalTotal(g, isSupActive, courseScheme) : courseworkTotal;
               const letterGrad = isFinalActive ? getLetterGrade(finalTot) : 'سعي فقط';
-              const isPassed1st = isStudentPassedFirstRound(g);
+              const isPassed1st = isStudentPassedFirstRound(g, courseScheme);
               const examGradeText = !isFinalActive
                 ? 'مغلق'
                 : (isSupActive && !isPassed1st && g.supplementary_exam != null && g.supplementary_exam > 0)
@@ -112,7 +117,7 @@ export default function OfficialTranscript({ student, grades, courses }: Officia
                   <td className="p-3.5 border border-slate-300 text-center font-black text-slate-950 font-mono">{index + 1}</td>
                   <td className="p-3.5 border border-slate-300 text-right font-black text-slate-950">{g.course_name}</td>
                   <td className="p-3.5 border border-slate-300 font-black font-mono">{cObj?.credit_hours || 3}</td>
-                  <td className="p-3.5 border border-slate-300 font-black font-mono">{g.final_coursework_total}</td>
+                  <td className="p-3.5 border border-slate-300 font-black font-mono">{courseworkTotal}</td>
                   {hasAnyFinalActive && <td className="p-3.5 border border-slate-300 font-black font-mono">{examGradeText}</td>}
                   <td className="p-3.5 border border-slate-300 font-black text-slate-950 font-mono">{finalTot}</td>
                   <td className="p-3.5 border border-slate-300 font-black text-center whitespace-nowrap">{letterGrad}</td>

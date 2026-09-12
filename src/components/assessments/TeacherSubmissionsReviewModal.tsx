@@ -2,12 +2,12 @@
 
 //  نافذة استعراض وتقييم وتدقيق تسليمات الطلاب (مقبول / مرفوض / يحتاج تعديل) وحصر المسلمين وغير المسلمين
 import React, { useState, useMemo } from 'react'; // 🔗 خطافات رياكت
-import { CourseAcademicTask, StudentTaskSubmission, UserProfile, Grade, SubmissionReviewDecision } from '@/types'; // 🔗 الواجهات الرسمية
+import { CourseAcademicTask, StudentTaskSubmission, UserProfile, Grade, SubmissionReviewDecision, Course } from '@/types'; // 🔗 الواجهات الرسمية
 import { exportTaskSubmissionsReportPDF } from '@/lib/pdf-export'; // 📄 مولد كشف التسليمات PDF
 import { exportTaskSubmissionsExcel } from '@/lib/excel-utils'; // 📊 مولد كشف تسليمات التكليف الفاخر Excel
 import { sendAppNotification } from '@/lib/notification-utils'; // 🔔 مركز الإشعارات التفاعلي
-import { getStoredData, saveStoredData, INITIAL_GRADES, INITIAL_PROFILES } from '@/lib/mock-data'; // 💾 التخزين والمستخدمين
-import { calculateCourseworkTotal, calculateFinalTotal, getLetterGrade } from '@/lib/grade-utils'; // 🧮 حسابات السعي والدرجات
+import { getStoredData, saveStoredData, INITIAL_GRADES, INITIAL_PROFILES, INITIAL_COURSES } from '@/lib/mock-data'; // 💾 التخزين والمستخدمين والمواد
+import { calculateCourseworkTotal, calculateFinalTotal, getLetterGrade, getCourseAssessmentScheme } from '@/lib/grade-utils'; // 🧮 حسابات السعي والدرجات والمخطط المعتمد
 import { saveGradeToSupabase } from '@/lib/supabase-client'; // ☁️ حفظ الدرجات بالسحابة
 import ConfirmDeleteModal from '@/components/ConfirmDeleteModal'; // 🗑️ كارد الحذف الاحترافي الفاخر
 import { 
@@ -245,6 +245,9 @@ export function TeacherSubmissionsReviewModal({
         }
 
         const fieldToUpdate = isReport ? 'report' : (isAssignment ? 'assignment1' : 'quiz1');
+        const allCourses = getStoredData<Course[]>('courses', INITIAL_COURSES); // 📚 قائمة المواد
+        const thisCourse = allCourses.find((c) => c.id === task.course_id); // 🔍 إيجاد المادة
+        const courseScheme = thisCourse ? getCourseAssessmentScheme(thisCourse) : undefined; // 🎛️ مخطط تقييم المادة
 
         const updatedGrades = allGrades.map((g) => {
           if (g.course_id === task.course_id && targetStudentIds.includes(g.student_id)) {
@@ -253,8 +256,9 @@ export function TeacherSubmissionsReviewModal({
               [fieldToUpdate]: numScore,
               updated_at: new Date().toISOString(),
             };
-            const cwTotal = calculateCourseworkTotal(tempG);
-            const finalTot = calculateFinalTotal(tempG);
+            const cwTotal = calculateCourseworkTotal(tempG, courseScheme); // 🧮 حساب السعي للبند المفتوح فقط
+            const isSupActive = thisCourse?.is_supplementary_exam_enabled === true; // 🔄 هل الدور الثاني مفعل
+            const finalTot = calculateFinalTotal(tempG, isSupActive, courseScheme); // 💯 حساب النهائي للبند المفتوح بالمخطط
             const letter = getLetterGrade(finalTot);
             return {
               ...tempG,

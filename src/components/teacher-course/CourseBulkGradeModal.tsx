@@ -17,7 +17,7 @@ import {
   CheckCircle2 
 } from 'lucide-react'; // 🎨 أيقونات التفاعل SVG
 import { Grade } from '@/types'; // 🔗 واجهة الدرجات الرسمية
-import { getCourseAssessmentScheme, getCourseGradeLimits } from '@/lib/grade-utils'; // 🎛️ أدوات معايير التقييم
+import { getCourseAssessmentScheme, getCourseGradeLimits, isAssessmentItemActive } from '@/lib/grade-utils'; // 🎛️ أدوات معايير التقييم والبنود المفتوحة
 
 // 📋 واجهة خصائص المودال الصارمة
 interface CourseBulkGradeModalProps {
@@ -63,19 +63,19 @@ export default function CourseBulkGradeModal({
   // 🛡️ إذا لم تكن النافذة مفتوحة لا ترسم شيئاً
   if (!isOpen) return null;
 
-  // 📋 توليد قائمة عناصر التقييم المتاحة وفق صلاحيات الأستاذ وطبيعة الكورس
+  // 📋 توليد قائمة عناصر التقييم المتاحة وفق صلاحيات الأستاذ والبنود المفتوحة فقط
   const availableBulkAssessmentItems = [
     ...(isTheoryTeacher ? [
-      { key: 'quiz1' as keyof Grade, title: assessmentScheme.quiz1.title_ar, max: assessmentScheme.quiz1.max_score, icon: FileText, desc: 'امتحان الكويز الأول' },
-      { key: 'quiz2' as keyof Grade, title: assessmentScheme.quiz2.title_ar, max: assessmentScheme.quiz2.max_score, icon: FileText, desc: 'امتحان الكويز الثاني' },
-      { key: 'assignment1' as keyof Grade, title: assessmentScheme.assignment1.title_ar, max: assessmentScheme.assignment1.max_score, icon: ClipboardList, desc: 'الواجب الدراسي الأول' },
-      { key: 'assignment2' as keyof Grade, title: assessmentScheme.assignment2.title_ar, max: assessmentScheme.assignment2.max_score, icon: ClipboardList, desc: 'الواجب الدراسي الثاني' },
-      { key: 'report' as keyof Grade, title: assessmentScheme.report.title_ar, max: assessmentScheme.report.max_score, icon: BookOpen, desc: 'تقرير وبحث الفصل' },
-      { key: 'midterm' as keyof Grade, title: assessmentScheme.midterm.title_ar, max: assessmentScheme.midterm.max_score, icon: GraduationCap, desc: 'امتحان نصف الفصل (المدتيرم)' },
+      ...(isAssessmentItemActive(assessmentScheme.quiz1) ? [{ key: 'quiz1' as keyof Grade, title: assessmentScheme.quiz1.title_ar, max: assessmentScheme.quiz1.max_score, icon: FileText, desc: 'امتحان الكويز الأول' }] : []),
+      ...(isAssessmentItemActive(assessmentScheme.quiz2) ? [{ key: 'quiz2' as keyof Grade, title: assessmentScheme.quiz2.title_ar, max: assessmentScheme.quiz2.max_score, icon: FileText, desc: 'امتحان الكويز الثاني' }] : []),
+      ...(isAssessmentItemActive(assessmentScheme.assignment1) ? [{ key: 'assignment1' as keyof Grade, title: assessmentScheme.assignment1.title_ar, max: assessmentScheme.assignment1.max_score, icon: ClipboardList, desc: 'الواجب الدراسي الأول' }] : []),
+      ...(isAssessmentItemActive(assessmentScheme.assignment2) ? [{ key: 'assignment2' as keyof Grade, title: assessmentScheme.assignment2.title_ar, max: assessmentScheme.assignment2.max_score, icon: ClipboardList, desc: 'الواجب الدراسي الثاني' }] : []),
+      ...(isAssessmentItemActive(assessmentScheme.report) ? [{ key: 'report' as keyof Grade, title: assessmentScheme.report.title_ar, max: assessmentScheme.report.max_score, icon: BookOpen, desc: 'تقرير وبحث الفصل' }] : []),
+      ...(isAssessmentItemActive(assessmentScheme.midterm) ? [{ key: 'midterm' as keyof Grade, title: assessmentScheme.midterm.title_ar, max: assessmentScheme.midterm.max_score, icon: GraduationCap, desc: 'امتحان نصف الفصل (المدتيرم)' }] : []),
       ...(isFinalExamEnabled ? [{ key: 'final_exam' as keyof Grade, title: assessmentScheme.final_exam.title_ar, max: assessmentScheme.final_exam.max_score, icon: Award, desc: 'الامتحان النهائي للمادة' }] : []),
       ...(isSupplementaryEnabled ? [{ key: 'supplementary_exam' as keyof Grade, title: 'امتحان الدور الثاني (الإكمال)', max: 50, icon: RotateCcw, desc: 'امتحان الدور الثاني' }] : []),
     ] : []),
-    ...(isPracticalTeacher && isPracticalCourse ? [
+    ...(isPracticalTeacher && isPracticalCourse && isAssessmentItemActive(assessmentScheme.practical) ? [
       { key: 'practical' as keyof Grade, title: assessmentScheme.practical.title_ar, max: assessmentScheme.practical.max_score, icon: FlaskConical, desc: 'امتحان التقييم العملي' },
     ] : []),
   ];

@@ -32,6 +32,8 @@ interface AttendanceAnalyticsChartsProps {
   records: StudentAttendanceRecord[]; // 📋 سجلات الحضور
   departmentName: string; // 🏢 اسم القسم الأكاديمي
   startDate?: string; // 📅 تاريخ انطلاق الفصل الأكاديمي (مسار بولونيا)
+  initialStage?: number | 'all'; // 🎓 المرحلة المبدئية المتزامنة
+  initialSemester?: 1 | 2; // 📅 الكورس المبدئي المتزامن
 }
 
 // 🏛️ المكون الرئيسي للمخططات البيانية
@@ -41,10 +43,12 @@ export default function AttendanceAnalyticsCharts({
   records,
   departmentName,
   startDate = '2026-09-20',
+  initialStage = 'all',
+  initialSemester = 1,
 }: AttendanceAnalyticsChartsProps) {
-  // 🎛️ حالات التصفية للمرحلة والكورس
-  const [selectedStage, setSelectedStage] = useState<number | 'all'>('all');
-  const [selectedSemester, setSelectedSemester] = useState<1 | 2>(1);
+  // 🎛️ حالات التصفية للمرحلة والكورس متزامنة مع خيارات القسم
+  const [selectedStage, setSelectedStage] = useState<number | 'all'>(initialStage);
+  const [selectedSemester, setSelectedSemester] = useState<1 | 2>(initialSemester);
 
   // 🔍 تصفية الطلاب بحسب المرحلة المختارة
   const filteredStudents = useMemo(() => {
@@ -243,7 +247,7 @@ export default function AttendanceAnalyticsCharts({
               type="button"
               onClick={() => setSelectedSemester(1)}
               className={`px-4 py-2 rounded-xl text-sm sm:text-base font-black transition cursor-pointer ${
-                selectedSemester === 1 ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-950 hover:bg-white'
+                selectedSemester === 1 ? 'bg-[#0F2942] text-white shadow-xs' : 'text-slate-950 hover:bg-white'
               }`}
             >
               الكورس الأول
@@ -252,7 +256,7 @@ export default function AttendanceAnalyticsCharts({
               type="button"
               onClick={() => setSelectedSemester(2)}
               className={`px-4 py-2 rounded-xl text-sm sm:text-base font-black transition cursor-pointer ${
-                selectedSemester === 2 ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-950 hover:bg-white'
+                selectedSemester === 2 ? 'bg-[#0F2942] text-white shadow-xs' : 'text-slate-950 hover:bg-white'
               }`}
             >
               الكورس الثاني

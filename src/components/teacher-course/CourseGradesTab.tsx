@@ -34,7 +34,8 @@ import {
   calculateFinalTotal, 
   getLetterGrade, 
   isStudentPassedFirstRound, 
-  isStudentEligibleForSupplementary 
+  isStudentEligibleForSupplementary,
+  isAssessmentItemActive, 
 } from '@/lib/grade-utils'; // 🧮 دوال حسابات الدرجات والمخطط
 import { detectArabicGender } from '@/lib/demographics-utils'; // 🧬 محرك استنتاج الجنس
 import { AttendanceNoticeCategory } from '@/components/attendance/AttendanceNoticeModal'; // 📢 فئات التبليغات الذكية
@@ -459,11 +460,11 @@ export default function CourseGradesTab({
             <div className="flex flex-wrap items-center gap-2 shrink-0">
               <span className="px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-black text-slate-900 shadow-2xs flex items-center gap-1">
                 <RotateCcw className="w-3.5 h-3.5 text-[#0F2942]" />
-                <span>المؤهلون لدور 2: {grades.filter((g) => isStudentEligibleForSupplementary(g)).length} طالب</span>
+                <span>المؤهلون لدور 2: {grades.filter((g) => isStudentEligibleForSupplementary(g, assessmentScheme)).length} طالب</span>
               </span>
               <span className="px-3 py-1.5 bg-slate-100 border border-slate-300 rounded-xl text-xs font-black text-slate-900 shadow-2xs flex items-center gap-1">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
-                <span>الناجحون دور أول: {grades.filter((g) => isStudentPassedFirstRound(g)).length} طالب</span>
+                <span>الناجحون دور أول: {grades.filter((g) => isStudentPassedFirstRound(g, assessmentScheme)).length} طالب</span>
               </span>
             </div>
           </div>
@@ -494,44 +495,56 @@ export default function CourseGradesTab({
                 {/* 👤 اسم الطالب الثلاثي */}
                 <th className="p-4 text-right min-w-[240px] text-base text-black font-black border-x border-slate-300">اسم الطالب</th>
                 
-                {/* 1. البند الأول - ديناميكي من مخطط رئيس القسم */}
-                <th className="p-3 bg-slate-50 border-x border-slate-300">
-                  <div className="font-black text-black text-base">{assessmentScheme.quiz1.title_ar}</div>
-                  <span className="text-sm font-black text-blue-900">({assessmentScheme.quiz1.max_score})</span>
-                </th>
+                {/* 1. البند الأول - كويز 1 (يظهر فقط إذا كان مفتوحاً) */}
+                {isAssessmentItemActive(assessmentScheme.quiz1) && (
+                  <th className="p-3 bg-slate-50 border-x border-slate-300">
+                    <div className="font-black text-black text-base">{assessmentScheme.quiz1.title_ar}</div>
+                    <span className="text-sm font-black text-blue-900">({assessmentScheme.quiz1.max_score})</span>
+                  </th>
+                )}
 
-                {/* 2. البند الثاني - ديناميكي من مخطط رئيس القسم */}
-                <th className="p-3 bg-slate-50 border-x border-slate-300">
-                  <div className="font-black text-black text-base">{assessmentScheme.quiz2.title_ar}</div>
-                  <span className="text-sm font-black text-blue-900">({assessmentScheme.quiz2.max_score})</span>
-                </th>
+                {/* 2. البند الثاني - كويز 2 (يظهر فقط إذا كان مفتوحاً) */}
+                {isAssessmentItemActive(assessmentScheme.quiz2) && (
+                  <th className="p-3 bg-slate-50 border-x border-slate-300">
+                    <div className="font-black text-black text-base">{assessmentScheme.quiz2.title_ar}</div>
+                    <span className="text-sm font-black text-blue-900">({assessmentScheme.quiz2.max_score})</span>
+                  </th>
+                )}
 
-                {/* 3. البند الثالث - ديناميكي من مخطط رئيس القسم */}
-                <th className="p-3 bg-slate-50 border-x border-slate-300">
-                  <div className="font-black text-black text-base">{assessmentScheme.assignment1.title_ar}</div>
-                  <span className="text-sm font-black text-blue-900">({assessmentScheme.assignment1.max_score})</span>
-                </th>
+                {/* 3. البند الثالث - واجب 1 (يظهر فقط إذا كان مفتوحاً) */}
+                {isAssessmentItemActive(assessmentScheme.assignment1) && (
+                  <th className="p-3 bg-slate-50 border-x border-slate-300">
+                    <div className="font-black text-black text-base">{assessmentScheme.assignment1.title_ar}</div>
+                    <span className="text-sm font-black text-blue-900">({assessmentScheme.assignment1.max_score})</span>
+                  </th>
+                )}
 
-                {/* 4. البند الرابع - ديناميكي من مخطط رئيس القسم */}
-                <th className="p-3 bg-slate-50 border-x border-slate-300">
-                  <div className="font-black text-black text-base">{assessmentScheme.assignment2.title_ar}</div>
-                  <span className="text-sm font-black text-blue-900">({assessmentScheme.assignment2.max_score})</span>
-                </th>
+                {/* 4. البند الرابع - واجب 2 (يظهر فقط إذا كان مفتوحاً) */}
+                {isAssessmentItemActive(assessmentScheme.assignment2) && (
+                  <th className="p-3 bg-slate-50 border-x border-slate-300">
+                    <div className="font-black text-black text-base">{assessmentScheme.assignment2.title_ar}</div>
+                    <span className="text-sm font-black text-blue-900">({assessmentScheme.assignment2.max_score})</span>
+                  </th>
+                )}
 
-                {/* 5. البند الخامس - ديناميكي من مخطط رئيس القسم */}
-                <th className="p-3 bg-slate-50 border-x border-slate-300">
-                  <div className="font-black text-black text-base">{assessmentScheme.report.title_ar}</div>
-                  <span className="text-sm font-black text-blue-900">({assessmentScheme.report.max_score})</span>
-                </th>
+                {/* 5. البند الخامس - تقرير وبحث (يظهر فقط إذا كان مفتوحاً) */}
+                {isAssessmentItemActive(assessmentScheme.report) && (
+                  <th className="p-3 bg-slate-50 border-x border-slate-300">
+                    <div className="font-black text-black text-base">{assessmentScheme.report.title_ar}</div>
+                    <span className="text-sm font-black text-blue-900">({assessmentScheme.report.max_score})</span>
+                  </th>
+                )}
 
-                {/* 6. البند السادس - ديناميكي من مخطط رئيس القسم */}
-                <th className="p-3 bg-slate-50 border-x border-slate-300">
-                  <div className="font-black text-black text-base">{assessmentScheme.midterm.title_ar}</div>
-                  <span className="text-sm font-black text-blue-900">({assessmentScheme.midterm.max_score})</span>
-                </th>
+                {/* 6. البند السادس - امتحان نصفي (يظهر فقط إذا كان مفتوحاً) */}
+                {isAssessmentItemActive(assessmentScheme.midterm) && (
+                  <th className="p-3 bg-slate-50 border-x border-slate-300">
+                    <div className="font-black text-black text-base">{assessmentScheme.midterm.title_ar}</div>
+                    <span className="text-sm font-black text-blue-900">({assessmentScheme.midterm.max_score})</span>
+                  </th>
+                )}
 
-                {/* 7. البند السابع - الامتحان العملي / المختبري (إن وجد) */}
-                {isPracticalCourse && (
+                {/* 7. البند السابع - الامتحان العملي / المختبري (يظهر فقط إذا كان مفتوحاً) */}
+                {isPracticalCourse && isAssessmentItemActive(assessmentScheme.practical) && (
                   <th className="p-3 bg-emerald-50 text-emerald-950 border-x-2 border-emerald-300">
                     <div className="font-black flex items-center justify-center gap-1 text-base text-black">
                       <FlaskConical className="w-4 h-4 text-emerald-800" />
@@ -572,79 +585,34 @@ export default function CourseGradesTab({
                   <span className="text-sm font-black text-slate-900">({isFinalExamEnabled ? '100' : '50'})</span>
                 </th>
 
-                {/* التقدير */}
-                <th className="p-4 min-w-[110px] text-base text-black font-black border-x border-slate-300">
+                {/* 🅰️ عمود التقدير الحرفي أو حالة النتيجة */}
+                <th className="p-4 border-x border-slate-300 min-w-[120px] text-base text-black font-black">
                   {isFinalExamEnabled ? 'التقدير' : 'حالة النتيجة'}
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200 font-black text-black text-base">
+            <tbody className="divide-y divide-slate-200">
               {filteredGrades.length === 0 ? (
                 <tr>
-                  <td colSpan={20} className="py-14 px-4 text-center bg-white">
-                    <div className="max-w-lg mx-auto flex flex-col items-center justify-center gap-4 bg-slate-50 border-2 border-dashed border-slate-400 rounded-3xl p-8 sm:p-10 shadow-xs animate-in fade-in zoom-in-95 duration-200">
-                      <div className="p-4 bg-blue-100 text-blue-950 rounded-2xl border-2 border-blue-300 shadow-xs">
-                        <Users className="w-12 h-12 text-blue-900" />
-                      </div>
-                      <div className="space-y-2 text-center">
-                        <h3 className="text-2xl font-black text-black">
-                          لا يوجد طلاب في هذه القائمة
-                        </h3>
-                        <p className="text-base sm:text-lg font-black text-black leading-relaxed">
-                          {filterStudyType === 'morning'
-                            ? 'لم يتم العثور على أي طلاب مسجلين في الدراسة (الصباحية) لهذه المادة.'
-                            : filterStudyType === 'evening'
-                            ? 'لم يتم العثور على أي طلاب مسجلين في الدراسة (المسائية) لهذه المادة.'
-                            : 'لا توجد بيانات طلاب مسجلين في هذه المادة حالياً. يمكنك استيراد قائمة الطلاب والدرجات مباشرة من ملف Excel.'}
-                        </p>
-                      </div>
-
-                      {grades.length === 0 && (
-                        <div className="flex flex-wrap items-center justify-center gap-3 mt-3">
-                          <label className="px-5 py-3 bg-[#0F2942] hover:bg-[#163a5f] text-white text-base font-black rounded-xl transition flex items-center gap-2 cursor-pointer shadow-md active:scale-95">
-                            <Upload className="w-5 h-5 text-cyan-200" />
-                            <span>{isImportingExcel ? 'جاري قراءة الملف...' : 'استيراد الطلاب والدرجات من Excel'}</span>
-                            <input type="file" accept=".xlsx, .xls" onChange={handleExcelUpload} disabled={isImportingExcel} className="hidden" />
-                          </label>
-                          <button
-                            type="button"
-                            onClick={() => setShowExcelInstructions(true)}
-                            className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-black text-base font-black rounded-xl border-2 border-slate-300 transition flex items-center gap-2 cursor-pointer shadow-xs active:scale-95"
-                          >
-                            <Info className="w-5 h-5 text-blue-800" />
-                            <span>تعليمات الإكسل</span>
-                          </button>
-                        </div>
-                      )}
-
-                      {filterStudyType !== 'all' && (
-                        <button
-                          type="button"
-                          onClick={() => setFilterStudyType('all')}
-                          className="mt-2 px-6 py-3 bg-[#0F2942] hover:bg-[#163a5f] text-white text-base font-black rounded-xl transition flex items-center gap-2 cursor-pointer shadow-md active:scale-95"
-                        >
-                          <ListFilter className="w-5 h-5 text-cyan-300" />
-                          <span>عرض كافة طلاب المادة ({grades.length})</span>
-                        </button>
-                      )}
-                    </div>
+                  <td colSpan={15} className="p-8 text-center text-slate-500 font-black">
+                    لا توجد سجلات درجات مطابقة للبحث أو الفلتر المختار
                   </td>
                 </tr>
               ) : (
                 filteredGrades.map((g, index) => {
-                const isPassedFirstRound = isStudentPassedFirstRound(g);
-                const courseworkTotal = calculateCourseworkTotal(g); // 📝 السعي التكويني من 50
-                const finalTot = isFinalExamEnabled ? calculateFinalTotal(g, isSupplementaryEnabled) : courseworkTotal; // 💯 احتساب المجموع
-                const letterGrad = isFinalExamEnabled ? getLetterGrade(finalTot) : 'بانتظار الفاينل'; // 🅰️ التقدير الأكاديمي
-                const stdObj = courseStudents.find((s) => s.id === g.student_id || s.university_number === g.university_number);
-                const stdGender = stdObj?.gender || detectArabicGender(g.student_name);
-                const stdStudyType = stdObj?.study_type || 'morning';
+                  const isPassedFirstRound = isStudentPassedFirstRound(g, assessmentScheme); // 🛡️ فحص النجاح بالدور الأول للمخطط
+                  const courseworkTotal = calculateCourseworkTotal(g, assessmentScheme); // 📝 السعي التكويني من 50 للبند المفتوح فقط
+                  const finalTot = isFinalExamEnabled ? calculateFinalTotal(g, isSupplementaryEnabled, assessmentScheme) : courseworkTotal; // 💯 احتساب المجموع للبند المفتوح
+                  const letterGrad = isFinalExamEnabled ? getLetterGrade(finalTot) : 'بانتظار الفاينل'; // 🅰️ التقدير الأكاديمي
+                  const stdObj = courseStudents.find((s) => s.id === g.student_id || s.university_number === g.university_number);
+                  const stdGender = stdObj?.gender || detectArabicGender(g.student_name);
+                  const stdStudyType = stdObj?.study_type || 'morning';
 
-                const isSelected = selectedGradeStudentIds.includes(g.student_id);
+                  const isSelected = selectedGradeStudentIds.includes(g.student_id);
 
-                return (
-                  <tr key={g.id} className={`hover:bg-slate-50 transition ${isSelected ? 'bg-blue-50/80 ring-1 ring-blue-300' : ''}`}>
-                    <td className="p-4 text-center font-black text-black whitespace-nowrap border-x border-slate-300">
+                  return (
+                    <tr key={g.id} className={`hover:bg-slate-50 transition ${isSelected ? 'bg-blue-50/80 ring-1 ring-blue-300' : ''}`}>
+                      <td className="p-4 text-center font-black text-black whitespace-nowrap border-x border-slate-300">
                       <div className="flex items-center justify-center gap-1.5">
                         <button
                           type="button"
@@ -699,206 +667,218 @@ export default function CourseGradesTab({
                       </div>
                     </td>
 
-                    {/* 1. كويز 1 */}
-                    <td className="p-2 border-x border-slate-300">
-                      <div className="flex flex-col items-center justify-center">
-                        <input
-                          type="number"
-                          step="0.5"
-                          min="0"
-                          max={gradeLimits.quiz1 || 5}
-                          disabled={!isTheoryTeacher}
-                          value={g.quiz1}
-                          onChange={(e) => handleCellChange(g.id, 'quiz1', e.target.value)}
-                          title={!isTheoryTeacher ? '🔒 مخصص لأستاذ النظري فقط' : `الحد الأقصى: ${gradeLimits.quiz1 || 5}`}
-                          className={`w-18 p-2.5 rounded-xl text-center font-black text-base focus:outline-none transition ${
-                            !isTheoryTeacher
-                              ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
-                              : pendingDiffs[`${g.id}-quiz1`]
-                              ? 'bg-blue-50/80 border-2 border-blue-600 text-blue-950 ring-2 ring-blue-200'
-                              : 'bg-slate-50 border-2 border-slate-300 text-black focus:border-[#0F2942]'
-                          }`}
-                        />
-                        {pendingDiffs[`${g.id}-quiz1`] && (
-                          <div 
-                            className="text-[11px] font-black flex items-center justify-center gap-1 bg-blue-100 text-blue-950 px-1.5 py-0.5 rounded-md border border-blue-300 mt-1 shadow-2xs animate-in fade-in"
-                            title={`الدرجة السابقة: ${pendingDiffs[`${g.id}-quiz1`].oldValue} ➔ المقترحة: ${pendingDiffs[`${g.id}-quiz1`].newValue}`}
-                          >
-                            <span className="line-through text-slate-500">{pendingDiffs[`${g.id}-quiz1`].oldValue}</span>
-                            <span className="text-blue-900 font-bold">➔</span>
-                            <span className="text-emerald-800 font-bold">{pendingDiffs[`${g.id}-quiz1`].newValue}</span>
-                          </div>
-                        )}
-                      </div>
-                    </td>
+                    {/* 1. كويز 1 - يظهر فقط إذا كان البند مفتوحاً */}
+                    {isAssessmentItemActive(assessmentScheme.quiz1) && (
+                      <td className="p-2 border-x border-slate-300">
+                        <div className="flex flex-col items-center justify-center">
+                          <input
+                            type="number"
+                            step="0.5"
+                            min="0"
+                            max={gradeLimits.quiz1 || 5}
+                            disabled={!isTheoryTeacher}
+                            value={g.quiz1}
+                            onChange={(e) => handleCellChange(g.id, 'quiz1', e.target.value)}
+                            title={!isTheoryTeacher ? '🔒 مخصص لأستاذ النظري فقط' : `الحد الأقصى: ${gradeLimits.quiz1 || 5}`}
+                            className={`w-18 p-2.5 rounded-xl text-center font-black text-base focus:outline-none transition ${
+                              !isTheoryTeacher
+                                ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
+                                : pendingDiffs[`${g.id}-quiz1`]
+                                ? 'bg-blue-50/80 border-2 border-blue-600 text-blue-950 ring-2 ring-blue-200'
+                                : 'bg-slate-50 border-2 border-slate-300 text-black focus:border-[#0F2942]'
+                            }`}
+                          />
+                          {pendingDiffs[`${g.id}-quiz1`] && (
+                            <div 
+                              className="text-[11px] font-black flex items-center justify-center gap-1 bg-blue-100 text-blue-950 px-1.5 py-0.5 rounded-md border border-blue-300 mt-1 shadow-2xs animate-in fade-in"
+                              title={`الدرجة السابقة: ${pendingDiffs[`${g.id}-quiz1`].oldValue} ➔ المقترحة: ${pendingDiffs[`${g.id}-quiz1`].newValue}`}
+                            >
+                              <span className="line-through text-slate-500">{pendingDiffs[`${g.id}-quiz1`].oldValue}</span>
+                              <span className="text-blue-900 font-bold">➔</span>
+                              <span className="text-emerald-800 font-bold">{pendingDiffs[`${g.id}-quiz1`].newValue}</span>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    )}
 
-                    {/* 2. كويز 2 */}
-                    <td className="p-2 border-x border-slate-300">
-                      <div className="flex flex-col items-center justify-center">
-                        <input
-                          type="number"
-                          step="0.5"
-                          min="0"
-                          max={gradeLimits.quiz2 || 5}
-                          disabled={!isTheoryTeacher}
-                          value={g.quiz2}
-                          onChange={(e) => handleCellChange(g.id, 'quiz2', e.target.value)}
-                          title={!isTheoryTeacher ? '🔒 مخصص لأستاذ النظري فقط' : `الحد الأقصى: ${gradeLimits.quiz2 || 5}`}
-                          className={`w-18 p-2.5 rounded-xl text-center font-black text-base focus:outline-none transition ${
-                            !isTheoryTeacher
-                              ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
-                              : pendingDiffs[`${g.id}-quiz2`]
-                              ? 'bg-blue-50/80 border-2 border-blue-600 text-blue-950 ring-2 ring-blue-200'
-                              : 'bg-slate-50 border-2 border-slate-300 text-black focus:border-[#0F2942]'
-                          }`}
-                        />
-                        {pendingDiffs[`${g.id}-quiz2`] && (
-                          <div 
-                            className="text-[11px] font-black flex items-center justify-center gap-1 bg-blue-100 text-blue-950 px-1.5 py-0.5 rounded-md border border-blue-300 mt-1 shadow-2xs animate-in fade-in"
-                            title={`الدرجة السابقة: ${pendingDiffs[`${g.id}-quiz2`].oldValue} ➔ المقترحة: ${pendingDiffs[`${g.id}-quiz2`].newValue}`}
-                          >
-                            <span className="line-through text-slate-500">{pendingDiffs[`${g.id}-quiz2`].oldValue}</span>
-                            <span className="text-blue-900 font-bold">➔</span>
-                            <span className="text-emerald-800 font-bold">{pendingDiffs[`${g.id}-quiz2`].newValue}</span>
-                          </div>
-                        )}
-                      </div>
-                    </td>
+                    {/* 2. كويز 2 - يظهر فقط إذا كان البند مفتوحاً */}
+                    {isAssessmentItemActive(assessmentScheme.quiz2) && (
+                      <td className="p-2 border-x border-slate-300">
+                        <div className="flex flex-col items-center justify-center">
+                          <input
+                            type="number"
+                            step="0.5"
+                            min="0"
+                            max={gradeLimits.quiz2 || 5}
+                            disabled={!isTheoryTeacher}
+                            value={g.quiz2}
+                            onChange={(e) => handleCellChange(g.id, 'quiz2', e.target.value)}
+                            title={!isTheoryTeacher ? '🔒 مخصص لأستاذ النظري فقط' : `الحد الأقصى: ${gradeLimits.quiz2 || 5}`}
+                            className={`w-18 p-2.5 rounded-xl text-center font-black text-base focus:outline-none transition ${
+                              !isTheoryTeacher
+                                ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
+                                : pendingDiffs[`${g.id}-quiz2`]
+                                ? 'bg-blue-50/80 border-2 border-blue-600 text-blue-950 ring-2 ring-blue-200'
+                                : 'bg-slate-50 border-2 border-slate-300 text-black focus:border-[#0F2942]'
+                            }`}
+                          />
+                          {pendingDiffs[`${g.id}-quiz2`] && (
+                            <div 
+                              className="text-[11px] font-black flex items-center justify-center gap-1 bg-blue-100 text-blue-950 px-1.5 py-0.5 rounded-md border border-blue-300 mt-1 shadow-2xs animate-in fade-in"
+                              title={`الدرجة السابقة: ${pendingDiffs[`${g.id}-quiz2`].oldValue} ➔ المقترحة: ${pendingDiffs[`${g.id}-quiz2`].newValue}`}
+                            >
+                              <span className="line-through text-slate-500">{pendingDiffs[`${g.id}-quiz2`].oldValue}</span>
+                              <span className="text-blue-900 font-bold">➔</span>
+                              <span className="text-emerald-800 font-bold">{pendingDiffs[`${g.id}-quiz2`].newValue}</span>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    )}
 
-                    {/* 3. واجب 1 */}
-                    <td className="p-2 border-x border-slate-300">
-                      <div className="flex flex-col items-center justify-center">
-                        <input
-                          type="number"
-                          step="0.5"
-                          min="0"
-                          max={gradeLimits.assignment1 || 5}
-                          disabled={!isTheoryTeacher}
-                          value={g.assignment1}
-                          onChange={(e) => handleCellChange(g.id, 'assignment1', e.target.value)}
-                          title={!isTheoryTeacher ? '🔒 مخصص لأستاذ النظري فقط' : `الحد الأقصى: ${gradeLimits.assignment1 || 5}`}
-                          className={`w-18 p-2.5 rounded-xl text-center font-black text-base focus:outline-none transition ${
-                            !isTheoryTeacher
-                              ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
-                              : pendingDiffs[`${g.id}-assignment1`]
-                              ? 'bg-blue-50/80 border-2 border-blue-600 text-blue-950 ring-2 ring-blue-200'
-                              : 'bg-slate-50 border-2 border-slate-300 text-black focus:border-[#0F2942]'
-                          }`}
-                        />
-                        {pendingDiffs[`${g.id}-assignment1`] && (
-                          <div 
-                            className="text-[11px] font-black flex items-center justify-center gap-1 bg-blue-100 text-blue-950 px-1.5 py-0.5 rounded-md border border-blue-300 mt-1 shadow-2xs animate-in fade-in"
-                            title={`الدرجة السابقة: ${pendingDiffs[`${g.id}-assignment1`].oldValue} ➔ المقترحة: ${pendingDiffs[`${g.id}-assignment1`].newValue}`}
-                          >
-                            <span className="line-through text-slate-500">{pendingDiffs[`${g.id}-assignment1`].oldValue}</span>
-                            <span className="text-blue-900 font-bold">➔</span>
-                            <span className="text-emerald-800 font-bold">{pendingDiffs[`${g.id}-assignment1`].newValue}</span>
-                          </div>
-                        )}
-                      </div>
-                    </td>
+                    {/* 3. واجب 1 - يظهر فقط إذا كان البند مفتوحاً */}
+                    {isAssessmentItemActive(assessmentScheme.assignment1) && (
+                      <td className="p-2 border-x border-slate-300">
+                        <div className="flex flex-col items-center justify-center">
+                          <input
+                            type="number"
+                            step="0.5"
+                            min="0"
+                            max={gradeLimits.assignment1 || 5}
+                            disabled={!isTheoryTeacher}
+                            value={g.assignment1}
+                            onChange={(e) => handleCellChange(g.id, 'assignment1', e.target.value)}
+                            title={!isTheoryTeacher ? '🔒 مخصص لأستاذ النظري فقط' : `الحد الأقصى: ${gradeLimits.assignment1 || 5}`}
+                            className={`w-18 p-2.5 rounded-xl text-center font-black text-base focus:outline-none transition ${
+                              !isTheoryTeacher
+                                ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
+                                : pendingDiffs[`${g.id}-assignment1`]
+                                ? 'bg-blue-50/80 border-2 border-blue-600 text-blue-950 ring-2 ring-blue-200'
+                                : 'bg-slate-50 border-2 border-slate-300 text-black focus:border-[#0F2942]'
+                            }`}
+                          />
+                          {pendingDiffs[`${g.id}-assignment1`] && (
+                            <div 
+                              className="text-[11px] font-black flex items-center justify-center gap-1 bg-blue-100 text-blue-950 px-1.5 py-0.5 rounded-md border border-blue-300 mt-1 shadow-2xs animate-in fade-in"
+                              title={`الدرجة السابقة: ${pendingDiffs[`${g.id}-assignment1`].oldValue} ➔ المقترحة: ${pendingDiffs[`${g.id}-assignment1`].newValue}`}
+                            >
+                              <span className="line-through text-slate-500">{pendingDiffs[`${g.id}-assignment1`].oldValue}</span>
+                              <span className="text-blue-900 font-bold">➔</span>
+                              <span className="text-emerald-800 font-bold">{pendingDiffs[`${g.id}-assignment1`].newValue}</span>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    )}
 
-                    {/* 4. واجب 2 */}
-                    <td className="p-2 border-x border-slate-300">
-                      <div className="flex flex-col items-center justify-center">
-                        <input
-                          type="number"
-                          step="0.5"
-                          min="0"
-                          max={gradeLimits.assignment2 || 5}
-                          disabled={!isTheoryTeacher}
-                          value={g.assignment2}
-                          onChange={(e) => handleCellChange(g.id, 'assignment2', e.target.value)}
-                          title={!isTheoryTeacher ? '🔒 مخصص لأستاذ النظري فقط' : `الحد الأقصى: ${gradeLimits.assignment2 || 5}`}
-                          className={`w-18 p-2.5 rounded-xl text-center font-black text-base focus:outline-none transition ${
-                            !isTheoryTeacher
-                              ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
-                              : pendingDiffs[`${g.id}-assignment2`]
-                              ? 'bg-blue-50/80 border-2 border-blue-600 text-blue-950 ring-2 ring-blue-200'
-                              : 'bg-slate-50 border-2 border-slate-300 text-black focus:border-[#0F2942]'
-                          }`}
-                        />
-                        {pendingDiffs[`${g.id}-assignment2`] && (
-                          <div 
-                            className="text-[11px] font-black flex items-center justify-center gap-1 bg-blue-100 text-blue-950 px-1.5 py-0.5 rounded-md border border-blue-300 mt-1 shadow-2xs animate-in fade-in"
-                            title={`الدرجة السابقة: ${pendingDiffs[`${g.id}-assignment2`].oldValue} ➔ المقترحة: ${pendingDiffs[`${g.id}-assignment2`].newValue}`}
-                          >
-                            <span className="line-through text-slate-500">{pendingDiffs[`${g.id}-assignment2`].oldValue}</span>
-                            <span className="text-blue-900 font-bold">➔</span>
-                            <span className="text-emerald-800 font-bold">{pendingDiffs[`${g.id}-assignment2`].newValue}</span>
-                          </div>
-                        )}
-                      </div>
-                    </td>
+                    {/* 4. واجب 2 - يظهر فقط إذا كان البند مفتوحاً */}
+                    {isAssessmentItemActive(assessmentScheme.assignment2) && (
+                      <td className="p-2 border-x border-slate-300">
+                        <div className="flex flex-col items-center justify-center">
+                          <input
+                            type="number"
+                            step="0.5"
+                            min="0"
+                            max={gradeLimits.assignment2 || 5}
+                            disabled={!isTheoryTeacher}
+                            value={g.assignment2}
+                            onChange={(e) => handleCellChange(g.id, 'assignment2', e.target.value)}
+                            title={!isTheoryTeacher ? '🔒 مخصص لأستاذ النظري فقط' : `الحد الأقصى: ${gradeLimits.assignment2 || 5}`}
+                            className={`w-18 p-2.5 rounded-xl text-center font-black text-base focus:outline-none transition ${
+                              !isTheoryTeacher
+                                ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
+                                : pendingDiffs[`${g.id}-assignment2`]
+                                ? 'bg-blue-50/80 border-2 border-blue-600 text-blue-950 ring-2 ring-blue-200'
+                                : 'bg-slate-50 border-2 border-slate-300 text-black focus:border-[#0F2942]'
+                            }`}
+                          />
+                          {pendingDiffs[`${g.id}-assignment2`] && (
+                            <div 
+                              className="text-[11px] font-black flex items-center justify-center gap-1 bg-blue-100 text-blue-950 px-1.5 py-0.5 rounded-md border border-blue-300 mt-1 shadow-2xs animate-in fade-in"
+                              title={`الدرجة السابقة: ${pendingDiffs[`${g.id}-assignment2`].oldValue} ➔ المقترحة: ${pendingDiffs[`${g.id}-assignment2`].newValue}`}
+                            >
+                              <span className="line-through text-slate-500">{pendingDiffs[`${g.id}-assignment2`].oldValue}</span>
+                              <span className="text-blue-900 font-bold">➔</span>
+                              <span className="text-emerald-800 font-bold">{pendingDiffs[`${g.id}-assignment2`].newValue}</span>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    )}
 
-                    {/* 5. تقرير */}
-                    <td className="p-2 border-x border-slate-300">
-                      <div className="flex flex-col items-center justify-center">
-                        <input
-                          type="number"
-                          step="0.5"
-                          min="0"
-                          max={gradeLimits.report || 10}
-                          disabled={!isTheoryTeacher}
-                          value={g.report}
-                          onChange={(e) => handleCellChange(g.id, 'report', e.target.value)}
-                          title={!isTheoryTeacher ? '🔒 مخصص لأستاذ النظري فقط' : `الحد الأقصى: ${gradeLimits.report || 10}`}
-                          className={`w-18 p-2.5 rounded-xl text-center font-black text-base focus:outline-none transition ${
-                            !isTheoryTeacher
-                              ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
-                              : pendingDiffs[`${g.id}-report`]
-                              ? 'bg-blue-50/80 border-2 border-blue-600 text-blue-950 ring-2 ring-blue-200'
-                              : 'bg-slate-50 border-2 border-slate-300 text-black focus:border-[#0F2942]'
-                          }`}
-                        />
-                        {pendingDiffs[`${g.id}-report`] && (
-                          <div 
-                            className="text-[11px] font-black flex items-center justify-center gap-1 bg-blue-100 text-blue-950 px-1.5 py-0.5 rounded-md border border-blue-300 mt-1 shadow-2xs animate-in fade-in"
-                            title={`الدرجة السابقة: ${pendingDiffs[`${g.id}-report`].oldValue} ➔ المقترحة: ${pendingDiffs[`${g.id}-report`].newValue}`}
-                          >
-                            <span className="line-through text-slate-500">{pendingDiffs[`${g.id}-report`].oldValue}</span>
-                            <span className="text-blue-900 font-bold">➔</span>
-                            <span className="text-emerald-800 font-bold">{pendingDiffs[`${g.id}-report`].newValue}</span>
-                          </div>
-                        )}
-                      </div>
-                    </td>
+                    {/* 5. تقرير وبحث - يظهر فقط إذا كان البند مفتوحاً */}
+                    {isAssessmentItemActive(assessmentScheme.report) && (
+                      <td className="p-2 border-x border-slate-300">
+                        <div className="flex flex-col items-center justify-center">
+                          <input
+                            type="number"
+                            step="0.5"
+                            min="0"
+                            max={gradeLimits.report || 10}
+                            disabled={!isTheoryTeacher}
+                            value={g.report}
+                            onChange={(e) => handleCellChange(g.id, 'report', e.target.value)}
+                            title={!isTheoryTeacher ? '🔒 مخصص لأستاذ النظري فقط' : `الحد الأقصى: ${gradeLimits.report || 10}`}
+                            className={`w-18 p-2.5 rounded-xl text-center font-black text-base focus:outline-none transition ${
+                              !isTheoryTeacher
+                                ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
+                                : pendingDiffs[`${g.id}-report`]
+                                ? 'bg-blue-50/80 border-2 border-blue-600 text-blue-950 ring-2 ring-blue-200'
+                                : 'bg-slate-50 border-2 border-slate-300 text-black focus:border-[#0F2942]'
+                            }`}
+                          />
+                          {pendingDiffs[`${g.id}-report`] && (
+                            <div 
+                              className="text-[11px] font-black flex items-center justify-center gap-1 bg-blue-100 text-blue-950 px-1.5 py-0.5 rounded-md border border-blue-300 mt-1 shadow-2xs animate-in fade-in"
+                              title={`الدرجة السابقة: ${pendingDiffs[`${g.id}-report`].oldValue} ➔ المقترحة: ${pendingDiffs[`${g.id}-report`].newValue}`}
+                            >
+                              <span className="line-through text-slate-500">{pendingDiffs[`${g.id}-report`].oldValue}</span>
+                              <span className="text-blue-900 font-bold">➔</span>
+                              <span className="text-emerald-800 font-bold">{pendingDiffs[`${g.id}-report`].newValue}</span>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    )}
 
-                    {/* 6. امتحان نصفي */}
-                    <td className="p-2 border-x border-slate-300">
-                      <div className="flex flex-col items-center justify-center">
-                        <input
-                          type="number"
-                          step="0.5"
-                          min="0"
-                          max={gradeLimits.midterm || 10}
-                          disabled={!isTheoryTeacher}
-                          value={g.midterm}
-                          onChange={(e) => handleCellChange(g.id, 'midterm', e.target.value)}
-                          title={!isTheoryTeacher ? '🔒 مخصص لأستاذ النظري فقط' : `الحد الأقصى: ${gradeLimits.midterm || 10}`}
-                          className={`w-18 p-2.5 rounded-xl text-center font-black text-base focus:outline-none transition ${
-                            !isTheoryTeacher
-                              ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
-                              : pendingDiffs[`${g.id}-midterm`]
-                              ? 'bg-blue-50/80 border-2 border-blue-600 text-blue-950 ring-2 ring-blue-200'
-                              : 'bg-slate-50 border-2 border-slate-300 text-black focus:border-[#0F2942]'
-                          }`}
-                        />
-                        {pendingDiffs[`${g.id}-midterm`] && (
-                          <div 
-                            className="text-[11px] font-black flex items-center justify-center gap-1 bg-blue-100 text-blue-950 px-1.5 py-0.5 rounded-md border border-blue-300 mt-1 shadow-2xs animate-in fade-in"
-                            title={`الدرجة السابقة: ${pendingDiffs[`${g.id}-midterm`].oldValue} ➔ المقترحة: ${pendingDiffs[`${g.id}-midterm`].newValue}`}
-                          >
-                            <span className="line-through text-slate-500">{pendingDiffs[`${g.id}-midterm`].oldValue}</span>
-                            <span className="text-blue-900 font-bold">➔</span>
-                            <span className="text-emerald-800 font-bold">{pendingDiffs[`${g.id}-midterm`].newValue}</span>
-                          </div>
-                        )}
-                      </div>
-                    </td>
+                    {/* 6. امتحان نصفي - يظهر فقط إذا كان البند مفتوحاً */}
+                    {isAssessmentItemActive(assessmentScheme.midterm) && (
+                      <td className="p-2 border-x border-slate-300">
+                        <div className="flex flex-col items-center justify-center">
+                          <input
+                            type="number"
+                            step="0.5"
+                            min="0"
+                            max={gradeLimits.midterm || 10}
+                            disabled={!isTheoryTeacher}
+                            value={g.midterm}
+                            onChange={(e) => handleCellChange(g.id, 'midterm', e.target.value)}
+                            title={!isTheoryTeacher ? '🔒 مخصص لأستاذ النظري فقط' : `الحد الأقصى: ${gradeLimits.midterm || 10}`}
+                            className={`w-18 p-2.5 rounded-xl text-center font-black text-base focus:outline-none transition ${
+                              !isTheoryTeacher
+                                ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
+                                : pendingDiffs[`${g.id}-midterm`]
+                                ? 'bg-blue-50/80 border-2 border-blue-600 text-blue-950 ring-2 ring-blue-200'
+                                : 'bg-slate-50 border-2 border-slate-300 text-black focus:border-[#0F2942]'
+                            }`}
+                          />
+                          {pendingDiffs[`${g.id}-midterm`] && (
+                            <div 
+                              className="text-[11px] font-black flex items-center justify-center gap-1 bg-blue-100 text-blue-950 px-1.5 py-0.5 rounded-md border border-blue-300 mt-1 shadow-2xs animate-in fade-in"
+                              title={`الدرجة السابقة: ${pendingDiffs[`${g.id}-midterm`].oldValue} ➔ المقترحة: ${pendingDiffs[`${g.id}-midterm`].newValue}`}
+                            >
+                              <span className="line-through text-slate-500">{pendingDiffs[`${g.id}-midterm`].oldValue}</span>
+                              <span className="text-blue-900 font-bold">➔</span>
+                              <span className="text-emerald-800 font-bold">{pendingDiffs[`${g.id}-midterm`].newValue}</span>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    )}
 
-                    {/* 7. امتحان عملي (إن وجد) */}
-                    {isPracticalCourse && (
+                    {/* 7. امتحان عملي - يظهر فقط إذا كان البند مفتوحاً والمادة تحتوي عملي */}
+                    {isPracticalCourse && isAssessmentItemActive(assessmentScheme.practical) && (
                       <td className="p-2 bg-emerald-50/50 border-x-2 border-emerald-300">
                         <div className="flex flex-col items-center justify-center">
                           <input

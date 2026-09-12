@@ -31,10 +31,11 @@ import {
   Info, // ℹ️ أيقونة التعليمات
   X, // ❌ أيقونة الإغلاق
 } from 'lucide-react'; // 🎨 استيراد أيقونات لوسيد
-import type { UserProfile, Course, CourseType } from '@/types'; // 🏷️ استيراد الأنواع
+import type { UserProfile, Course, CourseType, AssessmentScheme } from '@/types'; // 🏷️ استيراد الأنواع الصارمة
 import AdminPagination from '@/components/AdminPagination'; // 📄 مكون الترقيم الموحد
 import CourseModal from '../modals/CourseModal'; // 🪟 مودال إضافة وتعديل المادة
 import QuickAssignModal, { QuickAssignState } from '../modals/QuickAssignModal'; // ⚡ مودال التكليف السريع للأستاذ
+import AssessmentSchemeModal from '../modals/AssessmentSchemeModal'; // 🎛️ مودال تخصيص درجات بولونيا الـ 7
 
 // 📋 واجهة خصائص تبويب إدارة المواد والمقررات الدراسية
 export interface DepartmentCoursesTabProps {
@@ -120,7 +121,16 @@ export interface DepartmentCoursesTabProps {
   isImportingCourseExcel: boolean; // ⏳ حالة استيراد إكسل
   handleCourseExcelUpload: (e: React.ChangeEvent<HTMLInputElement>) => void; // 📤 رفع ملف إكسل
   handleDownloadCourseTemplate: () => void; // 📥 تنزيل قالب إكسل
-  handleOpenAssessmentModal: (course: Course) => void; // 🎛️ فتح أوزان بولونيا للمادة
+  handleOpenAssessmentModal: (course: Course) => void; // 🎛️ فتح أوزان بولونيا للمادة الفردية
+  handleOpenBatchAssessmentModal: () => void; // 🎛️ فتح أوزان بولونيا وتعميمها على المواد المحددة جماعياً
+  isAssessmentModalOpen: boolean; // 📂 حالة فتح نافذة أوزان بولونيا
+  setIsAssessmentModalOpen: React.Dispatch<React.SetStateAction<boolean>>; // 🔄 تبديل حالة نافذة الأوزان
+  selectedCourseForAssessment: Course | null; // 📖 المادة المرجعية لتوزيع الدرجات
+  targetCoursesForAssessment: Course[]; // 📚 قائمة المواد المستهدفة بالتوزيع (فردي أو جماعي)
+  tempAssessmentScheme: AssessmentScheme | null; // 🎛️ المخطط التقييمي المؤقت الجاري تعديله
+  setTempAssessmentScheme: React.Dispatch<React.SetStateAction<AssessmentScheme | null>>; // 🔄 تحديث المخطط المؤقت
+  handleSaveAssessmentSchemeModal: () => void; // 💾 حفظ واعتماد مخطط بولونيا سحابياً ومحلياً
+  getDefaultAssessmentScheme: (type: 'theory_and_practical' | 'theory_only') => AssessmentScheme; // ⚙️ دالة توليد القالب الافتراضي
   handleBulkToggleFinalExam: (enable: boolean) => void; // 🎯 تبديل جماعي للفاينل
   handleBulkToggleSupplementaryExam: (enable: boolean) => void; // 🔄 تبديل جماعي للدور الثاني
   filteredCourses: Course[]; // 📋 المواد المفلترة
@@ -219,7 +229,16 @@ export const DepartmentCoursesTab: React.FC<DepartmentCoursesTabProps> = ({
   isImportingCourseExcel, // ⏳ حالة الاستيراد
   handleCourseExcelUpload, // 📤 رفع إكسل
   handleDownloadCourseTemplate, // 📥 تنزيل القالب
-  handleOpenAssessmentModal, // 🎛️ فتح أوزان بولونيا
+  handleOpenAssessmentModal, // 🎛️ فتح أوزان بولونيا للمادة الفردية
+  handleOpenBatchAssessmentModal, // 🎛️ فتح وتعميم أوزان بولونيا للمواد المحددة جماعياً
+  isAssessmentModalOpen, // 📂 حالة فتح نافذة الأوزان
+  setIsAssessmentModalOpen, // 🔄 تبديل حالة النافذة
+  selectedCourseForAssessment, // 📖 المادة المرجعية للتوزيع
+  targetCoursesForAssessment, // 📚 قائمة المواد المستهدفة بالتوزيع
+  tempAssessmentScheme, // 🎛️ المخطط المؤقت
+  setTempAssessmentScheme, // 🔄 تحديث المخطط المؤقت
+  handleSaveAssessmentSchemeModal, // 💾 حفظ واعتماد مخطط الدرجات
+  getDefaultAssessmentScheme, // ⚙️ توليد القالب الافتراضي
   handleBulkToggleFinalExam, // 🎯 تبديل جماعي للفاينل
   handleBulkToggleSupplementaryExam, // 🔄 تبديل جماعي للدور الثاني
   filteredCourses, // 📋 المواد المفلترة
@@ -355,6 +374,21 @@ export const DepartmentCoursesTab: React.FC<DepartmentCoursesTabProps> = ({
                 <FileSpreadsheet className="w-5 h-5 text-emerald-300" />
                 <span>{isExportingCoursesExcel ? 'جاري التصدير...' : selectedCourseIds.length > 0 ? `تصدير المحدد (${selectedCourseIds.length}) Excel` : 'تصدير المواد (Excel)'}</span>
               </button>
+
+              {/* 🎛️ زر عام لتخصيص وتعميم درجات بولونيا على المواد المحددة من الجدول */}
+              <button
+                type="button" // 🔘 نوع الزر
+                onClick={handleOpenBatchAssessmentModal} // ⚡ تشغيل نافذة التخصيص الجماعي للمواد المحددة
+                className="px-5 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] text-white rounded-2xl font-black text-base flex items-center gap-2 shadow-sm transition-all active:scale-95 cursor-pointer border border-[#0F2942] shrink-0 whitespace-nowrap" // 🎨 تصميم كحلي ملكي فاخر
+                title="تخصيص توزيع درجات مسار بولونيا الـ 7 للمواد المحددة وتعميمها دفعة واحدة" // 💡 نص التلميح
+              >
+                <Sliders className="w-5 h-5 text-cyan-300" /> {/* 🎛️ أيقونة أشرطة التوزيع بلون سماوي ناصع */}
+                <span>
+                  {selectedCourseIds.length > 0
+                    ? `تخصيص درجات بولونيا (${selectedCourseIds.length})`
+                    : 'تخصيص درجات بولونيا (للمحدد)'}
+                </span> {/* 📝 نص الزر الذكي */}
+              </button>
             </div>
           </div>
 
@@ -421,6 +455,20 @@ export const DepartmentCoursesTab: React.FC<DepartmentCoursesTabProps> = ({
             deptName={deptName}
             handleSaveQuickAssign={handleSaveQuickAssign}
             deptTeachers={deptTeachers}
+          />
+
+          {/* 🎛️ نافذة تخصيص وتعميم درجات مسار بولونيا الـ 7 للمقررات الدراسية (فردي أو جماعي) */}
+          <AssessmentSchemeModal
+            isOpen={isAssessmentModalOpen} // 📂 حالة فتح النافذة
+            onClose={() => setIsAssessmentModalOpen(false)} // 🛑 إغلاق النافذة
+            course={selectedCourseForAssessment} // 📖 المقرر الدراسي المرجعي
+            targetCourses={targetCoursesForAssessment} // 📚 قائمة المواد المستهدفة بالتوزيع
+            tempAssessmentScheme={tempAssessmentScheme} // 🎛️ المخطط المؤقت
+            setTempAssessmentScheme={setTempAssessmentScheme} // 🔄 دالة تحديث المخطط
+            deptName={deptName} // 🏛️ اسم القسم العلمي
+            onSave={handleSaveAssessmentSchemeModal} // 💾 حفظ المخطط سحابياً ومحلياً
+            getStageNameInArabic={getStageNameInArabic} // 🏷️ اسم المرحلة بالعربي
+            getDefaultAssessmentScheme={getDefaultAssessmentScheme} // ⚙️ توليد القالب الافتراضي
           />
 
           {/* 🔐 نافذة تأكيد تغيير حالة الامتحان (فتح أو إغلاق الدور الأول أو الدور الثاني) */}

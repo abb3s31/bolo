@@ -232,7 +232,7 @@ async function runCleanArchitectureTests(): Promise<void> {
       studentName: 'حيدر مهدي',
       courseId: 'c1',
       courseName: 'البرمجة بلغة C++',
-      academicYear: '2025-2026',
+      academicYear: '2026-2027',
       midtermScore: GradeScore.create(28),
       courseworkScore: GradeScore.create(18),
       finalExamScore: GradeScore.create(44), // Total: 90 (امتياز)
@@ -244,7 +244,7 @@ async function runCleanArchitectureTests(): Promise<void> {
       studentName: 'حيدر مهدي',
       courseId: 'c2',
       courseName: 'الدوائر الرقمية',
-      academicYear: '2025-2026',
+      academicYear: '2026-2027',
       midtermScore: GradeScore.create(25),
       courseworkScore: GradeScore.create(15),
       finalExamScore: GradeScore.create(40), // Total: 80 (جيد جداً)
@@ -382,7 +382,7 @@ async function runCleanArchitectureTests(): Promise<void> {
       studentName: 'حيدر',
       courseId: 'c-lock',
       courseName: 'الذكاء الاصطناعي',
-      academicYear: '2025-2026',
+      academicYear: '2026-2027',
       midtermScore: GradeScore.create(30),
       finalExamScore: GradeScore.create(50),
     });
@@ -405,7 +405,7 @@ async function runCleanArchitectureTests(): Promise<void> {
     const lockResult = await lockUseCase.execute({
       courseId: 'c-lock',
       courseName: 'الذكاء الاصطناعي',
-      academicYear: '2025-2026',
+      academicYear: '2026-2027',
       lockedByUserId: 'head-1',
       lockedByUserName: 'رئيس القسم',
       lockedByUserRole: 'department_head',
@@ -483,7 +483,7 @@ async function runCleanArchitectureTests(): Promise<void> {
     const tuitionResult = await tuitionUseCase.execute({
       studentId: 'std-tui-1',
       studentName: 'حسين علي',
-      academicYear: '2025-2026',
+      academicYear: '2026-2027',
       totalAnnualTuition: 1500000,
       paymentAmount: 500000,
       receiptNumber: 'RCP-2025-001',
@@ -546,7 +546,7 @@ async function runCleanArchitectureTests(): Promise<void> {
       studentName: 'مصطفى كامل',
       courseId: 'c-grad',
       courseName: 'مشروع التخرج',
-      academicYear: '2025-2026',
+      academicYear: '2026-2027',
       midtermScore: GradeScore.create(35),
       finalExamScore: GradeScore.create(55),
     });
@@ -601,7 +601,7 @@ async function runCleanArchitectureTests(): Promise<void> {
       studentName: 'كرار',
       courseId: 'c-dec',
       courseName: 'معمارية الحاسوب',
-      academicYear: '2025-2026',
+      academicYear: '2026-2027',
       midtermScore: GradeScore.create(20),
       finalExamScore: GradeScore.create(27), // Total: 47
     });
@@ -627,7 +627,7 @@ async function runCleanArchitectureTests(): Promise<void> {
       studentName: 'كرار',
       courseId: 'c-dec-2',
       courseName: 'معمارية الحاسوب',
-      academicYear: '2025-2026',
+      academicYear: '2026-2027',
       midtermScore: GradeScore.create(20),
       finalExamScore: GradeScore.create(27), // Total: 47
     });
@@ -652,7 +652,7 @@ async function runCleanArchitectureTests(): Promise<void> {
       studentName: 'كرار',
       courseId: 'c-dec-2',
       courseName: 'معمارية الحاسوب',
-      academicYear: '2025-2026',
+      academicYear: '2026-2027',
       marksToGrant: 3,
       committeeHeadName: 'أ.د. رئيس اللجنة',
     });
@@ -745,7 +745,7 @@ async function runCleanArchitectureTests(): Promise<void> {
       studentName: 'علي عبد الحسين',
       courseId: 'c1',
       courseName: 'البرمجة المتقدمة',
-      academicYear: '2025-2026',
+      academicYear: '2026-2027',
       midtermScore: GradeScore.create(30),
       finalExamScore: GradeScore.create(60), // Total: 90 (امتياز)
     });
@@ -1077,7 +1077,7 @@ async function runCleanArchitectureTests(): Promise<void> {
       studentName: 'محمد علي',
       courseId: 'c-apl-1',
       courseName: 'البرمجة الشيئية',
-      academicYear: '2025-2026',
+      academicYear: '2026-2027',
       midtermScore: GradeScore.create(20),
       finalExamScore: GradeScore.create(25), // Total: 45
     });
@@ -1102,7 +1102,7 @@ async function runCleanArchitectureTests(): Promise<void> {
       studentName: 'محمد علي',
       courseId: 'c-apl-1',
       courseName: 'البرمجة الشيئية',
-      academicYear: '2025-2026',
+      academicYear: '2026-2027',
       reason: 'يوجد خطأ في جمع درجات السؤال الرابع في الدفتر الامتحاني.',
     });
 
@@ -1153,7 +1153,7 @@ async function runCleanArchitectureTests(): Promise<void> {
       studentName: 'سارة خالد',
       courseId: 'c-oop',
       courseName: 'البرمجة الشيئية',
-      academicYear: '2025-2026',
+      academicYear: '2026-2027',
       midtermScore: GradeScore.create(30),
       finalExamScore: GradeScore.create(45), // Total: 75 (ناجح)
     });
@@ -1278,7 +1278,7 @@ async function runCleanArchitectureTests(): Promise<void> {
       studentName: 'يوسف رائد',
       courseId: 'c1',
       courseName: 'الرياضيات المتقدمة',
-      academicYear: '2025-2026',
+      academicYear: '2026-2027',
       midtermScore: GradeScore.create(15),
       finalExamScore: GradeScore.create(25), // Total: 40 (راسب)
     });
@@ -1289,7 +1289,7 @@ async function runCleanArchitectureTests(): Promise<void> {
       studentName: 'يوسف رائد',
       courseId: 'c2',
       courseName: 'معمارية الحاسوب',
-      academicYear: '2025-2026',
+      academicYear: '2026-2027',
       midtermScore: GradeScore.create(18),
       finalExamScore: GradeScore.create(24), // Total: 42 (راسب)
     });
@@ -1326,7 +1326,7 @@ async function runCleanArchitectureTests(): Promise<void> {
 
     const probationResult = await probationUseCase.execute({
       studentId: 'std-prob-1',
-      academicYear: '2025-2026',
+      academicYear: '2026-2027',
       evaluatedByUserId: 'adv-1',
       evaluatedByUserName: 'المرشد الأكاديمي',
     });
@@ -1404,7 +1404,7 @@ async function runCleanArchitectureTests(): Promise<void> {
       studentName: 'مريم علي',
       courseId: 'c-all',
       courseName: 'مشروع التخرج',
-      academicYear: '2025-2026',
+      academicYear: '2026-2027',
       midtermScore: GradeScore.create(35),
       finalExamScore: GradeScore.create(60),
     });
@@ -1415,7 +1415,7 @@ async function runCleanArchitectureTests(): Promise<void> {
       studentName: 'سامر أحمد',
       courseId: 'c-all',
       courseName: 'مشروع التخرج',
-      academicYear: '2025-2026',
+      academicYear: '2026-2027',
       midtermScore: GradeScore.create(30),
       finalExamScore: GradeScore.create(55),
     });
@@ -1467,7 +1467,7 @@ async function runCleanArchitectureTests(): Promise<void> {
 
     const topResult = await topUseCase.execute({
       departmentId: 'dept-1',
-      graduationYear: '2025-2026',
+      graduationYear: '2026-2027',
       topLimit: 2,
       calculatedByUserId: 'usr-admin',
       calculatedByUserName: 'أدمن',
@@ -1622,7 +1622,7 @@ async function runCleanArchitectureTests(): Promise<void> {
       studentIds: ['std-prj-1'],
       supervisorTeacherId: 'tch-1',
       supervisorTeacherName: 'د. صادق الموسوي',
-      academicYear: '2025-2026',
+      academicYear: '2026-2027',
       supervisorScore: 38,
       defenseScore: 54,
       committeeMembers: ['أ.د. حيدر جاسم', 'د. زينب فاضل'],
@@ -1745,7 +1745,7 @@ async function runCleanArchitectureTests(): Promise<void> {
     const approveDeferralRes = await deferralUseCase.execute({
       studentId: 'std-def-1',
       deferralType: 'year_deferral',
-      academicYear: '2025-2026',
+      academicYear: '2026-2027',
       reason: 'ظرف صحي مثبت بالتقرير الطبي من اللجنة الطبية المتخصصة.',
       actionType: 'approve_decision',
       boardDecisionNumber: 'BOARD-2026-DEC-45',

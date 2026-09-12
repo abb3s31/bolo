@@ -37,6 +37,7 @@ import {
   saveStoredData, // 💾 حفظ البيانات بالتخزين المحلي
   INITIAL_SCHEDULE_CONFIGS, // ⚙️ الإعدادات الافتراضية للجدول
   INITIAL_SCHEDULE_LECTURES, // 📋 المحاضرات الافتراضية للجدول
+  getAcademicYear, // 📅 جلب العام الدراسي المعتمد حالياً
 } from '@/lib/mock-data'; // 📦 مخازن البيانات والدوال المساعدة
 import {
   saveScheduleConfigToSupabase, // ☁️ حفظ ومزامنة إعدادات الجدول في Supabase
@@ -181,7 +182,8 @@ export const useDepartmentSchedule = ({
       selectedScheduleStage, // 🎓 المرحلة
       selectedScheduleSemester, // 🗓️ الكورس
       selectedScheduleStudyType, // ☀️ نوع الدراسة
-      selectedScheduleGroup !== 'all' ? selectedScheduleGroup : undefined // 👥 الكروب المستقل
+      selectedScheduleGroup !== 'all' ? selectedScheduleGroup : undefined, // 👥 الكروب المستقل
+      getAcademicYear() // 🎓 العام الدراسي المعتمد للبحث الدقيق
     );
   }, [scheduleConfigs, currentDeptId, selectedScheduleStage, selectedScheduleSemester, selectedScheduleStudyType, selectedScheduleGroup]);
 
@@ -337,6 +339,7 @@ export const useDepartmentSchedule = ({
           department_id: currentDeptId, // 🏢 معرف القسم
           stage_number: selectedScheduleStage, // 🎓 المرحلة
           semester: selectedScheduleSemester, // 🗓️ الكورس
+          academic_year: getAcademicYear(), // 📅 العام الدراسي المعتمد
           study_type: selectedScheduleStudyType, // ☀️ نوع الدراسة (صباحي / مسائي)
           target_group: targetGroupVal, // 👥 حفظ الكروب المستهدف لعزله عن باقي الكروبات
           working_days: newWorkingDays, // 💼 أيام الدوام المحدثة
@@ -452,6 +455,7 @@ export const useDepartmentSchedule = ({
           const cfgToUpdate: DepartmentScheduleConfig = {
             ...updatedConfigsList[existingIdx]!,
             start_date: newStartDate,
+            academic_year: getAcademicYear(),
             updated_at: new Date().toISOString(),
           };
           updatedConfigsList[existingIdx] = cfgToUpdate;
@@ -462,6 +466,7 @@ export const useDepartmentSchedule = ({
             department_id: currentDeptId,
             stage_number: stg,
             semester: sem,
+            academic_year: getAcademicYear(),
             start_date: newStartDate,
             working_days: [...DEFAULT_WORKING_DAYS],
             off_days: [...DEFAULT_OFF_DAYS],
@@ -1040,7 +1045,7 @@ export const useDepartmentSchedule = ({
         department_id: currentDeptId || 'dept-1',
         stage_number: selectedScheduleStage,
         semester: selectedScheduleSemester,
-        academic_year_id: 'year-2026',
+        academic_year_id: getAcademicYear(),
         course_id: course.id,
         course_name: course.name,
         course_code: course.code,

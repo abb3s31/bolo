@@ -256,17 +256,34 @@ export function getTodayDayOfWeek(): DayOfWeek {
   }
 }
 
-// ⏰ فحص حالة المحاضرة الزمنية الآن
+// 📅 الحصول على تاريخ اليوم الفعلي بصيغة YYYY-MM-DD وفق التوقيت المحلي
+export function getTodayDateString(): string {
+  const now = new Date(); // 🕒 كائن الوقت الحالي
+  const year = now.getFullYear(); // 🗓️ السنة
+  const month = String(now.getMonth() + 1).padStart(2, '0'); // 📅 الشهر بصيغة من خانتين
+  const day = String(now.getDate()).padStart(2, '0'); // 🔢 اليوم بصيغة من خانتين
+  return `${year}-${month}-${day}`; // 📆 التاريخ الموحد
+}
+
+// ⏰ فحص حالة المحاضرة الزمنية الآن بدقة مع فحص التاريخ الفعلي إن وُجد
 export function getLectureLiveStatus(
   lecture: ScheduleLecture,
   currentMinutes: number,
   selectedDay: DayOfWeek,
-  todayDay: DayOfWeek
+  todayDay: DayOfWeek,
+  lectureDate?: string, // 📅 التاريخ التقويمي الدقيق للمحاضرة
+  todayDateStr?: string // 📅 تاريخ اليوم الفعلي المقارن
 ): 'live' | 'upcoming' | 'finished' | 'other_day' {
-  if (selectedDay !== todayDay) return 'other_day';
+  // 🛡️ إذا توفر تاريخ المحاضرة، نتحقق من تطابق التاريخ الفعلي بالكامل
+  if (lectureDate) {
+    const today = todayDateStr || getTodayDateString(); // 📅 استخراج تاريخ اليوم
+    if (lectureDate !== today) return 'other_day'; // 🚫 إذا مو نفس تاريخ اليوم، نرجع أنه يوم آخر وليس اليوم المباشر
+  } else if (selectedDay !== todayDay) {
+    return 'other_day'; // 🛡️ إذا لم يتوفر التاريخ نعتمد على مقارنة اسم اليوم
+  }
 
-  const startMin = timeStringToMinutes(lecture.start_time);
-  const endMin = timeStringToMinutes(lecture.end_time);
+  const startMin = timeStringToMinutes(lecture.start_time); // 🕒 بداية المحاضرة بالدقائق
+  const endMin = timeStringToMinutes(lecture.end_time); // 🕒 نهاية المحاضرة بالدقائق
 
   if (currentMinutes >= startMin && currentMinutes < endMin) {
     return 'live'; // 🔴 المحاضرة جارية الآن
@@ -274,7 +291,7 @@ export function getLectureLiveStatus(
   if (currentMinutes < startMin) {
     return 'upcoming'; // ⏳ المحاضرة قادمة اليوم
   }
-  return 'finished'; // ✓ المحاضرة انتهت
+  return 'finished'; // ✓ المحاضرة انتهت اليوم
 }
 
 // 📊 حساب النسبة المئوية لتقدم وقت المحاضرة الحالية (من 0% إلى 100%)
@@ -310,12 +327,17 @@ export function getScheduleConfigOrDefault(
   stageNumber: number, // 🎓 رقم المرحلة الدراسية
   semester: 1 | 2, // 🗓️ الكورس الدراسي (1 أو 2)
   studyType?: 'morning' | 'evening', // ☀️ نوع الدراسة (صباحي أو مسائي)
-  targetGroup?: string // 👥 الكروب المستهدف المستقل (مثلاً A أو B أو C)
+  targetGroup?: string, // 👥 الكروب المستهدف المستقل (مثلاً A أو B أو C)
+  academicYear?: string // 🎓 العام الدراسي المعتمد (مثلاً 2026-2027)
 ): DepartmentScheduleConfig {
-  // 🔍 البحث عن تاريخ بداية الفصل المعتمد للقسم من أي إعداد مسجل لهذا القسم
-  const deptStartDate =
-    configs.find((c) => c.department_id === departmentId && c.start_date && c.start_date.trim() !== '')?.start_date || // 🎯 تاريخ القسم المباشر
-    configs.find((c) => c.start_date && c.start_date.trim() !== '')?.start_date; // 🌐 أو أي تاريخ بداية معتمد بالنظام
+  // 🔍 البحث عن تاريخ بداية الفصل المعتمد للمرحلة والكورس والعام الدراسي
+  const specificStartDate = getDepartmentEffectiveStartDate(
+    configs, // 📋 كافة الإعدادات
+    departmentId, // 🏢 معرف القسم
+    stageNumber, // 🎓 رقم المرحلة
+    semester, // 🗓️ رقم الكورس
+    academicYear // 🎓 العام الدراسي
+  );
 
   // 1️⃣ إذا كان هناك كروب محدد (مثل A أو B)، نبحث عن إعدادات هذا الكروب حصراً أولاً
   if (targetGroup && targetGroup !== 'all') {
@@ -325,12 +347,14 @@ export function getScheduleConfigOrDefault(
         c.stage_number === stageNumber && // 🎓 مطابقة المرحلة
         c.semester === semester && // 🗓️ مطابقة الكورس
         (!studyType || !c.study_type || c.study_type === studyType) && // ☀️ مطابقة نوع الدراسة
+        (!academicYear || !c.academic_year || c.academic_year === academicYear) && // 🎓 مطابقة العام الدراسي
         c.target_group === targetGroup // 👥 مطابقة الكروب المستقل حصراً
     );
     if (groupMatch) { // ✅ إذا وجدنا إعداد مخصص لهذا الكروب
       return {
         ...groupMatch, // 📦 استرجاع إعدادات الكروب
-        start_date: groupMatch.start_date || deptStartDate, // 📅 توريث تاريخ البداية إن لم يكن محدداً
+        start_date: groupMatch.start_date || specificStartDate, // 📅 توريث تاريخ البداية إن لم يكن محدداً
+        academic_year: groupMatch.academic_year || academicYear, // 🎓 تثبيت العام الدراسي
       };
     }
   }
@@ -342,13 +366,15 @@ export function getScheduleConfigOrDefault(
       c.stage_number === stageNumber && // 🎓 مطابقة المرحلة
       c.semester === semester && // 🗓️ مطابقة الكورس
       (!studyType || !c.study_type || c.study_type === studyType) && // ☀️ مطابقة نوع الدراسة
+      (!academicYear || !c.academic_year || c.academic_year === academicYear) && // 🎓 مطابقة العام الدراسي
       (!c.target_group || c.target_group === 'all') // 🌐 إعداد عام أو لكافة الكروبات
   );
 
   if (stageFound) { // ✅ إذا وجدنا إعداد المرحلة العام
     return {
       ...stageFound, // 📦 استرجاع إعدادات المرحلة
-      start_date: stageFound.start_date || deptStartDate, // 📅 توريث تاريخ البداية المعتمد
+      start_date: stageFound.start_date || specificStartDate, // 📅 توريث تاريخ البداية المعتمد
+      academic_year: stageFound.academic_year || academicYear, // 🎓 تثبيت العام الدراسي
       target_group: targetGroup && targetGroup !== 'all' ? targetGroup : stageFound.target_group, // 👥 تعيين الكروب إن وجد
     };
   }
@@ -365,7 +391,8 @@ export function getScheduleConfigOrDefault(
   if (fallbackStage) { // ✅ في حال وجود إعداد عام سابق
     return {
       ...fallbackStage, // 📦 استرجاع الإعداد
-      start_date: fallbackStage.start_date || deptStartDate, // 📅 توريث التاريخ
+      start_date: fallbackStage.start_date || specificStartDate, // 📅 توريث التاريخ
+      academic_year: fallbackStage.academic_year || academicYear, // 🎓 تثبيت العام الدراسي
       target_group: targetGroup && targetGroup !== 'all' ? targetGroup : fallbackStage.target_group, // 👥 ربط الكروب
     };
   }
@@ -373,33 +400,62 @@ export function getScheduleConfigOrDefault(
   // 4️⃣ القيمة الافتراضية الصافية في حال لم يتم ضبط أي إعداد بعد
   const groupSuffix = targetGroup && targetGroup !== 'all' ? `-${targetGroup}` : ''; // 🏷️ لاحقة الكروب للمعرف
   const studySuffix = studyType ? `-${studyType}` : ''; // 🏷️ لاحقة نوع الدراسة
+  const yearSuffix = academicYear ? `-${academicYear}` : ''; // 🏷️ لاحقة العام الدراسي
   return {
-    id: `cfg-${departmentId}-${stageNumber}-${semester}${studySuffix}${groupSuffix}`, // 🆔 معرف فريد ومستقل للإعداد
+    id: `cfg-${departmentId}-${stageNumber}-${semester}${studySuffix}${groupSuffix}${yearSuffix}`, // 🆔 معرف فريد ومستقل للإعداد
     department_id: departmentId, // 🏢 معرف القسم
     stage_number: stageNumber, // 🎓 رقم المرحلة
     semester: semester, // 🗓️ رقم الكورس
     study_type: studyType, // ☀️ نوع الدراسة
+    academic_year: academicYear, // 🎓 العام الدراسي المعتمد
     target_group: targetGroup && targetGroup !== 'all' ? targetGroup : undefined, // 👥 الكروب المستقل
-    start_date: deptStartDate, // 📅 توريث تاريخ بداية الفصل المعتمد للقسم تلقائياً
+    start_date: specificStartDate, // 📅 توريث تاريخ بداية الفصل المعتمد للمرحلة والكورس
     working_days: [...DEFAULT_WORKING_DAYS], // 💼 أيام الدوام الافتراضية
     off_days: [...DEFAULT_OFF_DAYS], // 🏖️ أيام العطل الافتراضية
   };
 }
 
-// 📅 دالة مساعدة مركزية لاستخراج تاريخ انطلاق الفصل الدراسي الفعلي للقسم ومسار بولونيا
+// 📅 دالة مساعدة مركزية لاستخراج تاريخ انطلاق الفصل الدراسي الفعلي للقسم ومسار بولونيا لكل مرحلة وكورس وعام دراسي
 export function getDepartmentEffectiveStartDate(
-  configs: DepartmentScheduleConfig[],
-  departmentId?: string
+  configs: DepartmentScheduleConfig[], // 📋 مصفوفة كافة الإعدادات
+  departmentId?: string, // 🏢 معرف القسم إن وجد
+  stageNumber?: number, // 🎓 رقم المرحلة الدراسية (1 إلى 4)
+  semester?: 1 | 2, // 🗓️ الكورس الدراسي (1 أو 2)
+  academicYear?: string // 🎓 العام الدراسي (مثلاً 2026-2027)
 ): string {
+  // 1️⃣ البحث الأكثر دقة: مطابقة المرحلة والكورس والعام الدراسي والقسم
+  if (stageNumber && semester) {
+    // 🔍 أ) بحث بمطابقة تامة تشمل العام الدراسي والقسم
+    const exactMatch = configs.find(
+      (c) =>
+        (!departmentId || c.department_id === departmentId || c.department_id === 'central') && // 🏢 مطابقة القسم أو الإعداد المركزي
+        c.stage_number === stageNumber && // 🎓 مطابقة المرحلة
+        c.semester === semester && // 🗓️ مطابقة الكورس
+        (!academicYear || !c.academic_year || c.academic_year === academicYear) && // 🎓 مطابقة العام الدراسي
+        Boolean(c.start_date && c.start_date.trim() !== '') // 📅 وجود تاريخ انطلاق غير فارغ
+    );
+    if (exactMatch?.start_date) return exactMatch.start_date; // ✅ إرجاع التاريخ المطابق
+
+    // 🔍 ب) مطابقة المرحلة والكورس لأي عام دراسي مسجل
+    const stageSemMatch = configs.find(
+      (c) =>
+        c.stage_number === stageNumber && // 🎓 مطابقة المرحلة
+        c.semester === semester && // 🗓️ مطابقة الكورس
+        Boolean(c.start_date && c.start_date.trim() !== '') // 📅 وجود تاريخ غير فارغ
+    );
+    if (stageSemMatch?.start_date) return stageSemMatch.start_date; // ✅ إرجاع التاريخ
+  }
+
+  // 2️⃣ البحث عن تاريخ مخصص للقسم إن وجد
   if (departmentId) {
-    // 🔍 البحث عن تاريخ مخصص للقسم أولاً
     const deptMatch = configs.find(
-      (c) => c.department_id === departmentId && c.start_date && c.start_date.trim() !== ''
+      (c) => c.department_id === departmentId && Boolean(c.start_date && c.start_date.trim() !== '')
     );
     if (deptMatch?.start_date) return deptMatch.start_date;
   }
-  // 🔍 إذا لم يتوفر، البحث في أي إعداد آخر مسجل
-  const anyMatch = configs.find((c) => c.start_date && c.start_date.trim() !== '');
+
+  // 3️⃣ البحث في أي إعداد آخر مسجل بالنظام
+  const anyMatch = configs.find((c) => Boolean(c.start_date && c.start_date.trim() !== ''));
   if (anyMatch?.start_date) return anyMatch.start_date;
 
   return '2026-09-20'; // 📅 تاريخ الانطلاق الافتراضي 2026-09-20

@@ -15,6 +15,7 @@ import {
   timeStringToMinutes,
   minutesToTimeString,
   getTodayDayOfWeek,
+  getTodayDateString, // 📅 استيراد دالة جلب تاريخ اليوم الفعلي
   getLectureLiveStatus,
   getLectureProgressPercentage,
   getScheduleConfigOrDefault,
@@ -209,6 +210,7 @@ export default function StudentScheduleTimeline({
   const [viewMode, setViewMode] = useState<'timeline' | 'weekly'>('timeline');
   const [currentTimeMinutes, setCurrentTimeMinutes] = useState<number>(0);
   const [currentRealDay, setCurrentRealDay] = useState<DayOfWeek>('saturday');
+  const [todayDateStr, setTodayDateStr] = useState<string>(() => getTodayDateString()); // 📅 تاريخ اليوم الفعلي المقارن YYYY-MM-DD
   const [currentClockString, setCurrentClockString] = useState<string>('');
   const [isMounted, setIsMounted] = useState<boolean>(false); // ⚡ حالة التأكد من تحميل المكون على متصفح العميل
   const [isPrintModalOpen, setIsPrintModalOpen] = useState<boolean>(initialOpenPrintModal); // 🖨️ حالة فتح وإغلاق نافذة المعاينة والطباعة الرسمية
@@ -374,6 +376,7 @@ export default function StudentScheduleTimeline({
       const minutes = now.getMinutes();
       setCurrentTimeMinutes(hours * 60 + minutes);
       setCurrentRealDay(getTodayDayOfWeek());
+      setTodayDateStr(getTodayDateString()); // 📅 تحديث تاريخ اليوم الفعلي المقارن
       setCurrentClockString(
         now.toLocaleTimeString('ar-IQ-u-nu-latn', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
       );
@@ -390,17 +393,18 @@ export default function StudentScheduleTimeline({
   // 👥 تحديد الكروب الفعلي النشط لاستخراج الإعدادات والمحاضرات
   const activeGrp = studentGroup || selectedGroup;
 
-  // ⚙️ استخراج إعدادات الدوام والعطل للمرحلة والكورس والكروب المختارين بدقة واستقلال
+  // ⚙️ استخراج إعدادات الدوام والعطل للمرحلة والكورس والكروب المختارين بدقة واستقلال مع العام الدراسي
   const activeConfig = useMemo(() => {
     return getScheduleConfigOrDefault(
-      configs, // 📋 الإعدادات
-      departmentId, // 🏢 معرف القسم
+      configs, // 📋 قائمة الإعدادات المحفوظة
+      departmentId, // 🏢 معرف القسم الأكاديمي
       selectedStage, // 🎓 المرحلة المحددة
-      selectedSemester, // 🗓️ الكورس
-      selectedStudyType, // ☀️ نوع الدراسة
-      activeGrp !== 'all' ? activeGrp : undefined // 👥 الكروب المستقل
+      selectedSemester, // 🗓️ الكورس الدراسي المختار
+      selectedStudyType, // ☀️ نوع الدراسة (صباحي أو مسائي)
+      activeGrp !== 'all' ? activeGrp : undefined, // 👥 الكروب المستقل المحدد
+      academicYear || getAcademicYear() // 🎓 العام الدراسي المعتمد مركزياً
     );
-  }, [configs, departmentId, selectedStage, selectedSemester, selectedStudyType, activeGrp]);
+  }, [configs, departmentId, selectedStage, selectedSemester, selectedStudyType, activeGrp, academicYear]);
 
   // 📆 استخراج تاريخ انطلاق الفصل الدراسي المعتمد للمرحلة والقسم والكروب (مسار بولونيا)
   const effectiveStartDate = useMemo(() => {
@@ -664,9 +668,17 @@ export default function StudentScheduleTimeline({
   const isSelectedDayOff = activeConfig.off_days.includes(selectedDay); // 🏖️ هل اليوم المختار من أيام العطلة الأسبوعية؟
   const isTodayOff = activeConfig.off_days.includes(currentRealDay); // 🏖️ هل اليوم الفعلي الحالي عطلة؟
 
-  // 🔴 استخراج المحاضرة الجارية حالياً إن وجدت بحساب الأوقات الأكاديمية الدقيقة
+  // 📅 التاريخ التقويمي المحسوب لليوم المختار في الأسبوع المختار
+  const selectedDayCalculatedDate = useMemo(() => {
+    return calculateDateForAnyDayInWeek(effectiveStartDate, 1, selectedAcademicWeek, selectedDay); // 🧮 حساب التاريخ الفعلي لليوم المختار
+  }, [effectiveStartDate, selectedAcademicWeek, selectedDay]);
+
+  // 🎯 هل اليوم والأسبوع المعروضان يطابقان تاريخ اليوم الفعلي في التقويم؟
+  const isSelectedDayActuallyToday = selectedDayCalculatedDate === todayDateStr; // 🌟 مطابقة تامة مع تاريخ اليوم الحقيقي
+
+  // 🔴 استخراج المحاضرة الجارية حالياً إن وجدت بحساب الأوقات الأكاديمية الدقيقة حصراً في اليوم الفعلي الحقيقي
   const liveLecture = useMemo(() => {
-    if (selectedDay !== currentRealDay || isTodayOff) return null; // 🛡️ إذا مو نفس اليوم أو عطلة ماكو محاضرة جارية
+    if (!isSelectedDayActuallyToday || isTodayOff) return null; // 🛡️ إذا لم يكن اليوم الفعلي أو عطلة ماكو محاضرة جارية
     return (
       dayLectures.find((l) => {
         const startMin = getAcademicSlotOrder(l.start_time); // 🕒 وقت بداية المحاضرة بالدقائق
@@ -674,13 +686,13 @@ export default function StudentScheduleTimeline({
         return currentTimeMinutes >= startMin && currentTimeMinutes < endMin; // 🎯 فحص الدخول في وقت المحاضرة
       }) || null
     );
-  }, [dayLectures, selectedDay, currentRealDay, isTodayOff, currentTimeMinutes]);
+  }, [dayLectures, isSelectedDayActuallyToday, isTodayOff, currentTimeMinutes]);
 
-  // ⏳ استخراج المحاضرة القادمة إن وجدت
+  // ⏳ استخراج المحاضرة القادمة إن وجدت حصراً في اليوم الفعلي الحقيقي
   const nextUpcomingLecture = useMemo(() => {
-    if (selectedDay !== currentRealDay || isTodayOff) return null; // 🛡️ التحقق من كونه اليوم الحالي وليس عطلة
+    if (!isSelectedDayActuallyToday || isTodayOff) return null; // 🛡️ التحقق من كونه اليوم الفعلي وليس عطلة
     return dayLectures.find((l) => getAcademicSlotOrder(l.start_time) > currentTimeMinutes) || null; // 🔍 جلب المحاضرة اللاحقة
-  }, [dayLectures, selectedDay, currentRealDay, isTodayOff, currentTimeMinutes]);
+  }, [dayLectures, isSelectedDayActuallyToday, isTodayOff, currentTimeMinutes]);
 
   // 📊 إحصائيات ونطاق دوام اليوم المختار (نظري، عملي، الوقت الكلي) ليوم السبت وكافة الأيام
   const dayStats = useMemo(() => {
@@ -1023,9 +1035,9 @@ export default function StudentScheduleTimeline({
                     <span>الأسبوع الحالي: {currentAcademicWeek}</span>
                   </span>
                 </div>
-                {/* 📅 تاريخ انطلاق الفصل بحجم أكبر قليلاً ولون أسود فاحم وواضح */}
+                {/* 📅 تاريخ انطلاق الدوام المعتمد للعام الدراسي والكورس بحجم واضح ولون أسود فاحم */}
                 <p className="text-xs sm:text-sm font-black text-slate-950 mt-1">
-                  تاريخ انطلاق الفصل: {formatDateArabicWithDay(effectiveStartDate)}
+                  تاريخ انطلاق الدوام ({selectedSemester === 2 ? 'الكورس الثاني' : 'الكورس الأول'}) ({formatAcademicYearDisplay(academicYear || getAcademicYear())}) (الأسبوع 1): {formatDateArabicWithDay(effectiveStartDate)}
                 </p>
               </div>
             </div>
@@ -1092,7 +1104,8 @@ export default function StudentScheduleTimeline({
           <div className="grid grid-cols-7 gap-1.5 sm:gap-3">
             {DAYS_OF_WEEK_LIST.map((d) => {
               const isSelected = selectedDay === d.key; // 🌟 هل هذا اليوم هو المختار حالياً للعرض
-              const isToday = currentRealDay === d.key; // 🕒 هل هذا اليوم هو اليوم الفعلي للتقويم
+              const dayCalcDate = calculateDateForAnyDayInWeek(effectiveStartDate, 1, selectedAcademicWeek, d.key); // 🗓️ تاريخ اليوم المحسوب
+              const isToday = dayCalcDate === todayDateStr; // 🕒 هل هذا اليوم هو اليوم الفعلي الحقيقي للتقويم
               const isOffDay = activeConfig.off_days.includes(d.key); // 🏖️ هل هذا اليوم عطلة رسمية
               const dayLecturesCount = stageLectures.filter((l) => { // 📊 حساب عدد محاضرات هذا اليوم بدقة للأسبوع المختار
                 if (!isLectureActiveInWeek(l, selectedAcademicWeek)) return false; // 🚫 إذا غير نشطة بهذا الأسبوع نستبعدها
@@ -1100,7 +1113,6 @@ export default function StudentScheduleTimeline({
                 const effectiveDay = override?.day || l.day; // 🗓️ اليوم المعتمد الفعلي
                 return effectiveDay === d.key; // 🎯 مطابقة هذا اليوم
               }).length; // 🔢 استخراج العدد الإجمالي الصحيح
-              const dayCalcDate = calculateDateForAnyDayInWeek(effectiveStartDate, 1, selectedAcademicWeek, d.key); // 🗓️ تاريخ اليوم المحسوب
               const p = dayCalcDate.split('-'); // ✂️ تفكيك التاريخ لاستخراج اليوم والشهر
               const formattedDayDate = p.length === 3
                 ? `${parseInt(p[2], 10)} ${IRAQI_ARABIC_MONTHS[parseInt(p[1], 10) - 1] || ''}`
@@ -1187,7 +1199,7 @@ export default function StudentScheduleTimeline({
     </div> {/* 📌 إغلاق الترويسة الأكاديمية الثابتة والمستقرة (Sticky Top Bar) */}
 
       {/* 🔴 3. بطاقة المحاضرة الجارية الآن ثابتة ومستقرة بدون انزلاق أو اهتزاز */}
-      {selectedDay === currentRealDay && liveLecture && (
+      {isSelectedDayActuallyToday && liveLecture && (
         <div className="p-5 sm:p-6 bg-rose-50 border-b border-rose-200 text-slate-900">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3.5">
@@ -1255,7 +1267,7 @@ export default function StudentScheduleTimeline({
                   <span>
                     جدول يوم {formatDateArabicWithDay(calculateDateForAnyDayInWeek(effectiveStartDate, 1, selectedAcademicWeek, selectedDay))} (الأسبوع {selectedAcademicWeek})
                   </span>
-                  {selectedDay === currentRealDay && selectedAcademicWeek === currentAcademicWeek && (
+                  {isSelectedDayActuallyToday && (
                     <span className="px-3.5 py-1 bg-[#0F2942] text-white text-xs sm:text-sm font-black rounded-full shadow-xs">
                       اليوم الفعلي
                     </span>
@@ -1268,7 +1280,7 @@ export default function StudentScheduleTimeline({
               </div>
             </div>
 
-            {selectedDay === currentRealDay && nextUpcomingLecture && !liveLecture && (
+            {isSelectedDayActuallyToday && nextUpcomingLecture && !liveLecture && (
               <div className="px-4 py-2 bg-slate-50 border-2 border-slate-300 rounded-xl flex items-center gap-2 text-slate-950 text-xs sm:text-sm font-black shadow-2xs">
                 <Clock className="w-4 h-4 text-[#0F2942]" />
                 <span>
@@ -1385,11 +1397,23 @@ export default function StudentScheduleTimeline({
               <div className="absolute right-3.5 sm:right-5 top-7 bottom-7 w-1 bg-slate-200 rounded-full z-0" />
 
               {dayLectures.map((lecture, idx) => {
+                // 📅 التاريخ التقويمي الدقيق للمحاضرة في هذا الأسبوع المختار
+                const dynamicLecDate = lecture.weekly_overrides?.[selectedAcademicWeek]?.date
+                  || lecture.custom_weekly_dates?.[selectedAcademicWeek]
+                  || calculateDateForAnyDayInWeek(
+                    effectiveStartDate,
+                    1,
+                    selectedAcademicWeek,
+                    lecture.day
+                  );
+
                 const liveStatus = getLectureLiveStatus(
                   lecture,
                   currentTimeMinutes,
                   selectedDay,
-                  currentRealDay
+                  currentRealDay,
+                  dynamicLecDate,
+                  todayDateStr
                 );
                 const isPractical = lecture.type === 'practical';
                 const isTutorial = lecture.type === 'tutorial';
@@ -1402,11 +1426,12 @@ export default function StudentScheduleTimeline({
                 const endMin = timeStringToMinutes(lecture.end_time);
                 const duration = Math.max(1, endMin - startMin);
 
-                const isSameDay = selectedDay === currentRealDay;
-                const isFinished = isSameDay ? currentTimeMinutes >= endMin : false;
-                const isLive = isSameDay ? (currentTimeMinutes >= startMin && currentTimeMinutes < endMin) : false;
+                // 🎯 فحص هل المحاضرة هي لليوم الفعلي الحقيقي حصراً
+                const isActuallyToday = dynamicLecDate === todayDateStr;
+                const isFinished = isActuallyToday ? currentTimeMinutes >= endMin : false;
+                const isLive = isActuallyToday ? (currentTimeMinutes >= startMin && currentTimeMinutes < endMin) : false;
 
-                // نسبة التقدم من 0 إلى 100
+                // نسبة التقدم من 0 إلى 100 (صفر للمحاضرات المستقبلية وغير اليوم الفعلي)
                 const progressPercent = isFinished ? 100 : isLive ? Math.min(100, Math.max(0, Math.round(((currentTimeMinutes - startMin) / duration) * 100))) : 0;
 
                 // الدقائق المنقضية والمتبقية
@@ -1494,24 +1519,12 @@ export default function StudentScheduleTimeline({
                         {/* 🎓 الصف الثاني: التفاصيل الأكاديمية والتقويمية الكاملة (الأسبوع، المرحلة، الكورس، الشعبة/الكروب، النوع، الفترة) بلون كحلي ملكي أخف */}
                         <div className="flex items-center gap-2 flex-wrap min-w-0 pt-0.5">
                           {/* 📅 التاريخ التقويمي ورقم الأسبوع بلون كحلي ملكي أخف */}
-                          {(() => {
-                            const dynamicLecDate = lecture.weekly_overrides?.[selectedAcademicWeek]?.date
-                              || lecture.custom_weekly_dates?.[selectedAcademicWeek]
-                              || calculateDateForAnyDayInWeek(
-                                effectiveStartDate,
-                                1,
-                                selectedAcademicWeek,
-                                lecture.day
-                              ); // 📅 حساب التاريخ الأكاديمي لهذا الأسبوع
-                            return (
-                              <span className="h-8 inline-flex items-center gap-1.5 px-3 py-1 bg-[#1e4570] text-white font-black text-xs sm:text-sm rounded-xl shadow-2xs border border-[#2e5988] shrink-0">
-                                <Calendar className="w-3.5 h-3.5 text-cyan-300 shrink-0" /> {/* 🗓️ أيقونة التقويم بالسماوي */}
-                                <span>الأسبوع {selectedAcademicWeek}</span> {/* 🔢 رقم الأسبوع الدراسي */}
-                                <span className="text-cyan-300/60">•</span> {/* 🔘 نقطة فاصلة سماوية */}
-                                <span className="font-mono font-black">{dynamicLecDate}</span> {/* 📆 التاريخ الفعلي */}
-                              </span>
-                            );
-                          })()}
+                          <span className="h-8 inline-flex items-center gap-1.5 px-3 py-1 bg-[#1e4570] text-white font-black text-xs sm:text-sm rounded-xl shadow-2xs border border-[#2e5988] shrink-0">
+                            <Calendar className="w-3.5 h-3.5 text-cyan-300 shrink-0" /> {/* 🗓️ أيقونة التقويم بالسماوي */}
+                            <span>الأسبوع {selectedAcademicWeek}</span> {/* 🔢 رقم الأسبوع الدراسي */}
+                            <span className="text-cyan-300/60">•</span> {/* 🔘 نقطة فاصلة سماوية */}
+                            <span className="font-mono font-black">{dynamicLecDate}</span> {/* 📆 التاريخ الفعلي */}
+                          </span>
 
                           {/* 🎓 شارة المرحلة الدراسية بلون كحلي ملكي أخف */}
                           <span className="h-8 inline-flex items-center gap-1.5 px-3 py-1 bg-[#1e4570] text-white font-black text-xs sm:text-sm rounded-xl shadow-2xs border border-[#2e5988] shrink-0">
@@ -1663,7 +1676,7 @@ export default function StudentScheduleTimeline({
                                   <span>الوقت المتبقي:</span>
                                 </span>
                                 <span className="text-sm sm:text-base font-black text-black font-sans mt-1.5 block">
-                                  {isFinished ? 'انتهت المحاضرة' : isLive ? `${remainingMinutes} دقيقة متبقية` : `تبدأ خلال ${remainingMinutes} دقيقة`}
+                                  {isFinished ? 'انتهت المحاضرة' : isLive ? `${remainingMinutes} دقيقة متبقية` : isActuallyToday ? `تبدأ خلال ${remainingMinutes} دقيقة` : `مقررة في موعدها (${formatSingleTime(lecture.start_time)})`}
                                 </span>
                               </div>
 

@@ -17,7 +17,7 @@ import {
 } from '@/lib/supabase-client'; // 🔌 فحص الجلسة ودوال المزامنة السحابية الحية
 import { getStoredData, saveStoredData, INITIAL_COURSES, INITIAL_DEPARTMENTS, INITIAL_STAGES, INITIAL_PROFILES, INITIAL_TEACHER_COURSES } from '@/lib/mock-data'; // 💾 التخزين
 import { Course, Department, Stage, UserProfile, CourseType, AssessmentScheme, TeacherCourse } from '@/types'; // 🔗 الأنواع الرسمية
-import { getDefaultAssessmentScheme, getCourseAssessmentScheme, getStageNameInArabic } from '@/lib/grade-utils'; // 🧮 دوال حسابات الدرجات
+import { getDefaultAssessmentScheme, getCourseAssessmentScheme, getStageNameInArabic, isAssessmentItemActive } from '@/lib/grade-utils'; // 🧮 دوال حسابات الدرجات وفحص البنود المفتوحة
 import { reconcileCoursesWithTeacherCourses } from '@/app/admin/department-portal/page'; // 🔄 دالة التوفيق والتزامن المركزي
 import { 
   BookOpen, 
@@ -683,14 +683,20 @@ export default function AdminCoursesPage() {
   const handleSaveAssessmentSchemeModal = () => {
     if (!selectedCourseForAssessment || !tempAssessmentScheme) return;
 
+    // 🧮 حساب مجموع بنود السعي التكويني المفتوحة فقط
+    const getActiveScore = (key: keyof AssessmentScheme) => {
+      const item = tempAssessmentScheme[key];
+      return isAssessmentItemActive(item) ? (item.max_score || 0) : 0;
+    };
+
     const cwSum = 
-      (tempAssessmentScheme.quiz1.max_score || 0) +
-      (tempAssessmentScheme.quiz2.max_score || 0) +
-      (tempAssessmentScheme.assignment1.max_score || 0) +
-      (tempAssessmentScheme.assignment2.max_score || 0) +
-      (tempAssessmentScheme.report.max_score || 0) +
-      (tempAssessmentScheme.midterm.max_score || 0) +
-      (tempAssessmentScheme.practical.max_score || 0);
+      getActiveScore('quiz1') +
+      getActiveScore('quiz2') +
+      getActiveScore('assignment1') +
+      getActiveScore('assignment2') +
+      getActiveScore('report') +
+      getActiveScore('midterm') +
+      getActiveScore('practical');
 
     const finalScore = tempAssessmentScheme.final_exam.max_score || 0;
 

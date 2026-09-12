@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'; // 🎨 استيراد أيقونات مكتبة لوسيد
 import AdminPagination from '@/components/AdminPagination'; // 📄 استيراد مكون نظام الصفحات الموحد كافتراضي
 import type { Grade, Course, AssessmentScheme } from '@/types'; // 🏷️ استيراد الأنواع والواجهات الصارمة
+import { isAssessmentItemActive, getCourseAssessmentScheme, type CourseworkSchemeKey } from '@/lib/grade-utils'; // 🎛️ أدوات فحص البنود النشطة والمفتوحة والمخطط التقييمي
 
 // 📋 واجهة مدخلات مكون تبويب درجات وسعيات مسار بولونيا بقواعد تايب سكريبت صارمة وبدون any
 export interface DepartmentGradesTabProps {
@@ -44,8 +45,8 @@ export interface DepartmentGradesTabProps {
   setGradePage: (p: number) => void; // 🔄 تغيير رقم الصفحة
   gradePageSize: number; // 🔢 عدد العناصر في الصفحة
   setGradePageSize: (s: number) => void; // 🔄 تغيير حجم الصفحة
-  calculateCourseworkTotal: (g: Grade) => number; // 🧮 دالة حساب مجموع السعي الفصلي
-  calculateFinalTotal: (g: Grade, isSupActive?: boolean) => number; // 🧮 دالة حساب الدرجة النهائية الكلية
+  calculateCourseworkTotal: (g: Grade, scheme?: AssessmentScheme | null) => number; // 🧮 دالة حساب مجموع السعي الفصلي للبند المفتوح
+  calculateFinalTotal: (g: Grade, isSupActive?: boolean, scheme?: AssessmentScheme | null) => number; // 🧮 دالة حساب الدرجة النهائية الكلية للبند المفتوح
   getLetterGrade: (score: number) => string; // 🔤 دالة حساب التقدير الحرفي
   getCourseAssessmentScheme: (course?: Course) => AssessmentScheme; // ⚙️ دالة جلب مخطط تقييم المادة
   getStageNameInArabic: (stg: number) => string; // 🏷️ دالة تحويل رقم المرحلة لاسم عربي
@@ -121,7 +122,13 @@ export const DepartmentGradesTab: React.FC<DepartmentGradesTabProps> = ({
           </div>
           <p className="text-3xl font-black text-slate-950 mt-1">
             {deptGrades.length > 0
-              ? (deptGrades.reduce((acc, g) => acc + calculateCourseworkTotal(g), 0) / deptGrades.length).toFixed(1)
+              ? (
+                  deptGrades.reduce((acc, g) => {
+                    const c = courses.find((crs) => crs.id === g.course_id || crs.name === g.course_name); // 🔍 إيجاد المادة
+                    const scheme = c ? getCourseAssessmentScheme(c) : undefined; // 🎛️ جلب مخطط تقييم المادة
+                    return acc + calculateCourseworkTotal(g, scheme); // 🧮 جمع السعي للبنود المفتوحة فقط
+                  }, 0) / deptGrades.length
+                ).toFixed(1)
               : '0.0'} {/* 🧮 حساب المتوسط الموزون */}
           </p>
           <p className="text-sm text-slate-950 font-black mt-1.5">درجة السعي الفصلي الموزون</p> {/* 📝 الوصف */}
@@ -478,62 +485,90 @@ export const DepartmentGradesTab: React.FC<DepartmentGradesTabProps> = ({
                   <th className="p-3 text-center text-base w-12">ت</th>
                   <th className="p-3 text-base min-w-[170px]">اسم الطالب</th>
                   <th className="p-3 text-base min-w-[200px]">المادة</th>
-                  <th className="p-3 text-center text-sm font-black text-slate-950 whitespace-nowrap" title={`البند الأول: ${currentActiveScheme.quiz1?.title_ar || 'كويز (1)'}`}>
-                    <div className="flex items-center justify-center gap-1.5">
-                      <span>{currentActiveScheme.quiz1?.title_ar || 'كويز (1)'}</span>
-                      <span className="px-1.5 py-0.5 rounded-md bg-[#0F2942] text-white text-xs font-black shadow-2xs">
-                        {currentActiveScheme.quiz1?.max_score ?? 5}
-                      </span>
-                    </div>
-                  </th>
-                  <th className="p-3 text-center text-sm font-black text-slate-950 whitespace-nowrap" title={`البند الثاني: ${currentActiveScheme.quiz2?.title_ar || 'كويز (2)'}`}>
-                    <div className="flex items-center justify-center gap-1.5">
-                      <span>{currentActiveScheme.quiz2?.title_ar || 'كويز (2)'}</span>
-                      <span className="px-1.5 py-0.5 rounded-md bg-[#0F2942] text-white text-xs font-black shadow-2xs">
-                        {currentActiveScheme.quiz2?.max_score ?? 5}
-                      </span>
-                    </div>
-                  </th>
-                  <th className="p-3 text-center text-sm font-black text-slate-950 whitespace-nowrap" title={`البند الثالث: ${currentActiveScheme.assignment1?.title_ar || 'واجب (1)'}`}>
-                    <div className="flex items-center justify-center gap-1.5">
-                      <span>{currentActiveScheme.assignment1?.title_ar || 'واجب (1)'}</span>
-                      <span className="px-1.5 py-0.5 rounded-md bg-[#0F2942] text-white text-xs font-black shadow-2xs">
-                        {currentActiveScheme.assignment1?.max_score ?? 5}
-                      </span>
-                    </div>
-                  </th>
-                  <th className="p-3 text-center text-sm font-black text-slate-950 whitespace-nowrap" title={`البند الرابع: ${currentActiveScheme.assignment2?.title_ar || 'واجب (2)'}`}>
-                    <div className="flex items-center justify-center gap-1.5">
-                      <span>{currentActiveScheme.assignment2?.title_ar || 'واجب (2)'}</span>
-                      <span className="px-1.5 py-0.5 rounded-md bg-[#0F2942] text-white text-xs font-black shadow-2xs">
-                        {currentActiveScheme.assignment2?.max_score ?? 5}
-                      </span>
-                    </div>
-                  </th>
-                  <th className="p-3 text-center text-sm font-black text-slate-950 whitespace-nowrap" title={`بند التقرير والنشاط: ${currentActiveScheme.report?.title_ar || 'تقرير وبحث'}`}>
-                    <div className="flex items-center justify-center gap-1.5">
-                      <span>{currentActiveScheme.report?.title_ar || 'تقرير'}</span>
-                      <span className="px-1.5 py-0.5 rounded-md bg-[#0F2942] text-white text-xs font-black shadow-2xs">
-                        {currentActiveScheme.report?.max_score ?? 10}
-                      </span>
-                    </div>
-                  </th>
-                  <th className="p-3 text-center text-sm font-black text-slate-950 whitespace-nowrap" title={`امتحان منتصف الفصل: ${currentActiveScheme.midterm?.title_ar || 'امتحان نصفي'}`}>
-                    <div className="flex items-center justify-center gap-1.5">
-                      <span>{currentActiveScheme.midterm?.title_ar || 'نصفي'}</span>
-                      <span className="px-1.5 py-0.5 rounded-md bg-[#0F2942] text-white text-xs font-black shadow-2xs">
-                        {currentActiveScheme.midterm?.max_score ?? 10}
-                      </span>
-                    </div>
-                  </th>
-                  <th className="p-3 text-center text-sm font-black text-slate-950 whitespace-nowrap" title={`التقييم العملي والمختبري: ${currentActiveScheme.practical?.title_ar || 'مختبر وعملي'}`}>
-                    <div className="flex items-center justify-center gap-1.5">
-                      <span>{currentActiveScheme.practical?.title_ar || 'عملي'}</span>
-                      <span className="px-1.5 py-0.5 rounded-md bg-[#0F2942] text-white text-xs font-black shadow-2xs">
-                        {currentActiveScheme.practical?.max_score ?? 10}
-                      </span>
-                    </div>
-                  </th>
+
+                  {/* 1️⃣ كويز 1 - يظهر فقط إذا كان مفتوحاً */}
+                  {isAssessmentItemActive(currentActiveScheme.quiz1) && (
+                    <th className="p-3 text-center text-sm font-black text-slate-950 whitespace-nowrap" title={`البند الأول: ${currentActiveScheme.quiz1?.title_ar || 'كويز (1)'}`}>
+                      <div className="flex items-center justify-center gap-1.5">
+                        <span>{currentActiveScheme.quiz1?.title_ar || 'كويز (1)'}</span>
+                        <span className="px-1.5 py-0.5 rounded-md bg-[#0F2942] text-white text-xs font-black shadow-2xs">
+                          {currentActiveScheme.quiz1?.max_score ?? 5}
+                        </span>
+                      </div>
+                    </th>
+                  )}
+
+                  {/* 2️⃣ كويز 2 - يظهر فقط إذا كان مفتوحاً */}
+                  {isAssessmentItemActive(currentActiveScheme.quiz2) && (
+                    <th className="p-3 text-center text-sm font-black text-slate-950 whitespace-nowrap" title={`البند الثاني: ${currentActiveScheme.quiz2?.title_ar || 'كويز (2)'}`}>
+                      <div className="flex items-center justify-center gap-1.5">
+                        <span>{currentActiveScheme.quiz2?.title_ar || 'كويز (2)'}</span>
+                        <span className="px-1.5 py-0.5 rounded-md bg-[#0F2942] text-white text-xs font-black shadow-2xs">
+                          {currentActiveScheme.quiz2?.max_score ?? 5}
+                        </span>
+                      </div>
+                    </th>
+                  )}
+
+                  {/* 3️⃣ واجب 1 - يظهر فقط إذا كان مفتوحاً */}
+                  {isAssessmentItemActive(currentActiveScheme.assignment1) && (
+                    <th className="p-3 text-center text-sm font-black text-slate-950 whitespace-nowrap" title={`البند الثالث: ${currentActiveScheme.assignment1?.title_ar || 'واجب (1)'}`}>
+                      <div className="flex items-center justify-center gap-1.5">
+                        <span>{currentActiveScheme.assignment1?.title_ar || 'واجب (1)'}</span>
+                        <span className="px-1.5 py-0.5 rounded-md bg-[#0F2942] text-white text-xs font-black shadow-2xs">
+                          {currentActiveScheme.assignment1?.max_score ?? 5}
+                        </span>
+                      </div>
+                    </th>
+                  )}
+
+                  {/* 4️⃣ واجب 2 - يظهر فقط إذا كان مفتوحاً */}
+                  {isAssessmentItemActive(currentActiveScheme.assignment2) && (
+                    <th className="p-3 text-center text-sm font-black text-slate-950 whitespace-nowrap" title={`البند الرابع: ${currentActiveScheme.assignment2?.title_ar || 'واجب (2)'}`}>
+                      <div className="flex items-center justify-center gap-1.5">
+                        <span>{currentActiveScheme.assignment2?.title_ar || 'واجب (2)'}</span>
+                        <span className="px-1.5 py-0.5 rounded-md bg-[#0F2942] text-white text-xs font-black shadow-2xs">
+                          {currentActiveScheme.assignment2?.max_score ?? 5}
+                        </span>
+                      </div>
+                    </th>
+                  )}
+
+                  {/* 5️⃣ تقرير ونشاط - يظهر فقط إذا كان مفتوحاً */}
+                  {isAssessmentItemActive(currentActiveScheme.report) && (
+                    <th className="p-3 text-center text-sm font-black text-slate-950 whitespace-nowrap" title={`بند التقرير والنشاط: ${currentActiveScheme.report?.title_ar || 'تقرير وبحث'}`}>
+                      <div className="flex items-center justify-center gap-1.5">
+                        <span>{currentActiveScheme.report?.title_ar || 'تقرير'}</span>
+                        <span className="px-1.5 py-0.5 rounded-md bg-[#0F2942] text-white text-xs font-black shadow-2xs">
+                          {currentActiveScheme.report?.max_score ?? 10}
+                        </span>
+                      </div>
+                    </th>
+                  )}
+
+                  {/* 6️⃣ امتحان نصفي - يظهر فقط إذا كان مفتوحاً */}
+                  {isAssessmentItemActive(currentActiveScheme.midterm) && (
+                    <th className="p-3 text-center text-sm font-black text-slate-950 whitespace-nowrap" title={`امتحان منتصف الفصل: ${currentActiveScheme.midterm?.title_ar || 'امتحان نصفي'}`}>
+                      <div className="flex items-center justify-center gap-1.5">
+                        <span>{currentActiveScheme.midterm?.title_ar || 'نصفي'}</span>
+                        <span className="px-1.5 py-0.5 rounded-md bg-[#0F2942] text-white text-xs font-black shadow-2xs">
+                          {currentActiveScheme.midterm?.max_score ?? 10}
+                        </span>
+                      </div>
+                    </th>
+                  )}
+
+                  {/* 7️⃣ مختبر وعملي - يظهر فقط إذا كان مفتوحاً */}
+                  {isAssessmentItemActive(currentActiveScheme.practical) && (
+                    <th className="p-3 text-center text-sm font-black text-slate-950 whitespace-nowrap" title={`التقييم العملي والمختبري: ${currentActiveScheme.practical?.title_ar || 'مختبر وعملي'}`}>
+                      <div className="flex items-center justify-center gap-1.5">
+                        <span>{currentActiveScheme.practical?.title_ar || 'عملي'}</span>
+                        <span className="px-1.5 py-0.5 rounded-md bg-[#0F2942] text-white text-xs font-black shadow-2xs">
+                          {currentActiveScheme.practical?.max_score ?? 10}
+                        </span>
+                      </div>
+                    </th>
+                  )}
                   <th className="p-3 text-center bg-slate-200 text-base text-slate-950 font-black whitespace-nowrap">
                     <div className="flex items-center justify-center gap-1.5">
                       <span>السعي</span>
@@ -567,10 +602,10 @@ export const DepartmentGradesTab: React.FC<DepartmentGradesTabProps> = ({
                     const actualIndex = gradeStartIndex + index; // 🔢 التسلسل العام الحقيقي للدرجة
                     const course = courses.find((c) => c.id === g.course_id);
                     const isSupActive = course?.is_supplementary_exam_enabled === true;
-                    const courseworkTotal = calculateCourseworkTotal(g);
-                    const finalTotal = calculateFinalTotal(g, isSupActive);
-                    const letterGrade = getLetterGrade(finalTotal);
                     const rowScheme = getCourseAssessmentScheme(course);
+                    const courseworkTotal = calculateCourseworkTotal(g, rowScheme);
+                    const finalTotal = calculateFinalTotal(g, isSupActive, rowScheme); // 💯 حساب النهائي للبند المفتوح بالمخطط
+                    const letterGrade = getLetterGrade(finalTotal);
                     const isSelected = selectedGradeIds.includes(g.id);
 
                     return (
@@ -614,29 +649,55 @@ export const DepartmentGradesTab: React.FC<DepartmentGradesTabProps> = ({
                             </span>
                           </div>
                         </td>
-                        <td className="p-3 text-center text-base whitespace-nowrap" title={`${rowScheme.quiz1?.title_ar || 'كويز (1)'} (من ${rowScheme.quiz1?.max_score ?? 5})`}>
-                          <span className="font-black text-slate-950 text-base">{g.quiz1}</span>
-                        </td>
-                        <td className="p-3 text-center text-base whitespace-nowrap" title={`${rowScheme.quiz2?.title_ar || 'كويز (2)'} (من ${rowScheme.quiz2?.max_score ?? 5})`}>
-                          <span className="font-black text-slate-950 text-base">{g.quiz2}</span>
-                        </td>
-                        <td className="p-3 text-center text-base whitespace-nowrap" title={`${rowScheme.assignment1?.title_ar || 'واجب (1)'} (من ${rowScheme.assignment1?.max_score ?? 5})`}>
-                          <span className="font-black text-slate-950 text-base">{g.assignment1}</span>
-                        </td>
-                        <td className="p-3 text-center text-base whitespace-nowrap" title={`${rowScheme.assignment2?.title_ar || 'واجب (2)'} (من ${rowScheme.assignment2?.max_score ?? 5})`}>
-                          <span className="font-black text-slate-950 text-base">{g.assignment2}</span>
-                        </td>
-                        <td className="p-3 text-center text-base whitespace-nowrap" title={`${rowScheme.report?.title_ar || 'تقرير'} (من ${rowScheme.report?.max_score ?? 10})`}>
-                          <span className="font-black text-slate-950 text-base">{g.report}</span>
-                        </td>
-                        <td className="p-3 text-center text-base whitespace-nowrap" title={`${rowScheme.midterm?.title_ar || 'نصفي'} (من ${rowScheme.midterm?.max_score ?? 10})`}>
-                          <span className="font-black text-slate-950 text-base">{g.midterm}</span>
-                        </td>
-                        <td className="p-3 text-center text-base whitespace-nowrap" title={`${rowScheme.practical?.title_ar || 'عملي'} (من ${rowScheme.practical?.max_score ?? 10})`}>
-                          <span className={rowScheme.practical?.max_score === 0 ? 'text-slate-400 font-bold' : 'font-black text-slate-950 text-base'}>
-                            {rowScheme.practical?.max_score === 0 ? '—' : (g.practical || 0)}
-                          </span>
-                        </td>
+
+                        {/* 1️⃣ كويز 1 - يظهر فقط إذا كان البند مفتوحاً */}
+                        {isAssessmentItemActive(currentActiveScheme.quiz1) && (
+                          <td className="p-3 text-center text-base whitespace-nowrap" title={`${rowScheme.quiz1?.title_ar || 'كويز (1)'} (من ${rowScheme.quiz1?.max_score ?? 5})`}>
+                            <span className="font-black text-slate-950 text-base">{g.quiz1}</span>
+                          </td>
+                        )}
+
+                        {/* 2️⃣ كويز 2 - يظهر فقط إذا كان البند مفتوحاً */}
+                        {isAssessmentItemActive(currentActiveScheme.quiz2) && (
+                          <td className="p-3 text-center text-base whitespace-nowrap" title={`${rowScheme.quiz2?.title_ar || 'كويز (2)'} (من ${rowScheme.quiz2?.max_score ?? 5})`}>
+                            <span className="font-black text-slate-950 text-base">{g.quiz2}</span>
+                          </td>
+                        )}
+
+                        {/* 3️⃣ واجب 1 - يظهر فقط إذا كان البند مفتوحاً */}
+                        {isAssessmentItemActive(currentActiveScheme.assignment1) && (
+                          <td className="p-3 text-center text-base whitespace-nowrap" title={`${rowScheme.assignment1?.title_ar || 'واجب (1)'} (من ${rowScheme.assignment1?.max_score ?? 5})`}>
+                            <span className="font-black text-slate-950 text-base">{g.assignment1}</span>
+                          </td>
+                        )}
+
+                        {/* 4️⃣ واجب 2 - يظهر فقط إذا كان البند مفتوحاً */}
+                        {isAssessmentItemActive(currentActiveScheme.assignment2) && (
+                          <td className="p-3 text-center text-base whitespace-nowrap" title={`${rowScheme.assignment2?.title_ar || 'واجب (2)'} (من ${rowScheme.assignment2?.max_score ?? 5})`}>
+                            <span className="font-black text-slate-950 text-base">{g.assignment2}</span>
+                          </td>
+                        )}
+
+                        {/* 5️⃣ تقرير ونشاط - يظهر فقط إذا كان البند مفتوحاً */}
+                        {isAssessmentItemActive(currentActiveScheme.report) && (
+                          <td className="p-3 text-center text-base whitespace-nowrap" title={`${rowScheme.report?.title_ar || 'تقرير'} (من ${rowScheme.report?.max_score ?? 10})`}>
+                            <span className="font-black text-slate-950 text-base">{g.report}</span>
+                          </td>
+                        )}
+
+                        {/* 6️⃣ امتحان نصفي - يظهر فقط إذا كان البند مفتوحاً */}
+                        {isAssessmentItemActive(currentActiveScheme.midterm) && (
+                          <td className="p-3 text-center text-base whitespace-nowrap" title={`${rowScheme.midterm?.title_ar || 'نصفي'} (من ${rowScheme.midterm?.max_score ?? 10})`}>
+                            <span className="font-black text-slate-950 text-base">{g.midterm}</span>
+                          </td>
+                        )}
+
+                        {/* 7️⃣ مختبر وعملي - يظهر فقط إذا كان البند مفتوحاً */}
+                        {isAssessmentItemActive(currentActiveScheme.practical) && (
+                          <td className="p-3 text-center text-base whitespace-nowrap" title={`${rowScheme.practical?.title_ar || 'عملي'} (من ${rowScheme.practical?.max_score ?? 10})`}>
+                            <span className="font-black text-slate-950 text-base">{g.practical || 0}</span>
+                          </td>
+                        )}
                         <td className="p-3 text-center font-black text-slate-950 bg-slate-100/80 text-base whitespace-nowrap">
                           <span className="px-2.5 py-1 bg-white rounded-lg border border-slate-300 shadow-2xs inline-block font-black whitespace-nowrap">
                             {courseworkTotal} <span className="text-xs text-slate-500 font-bold">/ 50</span>

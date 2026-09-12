@@ -131,27 +131,6 @@ export function getStoredData<T>(key: string, initialFallback: T): T {
         localStorage.removeItem(`sadiq_univ_${k}`);
       });
 
-      // 🧹 مسح مفاتيح المستودعات والتخزين الإضافي القديمة
-      const extraLegacyKeys = [
-        'uomis_departments_data_v2',
-        'uomis_grades_data_v2',
-        'uomis_courses_data_v2',
-        'uomis_schedules_data_v2',
-        'uomis_notifications_data_v2',
-        'uomis_attendance_data_v2',
-        'uomis_audit_logs_data_v2',
-        'app_course_academic_tasks',
-        'app_student_completed_tasks',
-        'sadiq_remembered_superadmin_email',
-        'sadiq_remembered_head_email',
-        'sadiq_remembered_student_email',
-        'sadiq_remembered_teacher_email',
-        'sadiq_remembered_rapporteur_email',
-      ];
-      extraLegacyKeys.forEach((k) => {
-        localStorage.removeItem(k);
-      });
-
       // 🗓️ تثبيت العام الدراسي الرسمي المعتمد 2026-2027
       localStorage.setItem('sadiq_univ_current_academic_year', '2026-2027');
       // 🏷️ حفظ ختم الإصدار النظيف لمنع تكرار المسح

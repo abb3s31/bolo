@@ -7,7 +7,7 @@ import type { DepartmentDeleteModalConfig, ImportSummaryReport, QuickAssignState
 import { calculateSmartDropdownPosition, type SmartDropdownPosition } from '../dropdownUtils'; // 📐 حساب الموضع الذكي للقائمة
 import { saveStoredData, getAcademicYear } from '@/lib/mock-data'; // 💾 حفظ البيانات محلياً والحصول على السنة
 import { saveCourseToSupabase, deleteCourseFromSupabase, saveTeacherCourseToSupabase, deleteTeacherCourseFromSupabase } from '@/lib/supabase-client'; // ☁️ المزامنة السحابية
-import { getStageNameInArabic, getDefaultAssessmentScheme } from '@/lib/grade-utils'; // 🏷️ اسم المرحلة والمخطط التقييمي الافتراضي
+import { getStageNameInArabic, getDefaultAssessmentScheme, isAssessmentItemActive } from '@/lib/grade-utils'; // 🏷️ اسم المرحلة والمخطط التقييمي الافتراضي وفحص البند النشط
 import { exportDepartmentCoursesPDF, type DepartmentCoursePDFItem } from '@/lib/pdf-export'; // 📜 مولد كشوفات المواد الرسمية PDF
 import { downloadDepartmentCoursesTemplate, parseExcelFile, exportCustomCoursesList } from '@/lib/excel-utils'; // 📊 دوال الإكسل
 import { sendAppNotification } from '@/lib/notification-utils'; // 🔔 مركز الإشعارات
@@ -79,6 +79,7 @@ export const useDepartmentCourses = ({
   // 🎛️ حالات توزيع الدرجات والامتحانات
   const [isAssessmentModalOpen, setIsAssessmentModalOpen] = useState<boolean>(false); // 🎛️ نافذة توزيع درجات بولونيا
   const [selectedCourseForAssessment, setSelectedCourseForAssessment] = useState<Course | null>(null); // 📖 المادة المختارة للتقييم
+  const [targetCoursesForAssessment, setTargetCoursesForAssessment] = useState<Course[]>([]); // 📚 مصفوفة المواد المستهدفة بتوزيع درجات بولونيا (فردي أو جماعي)
   const [tempAssessmentScheme, setTempAssessmentScheme] = useState<AssessmentScheme | null>(null); // 📊 المخطط المؤقت
 
   // 🔄 حالات تأكيد فتح وقفل الدور
@@ -431,62 +432,117 @@ export const useDepartmentCourses = ({
     setTimeout(() => setSuccessMessage(''), 3500);
   };
 
-  // 🎛️ فتح نافذة توزيع درجات بولونيا
+  // 🎛️ فتح نافذة توزيع درجات بولونيا لمادة محددة فردياً
   const handleOpenAssessmentModal = (course: Course) => {
-    setSelectedCourseForAssessment(course);
-    setTempAssessmentScheme(course.assessment_scheme ? { ...course.assessment_scheme } : null);
-    setIsAssessmentModalOpen(true);
+    setSelectedCourseForAssessment(course); // 📖 تثبيت المادة المختارة كمرجع
+    setTargetCoursesForAssessment([course]); // 🎯 حصر الاستهداف بهذه المادة الفردية
+    // ⚙️ توليد المخطط الافتراضي في حال عدم وجود مخطط مسبق للمادة
+    const fallbackType = course.course_type || (course.has_practical ? 'theory_and_practical' : 'theory_only'); // 🔬 نوع المادة
+    const initialScheme = course.assessment_scheme
+      ? { ...course.assessment_scheme } // 📋 استنساخ المخطط الحالي
+      : getDefaultAssessmentScheme(fallbackType); // ⚙️ استدعاء القالب الافتراضي المعتمد لبولونيا
+    setTempAssessmentScheme(initialScheme); // 📊 تهيئة المخطط المؤقت بقيم سليمة ومؤكدة
+    setIsAssessmentModalOpen(true); // 📂 فتح نافذة المودال فورياً
   };
 
-  // 💾 حفظ المخطط التقييمي للمادة
+  // 🎛️ فتح نافذة توزيع درجات بولونيا وتعميمها على المواد المحددة من الجدول جماعياً
+  const handleOpenBatchAssessmentModal = () => {
+    if (selectedCourseIds.length === 0) { // ⚠️ التحقق من تحديد مواد أولاً
+      setErrorMessage('تنبيه: يرجى تحديد مادة دراسية واحدة على الأقل من الجدول لتخصيص درجات بولونيا وتعميمها عليها!'); // 📢 رسالة تنبيه
+      setTimeout(() => setErrorMessage(''), 4500); // ⏱️ إخفاء التنبيه بعد 4.5 ثانية
+      return; // 🛑 إيقاف العملية
+    }
+
+    // 📚 استخراج كافة كائنات المواد المحددة من قائمة مواد القسم
+    const targets = deptCourses.filter((c) => selectedCourseIds.includes(c.id)); // 🔍 تصفية المواد المحددة
+    if (targets.length === 0) return; // 🛑 حماية في حال عدم العثور
+
+    setTargetCoursesForAssessment(targets); // 🎯 تعيين المواد المستهدفة بالتخصيص الجماعي
+    setSelectedCourseForAssessment(targets[0]); // 📖 تثبيت أول مادة كمعاينة مرجعية في الهيدر
+
+    // ⚙️ أخذ مخطط أول مادة إن وجد أو توليد المخطط الافتراضي لنوعها
+    const firstCourse = targets[0]; // 📘 أول مادة محددة
+    const fallbackType = firstCourse.course_type || (firstCourse.has_practical ? 'theory_and_practical' : 'theory_only'); // 🔬 نوعها
+    const initialScheme = firstCourse.assessment_scheme
+      ? { ...firstCourse.assessment_scheme } // 📋 استنساخ مخطط أول مادة
+      : getDefaultAssessmentScheme(fallbackType); // ⚙️ توليد القالب الافتراضي
+    setTempAssessmentScheme(initialScheme); // 📊 تهيئة المخطط المؤقت
+    setIsAssessmentModalOpen(true); // 📂 فتح النافذة فوراً
+  };
+
+  // 💾 حفظ واعتماد المخطط التقييمي للمادة الفردية أو المواد المحددة جماعياً ومزامنتها بسحابة Supabase
   const handleSaveAssessmentSchemeModal = () => {
-    if (!selectedCourseForAssessment || !tempAssessmentScheme) return;
+    if (!tempAssessmentScheme) return; // 🛡️ حماية من انعدام المخطط
+    // 🎯 استخراج المواد المستهدفة بالحفظ (إما المحددة جماعياً أو المادة الفردية)
+    const targets = targetCoursesForAssessment.length > 0
+      ? targetCoursesForAssessment
+      : (selectedCourseForAssessment ? [selectedCourseForAssessment] : []);
+
+    if (targets.length === 0) return; // 🛑 توقف إذا لم تكن هناك أي مادة
+
+    // 🧮 حساب مجموع بنود السعي التكويني المفتوحة فقط
+    const getActiveScore = (key: keyof AssessmentScheme) => {
+      const item = tempAssessmentScheme[key];
+      return isAssessmentItemActive(item) ? (item.max_score || 0) : 0;
+    };
 
     const cwSum =
-      (tempAssessmentScheme.quiz1.max_score || 0) +
-      (tempAssessmentScheme.quiz2.max_score || 0) +
-      (tempAssessmentScheme.assignment1.max_score || 0) +
-      (tempAssessmentScheme.assignment2.max_score || 0) +
-      (tempAssessmentScheme.report.max_score || 0) +
-      (tempAssessmentScheme.midterm.max_score || 0) +
-      (tempAssessmentScheme.practical.max_score || 0);
+      getActiveScore('quiz1') +
+      getActiveScore('quiz2') +
+      getActiveScore('assignment1') +
+      getActiveScore('assignment2') +
+      getActiveScore('report') +
+      getActiveScore('midterm') +
+      getActiveScore('practical');
 
-    const finalExamScore = tempAssessmentScheme.final_exam.max_score || 0;
+    const finalExamScore = tempAssessmentScheme.final_exam.max_score || 0; // 🎯 درجة الامتحان النهائي
 
-    if (cwSum !== 50) {
+    if (cwSum !== 50) { // ⚠️ إلزامية مطابقة الـ 50 للسعي
       setErrorMessage(`تنبيه: مجموع بنود السعي التكويني يجب أن يساوي 50 درجة بالضبط وفقاً لدليل بولونيا! (المجموع الحالي: ${cwSum} درجة).`);
       setTimeout(() => setErrorMessage(''), 5000);
       return;
     }
 
-    if (finalExamScore !== 50) {
+    if (finalExamScore !== 50) { // ⚠️ إلزامية مطابقة الـ 50 للامتحان النهائي
       setErrorMessage(`تنبيه: درجة الامتحان النهائي يجب أن تساوي 50 درجة بالضبط! (الدرجة الحالية: ${finalExamScore} درجة).`);
       setTimeout(() => setErrorMessage(''), 5000);
       return;
     }
 
-    let updatedCourseToSync: Course | null = null;
+    const targetIds = new Set(targets.map((t) => t.id)); // 🔑 مجموعة معرفات المواد المستهدفة للبحث السريع
+    const updatedCoursesToSync: Course[] = []; // ☁️ مصفوفة المواد المحدثة لإرسالها لسوبابيز
+
     const updated = courses.map((c) => {
-      if (c.id === selectedCourseForAssessment.id) {
+      if (targetIds.has(c.id)) { // 🔍 هل المادة ضمن المستهدفين؟
         const edited: Course = {
-          ...c,
-          assessment_scheme: tempAssessmentScheme,
+          ...c, // 📦 الإبقاء على كافة خصائص المادة الأصلية
+          assessment_scheme: tempAssessmentScheme, // 🎛️ حقن المخطط التقييمي الجديد
         };
-        updatedCourseToSync = edited;
-        return edited;
+        updatedCoursesToSync.push(edited); // ☁️ إدراجها للمزامنة السحابية
+        return edited; // 🔄 إرجاع المادة المحدثة
       }
-      return c;
+      return c; // ⏩ إبقاء المواد الأخرى كما هي
     });
 
-    setCourses(updated);
-    saveStoredData('courses', updated);
-    if (updatedCourseToSync) {
-      saveCourseToSupabase(updatedCourseToSync);
+    setCourses(updated); // 🔄 تحديث الـ state لمواد النظام
+    saveStoredData('courses', updated); // 💾 حفظ المصفوفة المحدثة في التخزين المحلي
+
+    // ☁️ مزامنة كل مادة مستهدفة سحابياً في Supabase فوراً
+    updatedCoursesToSync.forEach((c) => {
+      saveCourseToSupabase(c); // ⚡ إرسال التحديث لجدول courses في Supabase
+    });
+
+    setIsAssessmentModalOpen(false); // 🔒 إغلاق نافذة المودال
+    setSelectedCourseForAssessment(null); // 🧹 تصفير المادة الفردية
+    setTargetCoursesForAssessment([]); // 🧹 تصفير قائمة المستهدفين
+
+    // ✨ إظهار رسالة النجاح الواضحة والمبهجة
+    if (targets.length === 1) {
+      setSuccessMessage(`تم بنجاح حفظ وتحديث مخطط التقييم لمادة (${targets[0].name}) ومزامنته في سحابة Supabase! 🎛️✨`);
+    } else {
+      setSuccessMessage(`تم بنجاح تعميم وحفظ مخطط التقييم لـ (${targets.length}) مواد دراسية محددة ومزامنتها في سحابة Supabase! 🎛️✨`);
     }
-    setIsAssessmentModalOpen(false);
-    setSelectedCourseForAssessment(null);
-    setSuccessMessage(`تم بنجاح حفظ وتحديث مخطط التقييم لمادة (${selectedCourseForAssessment.name})! 🎛️✨`);
-    setTimeout(() => setSuccessMessage(''), 4000);
+    setTimeout(() => setSuccessMessage(''), 4500); // ⏱️ إخفاء الرسالة بعد 4.5 ثانية
   };
 
   // 📥 تنزيل نموذج Excel معتمد لمواد القسم
@@ -662,7 +718,7 @@ export const useDepartmentCourses = ({
           department_name: deptName,
           stage_id: `stage-${currentDeptId}-${stageNum}`,
           stage_number: stageNum,
-          academic_year_id: 'year-2026',
+          academic_year_id: getAcademicYear(),
           semester: semesterNum,
           course_type: courseTypeFinal,
           credit_hours: creditsNum,
@@ -839,7 +895,7 @@ export const useDepartmentCourses = ({
         department_name: deptName,
         stage_id: `stage-${currentDeptId}-${courseStage}`,
         stage_number: courseStage,
-        academic_year_id: 'year-2026',
+        academic_year_id: getAcademicYear(),
         semester: courseSemester,
         course_type: courseType,
         credit_hours: courseCredits,
@@ -1355,12 +1411,14 @@ export const useDepartmentCourses = ({
     setIsExportingCoursesExcel,
 
     // 🎛️ التقييم والأدوار
-    isAssessmentModalOpen,
-    setIsAssessmentModalOpen,
-    selectedCourseForAssessment,
-    setSelectedCourseForAssessment,
-    tempAssessmentScheme,
-    setTempAssessmentScheme,
+    isAssessmentModalOpen, // 📂 حالة فتح نافذة توزيع درجات بولونيا
+    setIsAssessmentModalOpen, // 🔄 تبديل حالة النافذة
+    selectedCourseForAssessment, // 📖 المادة المرجعية المختارة
+    setSelectedCourseForAssessment, // 🔄 تعيين المادة المرجعية
+    targetCoursesForAssessment, // 📚 مصفوفة المواد المستهدفة بالتوزيع (فردي أو جماعي)
+    setTargetCoursesForAssessment, // 🔄 تعيين مصفوفة المواد المستهدفة
+    tempAssessmentScheme, // 🎛️ مخطط الدرجات المؤقت
+    setTempAssessmentScheme, // 🔄 تحديث المخطط المؤقت
     roundConfirmModal,
     setRoundConfirmModal,
     examToggleConfirmation,
@@ -1402,8 +1460,10 @@ export const useDepartmentCourses = ({
     getCoursePracticalTeachers,
     handleOpenQuickAssign,
     handleSaveQuickAssign,
-    handleOpenAssessmentModal,
-    handleSaveAssessmentSchemeModal,
+    handleOpenAssessmentModal, // 🎛️ فتح أوزان بولونيا للمادة الفردية
+    handleOpenBatchAssessmentModal, // 🎛️ فتح وتعميم أوزان بولونيا للمواد المحددة جماعياً
+    handleSaveAssessmentSchemeModal, // 💾 حفظ واعتماد مخطط بولونيا سحابياً ومحلياً
+    getDefaultAssessmentScheme, // ⚙️ دالة توليد القالب الافتراضي المعتمد
     handleDownloadCourseTemplate,
     handleExportCoursesPDF,
     handleCourseExcelUpload,

@@ -67,6 +67,7 @@ export interface AssessmentItemConfig {
   title_en: string;           // 🔤 العنوان بالإنكليزية (مثال: Quiz 1 أو Lab Exam)
   max_score: number;          // 💯 الدرجة العظمى المخصصة للبند
   type: 'theory' | 'practical'; // 🏷️ نوع البند (نظري أو عملي)
+  is_enabled?: boolean;       // 🔘 هل البند مفتوح ومفعّل أم مغلق ومحجوب تماماً؟
 }
 
 // 🎛️ المخطط التقييمي الشامل للمادة لبنود بولونيا الـ 7 والامتحان النهائي
@@ -489,7 +490,21 @@ export interface DepartmentScheduleConfig {
   working_days: DayOfWeek[];  // 💼 أيام الدوام الرسمي (الافتراضي: السبت إلى الأربعاء)
   off_days: DayOfWeek[];      // 🏖️ أيام العطل الرسمية (الافتراضي: الخميس والجمعة)
   start_date?: string;        // 📅 تاريخ انطلاق الفصل الدراسي المعتمد للأسبوع الأول (YYYY-MM-DD)
+  academic_year?: string;     // 🎓 العام الدراسي المعتمد للسجل (مثلاً 2026-2027)
   updated_at?: string;        // ⏰ تاريخ آخر تحديث
+}
+
+// 🏖️ واجهة العطلة الرسمية المعلنة من رئاسة ومقررية القسم لتعطيل الدوام
+export interface DepartmentOfficialHoliday {
+  id: string;                         // 🆔 معرف العطلة الفريد
+  department_id: string;              // 🏢 معرف القسم التابع له العطلة
+  date: string;                       // 📅 تاريخ يوم العطلة بتنسيق 'YYYY-MM-DD'
+  title: string;                      // 📝 عنوان العطلة الرسمية ومناسبتها
+  target_stage: number | null;        // 🎓 المرحلة المشمولة بالعطلة (null يعني لكافة المراحل)
+  notes?: string;                     // 💡 ملاحظات وتفاصيل الأمر الإداري بالتعطيل
+  created_by_name: string;            // 👤 اسم المسؤول المعلن للعطلة (رئيس القسم أو المقرر)
+  created_by_role: string;            // 🏢 صفة المسؤول الوظيفية والأكاديمية
+  created_at: string;                 // ⏰ تاريخ ووقت إنشاء وتسجيل العطلة
 }
 
 // 📅 واجهة توقيت وجدولة المحاضرة المعتمدة أسبوعياً من رئاسة ومقررية القسم

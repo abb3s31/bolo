@@ -7,13 +7,15 @@ import {
   getCurrentSessionUser, 
   syncDepartmentsFromSupabase, 
   syncProfilesFromSupabase, 
-  syncGradesFromSupabase 
+  syncGradesFromSupabase,
+  syncCoursesFromSupabase
 } from '@/lib/supabase-client'; // 🔌 فحص الجلسة ومزامنة البيانات الحية من Supabase
 import { generateAndDownloadExcel } from '@/lib/excel-utils'; // 📦 تصدير الجداول المجدولة الملونة الفاخرة
-import { getStoredData, INITIAL_DEPARTMENTS, INITIAL_GRADES, INITIAL_PROFILES } from '@/lib/mock-data'; // 💾 قراءة البيانات المحلية المؤقتة
+import { getStoredData, INITIAL_DEPARTMENTS, INITIAL_GRADES, INITIAL_PROFILES, INITIAL_COURSES } from '@/lib/mock-data'; // 💾 قراءة البيانات المحلية المؤقتة
 import { 
   Department, 
   Grade, 
+  Course,
   UserProfile, 
   CollegeStudentDemographics, 
   DepartmentStudentDemographics, 
@@ -21,7 +23,7 @@ import {
   CollegeTeacherDemographics,
   DepartmentTeacherDemographics
 } from '@/types'; // 🔗 استيراد الأنواع الصريحة لمنع any تماماً
-import { calculateFinalTotal, getLetterGrade, sanitizeExcelField, getStageNameInArabic } from '@/lib/grade-utils'; // 🧮 دوال حساب الدرجات وتعقيم النصوص
+import { calculateFinalTotal, getLetterGrade, sanitizeExcelField, getStageNameInArabic, calculateCourseworkTotal, getCourseAssessmentScheme } from '@/lib/grade-utils'; // 🧮 دوال حساب الدرجات وتعقيم النصوص ومخططات بولونيا والسعي الموزون
 import { calculateStudentDemographics, calculateTeacherDemographics } from '@/lib/demographics-utils'; // 🧮 حسابات ديموغرافيا الطلبة والتدريسيين
 import { StudentDemographicsMatrix } from '@/components/analytics/StudentDemographicsMatrix'; // 📊 مصفوفة التوزيع الديموغرافي للطلاب
 import { TeacherDemographicsMatrix } from '@/components/analytics/TeacherDemographicsMatrix'; // 👨‍🏫 مصفوفة إحصائيات الكادر التدريسي
@@ -49,6 +51,7 @@ export default function AdminReportsPage() {
   const [selectedDeptId, setSelectedDeptId] = useState<string>(''); // 🏢 القسم المختار يبدأ فارغاً (غير محدد) بناءً على طلب المستخدم
   const [selectedStageNum, setSelectedStageNum] = useState<number>(0); // 🎓 المرحلة المختارة تبدأ بـ 0 (غير محدد) حتى يحددها المستخدم
   const [grades, setGrades] = useState<Grade[]>([]); // 📝 سجلات الدرجات الأكاديمية
+  const [courses, setCourses] = useState<Course[]>([]); // 📚 قائمة المواد الدراسية ومخططاتها التقييمية
   const [activeReportTab, setActiveReportTab] = useState<'grades' | 'demographics'>('demographics'); // 📑 التبويب النشط الحالي
   const [activeDemographicsView, setActiveDemographicsView] = useState<'students' | 'teachers'>('students'); // 🎛️ تبديل مصفوفة الطلاب أو التدريسيين
 
@@ -98,9 +101,10 @@ export default function AdminReportsPage() {
     setDepartments(loadedDepts); // 💾 حفظ الأقسام
     setProfiles(loadedProfiles); // 💾 حفظ البروفايلات
     setGrades(getStoredData<Grade[]>('grades', INITIAL_GRADES)); // 💾 حفظ الدرجات
+    setCourses(getStoredData<Course[]>('courses', INITIAL_COURSES)); // 💾 حفظ المواد الدراسية
     // 🚫 تم إلغاء التحديد التلقائي لأول قسم بناءً على طلب المستخدم لتبدأ القوائم بـ "غير محدد"
 
-    // ☁️ مزامنة حية ولحظية من سحابة Supabase للأقسام والملفات الشخصية والدرجات
+    // ☁️ مزامنة حية ولحظية من سحابة Supabase للأقسام والملفات الشخصية والدرجات والمواد
     syncDepartmentsFromSupabase().then((liveDepts) => {
       if (liveDepts && liveDepts.length > 0) {
         setDepartments(liveDepts); // 🔄 تحديث الأقسام الحية
@@ -116,6 +120,12 @@ export default function AdminReportsPage() {
     syncGradesFromSupabase().then((liveGrades) => {
       if (liveGrades && liveGrades.length > 0) {
         setGrades(liveGrades); // 🔄 تحديث الدرجات الحية
+      }
+    }).catch(() => {});
+
+    syncCoursesFromSupabase().then((liveCourses) => {
+      if (liveCourses && liveCourses.length > 0) {
+        setCourses(liveCourses); // 🔄 تحديث المواد الحية
       }
     }).catch(() => {});
 
@@ -177,16 +187,20 @@ export default function AdminReportsPage() {
       return;
     }
 
-    // 📝 بناء الصفوف المنسقة لملف الإكسل
+    // 📝 بناء الصفوف المنسقة لملف الإكسل مع مراعاة مخطط التقييم الفعلي لكل مادة
     const reportRows = filteredStageGrades.map((g) => {
-      const finalScore = calculateFinalTotal(g); // 🧮 حساب المجموع الكلي
+      const courseObj = courses.find((c) => c.id === g.course_id); // 🔍 العثور على بيانات المادة
+      const courseScheme = courseObj ? getCourseAssessmentScheme(courseObj) : undefined; // 🎛️ جلب مخطط التقييم للمادة
+      const isSupActive = courseObj?.is_supplementary_exam_enabled === true; // 🔄 فحص تفعيل الدور الثاني للمادة
+      const cwScore = courseScheme ? calculateCourseworkTotal(g, courseScheme) : (g.final_coursework_total || 0); // 📊 السعي الفعلي للبنود المفتوحة فقط
+      const finalScore = calculateFinalTotal(g, isSupActive, courseScheme); // 🧮 حساب المجموع الكلي وفق المخطط الفعلي
       const letter = getLetterGrade(finalScore); // 🔤 استخراج التقدير الحرفي
 
       return {
         uni_num: sanitizeExcelField(g.university_number || ''), // 🔢 الرقم الجامعي المعقم
         std_name: sanitizeExcelField(g.student_name || ''), // 👤 اسم الطالب بدون مساس
         course: sanitizeExcelField(g.course_name || ''), // 📚 اسم المادة
-        cw: g.final_coursework_total, // 📊 سعي الفصل
+        cw: cwScore, // 📊 سعي الفصل الفعلي الموزون
         fe: g.final_exam, // 📝 الامتحان النهائي
         sup: g.supplementary_exam || '-', // 🔄 الدور الثاني
         tot: finalScore, // 💯 المجموع النهائي

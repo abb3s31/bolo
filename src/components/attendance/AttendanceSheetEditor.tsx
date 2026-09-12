@@ -88,6 +88,9 @@ import { exportCustomAttendanceList } from '@/lib/excel-utils'; // 📊 مولد
 import ExcuseRequestsReviewModal from '@/components/attendance/ExcuseRequestsReviewModal'; // 📑 نافذة تدقيق ومراجعة طلبات الإجازات
 import AttendanceNoticeModal, { AttendanceNoticeCategory } from '@/components/attendance/AttendanceNoticeModal'; // 📢 نافذة التبليغات والتنبيهات الذكية
 import { GroupUsersSvg, GroupBadgeSvg } from '@/components/common/GroupSvgIcons'; // 👥 استيراد أيقونات الكروبات والشعب الفيكتورية النقية
+import { AttendanceHolidaySvg, StudentDaysSheetSvg } from '@/components/common/AttendanceCustomSvgIcons'; // 🏖️ أيقونات العطلة الرسمية وكشف الأيام الفيكتورية النقية بدون برتقالي وبدون بنفسجي
+import { isDateOfficialHoliday } from '@/lib/holiday-service'; // 🏖️ دالة التحقق الذكي من العطل الرسمية المعتمدة للقسم
+import StudentAttendanceDaysModal from '@/components/attendance/StudentAttendanceDaysModal'; // 📋 نافذة كشف الأيام الشامل للطالب
 
 // 🌟 واجهة بيانات التنبيه العائم التفاعلي الفاخر
 export interface AttendanceFloatingToast {
@@ -229,6 +232,11 @@ export default function AttendanceSheetEditor({
   const [selectedEndTime, setSelectedEndTime] = useState<string>(() => calculateEndTime('08:30', initialDuration)); // ⏰ وقت الانتهاء المحسوب تلقائياً
   const [selectedLectureType, setSelectedLectureType] = useState<LectureType>(initialLectureType); // 🏷️ نوع المحاضرة
 
+  // 🏖️ فحص ذكي هل تاريخ الجلسة الحالية يصادف عطلة رسمية معتمدة من رئاسة ومقررية القسم
+  const officialHolidayInfo = useMemo(() => {
+    return isDateOfficialHoliday(selectedDate, course.department_id, course.stage_number);
+  }, [selectedDate, course.department_id, course.stage_number]);
+
   // 📅 سجل المواعيد والتوقيتات المعتمدة من رئاسة ومقررية القسم لكل أسبوع
   const [weeklySchedules, setWeeklySchedules] = useState<CourseWeeklySessionSchedule[]>(() => {
     return getStoredData<CourseWeeklySessionSchedule[]>('course_weekly_schedules', []);
@@ -252,6 +260,8 @@ export default function AttendanceSheetEditor({
   const [noticeTargetStudent, setNoticeTargetStudent] = useState<UserProfile | null>(null); // 👤 الطالب المستهدف بالتبليغ
   const [noticeDefaultCategory, setNoticeDefaultCategory] = useState<AttendanceNoticeCategory>('warning_1'); // ⚠️ فئة التبليغ الافتراضية
   const [isExportingExcel, setIsExportingExcel] = useState<boolean>(false); // ⏳ حالة تصدير إكسل الفاخر
+  const [isTeacherDaysModalOpen, setIsTeacherDaysModalOpen] = useState<boolean>(false); // 📋 حالة فتح نافذة كشف الأيام للطالب
+  const [teacherSelectedStudentForDays, setTeacherSelectedStudentForDays] = useState<UserProfile | null>(null); // 🎓 الطالب المختار لكشف الأيام
 
   // 🔢 7.1.1 عدد محاضرات النظري المعتمدة أسبوعياً من قبل رئاسة القسم (1 أو 2)
   const theoryLecturesCount = useMemo<1 | 2>(() => {
@@ -1176,17 +1186,19 @@ export default function AttendanceSheetEditor({
         );
 
         return {
-          student_name: st.full_name,
-          university_number: st.university_number || st.id,
-          stage_number: course.stage_number || 1,
-          study_type: (st.study_type || 'morning') as 'morning' | 'evening',
-          course_name: course.name,
-          total_hours: customTotal,
-          unexcused_hours: summary.total_unexcused_absence_hours,
-          excused_hours: summary.absent_excused_count * 2,
-          absence_percentage: summary.absence_percentage,
-          warning_status: summary.warning_status,
-          notes: summary.warning_status === 'banned' ? 'تجاوز حد الغياب 10%' : undefined,
+          student_name: st.full_name, // 👤 اسم الطالب الثلاثي
+          university_number: st.university_number || st.id, // 🆔 الرقم الجامعي
+          stage_number: course.stage_number || 1, // 🎓 رقم المرحلة
+          study_type: (st.study_type || 'morning') as 'morning' | 'evening', // ☀️ نوع الدراسة
+          course_name: course.name, // 📘 اسم المادة
+          total_hours: customTotal, // ⏳ الساعات المقررة
+          present_hours: summary.total_present_hours || 0, // 🟢 ساعات الحضور الفعلي
+          excused_hours: summary.total_excused_absence_hours || 0, // 🔵 ساعات الإجازة الرسمية
+          holiday_hours: summary.total_holiday_hours || 0, // 🏖️ ساعات العطلة الرسمية
+          unexcused_hours: summary.total_unexcused_absence_hours || 0, // 🔴 ساعات الغياب غير المبرر
+          absence_percentage: summary.absence_percentage, // 📊 نسبة الغياب
+          warning_status: summary.warning_status, // ⚠️ الموقف والإنذار
+          notes: summary.warning_status === 'banned' ? 'تجاوز حد الغياب 10%' : undefined, // 📝 ملاحظة
         };
       });
 
@@ -1465,6 +1477,60 @@ export default function AttendanceSheetEditor({
           </button>
         </div>
       </div>
+
+      {/* 🏖️ تنبيه العطلة الرسمية المعتمدة للجلسة الحالية من قبل رئاسة ومقررية القسم */}
+      {officialHolidayInfo && (
+        <div className="bg-sky-50 border-2 border-sky-300 rounded-3xl p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4 animate-in fade-in duration-200">
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-sky-100 border border-sky-300 flex items-center justify-center text-sky-700 shrink-0 shadow-2xs">
+              <AttendanceHolidaySvg className="w-6 h-6 text-sky-700" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 bg-sky-200/80 text-sky-950 font-black text-xs rounded-lg border border-sky-300">
+                  عطلة رسمية معتمدة 🏖️
+                </span>
+                <span className="text-xs text-sky-800 font-bold">
+                  بتاريخ ({formatDateArabicWithDay(selectedDate)})
+                </span>
+              </div>
+              <h3 className="text-base sm:text-lg font-black text-sky-950 mt-1">
+                {officialHolidayInfo.title}
+              </h3>
+              <p className="text-xs text-sky-800 mt-0.5">
+                أعلنت رئاسة ومقررية القسم هذا اليوم كعطلة رسمية. يمكنك تثبيت حالة كافة الطلبة كعطلة رسمية بنقرة واحدة لحفظ ساعاتهم دون احتساب أي غياب.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              const updated = { ...currentSessionMap };
+              students.forEach((st) => {
+                if (updated[st.id]) {
+                  updated[st.id] = {
+                    ...updated[st.id],
+                    status: 'holiday',
+                    notes: `عطلة رسمية: ${officialHolidayInfo.title}`,
+                  };
+                }
+              });
+              setCurrentSessionMap(updated);
+              showFloatingToast({
+                title: 'تم تثبيت العطلة الرسمية لكافة الطلاب بنجاح 🏖️',
+                subtitle: officialHolidayInfo.title,
+                type: 'holiday',
+              });
+            }}
+            className="px-4 py-2.5 bg-[#0F2942] hover:bg-[#163a5f] active:scale-95 text-white rounded-2xl font-black text-xs sm:text-sm transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer border border-[#0F2942] shrink-0"
+            title="تثبيت حالة العطلة الرسمية لكافة طلبة الشعبة لهذه الجلسة"
+          >
+            <AttendanceHolidaySvg className="w-4 h-4 text-cyan-300 shrink-0" />
+            <span>تثبيت العطلة للجميع 🏖️</span>
+          </button>
+        </div>
+      )}
 
       {/* 🎛️ 2. شريط تحديد الأسبوع الدراسي والمعلومات الزمنية للمحاضرة */}
       <div className="bg-white p-6 sm:p-7 rounded-3xl border-2 border-slate-200 shadow-sm space-y-6">
@@ -2775,27 +2841,44 @@ export default function AttendanceSheetEditor({
                           >
                             {warningMeta.label_ar}
                           </span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setNoticeTargetStudent(st);
-                              if (summary.warning_status === 'banned') {
-                                setNoticeDefaultCategory('banned');
-                              } else if (summary.warning_status === 'warning_2') {
-                                setNoticeDefaultCategory('warning_2');
-                              } else if (summary.warning_status === 'warning_1') {
-                                setNoticeDefaultCategory('warning_1');
-                              } else {
-                                setNoticeDefaultCategory('general_announcement');
-                              }
-                              setIsNoticeModalOpen(true);
-                            }}
-                            className="w-full py-1.5 px-3 bg-[#0F2942] hover:bg-[#163a5f] active:scale-95 text-white rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-xs border border-[#1e4570]"
-                            title={`إرسال تبليغ رسمي للطالب ${st.full_name}`}
-                          >
-                            <Send className="w-3.5 h-3.5 text-cyan-300 shrink-0" />
-                            <span>تبليغ الطالب</span>
-                          </button>
+                          <div className="flex flex-col gap-1 w-full mt-1">
+                            {/* 📋 زر كشف الأيام الشامل للطالب */}
+                            <button
+                              type="button" // 🔘 نوع الزر لمنع أي إرسال غير مقصود
+                              onClick={() => { // ⚡ فتح نافذة كشف الأيام لهذا الطالب
+                                setTeacherSelectedStudentForDays(st);
+                                setIsTeacherDaysModalOpen(true);
+                              }}
+                              className="w-full py-1 px-2.5 bg-blue-50 hover:bg-blue-100 active:scale-95 text-blue-950 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-1 shadow-2xs border border-blue-200"
+                              title={`عرض كشف أيام الحضور والغياب والإجازات والعطل للطالب ${st.full_name}`}
+                            >
+                              <StudentDaysSheetSvg className="w-3.5 h-3.5 text-blue-700 shrink-0" /> {/* 📋 أيقونة كشف الأيام الفيكتورية */}
+                              <span>كشف الأيام</span> {/* 📝 نص الزر */}
+                            </button>
+
+                            {/* 📢 زر إرسال تبليغ رسمي للطالب */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setNoticeTargetStudent(st);
+                                if (summary.warning_status === 'banned') {
+                                  setNoticeDefaultCategory('banned');
+                                } else if (summary.warning_status === 'warning_2') {
+                                  setNoticeDefaultCategory('warning_2');
+                                } else if (summary.warning_status === 'warning_1') {
+                                  setNoticeDefaultCategory('warning_1');
+                                } else {
+                                  setNoticeDefaultCategory('general_announcement');
+                                }
+                                setIsNoticeModalOpen(true);
+                              }}
+                              className="w-full py-1 px-2.5 bg-[#0F2942] hover:bg-[#163a5f] active:scale-95 text-white rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-1 shadow-xs border border-[#1e4570]"
+                              title={`إرسال تبليغ رسمي للطالب ${st.full_name}`}
+                            >
+                              <Send className="w-3.5 h-3.5 text-cyan-300 shrink-0" />
+                              <span>تبليغ الطالب</span>
+                            </button>
+                          </div>
                         </div>
                       </div>
 
@@ -2917,6 +3000,17 @@ export default function AttendanceSheetEditor({
             type: 'info',
           });
         }}
+      />
+
+      {/* 📋 11. نافذة كشف الأيام الشامل للطالب للتدريسي */}
+      <StudentAttendanceDaysModal
+        isOpen={isTeacherDaysModalOpen}
+        onClose={() => {
+          setIsTeacherDaysModalOpen(false);
+          setTeacherSelectedStudentForDays(null);
+        }}
+        student={teacherSelectedStudentForDays}
+        records={initialRecords}
       />
 
     </div>
